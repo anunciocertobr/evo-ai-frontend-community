@@ -222,7 +222,14 @@ export default function JourneyPage() {
       label: t('table.columns.status'),
       render: journey => (
         <div className="flex items-center gap-2">
-          <Switch checked={journey.isActive} onCheckedChange={() => handleToggleJourney(journey)} />
+          {/* EVO-2191: the CRM proxy derives the permission from the subpath, so the
+              flip needs journeys.toggle_active — not journeys.update. Without this
+              the switch stayed clickable and the call came back 403. */}
+          <Switch
+            checked={journey.isActive}
+            disabled={!permissionsReady || !can('journeys', 'toggle_active')}
+            onCheckedChange={() => handleToggleJourney(journey)}
+          />
           <span className="text-sm text-sidebar-foreground/70">
             {journey.isActive ? t('table.status.active') : t('table.status.inactive')}
           </span>
@@ -264,7 +271,9 @@ export default function JourneyPage() {
       label: t('actions.duplicate'),
       icon: <Copy className="h-4 w-4" />,
       onClick: handleDuplicateJourney,
-      show: () => permissionsReady && can('journeys', 'create'),
+      // EVO-2191: POST /journeys/:id/duplicate resolves to journeys.duplicate on
+      // the CRM proxy, so gating on journeys.create showed an action that 403s.
+      show: () => permissionsReady && can('journeys', 'duplicate'),
     },
     {
       label: t('actions.delete'),
