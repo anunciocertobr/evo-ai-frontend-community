@@ -140,48 +140,18 @@ describe('journeyService variable methods — envelope unwrap (EVO-1836)', () =>
   });
 });
 
-// EVO-2191/EVO-2188: the CRM proxy gates each operation by permission derived from
-// the HTTP method + subpath (Guilherme's review). These lock the exact URLs so a
-// future rename (e.g. /toggle-active -> /toggle, or breaking a /sessions path) can't
-// silently drift the operation onto the wrong journeys.* permission and 403.
-describe('CRM proxy path contract (permission mapping)', () => {
+// Migration smoke: journeys must go through the CRM proxy (`api`), not the
+// evo-flow-direct `apiEvoFlow` — that swap is the whole fix (EVO-2191). One
+// assertion that `create` hits the CRM base path is enough; the subpath ->
+// permission contract is owned and tested on the backend
+// (evo-ai-crm-community spec/requests/api/v1/journeys_proxy_rbac_spec.rb, EVO-2188),
+// which is where that heuristic actually runs — a frontend unit test can't verify it.
+describe('CRM proxy migration (EVO-2191)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  const ok = { data: { id: 'j1' } } as never;
-
-  it('createJourney POSTs /journeys (maps to journeys.create)', async () => {
-    vi.mocked(api.post).mockResolvedValue(ok);
+  it('createJourney goes through the CRM proxy (api) on /journeys', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: { id: 'j1' } } as never);
     await journeyService.createJourney({ name: 'x', flowData: {} as never, flowTriggers: [] as never });
     expect(api.post).toHaveBeenCalledWith('/journeys', expect.objectContaining({ name: 'x' }));
-  });
-
-  it('updateJourney PATCHes /journeys/:id (maps to journeys.update)', async () => {
-    vi.mocked(api.patch).mockResolvedValue(ok);
-    await journeyService.updateJourney('j1', { name: 'y' } as never);
-    expect(api.patch).toHaveBeenCalledWith('/journeys/j1', expect.objectContaining({ name: 'y' }));
-  });
-
-  it('deleteJourney DELETEs /journeys/:id (maps to journeys.delete)', async () => {
-    vi.mocked(api.delete).mockResolvedValue(ok);
-    await journeyService.deleteJourney('j1');
-    expect(api.delete).toHaveBeenCalledWith('/journeys/j1');
-  });
-
-  it('toggleJourney POSTs /journeys/:id/toggle-active (maps to journeys.toggle_active)', async () => {
-    vi.mocked(api.post).mockResolvedValue(ok);
-    await journeyService.toggleJourney('j1');
-    expect(api.post).toHaveBeenCalledWith('/journeys/j1/toggle-active', {});
-  });
-
-  it('duplicateJourney POSTs /journeys/:id/duplicate (maps to journeys.duplicate)', async () => {
-    vi.mocked(api.post).mockResolvedValue(ok);
-    await journeyService.duplicateJourney('j1');
-    expect(api.post).toHaveBeenCalledWith('/journeys/j1/duplicate', {});
-  });
-
-  it('deleteJourneySession DELETEs a /sessions/ path (maps to journeys.manage_sessions, not journeys.delete)', async () => {
-    vi.mocked(api.delete).mockResolvedValue(ok);
-    await journeyService.deleteJourneySession('j1', 's1');
-    expect(api.delete).toHaveBeenCalledWith('/journeys/j1/sessions/s1');
   });
 });
