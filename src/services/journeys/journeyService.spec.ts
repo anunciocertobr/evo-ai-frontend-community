@@ -154,4 +154,77 @@ describe('CRM proxy migration (EVO-2191)', () => {
     await journeyService.createJourney({ name: 'x', flowData: {} as never, flowTriggers: [] as never });
     expect(api.post).toHaveBeenCalledWith('/journeys', expect.objectContaining({ name: 'x' }));
   });
+
+  // The envelope tests above only reach 8 of the 16 calls; a leftover `apiEvoFlow`
+  // in any of the others would still ship green. Drive each remaining verb and
+  // assert the mocked proxy client took the call — the migration invariant, with
+  // no path string pinned (the subpath -> permission mapping is the backend's).
+  it.each([
+    ['getJourneys', () => journeyService.getJourneys(), 'get'],
+    ['getJourney', () => journeyService.getJourney('j1'), 'get'],
+    ['getJourneysByTriggerType', () => journeyService.getJourneysByTriggerType('message_received'), 'get'],
+    ['updateJourney', () => journeyService.updateJourney('j1', { name: 'y' }), 'patch'],
+    ['deleteJourney', () => journeyService.deleteJourney('j1'), 'delete'],
+    ['deleteJourneySession', () => journeyService.deleteJourneySession('j1', 's1'), 'delete'],
+    ['toggleJourney', () => journeyService.toggleJourney('j1'), 'post'],
+    ['duplicateJourney', () => journeyService.duplicateJourney('j1'), 'post'],
+  ] as const)('%s goes through the CRM proxy (api.%s)', async (_name, call, verb) => {
+    vi.mocked(api[verb]).mockResolvedValue({ data: { success: true, data: {} } } as never);
+
+    await call();
+
+    expect(api[verb]).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The proxy re-wraps evo-flow's error body and answers its own guards with shapes
+// of its own, so reading `data.message` alone — what the pre-proxy service did —
+// dropped every backend reason on the floor and showed the generic fallback.
+describe('error surfacing through the CRM proxy (EVO-2191)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const rejectWith = (verb: 'get' | 'post' | 'patch' | 'delete', data: unknown) =>
+    vi.mocked(api[verb]).mockRejectedValue({ response: { data } } as never);
+
+  it('surfaces the evo-flow message the proxy wrapped in `errors`', async () => {
+    rejectWith('post', { errors: { success: false, message: 'Journey name is required' } });
+
+    await expect(
+      journeyService.createJourney({ name: '', flowData: {} as never, flowTriggers: [] as never }),
+    ).rejects.toThrow('Journey name is required');
+  });
+
+  it('surfaces the proxy guard message (413 oversized payload)', async () => {
+    rejectWith('patch', { errors: { message: 'Journey payload is too large or too deeply nested' } });
+
+    await expect(journeyService.updateJourney('j1', { name: 'y' })).rejects.toThrow(
+      'Journey payload is too large or too deeply nested',
+    );
+  });
+
+  it('surfaces the 503 raised when evo-flow is not configured on the deployment', async () => {
+    rejectWith('get', {
+      success: false,
+      error: { code: 'SERVICE_UNAVAILABLE', message: 'Journeys are unavailable: the evo-flow integration is not configured on this deployment' },
+    });
+
+    await expect(journeyService.getJourneys()).rejects.toThrow(/evo-flow integration is not configured/);
+  });
+
+  it('surfaces the RBAC 403, which the CRM renders at the top level', async () => {
+    rejectWith('post', {
+      error: 'Forbidden - Insufficient permissions',
+      message: 'You do not have the required permissions to access this resource',
+    });
+
+    await expect(journeyService.toggleJourney('j1')).rejects.toThrow(
+      'You do not have the required permissions to access this resource',
+    );
+  });
+
+  it('falls back to the local message when the response carries none', async () => {
+    rejectWith('delete', {});
+
+    await expect(journeyService.deleteJourney('j1')).rejects.toThrow('Erro ao excluir jornada');
+  });
 });
