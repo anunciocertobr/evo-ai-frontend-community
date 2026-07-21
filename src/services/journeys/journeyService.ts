@@ -1,4 +1,4 @@
-import apiEvoFlow from '../core/apiEvoFlow';
+import api from '@/services/core/api';
 import { extractData, extractResponse } from '@/utils/apiHelpers';
 import type {
   Journey,
@@ -23,7 +23,7 @@ class JourneyService {
     },
   ): Promise<JourneysResponse> {
     try {
-      const response = await apiEvoFlow.get(this.getBaseUrl(), {
+      const response = await api.get(this.getBaseUrl(), {
         params,
       });
       return extractResponse<Journey>(response) as JourneysResponse;
@@ -35,7 +35,7 @@ class JourneyService {
 
   async getJourney(id: string): Promise<Journey> {
     try {
-      const response = await apiEvoFlow.get(`${this.getBaseUrl()}/${id}`);
+      const response = await api.get(`${this.getBaseUrl()}/${id}`);
       return extractData<Journey>(response);
     } catch (error: any) {
       console.error('Erro ao buscar jornada:', error);
@@ -52,7 +52,7 @@ class JourneyService {
     payload: CreateJourneyPayload,
   ): Promise<Journey> {
     try {
-      const response = await apiEvoFlow.post(
+      const response = await api.post(
         this.getBaseUrl(),
         {
           name: payload.name,
@@ -88,7 +88,7 @@ class JourneyService {
         delete updateData.id;
       }
 
-      const response = await apiEvoFlow.patch(`${this.getBaseUrl()}/${id}`, updateData);
+      const response = await api.patch(`${this.getBaseUrl()}/${id}`, updateData);
 
       return extractData<Journey>(response);
     } catch (error: any) {
@@ -105,7 +105,7 @@ class JourneyService {
 
   async deleteJourney(id: string): Promise<JourneyDeleteResponse> {
     try {
-      const response = await apiEvoFlow.delete(`${this.getBaseUrl()}/${id}`);
+      const response = await api.delete(`${this.getBaseUrl()}/${id}`);
       return extractData<JourneyDeleteResponse>(response);
     } catch (error: any) {
       console.error('Erro ao excluir jornada:', error);
@@ -115,7 +115,7 @@ class JourneyService {
 
   async toggleJourney(id: string): Promise<JourneyResponse> {
     try {
-      const response = await apiEvoFlow.post(
+      const response = await api.post(
         `${this.getBaseUrl()}/${id}/toggle-active`,
         {},
       );
@@ -128,7 +128,7 @@ class JourneyService {
 
   async duplicateJourney(id: string): Promise<{ data: Journey }> {
     try {
-      const response = await apiEvoFlow.post(
+      const response = await api.post(
         `${this.getBaseUrl()}/${id}/duplicate`,
         {},
       );
@@ -145,7 +145,7 @@ class JourneyService {
     triggerType: string,
   ): Promise<{ data: Journey[] }> {
     try {
-      const response = await apiEvoFlow.get(`${this.getBaseUrl()}/trigger-type/${triggerType}`);
+      const response = await api.get(`${this.getBaseUrl()}/trigger-type/${triggerType}`);
       const data = extractData<Journey[]>(response);
       return {
         data: Array.isArray(data) ? data : [],
@@ -160,7 +160,7 @@ class JourneyService {
 
   async getJourneyVariables(id: string): Promise<{ data: any[] }> {
     try {
-      const response = await apiEvoFlow.get(`${this.getBaseUrl()}/${id}/variables`);
+      const response = await api.get(`${this.getBaseUrl()}/${id}/variables`);
 
       const data = extractData<unknown[]>(response);
       return {
@@ -178,7 +178,7 @@ class JourneyService {
     variables: any[],
   ): Promise<{ data: any[] }> {
     try {
-      const response = await apiEvoFlow.post(`${this.getBaseUrl()}/${id}/variables`, variables);
+      const response = await api.post(`${this.getBaseUrl()}/${id}/variables`, variables);
       const data = extractData<unknown[]>(response);
       return {
         data: Array.isArray(data) ? data : [],
@@ -203,7 +203,7 @@ class JourneyService {
     },
   ): Promise<{ data: any }> {
     try {
-      const response = await apiEvoFlow.get(`${this.getBaseUrl()}/${journeyId}/sessions`, {
+      const response = await api.get(`${this.getBaseUrl()}/${journeyId}/sessions`, {
         params,
       });
       return {
@@ -222,7 +222,7 @@ class JourneyService {
     };
   }> {
     try {
-      const response = await apiEvoFlow.get(`${this.getBaseUrl()}/${journeyId}/sessions/stats`);
+      const response = await api.get(`${this.getBaseUrl()}/${journeyId}/sessions/stats`);
       return {
         data: extractData(response),
       };
@@ -237,7 +237,7 @@ class JourneyService {
     sessionId: string,
   ): Promise<{ data: any }> {
     try {
-      const response = await apiEvoFlow.get(
+      const response = await api.get(
         `${this.getBaseUrl()}/${journeyId}/sessions/${sessionId}`,
       );
       return {
@@ -254,7 +254,7 @@ class JourneyService {
     sessionId: string,
   ): Promise<void> {
     try {
-      await apiEvoFlow.delete(`${this.getBaseUrl()}/${journeyId}/sessions/${sessionId}`);
+      await api.delete(`${this.getBaseUrl()}/${journeyId}/sessions/${sessionId}`);
     } catch (error: any) {
       console.error('Erro ao deletar sessão:', error);
       throw new Error(error?.response?.data?.message || 'Erro ao deletar sessão');
@@ -266,7 +266,7 @@ class JourneyService {
     sessionId: string,
   ): Promise<{ data: any }> {
     try {
-      const response = await apiEvoFlow.post(
+      const response = await api.post(
         `${this.getBaseUrl()}/${journeyId}/sessions/${sessionId}/cancel`,
         {},
       );
@@ -284,7 +284,7 @@ class JourneyService {
     status: string,
   ): Promise<{ data: { deleted: number } }> {
     try {
-      const response = await apiEvoFlow.delete(
+      const response = await api.delete(
         `${this.getBaseUrl()}/${journeyId}/sessions/bulk/${status}`,
       );
       return {
