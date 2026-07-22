@@ -14,7 +14,7 @@ import {
 import { Grid3X3, List, Users as UsersIcon } from 'lucide-react';
 import EmptyState from '@/components/base/EmptyState';
 
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { useAuthStore } from '@/store/authStore';
 import { usersService } from '@/services/users';
 import { User, UsersListParams, UsersState, USER_FILTER_TYPES } from '@/types/users';
@@ -62,7 +62,7 @@ const INITIAL_STATE: UsersState = {
 
 export default function Users() {
   const { t } = useLanguage('users');
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const { currentUser } = useAuthStore();
   const [state, setState] = useState<UsersState>(INITIAL_STATE);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');

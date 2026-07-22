@@ -76,17 +76,20 @@ const AIActionsModal: React.FC<AIActionsModalProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-2 py-4">
+        <div className="grid gap-2 pt-2">
           {actions.map(action => (
             <Button
               key={action.key}
               variant="outline"
-              className="w-full justify-start h-auto py-3 px-4 hover:bg-primary/5 hover:border-primary/50 transition-colors"
+              className="w-full min-w-0 justify-start h-auto py-3 px-4 hover:bg-primary/5 hover:border-primary/50 transition-colors"
               onClick={() => handleActionClick(action.key)}
             >
-              <div className="flex items-start gap-3 w-full">
+              <div className="flex items-start gap-3 w-full min-w-0">
                 <div className="mt-0.5">{getActionIcon(action.key)}</div>
-                <div className="flex flex-col items-start text-left flex-1">
+                {/* min-w-0 + whitespace-normal: sobrepõe o `whitespace-nowrap` herdado do
+                    Button base (@evoapi) — sem isso a descrição longa (ex: "Analisar
+                    sentimento") não quebra e empurra o card p/ fora da borda direita. */}
+                <div className="flex flex-col items-start text-left flex-1 min-w-0 whitespace-normal break-words">
                   <span className="font-medium">
                     {t(`aiAssistance.actions.${action.key}.label`)}
                   </span>

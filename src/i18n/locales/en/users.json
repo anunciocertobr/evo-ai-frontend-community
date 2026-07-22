@@ -1,7 +1,7 @@
 {
-  "title": "Team Members",
+  "title": "Users",
   "subtitle": "Manage your team and configure access permissions",
-  "loading": "Loading team members...",
+  "loading": "Loading users...",
   "card": {
     "id": "ID",
     "role": "Role",

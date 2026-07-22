@@ -1,4 +1,4 @@
-import api from '@/services/core/api';
+import agentProcessorApi from '@/services/core/agentProcessorApi';
 import type {
   MondayConfig,
   MondayOAuthResponse,
@@ -12,7 +12,7 @@ const MondayService = {
    */
   async generateAuthorization(agentId: string): Promise<MondayOAuthResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/monday/authorization`
       );
       return data;
@@ -31,7 +31,7 @@ const MondayService = {
     state: string
   ): Promise<MondayConnectionResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/monday/callback`,
         {
           code,
@@ -50,7 +50,7 @@ const MondayService = {
    */
   async getConfiguration(agentId: string): Promise<MondayConfig | null> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/monday`
       );
       return data.config || null;
@@ -71,7 +71,7 @@ const MondayService = {
     config: Partial<MondayConfig>
   ): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.put(
+      const { data } = await agentProcessorApi.put(
         `/agents/${agentId}/integrations/monday`,
         { config }
       );
@@ -87,7 +87,7 @@ const MondayService = {
    */
   async disconnect(agentId: string): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.delete(
+      const { data } = await agentProcessorApi.delete(
         `/agents/${agentId}/integrations/monday`
       );
       return data;
@@ -103,7 +103,7 @@ const MondayService = {
    */
   async discoverTools(agentId: string): Promise<DiscoverToolsResponse> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/monday/discover-tools`
       );
       return data;

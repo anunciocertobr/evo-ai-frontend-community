@@ -36,7 +36,7 @@ export const COMMON_ALLOWED = new Set<string>([
   // --- single-letter / abbreviation fallbacks ---
   'U', 'N/A', 'NA',
   // --- loanwords / cognates legitimately identical in pt-BR ---
-  'Popular', 'Templates', 'leads', 'total', 'timeout', 'default', 'production',
+  'Popular', 'Templates', 'leads', 'Leads', 'total', 'timeout', 'default', 'production',
   'Argentina', 'Ding',
   // --- tech field labels (with required-marker asterisk / interpolation) ---
   'URL *', 'Email *', 'Website URL', '+{{count}}', 'Tags ({{count}})',
@@ -98,6 +98,9 @@ export const PER_FILE_ALLOWED: Record<string, Set<string>> = {
     'Brasília (GMT-3)', 'Acre (GMT-5)', 'Manaus (GMT-4)',
     'Fernando de Noronha (GMT-2)', 'Paris (GMT+1)',
     'Bot via webhook', 'Total: {{count}}',
+    // "Template" is an accepted loanword in the pt-BR product copy (see
+    // `templatesLabel: "Templates"`), not an untranslated leak.
+    'Template',
   ]),
   'chat.json': new Set([
     '🤖 Bot', 'WhatsApp Business', 'Twilio SMS', 'Inbox ID:', 'Account ID:',
@@ -135,6 +138,9 @@ export const PER_FILE_ALLOWED: Record<string, Set<string>> = {
     'AI Assistant Agent', 'Customer Support Bot', 'Data Analysis Agent',
   ]),
   'pipelines.json': new Set(['Euro (EUR)']),
+  // 'SKU-001' is a placeholder example code; 'Euro (EUR)' is the currency's own
+  // name in pt-BR (same allowance as pipelines.json above).
+  'products.json': new Set(['SKU-001', 'Euro (EUR)']),
   'crmForms.json': new Set([
     'Leads', 'Leads — {{name}}', 'E-mail', 'Pipeline…', 'pipeline…', 'key', 'label',
   ]),

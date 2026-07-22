@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { BaseHeader, HeaderAction } from '@/components/base';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { IntegrationBackButton } from '../../shared';
 
 interface OAuthAppsHeaderProps {
@@ -29,7 +29,7 @@ export default function OAuthAppsHeader({
   onBack,
 }: OAuthAppsHeaderProps) {
   const { t } = useLanguage('integrations');
-  const { can, isReady } = useUserPermissions();
+  const { can, isReady } = usePermissions();
 
   const primaryAction: HeaderAction | undefined = isReady && can('oauth_applications', 'create') ? {
     label: t('oauth.header.newApp'),

@@ -13,10 +13,8 @@ vi.mock('@/services/pipelines', () => ({
 }));
 vi.mock('./ContactHeader', () => ({ default: () => null }));
 vi.mock('./ContactDetails', () => ({ default: () => null }));
-vi.mock('./MacrosList', () => ({ default: () => null }));
 vi.mock('./EditableContactCustomAttributes', () => ({ default: () => null }));
 vi.mock('./EditableConversationCustomAttributes', () => ({ default: () => null }));
-vi.mock('@/components/pipelines/ConversationPipelineItem', () => ({ default: () => null }));
 type WithChildren = { children?: React.ReactNode; onClick?: () => void };
 vi.mock('@evoapi/design-system/button', () => ({ Button: ({ children, onClick }: WithChildren) => <button onClick={onClick}>{children}</button> }));
 vi.mock('@evoapi/design-system/card', () => ({
@@ -112,7 +110,7 @@ describe('ContactSidebar — drawer declutter (EVO-1782)', () => {
     mockGetContact.mockResolvedValue(makeContact('1'));
   });
 
-  it('drops the dead Contact Notes / Previous Conversations stub sections, keeps Pipeline', async () => {
+  it('drops the dead Contact Notes / Previous Conversations stub sections, and the Pipeline / Macros / Conversation Info noise cards', async () => {
     let view!: ReturnType<typeof render>;
     await act(async () => {
       view = render(<ContactSidebar {...defaultProps} />);
@@ -122,7 +120,11 @@ describe('ContactSidebar — drawer declutter (EVO-1782)', () => {
     // Removed stub sections must not render
     expect(view.queryByText('contactSidebar.sections.contactNotes.title')).toBeNull();
     expect(view.queryByText('contactSidebar.sections.previousConversations.title')).toBeNull();
+    // Removed noise cards (§3.5 declutter) must not render either
+    expect(view.queryByText('contactSidebar.sections.pipeline.title')).toBeNull();
+    expect(view.queryByText('contactSidebar.sections.macros.title')).toBeNull();
+    expect(view.queryByText('contactSidebar.sections.conversationInfo.title')).toBeNull();
     // A kept section still renders
-    expect(view.queryByText('contactSidebar.sections.pipeline.title')).not.toBeNull();
+    expect(view.queryByText('contactSidebar.sections.contactDetails.title')).not.toBeNull();
   });
 });

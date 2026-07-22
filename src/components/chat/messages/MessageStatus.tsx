@@ -10,10 +10,20 @@ interface MessageStatusProps {
   message: Message;
   isOwn: boolean;
   onRetry?: () => void;
+  // 'tuck': float:right dentro do fluxo do texto (bolha curta, estilo WhatsApp).
+  // 'default': bloco separado abaixo do conteúdo (mídia/cards/preview, mais alto).
+  // Nunca 'absolute' — o protótipo reserva espaço em fluxo nos dois casos, sem overlap.
+  variant?: 'default' | 'tuck';
 }
 
-const MessageStatus: React.FC<MessageStatusProps> = ({ message, isOwn, onRetry }) => {
+const MessageStatus: React.FC<MessageStatusProps> = ({ message, isOwn, onRetry, variant = 'default' }) => {
   const { t } = useLanguage('chat');
+
+  // MessageBubble só colore a bolha (bg-primary/bg-purple-600) quando isOwn — isFromAgent/
+  // isFromBot ali só ficam true junto de isOwn (ver MessageList.tsx). Notas privadas mantêm
+  // fundo claro mesmo com isOwn, então ficam com o texto neutro.
+  const isOnColoredBubble = isOwn && !message.private;
+  const timeTextClass = isOnColoredBubble ? 'text-white/70' : 'text-muted-foreground';
 
   const getStatusIcon = () => {
     if (!isOwn) return null;
@@ -94,9 +104,23 @@ const MessageStatus: React.FC<MessageStatusProps> = ({ message, isOwn, onRetry }
     }
   };
 
+  // 'tuck' fica em fluxo normal (float, sem position:absolute) — precisa ser renderizado
+  // como o último nó dentro do MESMO bloco de texto para "grudar" na última linha, à
+  // la WhatsApp. Ver uso em MessageBubble (wrapper com overflow:hidden faz o clearfix).
+  if (variant === 'tuck') {
+    return (
+      <span
+        className={`float-right inline-flex items-center gap-1 mt-1.5 ml-3.5 text-[11px] leading-none ${timeTextClass}`}
+      >
+        <span>{formatMessageTime(message.created_at)}</span>
+        {getStatusIcon()}
+      </span>
+    );
+  }
+
   return (
     <div
-      className={`flex items-center gap-1 mt-1 text-xs ${isOwn ? 'justify-end' : 'justify-start'}`}
+      className={`flex items-center gap-1 mt-1.5 text-xs ${isOwn ? 'justify-end' : 'justify-start'}`}
     >
       <span className="text-muted-foreground">{formatMessageTime(message.created_at)}</span>
       {getStatusIcon()}

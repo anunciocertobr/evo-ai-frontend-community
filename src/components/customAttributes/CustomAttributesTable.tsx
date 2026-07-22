@@ -1,4 +1,5 @@
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { Edit, Trash2 } from 'lucide-react';
 import BaseTable from '@/components/base/BaseTable';
 import { CustomAttributeDefinition, ATTRIBUTE_TYPE_OPTIONS, AttributeModel } from '@/types/settings';
@@ -30,6 +31,7 @@ export default function CustomAttributesTable({
   sortOrder,
 }: CustomAttributesTableProps) {
   const { t } = useLanguage('customAttributes');
+  const { can, isReady } = usePermissions();
 
   const getAttributeTypeLabel = (type: string) => {
     const option = ATTRIBUTE_TYPE_OPTIONS.find(opt => opt.value === type);
@@ -149,12 +151,14 @@ export default function CustomAttributesTable({
       label: t('actions.edit'),
       icon: <Edit className="h-4 w-4" />,
       onClick: onEditAttribute,
+      show: () => isReady && can('custom_attribute_definitions', 'update'),
     },
     {
       label: t('actions.delete'),
       icon: <Trash2 className="h-4 w-4" />,
       onClick: onDeleteAttribute,
       variant: 'destructive' as const,
+      show: () => isReady && can('custom_attribute_definitions', 'delete'),
     },
   ];
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Input, Label, Textarea } from '@evoapi/design-system';
 import { Sparkles, Wand2, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { openaiService } from '@/services/integrations/openaiService';
 import { useGlobalConfig } from '@/contexts/GlobalConfigContext';
 import { toast } from 'sonner';
@@ -21,6 +22,7 @@ interface ProfileSectionProps {
 
 const ProfileSection = ({ formData, onFormDataChange, agentType }: ProfileSectionProps) => {
   const { t } = useLanguage('aiAgents');
+  const { can, isReady } = usePermissions();
   const config = useGlobalConfig();
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
@@ -28,8 +30,9 @@ const ProfileSection = ({ formData, onFormDataChange, agentType }: ProfileSectio
   // Orchestrator types and external don't have role, goal, or instruction
   const isOrchestratorType = ['sequential', 'parallel', 'loop', 'task', 'external'].includes(agentType || '');
 
-  // Check if OpenAI is configured to show AI actions
-  const showAIActions = config.openaiConfigured === true;
+  // AI actions call the CRM integrations processor, so they demand both the
+  // configured provider and the integrations.execute grant.
+  const showAIActions = config.openaiConfigured === true && isReady && can('integrations', 'execute');
 
   const handleReview = async () => {
     if (!formData.instruction || !formData.instruction.trim()) {

@@ -23,6 +23,21 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
+      // The deprecated useUserPermissions hook (unstable `can`, split-brain
+      // with the context) was removed; permissions come from
+      // usePermissions/PermissionsContext only.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@/hooks/useUserPermissions',
+              message:
+                'useUserPermissions was removed. Use usePermissions from @/contexts/PermissionsContext.',
+            },
+          ],
+        },
+      ],
     },
   },
   // Flow Builder discipline (EVO-1253): all interactive buttons must come

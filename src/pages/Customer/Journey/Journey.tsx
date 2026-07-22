@@ -21,7 +21,7 @@ import type { Node, Edge } from '@xyflow/react';
 import { validateJourney } from '@/utils/journeyFlowValidation';
 import JourneyModal from '@/components/journey/JourneyModal';
 import { toast } from 'sonner';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { useLanguage } from '@/hooks/useLanguage';
 
 export default function JourneyPage() {
@@ -35,7 +35,7 @@ export default function JourneyPage() {
   const [journeyToDelete, setJourneyToDelete] = useState<Journey | null>(null);
 
   const navigate = useNavigate();
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const { t } = useLanguage('journey');
 
   const fetchJourneys = async () => {
@@ -222,7 +222,14 @@ export default function JourneyPage() {
       label: t('table.columns.status'),
       render: journey => (
         <div className="flex items-center gap-2">
-          <Switch checked={journey.isActive} onCheckedChange={() => handleToggleJourney(journey)} />
+          {/* EVO-2191: the CRM proxy derives the permission from the subpath, so the
+              flip needs journeys.toggle_active — not journeys.update. Without this
+              the switch stayed clickable and the call came back 403. */}
+          <Switch
+            checked={journey.isActive}
+            disabled={!permissionsReady || !can('journeys', 'toggle_active')}
+            onCheckedChange={() => handleToggleJourney(journey)}
+          />
           <span className="text-sm text-sidebar-foreground/70">
             {journey.isActive ? t('table.status.active') : t('table.status.inactive')}
           </span>
@@ -252,22 +259,28 @@ export default function JourneyPage() {
       label: t('actions.edit'),
       icon: <Edit3 className="h-4 w-4" />,
       onClick: handleEditJourney,
+      show: () => permissionsReady && can('journeys', 'update'),
     },
     {
       label: t('actions.openFlow'),
       icon: <GitBranch className="h-4 w-4" />,
       onClick: handleOpenFlow,
+      show: () => permissionsReady && can('journeys', 'update'),
     },
     {
       label: t('actions.duplicate'),
       icon: <Copy className="h-4 w-4" />,
       onClick: handleDuplicateJourney,
+      // EVO-2191: POST /journeys/:id/duplicate resolves to journeys.duplicate on
+      // the CRM proxy, so gating on journeys.create showed an action that 403s.
+      show: () => permissionsReady && can('journeys', 'duplicate'),
     },
     {
       label: t('actions.delete'),
       icon: <Trash2 className="h-4 w-4" />,
       onClick: handleDeleteClick,
       variant: 'destructive',
+      show: () => permissionsReady && can('journeys', 'delete'),
     },
   ];
 
@@ -279,11 +292,11 @@ export default function JourneyPage() {
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
         searchPlaceholder={t('header.searchPlaceholder')}
-        primaryAction={{
+        primaryAction={permissionsReady && can('journeys', 'create') ? {
           label: t('header.newJourney'),
           icon: <Plus className="h-4 w-4" />,
           onClick: handleCreateJourney,
-        }}
+        } : undefined}
         selectedCount={selectedJourneys.length}
         onClearSelection={() => setSelectedJourneys([])}
         totalCount={journeys.length}
@@ -299,10 +312,10 @@ export default function JourneyPage() {
           emptyMessage={t('empty.notFound')}
           emptyTitle={t('empty.title')}
           emptyDescription={t('empty.description')}
-          emptyAction={{
+          emptyAction={permissionsReady && can('journeys', 'create') ? {
             label: t('actions.createJourney'),
             onClick: handleCreateJourney,
-          }}
+          } : undefined}
           emptyIcon={Route}
           selectable
           selectedItems={selectedJourneys}

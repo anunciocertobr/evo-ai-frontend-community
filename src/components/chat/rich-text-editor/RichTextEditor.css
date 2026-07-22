@@ -5,15 +5,40 @@
   white-space: pre-wrap;
 }
 
-/* Placeholder */
-.prosemirror-editor:empty:before {
+/* Variante single-line (composer estilo pill, §3.1/§3.8) — parte como 1 linha,
+   mas Shift/Ctrl+Enter (WhatsApp-style) quebra e a pill CRESCE verticalmente
+   (não rola escondido) até um teto, depois rola. Enter puro envia (tratado
+   via onKeyDown no MessageInput, nunca chega a inserir parágrafo aqui). */
+.prosemirror-editor-singleline {
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.prosemirror-editor-singleline::-webkit-scrollbar {
+  display: none;
+}
+
+.prosemirror-editor-singleline p {
+  margin: 0;
+}
+
+/* Placeholder — the empty state is a single empty paragraph (the schema
+   requires `block+`, see emptyParagraphDoc in RichTextEditor.tsx), so the
+   editor is never literally :empty; ProseMirror renders it as
+   <p><br class="ProseMirror-trailingBreak"></p>. The :empty variant is kept
+   as a safety net. */
+.prosemirror-editor:empty:before,
+.prosemirror-editor:has(> p:only-child > br.ProseMirror-trailingBreak:only-child):before {
   content: attr(data-placeholder);
   color: hsl(var(--muted-foreground));
   position: absolute;
   pointer-events: none;
 }
 
-.prosemirror-editor:focus:empty:before {
+.prosemirror-editor:focus:empty:before,
+.prosemirror-editor:focus:has(> p:only-child > br.ProseMirror-trailingBreak:only-child):before {
   opacity: 0.5;
 }
 

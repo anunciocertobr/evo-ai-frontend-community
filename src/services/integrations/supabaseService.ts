@@ -1,4 +1,4 @@
-import api from '@/services/core/api';
+import agentProcessorApi from '@/services/core/agentProcessorApi';
 import type {
   SupabaseConfig,
   SupabaseOAuthResponse,
@@ -12,7 +12,7 @@ const SupabaseService = {
    */
   async generateAuthorization(agentId: string): Promise<SupabaseOAuthResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/supabase/authorization`
       );
       return data;
@@ -31,7 +31,7 @@ const SupabaseService = {
     state: string
   ): Promise<SupabaseConnectionResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/supabase/callback`,
         {
           code,
@@ -50,7 +50,7 @@ const SupabaseService = {
    */
   async getConfiguration(agentId: string): Promise<SupabaseConfig | null> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/supabase`
       );
       return data.config || null;
@@ -74,7 +74,7 @@ const SupabaseService = {
     config: Partial<SupabaseConfig>
   ): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.put(
+      const { data } = await agentProcessorApi.put(
         `/agents/${agentId}/integrations/supabase`,
         { config }
       );
@@ -90,7 +90,7 @@ const SupabaseService = {
    */
   async disconnect(agentId: string): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.delete(
+      const { data } = await agentProcessorApi.delete(
         `/agents/${agentId}/integrations/supabase`
       );
       return data;
@@ -106,7 +106,7 @@ const SupabaseService = {
    */
   async discoverTools(agentId: string): Promise<DiscoverToolsResponse> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/supabase/discover-tools`
       );
       return data;

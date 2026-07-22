@@ -44,3 +44,5 @@ export {
 } from './runtimeContext';
 
 export { evaluateRouteAccess } from './guards';
+
+export type { SetupHostContextValue, SetupCredentials } from './types';

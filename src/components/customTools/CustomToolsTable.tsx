@@ -3,6 +3,7 @@ import { Badge, Button } from '@evoapi/design-system';
 import { Edit, Trash2, Wand, Loader2, Globe } from 'lucide-react';
 import { CustomTool } from '@/types/ai';
 import { BaseTable, TableColumn, TableAction } from '@/components/base';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface CustomToolsTableProps {
   tools: CustomTool[];
@@ -30,6 +31,7 @@ export default function CustomToolsTable({
   testingToolId,
 }: CustomToolsTableProps) {
   const { t } = useLanguage('customTools');
+  const { can, isReady } = usePermissions();
   const toolsList = tools || [];
 
   const getMethodColor = (method: string) => {
@@ -164,12 +166,14 @@ export default function CustomToolsTable({
       label: t('table.actions.edit'),
       icon: <Edit className="h-4 w-4" />,
       onClick: onEditTool,
+      show: () => isReady && can('ai_custom_tools', 'update'),
     },
     {
       label: t('table.actions.delete'),
       icon: <Trash2 className="h-4 w-4" />,
       onClick: onDeleteTool,
       variant: 'destructive' as const,
+      show: () => isReady && can('ai_custom_tools', 'delete'),
     },
   ];
 
@@ -187,7 +191,7 @@ export default function CustomToolsTable({
       emptyTitle={t('table.empty.title')}
       emptyDescription={t('table.empty.description')}
       emptyAction={
-        onCreateTool
+        onCreateTool && isReady && can('ai_custom_tools', 'create')
           ? {
               label: t('table.actions.create'),
               onClick: onCreateTool,

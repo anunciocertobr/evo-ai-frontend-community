@@ -53,7 +53,7 @@ const MCPServersSection = ({
     paypalConfig,
     canvaConfig,
     supabaseConfig,
-    credentialsConfigured,
+    available,
     isCheckingCredentials,
     reloadAllConfigs,
     isConnected,
@@ -143,7 +143,9 @@ const MCPServersSection = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {availableMCPs.map(mcp => {
                 const isEnabled = isMCPEnabled(mcp.id);
-                const isConfigured = credentialsConfigured[mcp.id] ?? false;
+                // DISPONIBILIDADE (CRM :3000 endpoint) — gates ATIVAR-disabled +
+                // "Em breve"; distinct from per-agent "connected" (isConnected).
+                const isConfigured = available[mcp.id] ?? false;
                 const connected = isConnected(mcp.id);
                 const onConfigure = getDialogSetter(mcp.id);
                 const isIntegrationMCP = INTEGRATION_MCP_IDS.includes(mcp.id);

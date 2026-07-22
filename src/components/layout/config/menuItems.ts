@@ -64,11 +64,14 @@ export interface ProfileMenuItem {
 
 export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => [
   {
+    // `dashboard.read` is not a catalog resource — it lives in the auth
+    // BASIC_READ_PERMISSIONS (every authenticated user holds it, it is the
+    // landing page). Gating on it made `can()` deny for everyone (a key outside
+    // the catalog is invalid), hiding the Dashboard from all users. No gate:
+    // always visible to authenticated users (EVO-2071 AC7).
     name: t('menu.customer.dashboard'),
     href: '/dashboard',
     icon: PieChart,
-    resource: 'dashboard',
-    action: 'read',
   },
   {
     name: t('menu.customer.conversations'),
@@ -171,7 +174,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
     name: t('menu.customer.channels'),
     href: '/channels',
     icon: Layers,
-    resource: 'channels',
+    resource: 'inboxes',
     action: 'read',
   },
   {
@@ -184,16 +187,23 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         name: t('menu.settings.account'),
         href: '/settings/account',
         icon: User,
-        // Configurações de conta são sempre disponíveis - sem permissão específica
+        // Mirrors the /settings/account route gate; accounts.read is a basic
+        // grant every role holds, so the item stays visible — but menu and
+        // route now agree instead of the menu linking into Não Autorizado.
+        resource: 'accounts',
+        action: 'read',
       },
       {
         name: t('menu.settings.users'),
         href: '/settings/users',
         icon: Users2,
         resource: 'users',
-        // read, not manage: there is no `users.manage` permission (users has only
-        // granular actions); the manage gate hid the menu for everyone. Like Teams.
-        action: 'read',
+        // EVO-1938: gate the Users (Atendentes) screen on the administrative
+        // users.manage. The earlier revert to users.read predated users.manage
+        // being registered in the auth ResourceActionsConfig; it now is, so the
+        // manage gate resolves for admins (who hold it) and hides the screen from
+        // the default agent (who holds only the operational users.read).
+        action: 'manage',
       },
       {
         name: t('menu.settings.teams'),

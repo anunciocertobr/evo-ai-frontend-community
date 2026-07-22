@@ -11,25 +11,19 @@ import {
   DialogTitle,
   Button,
 } from '@evoapi/design-system';
-import { Grid3X3, List, GitBranch } from 'lucide-react';
-import EmptyState from '@/components/base/EmptyState';
-
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { pipelinesService } from '@/services/pipelines';
 import {
   Pipeline,
   PipelinesState,
   PipelinesListParams,
-  CreatePipelineData,
   UpdatePipelineData,
 } from '@/types/analytics';
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination';
 
 import {
   PipelinesHeader,
-  PipelineCard,
   PipelinesTable,
-  CreatePipelineModal,
   EditPipelineModal,
   DuplicatePipelineModal,
 } from '@/components/pipelines/index';
@@ -60,13 +54,11 @@ const INITIAL_STATE: PipelinesState = {
 
 export default function Pipelines() {
   const { t } = useLanguage('pipelines');
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const navigate = useNavigate();
   const [state, setState] = useState<PipelinesState>(INITIAL_STATE);
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pipelineToDelete, setPipelineToDelete] = useState<Pipeline | null>(null);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingPipeline, setEditingPipeline] = useState<Pipeline | null>(null);
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
@@ -153,7 +145,7 @@ export default function Pipelines() {
       toast.error(t('messages.noPermissionCreate'));
       return;
     }
-    setCreateModalOpen(true);
+    navigate('/pipelines/new');
   };
 
   const handleEditPipeline = (pipeline: Pipeline) => {
@@ -202,30 +194,6 @@ export default function Pipelines() {
 
   const handleViewPipeline = (pipeline: Pipeline) => {
     navigate(`/pipelines/${pipeline.id}`);
-  };
-
-  // Create pipeline
-  const handleCreatePipelineSubmit = async (data: CreatePipelineData) => {
-    setState(prev => ({ ...prev, loading: { ...prev.loading, create: true } }));
-
-    try {
-      const response = await pipelinesService.createPipeline(data);
-      toast.success(t('messages.createSuccess'));
-
-      // Navigate to the new pipeline
-      if (response.id) {
-        navigate(`/pipelines/${response.id}`);
-      } else {
-        loadPipelines();
-      }
-
-      setCreateModalOpen(false);
-    } catch (error) {
-      console.error('Error creating pipeline:', error);
-      toast.error(t('messages.createError'));
-    } finally {
-      setState(prev => ({ ...prev, loading: { ...prev.loading, create: false } }));
-    }
   };
 
   // Update pipeline
@@ -313,93 +281,35 @@ export default function Pipelines() {
           searchValue={state.searchQuery}
           onSearchChange={handleSearchChange}
           onNewPipeline={handleCreatePipeline}
+          canCreate={permissionsReady && can('pipelines', 'create')}
         />
       </div>
 
-      {/* View Mode Toggle */}
-      <div className="flex items-center justify-end mb-3" data-tour="pipelines-view-toggle">
-        <div className="flex items-center border rounded-lg">
-          <Button
-            variant={viewMode === 'cards' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('cards')}
-            className="border-0 rounded-r-none"
-          >
-            <Grid3X3 className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === 'table' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('table')}
-            className="border-0 rounded-l-none"
-          >
-            <List className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-auto" data-tour="pipelines-list">
-        {state.loading.list ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="text-muted-foreground">{t('loading.pipelines')}</div>
-          </div>
-        ) : filteredPipelines.length === 0 ? (
-          <EmptyState
-            icon={GitBranch}
-            title={state.searchQuery ? t('empty.noResults') : t('empty.noPipelines')}
-            description={
-              state.searchQuery
-                ? t('empty.noResultsDescription')
-                : t('empty.noPipelinesDescription')
-            }
-            action={
-              !state.searchQuery
-                ? {
-                    label: t('empty.createPipeline'),
-                    onClick: handleCreatePipeline,
-                  }
-                : undefined
-            }
-            className="h-full"
-          />
-        ) : viewMode === 'cards' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredPipelines.map(pipeline => (
-              <PipelineCard
-                key={pipeline.id}
-                pipeline={pipeline}
-                onView={handleViewPipeline}
-                onEdit={handleEditPipeline}
-                onDelete={handleDeletePipeline}
-                onDuplicate={handleDuplicatePipeline}
-                onToggleStatus={handleToggleStatus}
-                onSetAsDefault={handleSetAsDefault}
-              />
-            ))}
-          </div>
-        ) : (
-          <PipelinesTable
-            pipelines={filteredPipelines}
-            loading={state.loading.list}
-            onView={handleViewPipeline}
-            onEdit={handleEditPipeline}
-            onDelete={handleDeletePipeline}
-            onDuplicate={handleDuplicatePipeline}
-            onToggleStatus={handleToggleStatus}
-            sortBy={state.sortBy}
-            sortOrder={state.sortOrder}
-            onSort={column => {
-              const newOrder =
-                state.sortBy === column && state.sortOrder === 'asc' ? 'desc' : 'asc';
-              setState(prev => ({ ...prev, sortBy: column, sortOrder: newOrder }));
-              loadPipelines({
-                sort: column as 'name' | 'created_at' | 'conversations_count',
-                order: newOrder,
-              });
-            }}
-          />
-        )}
+      {/* Content — list only (the mockup has no card/grid mode). BaseTable renders
+          its own loading + empty states, matching the Contacts screen. */}
+      <div className="flex-1 overflow-auto mt-4" data-tour="pipelines-list">
+        <PipelinesTable
+          pipelines={filteredPipelines}
+          loading={state.loading.list}
+          onView={handleViewPipeline}
+          onEdit={handleEditPipeline}
+          onDelete={handleDeletePipeline}
+          onDuplicate={handleDuplicatePipeline}
+          onToggleStatus={handleToggleStatus}
+          onSetAsDefault={handleSetAsDefault}
+          onCreate={!state.searchQuery ? handleCreatePipeline : undefined}
+          sortBy={state.sortBy}
+          sortOrder={state.sortOrder}
+          onSort={column => {
+            const newOrder =
+              state.sortBy === column && state.sortOrder === 'asc' ? 'desc' : 'asc';
+            setState(prev => ({ ...prev, sortBy: column, sortOrder: newOrder }));
+            loadPipelines({
+              sort: column as 'name' | 'created_at' | 'conversations_count',
+              order: newOrder,
+            });
+          }}
+        />
       </div>
 
       {/* Delete Pipeline Dialog */}
@@ -429,14 +339,6 @@ export default function Pipelines() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Create Pipeline Modal */}
-      <CreatePipelineModal
-        open={createModalOpen}
-        onOpenChange={setCreateModalOpen}
-        onSubmit={handleCreatePipelineSubmit}
-        loading={state.loading.create}
-      />
 
       {/* Edit Pipeline Modal */}
       {editingPipeline && (

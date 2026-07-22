@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, Input, Label } from '@evoapi/design-system';
-import { ArrowLeft, Plus, X, Check } from 'lucide-react';
+import { ArrowLeft, Plus, X, Check, Link2 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 
 export interface Step6Data {
@@ -100,6 +100,11 @@ export default function Step6_Finish({
 
           <p className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded p-3">
             {t('wizard.step6.testHint')}
+          </p>
+
+          <p className="flex items-start gap-2 text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded p-3">
+            <Link2 className="h-4 w-4 flex-shrink-0 mt-px text-blue-600 dark:text-blue-400" />
+            <span>{t('wizard.step6.attachHint')}</span>
           </p>
         </div>
       </div>

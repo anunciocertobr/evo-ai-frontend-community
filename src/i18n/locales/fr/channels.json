@@ -28,6 +28,7 @@
   "permissions": {
     "viewDenied": "Vous n'avez pas la permission de visualiser les canaux",
     "createDenied": "Vous n'avez pas la permission de créer des canaux",
+    "updateDenied": "Vous n'avez pas la permission de modifier les canaux",
     "deleteDenied": "Vous n'avez pas la permission de supprimer des canaux"
   },
   "errors": {
@@ -130,27 +131,27 @@
       },
       "whatsapp": {
         "name": "WhatsApp",
-        "description": "Canal WhatsApp pour le service client"
+        "description": "WhatsApp Business"
       },
       "telegram": {
         "name": "Telegram",
-        "description": "Bot Telegram pour le support automatisé"
+        "description": "Bot de support"
       },
       "instagram": {
         "name": "Instagram",
-        "description": "Messages directs Instagram"
+        "description": "Profil professionnel"
       },
       "facebook": {
-        "name": "Facebook Messenger",
-        "description": "Chat Facebook Messenger"
+        "name": "Facebook",
+        "description": "Page"
       },
       "sms": {
         "name": "SMS",
-        "description": "Messages texte SMS"
+        "description": "Messages texte"
       },
       "email": {
         "name": "Email",
-        "description": "Support par email"
+        "description": "Marketing et support"
       },
       "api": {
         "name": "API",
@@ -184,7 +185,8 @@
       },
       "twilio": {
         "name": "Twilio",
-        "description": "Twilio WhatsApp Business API"
+        "description": "Twilio WhatsApp Business API",
+        "comingSoon": "Bientôt disponible"
       },
       "twilioSms": {
         "name": "Twilio SMS",
@@ -237,9 +239,22 @@
       "connectDescription": "Connectez-vous pour offrir un support à vos clients via {{channelName}}",
       "apiProvider": "Fournisseur d'API",
       "facebookIntegrationDescription": "Connectez votre compte Facebook pour remplir automatiquement les informations WhatsApp Business"
+    },
+    "fields": {
+      "displayName": {
+        "label": "Nom d'affichage",
+        "placeholder": "ex. Équipe d'assistance",
+        "helpText": "Nom convivial affiché à votre équipe."
+      },
+      "channelName": {
+        "label": "Nom du canal",
+        "placeholder": "généré automatiquement",
+        "helpText": "Généré automatiquement à partir du nom d'affichage."
+      }
     }
   },
   "settings": {
+    "updateConfig": "Mettre à jour les paramètres",
     "loading": "Chargement des paramètres...",
     "saving": "Enregistrement en cours...",
     "save": "Enregistrer",
@@ -625,6 +640,8 @@
         "templateType": "Type de Modèle",
         "templateTypes": {
           "text": "Texte",
+          "interactive": "Interactif",
+          "media": "Média",
           "image": "Image",
           "video": "Vidéo",
           "document": "Document",
@@ -652,6 +669,10 @@
         "footerText": "Texte du Pied de Page",
         "footerTextPlaceholder": "Entrez le texte du pied de page (facultatif)",
         "variablesHelp": "Utilisez la syntaxe {{variable}} pour les valeurs dynamiques",
+        "variables": "Variables",
+        "variableLabel": "Libellé",
+        "variableExample": "Exemple",
+        "variableSource": "Source, p. ex. contact.name",
         "buttons": "Boutons",
         "addButton": "Ajouter un Bouton",
         "buttonTypes": {
@@ -1057,12 +1078,32 @@
       }
     },
     "preChatForm": {
-      "success": {
-        "updated": "Paramètres du formulaire pré-chat mis à jour avec succès !"
+      "title": "Formulaire Pré-Chat",
+      "description": "Recueillir les informations des visiteurs avant de commencer la conversation",
+      "totalFields": "Total des Champs",
+      "activeFields": "Champs Actifs",
+      "requiredFields": "Champs Obligatoires",
+      "welcomeMessage": "Message de Bienvenue",
+      "welcomeMessagePlaceholder": "Bonjour! Pour mieux vous servir, veuillez compléter les informations ci-dessous:",
+      "welcomeMessageHelp": "Ce message sera affiché en haut du formulaire pré-chat.",
+      "fieldConfiguration": "Configuration des Champs",
+      "hidePreview": "Masquer l'Aperçu",
+      "showPreview": "Voir l'Aperçu",
+      "formPreview": "Aperçu du Formulaire",
+      "noActiveFields": "Aucun champ actif à afficher",
+      "howItWorksTitle": "Comment fonctionne le formulaire pré-chat",
+      "howItWorks": {
+        "point1": "Le formulaire est affiché avant que le client ne commence la conversation",
+        "point2": "Les informations collectées sont jointes au profil du contact",
+        "point3": "Les champs obligatoires doivent être remplis pour continuer",
+        "point4": "Utilisez la fonction glisser pour réorganiser les champs"
       },
-      "errors": {
-        "updateError": "Erreur lors de la mise à jour des paramètres du formulaire pré-chat"
-      }
+      "disabledTitle": "Formulaire pré-chat désactivé",
+      "disabledDescription": "Activez pour collecter les informations des visiteurs avant de commencer la conversation.",
+      "saving": "Enregistrement...",
+      "save": "Enregistrer les Paramètres",
+      "success": "Paramètres du formulaire pré-chat mis à jour avec succès",
+      "error": "Erreur lors de la mise à jour des paramètres du formulaire pré-chat"
     },
     "greeting": {
       "title": "Message d'Accueil",
@@ -1620,34 +1661,6 @@
       "success": {
         "channelCreated": "Canal créé avec succès"
       }
-    },
-    "preChatForm": {
-      "title": "Formulaire Pré-Chat",
-      "description": "Recueillir les informations des visiteurs avant de commencer la conversation",
-      "totalFields": "Total des Champs",
-      "activeFields": "Champs Actifs",
-      "requiredFields": "Champs Obligatoires",
-      "welcomeMessage": "Message de Bienvenue",
-      "welcomeMessagePlaceholder": "Bonjour! Pour mieux vous servir, veuillez compléter les informations ci-dessous:",
-      "welcomeMessageHelp": "Ce message sera affiché en haut du formulaire pré-chat.",
-      "fieldConfiguration": "Configuration des Champs",
-      "hidePreview": "Masquer l'Aperçu",
-      "showPreview": "Voir l'Aperçu",
-      "formPreview": "Aperçu du Formulaire",
-      "noActiveFields": "Aucun champ actif à afficher",
-      "howItWorksTitle": "Comment fonctionne le formulaire pré-chat",
-      "howItWorks": {
-        "point1": "Le formulaire est affiché avant que le client ne commence la conversation",
-        "point2": "Les informations collectées sont jointes au profil du contact",
-        "point3": "Les champs obligatoires doivent être remplis pour continuer",
-        "point4": "Utilisez la fonction glisser pour réorganiser les champs"
-      },
-      "disabledTitle": "Formulaire pré-chat désactivé",
-      "disabledDescription": "Activez pour collecter les informations des visiteurs avant de commencer la conversation.",
-      "saving": "Enregistrement...",
-      "save": "Enregistrer les Paramètres",
-      "success": "Paramètres du formulaire pré-chat mis à jour avec succès",
-      "error": "Erreur lors de la mise à jour des paramètres du formulaire pré-chat"
     }
   },
   "deleteDialog": {
@@ -1660,6 +1673,7 @@
     "deleting": "Suppression..."
   },
   "overview": {
+    "noIntegrationConfigured": "Aucune intégration configurée",
     "tabLabel": "Aperçu",
     "title": "Aperçu des canaux",
     "subtitle": "Consultez tous les types de canaux, leur statut et comment les configurer.",
@@ -1673,7 +1687,12 @@
       "active": "{{count}} actif(s)",
       "attention": "{{count}} à vérifier",
       "error": "{{count}} en erreur",
-      "notConfigured": "Non configuré"
+      "notConfigured": "Non configuré",
+      "connected": "{{count}} connectée(s)",
+      "total": "{{count}} connexions"
+    },
+    "drawer": {
+      "title": "Connexions"
     },
     "inboxState": {
       "connected": "Connecté",
@@ -1686,10 +1705,26 @@
     },
     "liveCheckFailed": "La vérification en direct a échoué — affichage du dernier état connu",
     "moreInboxes": "+{{count}} autres boîtes de réception",
+    "providersCount": "{{count}} fournisseurs",
     "actions": {
       "add": "Ajouter",
       "manage": "Gérer",
-      "howToConfigure": "Comment configurer"
+      "howToConfigure": "Comment configurer",
+      "connect": "Connecter",
+      "addConnection": "Ajouter une connexion",
+      "deleteConnection": "Supprimer la connexion",
+      "viewAds": "Voir les annonces"
+    },
+    "capabilities": {
+      "publishing": "Publication",
+      "conversations": "Conversations",
+      "campaigns": "Campagnes"
+    },
+    "statusMeta": {
+      "live": "En direct",
+      "stored": "Déclaré",
+      "storedTooltip": "État déclaré par la configuration, non vérifié en direct",
+      "lastSync": "Synchronisé {{time}}"
     },
     "help": {
       "website": "Intégrez un widget de chat en direct sur votre site pour échanger avec les visiteurs en temps réel.",

@@ -1,5 +1,5 @@
 import { useLanguage } from '@/hooks/useLanguage';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import {
   Plus,
 } from 'lucide-react';
@@ -29,7 +29,7 @@ export default function CustomMCPServersHeader({
   showFilters = true,
 }: CustomMCPServersHeaderProps) {
   const { t } = useLanguage('customMcpServers');
-  const { can, isReady } = useUserPermissions();
+  const { can, isReady } = usePermissions();
 
   const primaryAction: HeaderAction | undefined = isReady && can('ai_custom_mcp_servers', 'create') ? {
     label: t('header.newServer'),

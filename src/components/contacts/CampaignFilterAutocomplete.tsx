@@ -13,6 +13,7 @@ import {
 } from '@evoapi/design-system';
 import { Check, ChevronsUpDown, Loader2, X } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { campaignsService } from '@/services/campaigns/campaignsService';
 import type { Campaign } from '@/types/campaigns';
 
@@ -40,6 +41,11 @@ export function CampaignFilterAutocomplete({
   disabled,
 }: CampaignFilterAutocompleteProps) {
   const { t } = useLanguage('contacts');
+  const { can, isReady } = usePermissions();
+  // The autocomplete reads the campaigns backend, a different resource from
+  // the contacts screen that hosts it — without campaigns.read it renders
+  // nothing and never fetches.
+  const canReadCampaigns = isReady && can('campaigns', 'read');
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -55,6 +61,7 @@ export function CampaignFilterAutocomplete({
   // the panel with a campaign already selected). Only fires for UUID-shaped
   // values; otherwise we trust the parent to have nothing to lookup.
   useEffect(() => {
+    if (!canReadCampaigns) return;
     if (!value) {
       setSelectedLabel(undefined);
       return;
@@ -79,13 +86,13 @@ export function CampaignFilterAutocomplete({
     return () => {
       cancelled = true;
     };
-  }, [value, selectedLabel]);
+  }, [value, selectedLabel, canReadCampaigns]);
 
   // Debounced server-side search. Re-runs whenever search or open changes; we
   // only hit the API when the popover is actually visible to avoid prefetching
   // for users who never expand the field.
   useEffect(() => {
-    if (!open) return;
+    if (!open || !canReadCampaigns) return;
     const requestId = ++requestIdRef.current;
     const timer = setTimeout(async () => {
       setIsLoading(true);
@@ -110,7 +117,7 @@ export function CampaignFilterAutocomplete({
       }
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [open, search]);
+  }, [open, search, canReadCampaigns]);
 
   const handleSelect = (campaign: Campaign) => {
     setSelectedLabel(campaign.title || campaign.name || campaign.id);
@@ -129,6 +136,8 @@ export function CampaignFilterAutocomplete({
   const triggerLabel = value
     ? selectedLabel ?? t('events.filters.campaignLoading')
     : t('events.filters.campaignPlaceholder');
+
+  if (!canReadCampaigns) return null;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

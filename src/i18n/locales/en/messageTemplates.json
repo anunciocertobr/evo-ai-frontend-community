@@ -12,7 +12,9 @@
     "language": "Language",
     "actions": "Actions",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "createdAt": "Created",
+    "preview": "Preview"
   },
   "status": {
     "approved": "Approved",
@@ -56,48 +58,37 @@
       "create": "You don't have permission to create templates.",
       "update": "You don't have permission to edit templates.",
       "delete": "You don't have permission to delete templates."
-    }
+    },
+    "syncSuccess": "Templates synced successfully.",
+    "syncError": "Failed to sync templates."
   },
   "form": {
-    "createTitle": "New Template",
-    "editTitle": "Edit Template",
     "provider": "Provider",
     "providers": {
       "generic": "Generic",
       "email": "Email"
     },
-    "name": "Name",
-    "namePlaceholder": "e.g. welcome_message",
-    "category": "Category",
-    "categories": {
-      "marketing": "Marketing",
-      "utility": "Utility",
-      "authentication": "Authentication",
-      "transactional": "Transactional"
-    },
-    "language": "Language",
-    "subject": "Subject",
-    "subjectPlaceholder": "Email subject",
-    "content": "Content",
-    "contentPlaceholder": "Type the message content.",
-    "variablesHelp": "Use {{variable}} syntax for dynamic values",
-    "variables": "Variables",
-    "variableLabel": "Label",
-    "variableExample": "Example",
-    "variableSource": "Source",
-    "active": "Active",
-    "activeHelp": "Inactive templates are hidden from selection.",
-    "cancel": "Cancel",
-    "create": "Create",
-    "save": "Save",
-    "errors": {
-      "requiredFields": "Name and content are required."
-    },
-    "categoryReset": "Category reset to a value supported by the selected provider."
+    "categoryReset": "Category reset to a value supported by the selected provider.",
+    "headerNone": "None",
+    "categoryHelp": "Marketing for promotions and news; Utility for confirmations, updates and transactional alerts.",
+    "insertEmoji": "Insert emoji",
+    "insertVariable": "Insert variable",
+    "variableHelp": "Variables are optional — use them to insert dynamic values. Any variable you add appears below to set a label and example.",
+    "variableSample": "variable"
   },
   "pagination": {
     "previous": "Previous",
     "next": "Next",
     "pageOf": "Page {{page}} of {{total}}"
+  },
+  "scope": {
+    "label": "Channel",
+    "global": "Global (no channel)"
+  },
+  "inboxSelector": {
+    "placeholder": "Select a channel"
+  },
+  "actions": {
+    "sync": "Sync with Meta"
   }
 }

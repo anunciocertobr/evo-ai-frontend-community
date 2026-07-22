@@ -18,6 +18,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 type AgentPageMode = 'create' | 'edit' | 'view';
 
@@ -47,6 +48,8 @@ const AgentHeader = ({
 }: // onViewMode,
 AgentHeaderProps) => {
   const { t } = useLanguage('aiAgents');
+  const { can, isReady } = usePermissions();
+  const canSave = isReady && can('ai_agents', mode === 'create' ? 'create' : 'update');
 
   const getPageTitle = () => {
     switch (mode) {
@@ -142,13 +145,15 @@ AgentHeaderProps) => {
         </Button>
 
         {/* Save button */}
-        <Button size="sm" onClick={onSave} disabled={isSaving} className="gap-2 flex-shrink-0">
-          <Save className="h-4 w-4" />
-          <span className="hidden sm:inline">
-            {isSaving ? t('actions.saving') : t('actions.save')}
-          </span>
-          <span className="sm:hidden">{isSaving ? '...' : t('actions.save')}</span>
-        </Button>
+        {canSave && (
+          <Button size="sm" onClick={onSave} disabled={isSaving} className="gap-2 flex-shrink-0">
+            <Save className="h-4 w-4" />
+            <span className="hidden sm:inline">
+              {isSaving ? t('actions.saving') : t('actions.save')}
+            </span>
+            <span className="sm:hidden">{isSaving ? '...' : t('actions.save')}</span>
+          </Button>
+        )}
       </div>
     );
   };

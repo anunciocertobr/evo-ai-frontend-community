@@ -56,6 +56,9 @@ export interface CustomMcpServerTestResponse {
     status_code: number;
     success: boolean;
     url_tested: string;
+    // EVO-2139: quantidade de tools descobertas neste test (via handshake MCP).
+    // Refletir sempre este valor no toast, não `server.tools.length` (DB-stale).
+    tools_count?: number;
   };
 }
 

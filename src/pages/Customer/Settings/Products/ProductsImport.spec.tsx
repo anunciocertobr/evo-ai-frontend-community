@@ -12,8 +12,8 @@ vi.mock('@/hooks/useLanguage', () => ({
 }));
 
 const canMock = vi.fn();
-vi.mock('@/hooks/useUserPermissions', () => ({
-  useUserPermissions: () => ({ can: canMock }),
+vi.mock('@/contexts/PermissionsContext', () => ({
+  usePermissions: () => ({ can: canMock }),
 }));
 
 const bulkProductsMock = vi.fn();

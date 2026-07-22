@@ -1,4 +1,4 @@
-import api from '@/services/core/api';
+import agentProcessorApi from '@/services/core/agentProcessorApi';
 import type {
   AsanaConfig,
   AsanaOAuthResponse,
@@ -12,7 +12,7 @@ const AsanaService = {
    */
   async generateAuthorization(agentId: string): Promise<AsanaOAuthResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/asana/authorization`
       );
       return data;
@@ -31,7 +31,7 @@ const AsanaService = {
     state: string
   ): Promise<AsanaConnectionResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/asana/callback`,
         {
           code,
@@ -50,7 +50,7 @@ const AsanaService = {
    */
   async getConfiguration(agentId: string): Promise<AsanaConfig | null> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/asana`
       );
       return data.config || null;
@@ -71,7 +71,7 @@ const AsanaService = {
     config: Partial<AsanaConfig>
   ): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.put(
+      const { data } = await agentProcessorApi.put(
         `/agents/${agentId}/integrations/asana`,
         { config }
       );
@@ -87,7 +87,7 @@ const AsanaService = {
    */
   async disconnect(agentId: string): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.delete(
+      const { data } = await agentProcessorApi.delete(
         `/agents/${agentId}/integrations/asana`
       );
       return data;
@@ -103,7 +103,7 @@ const AsanaService = {
    */
   async discoverTools(agentId: string): Promise<DiscoverToolsResponse> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/asana/discover-tools`
       );
       return data;

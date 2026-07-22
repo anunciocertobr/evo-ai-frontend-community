@@ -31,6 +31,9 @@ interface BasicSettingsFormProps {
   onFormChange: (updates: Partial<FormData>) => void;
   onAvatarUpload: (file: File) => void;
   onAvatarDelete: () => void;
+  // When false, the avatar upload/remove controls are not rendered (the user
+  // lacks the write permission), instead of rendering inert controls.
+  canManageAvatar?: boolean;
 }
 
 export default function BasicSettingsForm({
@@ -39,6 +42,7 @@ export default function BasicSettingsForm({
   onFormChange,
   onAvatarUpload,
   onAvatarDelete,
+  canManageAvatar = true,
 }: BasicSettingsFormProps) {
   const { t } = useLanguage('channels');
   
@@ -78,29 +82,31 @@ export default function BasicSettingsForm({
                 <Globe className="h-6 w-6 text-muted-foreground" />
               </div>
             )}
-            <div className="flex gap-2">
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) onAvatarUpload(file);
-                  }}
-                />
-                <Button variant="outline" size="sm" className="pointer-events-none">
-                  <Upload className="h-4 w-4 mr-2" />
-                  {t('settings.basicSettings.avatar.upload')}
-                </Button>
-              </label>
-              {formData.avatar_url && (
-                <Button variant="destructive" size="sm" onClick={onAvatarDelete}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  {t('settings.basicSettings.avatar.remove')}
-                </Button>
-              )}
-            </div>
+            {canManageAvatar && (
+              <div className="flex gap-2">
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) onAvatarUpload(file);
+                    }}
+                  />
+                  <Button variant="outline" size="sm" className="pointer-events-none">
+                    <Upload className="h-4 w-4 mr-2" />
+                    {t('settings.basicSettings.avatar.upload')}
+                  </Button>
+                </label>
+                {formData.avatar_url && (
+                  <Button variant="destructive" size="sm" onClick={onAvatarDelete}>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    {t('settings.basicSettings.avatar.remove')}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

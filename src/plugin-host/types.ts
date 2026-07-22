@@ -9,7 +9,8 @@ export type SlotId =
   | 'admin.routes'
   | 'settings.sections'
   | 'dashboard.widgets'
-  | 'notifications.banner';
+  | 'notifications.banner'
+  | 'setup.steps';
 
 export type RouteNamespace = 'admin' | 'customer' | 'public';
 
@@ -80,6 +81,32 @@ export type PluginGuard = (args: PluginGuardArgs) => boolean;
 export interface PluginRuntimeContextDescriptor {
   Provider: ComponentType<{ children: ReactNode }>;
   useValue: () => RuntimeContextValue;
+}
+
+/** Generic credentials the host hands a post-bootstrap step (e.g. to upload
+ *  assets behind an authenticated endpoint). Not brand-specific. */
+export interface SetupCredentials {
+  email: string;
+  password: string;
+}
+
+export interface SetupHostContextValue {
+  /** True while the host's bootstrap call is in flight. */
+  isLoading: boolean;
+  /** Host-level error string ('' when none). */
+  error: string;
+  /** Return to the account step. */
+  goBack: () => void;
+  /**
+   * Finish the install. The host merges `extensionPayload` into the single
+   * /setup/bootstrap request under the opaque `extension_payload` key, and on
+   * success invokes `afterBootstrap` with generic credentials. The host assigns
+   * NO meaning to `extensionPayload`.
+   */
+  submit: (
+    extensionPayload?: Record<string, unknown>,
+    afterBootstrap?: (credentials: SetupCredentials) => Promise<void>,
+  ) => void;
 }
 
 export interface PluginManifest {

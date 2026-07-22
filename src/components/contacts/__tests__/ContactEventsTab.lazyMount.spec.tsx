@@ -10,6 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@evoapi/design-system'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const listMock = vi.fn();
+// Permission-gated components resolve permissions from the context; grant
+// everything so these specs keep exercising the full behavior under test.
+vi.mock('@/contexts/PermissionsContext', () => ({
+  usePermissions: () => ({ can: () => true, isReady: true, loading: false }),
+}));
+
 vi.mock('@/services/contacts/contactEventsService', () => ({
   contactEventsService: { list: (...args: unknown[]) => listMock(...args) },
 }));

@@ -151,6 +151,37 @@
       "update": "Enregistrer les Modifications"
     }
   },
+  "wizard": {
+    "progress": {
+      "identity": "Identité",
+      "connection": "Connexion",
+      "advanced": "Avancé",
+      "finish": "Terminer"
+    },
+    "step1": {
+      "title": "Identifions votre serveur MCP",
+      "subtitle": "Donnez-lui un nom, une description et des tags pour que votre équipe le retrouve plus tard."
+    },
+    "step2": {
+      "title": "Comment se connecte-t-il ?",
+      "subtitle": "Indiquez l'URL du serveur et les en-têtes HTTP envoyés à chaque requête."
+    },
+    "step3": {
+      "title": "Paramètres avancés",
+      "subtitle": "Facultatif. Ajustez le délai d'expiration de la requête et le nombre de tentatives."
+    },
+    "step4": {
+      "title": "Derniers réglages",
+      "subtitle": "Vérifiez les paramètres avant d'enregistrer votre serveur MCP.",
+      "reviewHint": "Vérifiez les détails ci-dessous. Vous pouvez revenir en arrière pour tout modifier."
+    },
+    "actions": {
+      "continue": "Continuer",
+      "back": "Retour",
+      "create": "Créer le serveur MCP",
+      "save": "Enregistrer les modifications"
+    }
+  },
   "modal": {
     "title": {
       "create": "Créer un Nouveau Serveur MCP Personnalisé",

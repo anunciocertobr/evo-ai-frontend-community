@@ -11,29 +11,36 @@ import {
   DialogTitle,
   Button,
 } from '@evoapi/design-system';
-import { Grid3X3, List, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 import EmptyState from '@/components/base/EmptyState';
 
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { contactsService } from '@/services/contacts';
 import { Contact, ContactsState, ContactsListParams, ContactFormData } from '@/types/contacts';
 import { BaseFilter, AppliedFilter, CONTACT_FILTER_TYPES } from '@/types/core';
 import { useContactFilterOptions } from '@/hooks/contacts/useContactFilterOptions';
-import { ContactCard } from '@/components/contacts';
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination';
 
 import ContactsHeader from '@/components/contacts/ContactsHeader';
 import ContactsTable from '@/components/contacts/ContactsTable';
 import ContactsPagination from '@/components/contacts/ContactsPagination';
-import ContactModal from '@/components/contacts/ContactModal';
+import ContactFormPage from '@/components/contacts/ContactFormPage';
 import StartConversationModal from '@/components/contacts/StartConversationModal';
-import ContactDetails from '@/components/contacts/ContactDetails';
-import ContactsFilter from '@/components/contacts/ContactsFilter';
+import ContactDetailPage from '@/components/contacts/ContactDetailPage';
+import ContactsFilterPopover from '@/components/contacts/ContactsFilterPopover';
 import ContactImportModal from '@/components/contacts/ContactImportModal';
 import ContactExportModal from '@/components/contacts/ContactExportModal';
 import ContactMergeModal from '@/components/contacts/ContactMergeModal';
 import { AxiosError } from 'axios';
 import { ContactsTour } from '@/tours';
+
+// See loadContactsWithSearch's comment: the backend matches phone_number as digits-only,
+// so a query that looks like a formatted phone number is searched by its digits instead.
+function normalizePhoneLikeQuery(query: string): string {
+  const digitsOnly = query.replace(/[^\d]/g, '');
+  const looksLikePhone = digitsOnly.length >= 8 && /^[\d\s()+-]+$/.test(query.trim());
+  return looksLikePhone ? digitsOnly : query;
+}
 
 const INITIAL_STATE: ContactsState = {
   contacts: [],
@@ -65,18 +72,17 @@ export default function Contacts() {
   const { t } = useLanguage('contacts');
   const { contactId: contactIdFromRoute } = useParams<{ contactId?: string }>();
   const navigate = useNavigate();
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const [state, setState] = useState<ContactsState>(INITIAL_STATE);
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
-  const [contactModalOpen, setContactModalOpen] = useState(false);
-  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [formLoading, setFormLoading] = useState(false);
   const [conversationModalOpen, setConversationModalOpen] = useState(false);
   const [conversationContact, setConversationContact] = useState<Contact | null>(null);
-  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [detailsContact, setDetailsContact] = useState<Contact | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsNotFound, setDetailsNotFound] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<BaseFilter[]>([]);
   const hasCompanyFilter = activeFilters.some(f => f.attributeKey === 'company');
@@ -89,6 +95,11 @@ export default function Contacts() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [contactsToMerge, setContactsToMerge] = useState<Contact[]>([]);
+
+  // /contacts/new is the only route-derived form mode left — editing an EXISTING
+  // contact now happens inline inside ContactDetailsCard (view <-> edit toggle in
+  // place), not via a separate route/page.
+  const isNewRoute = contactIdFromRoute === 'new';
 
   // Load contacts
   const loadContacts = useCallback(
@@ -147,7 +158,13 @@ export default function Contacts() {
 
       try {
         const searchParams = {
-          q: query,
+          // Phone numbers are stored/searched as digits-only (E.164, no punctuation) on
+          // the backend (`phone_number ILIKE`), so a user pasting/typing the formatted
+          // phone they see on screen ("+55 11 91000-0137") would silently match nothing.
+          // If the query looks phone-like (8+ digits once punctuation is stripped),
+          // search the digits-only form instead — this can never match a name/email,
+          // so it's a safe substitution rather than an additional query.
+          q: normalizePhoneLikeQuery(query),
           page: params?.page || 1,
           per_page: params?.per_page || DEFAULT_PAGE_SIZE,
         };
@@ -193,20 +210,29 @@ export default function Contacts() {
   }, [permissionsReady]);
 
   useEffect(() => {
-    if (!contactIdFromRoute) return;
+    if (!contactIdFromRoute || contactIdFromRoute === 'new') {
+      setDetailsContact(null);
+      setDetailsNotFound(false);
+      return;
+    }
 
     let cancelled = false;
 
     const openContactDetails = async () => {
+      setDetailsLoading(true);
+      setDetailsNotFound(false);
       try {
         const contact = await contactsService.getContact(contactIdFromRoute);
         if (cancelled) return;
         setDetailsContact(contact);
-        setDetailsModalOpen(true);
       } catch (error) {
         if (cancelled) return;
         console.error('Error loading contact from route:', error);
         toast.error(t('errors.loadContact'));
+        setDetailsContact(null);
+        setDetailsNotFound(true);
+      } finally {
+        if (!cancelled) setDetailsLoading(false);
       }
     };
 
@@ -290,6 +316,10 @@ export default function Contacts() {
     // The company filter submits a company id (UUID); show its name in the chip.
     if (filter.attributeKey === 'company') {
       return companyFilterOptions.find(o => o.value === raw)?.label ?? raw;
+    }
+    // blocked submits 'true'/'false'; show the translated option label instead.
+    if (filter.attributeKey === 'blocked' && (raw === 'true' || raw === 'false')) {
+      return t(`filter.options.blocked.${raw}`);
     }
     return raw;
   };
@@ -475,8 +505,7 @@ export default function Contacts() {
 
   // Contact actions
   const handleContactClick = (contact: Contact) => {
-    setDetailsContact(contact);
-    setDetailsModalOpen(true);
+    navigate(`/contacts/${contact.id}`);
   };
 
   const handleCreateContact = () => {
@@ -484,23 +513,14 @@ export default function Contacts() {
       toast.error('Você não tem permissão para criar contatos');
       return;
     }
-    setEditingContact(null);
-    setContactModalOpen(true);
+    navigate('/contacts/new');
   };
 
-  const handleEditContact = async (contact: Contact) => {
-    setEditingContact(contact);
-    setContactModalOpen(true);
-    // The list payload omits linked companies (serialized without include_companies),
-    // so re-fetch the full contact to populate the "Linked Companies" picker on edit
-    // and avoid wiping associations on save.
-    try {
-      const fullContact = await contactsService.getContact(contact.id);
-      // Guard against a newer edit opening before this fetch resolves.
-      setEditingContact(prev => (prev?.id === fullContact.id ? fullContact : prev));
-    } catch (error) {
-      console.error('Error loading contact for edit:', error);
-    }
+  // Editing now happens INLINE in ContactDetailsCard (view <-> edit toggle within the
+  // same card, matching the prototype) instead of navigating to a separate form route.
+  // The table/card list's "Edit" action opens the detail page, where Editar lives.
+  const handleEditContact = (contact: Contact) => {
+    navigate(`/contacts/${contact.id}`);
   };
 
   const handleStartConversation = (contact: Contact) => {
@@ -529,8 +549,8 @@ export default function Contacts() {
       setContactToDelete(null);
 
       if (wasDetailsOpen) {
-        setDetailsModalOpen(false);
         setDetailsContact(null);
+        navigate('/contacts', { replace: true });
       }
 
       setState(prev => {
@@ -702,21 +722,21 @@ export default function Contacts() {
     }
   };
 
-  // Handle contact form submission
+  // Handles BOTH inline edit-in-place (ContactDetailsCard, existing contact) and the
+  // /contacts/new create page — distinguished by isNewRoute, not a separate form route.
   const handleContactFormSubmit = async (data: ContactFormData) => {
-    setState(prev => ({
-      ...prev,
-      loading: { ...prev.loading, [editingContact ? 'update' : 'create']: true },
-    }));
+    const editingContactId = !isNewRoute ? contactIdFromRoute : undefined;
+    setFormLoading(true);
 
     try {
-      if (editingContact) {
+      if (editingContactId) {
         // Update existing contact
-        const updatedContact = await contactsService.updateContact(editingContact.id, data);
+        const updatedContact = await contactsService.updateContact(editingContactId, data);
         toast.success(t('messages.updateSuccess'));
 
+        setDetailsContact(updatedContact);
         setState(prev => {
-          const oldContact = prev.contacts.find(c => c.id === editingContact.id);
+          const oldContact = prev.contacts.find(c => c.id === editingContactId);
 
           if (!oldContact) {
             loadContacts();
@@ -724,7 +744,7 @@ export default function Contacts() {
           }
 
           const newContacts = prev.contacts.map(contact =>
-            contact.id === editingContact.id ? updatedContact : contact,
+            contact.id === editingContactId ? updatedContact : contact,
           );
 
           return {
@@ -732,30 +752,20 @@ export default function Contacts() {
             contacts: newContacts,
           };
         });
-
-        // Close modal and clear editing state AFTER state update
-        setContactModalOpen(false);
-        setEditingContact(null);
       } else {
         // Create new contact
-        await contactsService.createContact(data);
+        const created = await contactsService.createContact(data);
         toast.success(t('messages.createSuccess'));
 
-        // Close modal and clear editing state
-        setContactModalOpen(false);
-        setEditingContact(null);
-
-        // Refresh the entire list for new contacts
+        // Refresh the list and land on the new contact's detail page.
         loadContacts();
+        navigate(`/contacts/${created.id}`, { replace: true });
       }
     } catch (error) {
       console.error('Error saving contact:', error);
-      toast.error(editingContact ? t('messages.updateError') : t('messages.createError'));
+      toast.error(editingContactId ? t('messages.updateError') : t('messages.createError'));
     } finally {
-      setState(prev => ({
-        ...prev,
-        loading: { ...prev.loading, create: false, update: false },
-      }));
+      setFormLoading(false);
     }
   };
 
@@ -766,12 +776,8 @@ export default function Contacts() {
     console.log('Navigate to conversation:', conversationId);
   };
 
-  // Handle modal close
-  const handleContactModalClose = (open: boolean) => {
-    if (!open) {
-      setContactModalOpen(false);
-      setEditingContact(null);
-    }
+  const handleCancelNewContact = () => {
+    navigate('/contacts');
   };
 
   const handleConversationModalClose = (open: boolean) => {
@@ -781,14 +787,9 @@ export default function Contacts() {
     }
   };
 
-  const handleDetailsModalClose = (open: boolean) => {
-    if (!open) {
-      setDetailsModalOpen(false);
-      setDetailsContact(null);
-      if (contactIdFromRoute) {
-        navigate('/contacts', { replace: true });
-      }
-    }
+  const handleCloseContactDetails = () => {
+    setDetailsContact(null);
+    navigate('/contacts', { replace: true });
   };
 
   const handleMergeModalClose = (open: boolean) => {
@@ -801,127 +802,131 @@ export default function Contacts() {
   return (
     <div className="h-full flex flex-col p-3 sm:p-4">
       <ContactsTour />
-      <div data-tour="contacts-header">
-      <ContactsHeader
-        totalCount={state.meta.pagination.total}
-        selectedCount={state.selectedContactIds.length}
-        searchValue={state.searchQuery}
-        onSearchChange={handleSearchChange}
-        onNewContact={handleCreateContact}
-        onImport={handleImportContacts}
-        onExport={handleExportContacts}
-        onFilter={handleOpenFilter}
-        onBulkDelete={handleBulkDelete}
-        onMergeContacts={handleMergeContacts}
-        onClearSelection={() => setState(prev => ({ ...prev, selectedContactIds: [] }))}
-        activeFilters={appliedFilters}
-        showFilters={true}
-      />
-      </div>
-
-      {/* View Mode Toggle */}
-      <div className="flex items-center justify-end mt-3 mb-2 sm:mt-6 sm:mb-3" data-tour="contacts-view-toggle">
-        <div className="flex items-center border rounded-lg">
-          <Button
-            variant={viewMode === 'cards' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('cards')}
-            className="border-0 rounded-r-none"
-          >
-            <Grid3X3 className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === 'table' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('table')}
-            className="border-0 rounded-l-none"
-          >
-            <List className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-auto" data-tour="contacts-list">
-        {state.loading.list ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="text-muted-foreground">{t('loading.contacts')}</div>
-          </div>
-        ) : state.contacts.length === 0 ? (
-          <EmptyState
-            icon={Users}
-            title={t('empty.title')}
-            description={t('empty.description')}
-            action={{
-              label: t('empty.action'),
-              onClick: handleCreateContact,
-            }}
-            className="h-full"
-          />
-        ) : viewMode === 'cards' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {state.contacts.map(contact => (
-              <ContactCard
-                key={contact.id}
-                contact={contact}
-                onViewDetails={handleContactClick}
-                onStartConversation={handleStartConversation}
-                onEdit={handleEditContact}
-                onDelete={can('contacts', 'delete') ? handleDeleteContact : undefined}
-              />
-            ))}
-          </div>
-        ) : (
-          <ContactsTable
-            contacts={state.contacts}
-            selectedContacts={state.contacts.filter(contact =>
-              state.selectedContactIds.includes(contact.id),
-            )}
-            loading={state.loading.list}
-            onSelectionChange={contacts =>
-              setState(prev => ({
-                ...prev,
-                selectedContactIds: contacts.map(c => c.id),
-              }))
-            }
-            onContactClick={handleContactClick}
-            onStartConversation={handleStartConversation}
-            onEditContact={handleEditContact}
-            onDeleteContact={can('contacts', 'delete') ? handleDeleteContact : undefined}
-            onCreateContact={handleCreateContact}
-            sortBy={state.sortBy}
-            sortOrder={state.sortOrder}
-            onSort={column => {
-              const newOrder =
-                state.sortBy === column && state.sortOrder === 'asc' ? 'desc' : 'asc';
-              setState(prev => ({ ...prev, sortBy: column, sortOrder: newOrder }));
-              loadContacts({
-                sort: column as
-                  | 'name'
-                  | 'email'
-                  | 'phone_number'
-                  | 'last_activity_at'
-                  | 'created_at',
-                order: newOrder,
-              });
-            }}
-          />
-        )}
-      </div>
-
-      {/* Pagination */}
-      {state.meta.pagination.total > 0 && (
-        <div data-tour="contacts-pagination" className="mt-4 border-t border-border pt-4">
-          <ContactsPagination
-            currentPage={state.meta.pagination.page}
-            totalPages={state.meta.pagination.total_pages}
+      {isNewRoute ? (
+        <ContactFormPage
+          loading={formLoading}
+          onSubmit={handleContactFormSubmit}
+          onClose={handleCancelNewContact}
+        />
+      ) : contactIdFromRoute ? (
+        <ContactDetailPage
+          contact={detailsContact}
+          loading={detailsLoading}
+          notFound={detailsNotFound}
+          formSaving={formLoading}
+          onClose={handleCloseContactDetails}
+          onSave={handleContactFormSubmit}
+          onStartConversation={contact => {
+            setConversationContact(contact);
+            setConversationModalOpen(true);
+          }}
+          onContactUpdated={() => {
+            loadContacts();
+          }}
+        />
+      ) : (
+        <>
+          <div data-tour="contacts-header">
+          <ContactsHeader
             totalCount={state.meta.pagination.total}
-            perPage={state.meta.pagination.page_size}
-            onPageChange={handlePageChange}
-            onPerPageChange={handlePerPageChange}
-            loading={state.loading.list}
+            selectedCount={state.selectedContactIds.length}
+            searchValue={state.searchQuery}
+            onSearchChange={handleSearchChange}
+            onNewContact={handleCreateContact}
+            onImport={handleImportContacts}
+            onExport={handleExportContacts}
+            onFilter={handleOpenFilter}
+            onBulkDelete={handleBulkDelete}
+            onMergeContacts={handleMergeContacts}
+            onClearSelection={() => setState(prev => ({ ...prev, selectedContactIds: [] }))}
+            activeFilters={appliedFilters}
+            showFilters={false}
           />
-        </div>
+          </div>
+
+          {/* Filter Popover trigger */}
+          <div className="flex items-center justify-end mt-3 mb-2 sm:mt-6 sm:mb-3">
+            <ContactsFilterPopover
+              open={filterModalOpen}
+              onOpenChange={setFilterModalOpen}
+              filters={activeFilters}
+              onFiltersChange={setActiveFilters}
+              onApplyFilters={handleApplyFilters}
+              onClearFilters={handleClearFilters}
+              activeFiltersCount={activeFilters.length}
+            />
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-auto" data-tour="contacts-list">
+            {state.loading.list ? (
+              <div className="flex items-center justify-center py-16">
+                <div className="text-muted-foreground">{t('loading.contacts')}</div>
+              </div>
+            ) : state.contacts.length === 0 ? (
+              <EmptyState
+                icon={Users}
+                title={t('empty.title')}
+                description={t('empty.description')}
+                action={{
+                  label: t('empty.action'),
+                  onClick: handleCreateContact,
+                }}
+                className="h-full"
+              />
+            ) : (
+              <ContactsTable
+                contacts={state.contacts}
+                selectedContacts={state.contacts.filter(contact =>
+                  state.selectedContactIds.includes(contact.id),
+                )}
+                loading={state.loading.list}
+                onSelectionChange={contacts =>
+                  setState(prev => ({
+                    ...prev,
+                    selectedContactIds: contacts.map(c => c.id),
+                  }))
+                }
+                onContactClick={handleContactClick}
+                onStartConversation={handleStartConversation}
+                onEditContact={handleEditContact}
+                onDeleteContact={can('contacts', 'delete') ? handleDeleteContact : undefined}
+                onCreateContact={handleCreateContact}
+                sortBy={state.sortBy}
+                sortOrder={state.sortOrder}
+                onSort={column => {
+                  const newOrder =
+                    state.sortBy === column && state.sortOrder === 'asc' ? 'desc' : 'asc';
+                  setState(prev => ({ ...prev, sortBy: column, sortOrder: newOrder }));
+                  loadContacts({
+                    sort: column as
+                      | 'name'
+                      | 'email'
+                      | 'phone_number'
+                      | 'last_activity_at'
+                      | 'created_at',
+                    order: newOrder,
+                  });
+                }}
+              />
+            )}
+          </div>
+
+          {/* Pagination */}
+          {state.meta.pagination.total > 0 && (
+            <div data-tour="contacts-pagination" className="mt-4 border-t border-border pt-4">
+              <ContactsPagination
+                currentPage={state.meta.pagination.page}
+                totalPages={state.meta.pagination.total_pages}
+                totalCount={state.meta.pagination.total}
+                perPage={state.meta.pagination.page_size}
+                onPageChange={handlePageChange}
+                onPerPageChange={handlePerPageChange}
+                loading={state.loading.list}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* Bulk Delete Dialog */}
@@ -981,16 +986,6 @@ export default function Contacts() {
         </DialogContent>
       </Dialog>
 
-      {/* Contact Modal */}
-      <ContactModal
-        open={contactModalOpen}
-        onOpenChange={handleContactModalClose}
-        contact={editingContact || undefined}
-        isNew={!editingContact}
-        loading={state.loading.create || state.loading.update}
-        onSubmit={handleContactFormSubmit}
-      />
-
       {/* Start Conversation Modal */}
       {conversationContact && (
         <StartConversationModal
@@ -1000,47 +995,6 @@ export default function Contacts() {
           onConversationCreated={handleConversationCreated}
         />
       )}
-
-      {/* Contact Details Modal */}
-      <ContactDetails
-        open={detailsModalOpen}
-        onOpenChange={handleDetailsModalClose}
-        contact={detailsContact}
-        onEdit={contact => {
-          setDetailsModalOpen(false);
-          setEditingContact(contact);
-          setContactModalOpen(true);
-        }}
-        onStartConversation={contact => {
-          setDetailsModalOpen(false);
-          setConversationContact(contact);
-          setConversationModalOpen(true);
-        }}
-        onDelete={can('contacts', 'delete') ? handleDeleteContact : undefined}
-        onNavigateToContact={async contactId => {
-          try {
-            const response = await contactsService.getContact(contactId);
-            setDetailsContact(response);
-            setDetailsModalOpen(true);
-          } catch (error) {
-            console.error('Error loading contact:', error);
-            toast.error(t('errors.loadContact'));
-          }
-        }}
-        onContactUpdated={() => {
-          loadContacts();
-        }}
-      />
-
-      {/* Contacts Filter Modal */}
-      <ContactsFilter
-        open={filterModalOpen}
-        onOpenChange={setFilterModalOpen}
-        filters={activeFilters}
-        onFiltersChange={setActiveFilters}
-        onApplyFilters={handleApplyFilters}
-        onClearFilters={handleClearFilters}
-      />
 
       {/* Contact Import Modal */}
       <ContactImportModal

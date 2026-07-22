@@ -16,7 +16,7 @@ import {
 } from '@evoapi/design-system';
 import { ArrowLeft, FileUp, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { productsService } from '@/services/products/productsService';
 import { parseCsv, CsvParseError, findDuplicateHeaders } from '@/utils/csv/parseCsv';
 import {
@@ -46,7 +46,7 @@ interface DryRunState {
 
 export default function ProductsImport() {
   const { t } = useLanguage('products');
-  const { can } = useUserPermissions();
+  const { can } = usePermissions();
   const navigate = useNavigate();
   const canCreate = can('products', 'create');
 

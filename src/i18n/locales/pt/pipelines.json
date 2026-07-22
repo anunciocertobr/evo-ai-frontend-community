@@ -184,7 +184,10 @@
           "description": "Finalizado"
         }
       }
-    }
+    },
+    "pageTitle": "Criando um novo Pipeline",
+    "back": "Voltar",
+    "newStageColor": "Cor da etapa"
   },
   "createStage": {
     "title": "Criar Nova Etapa",
@@ -312,7 +315,9 @@
     },
     "cancel": "Cancelar",
     "saving": "Salvando...",
-    "save": "Salvar Alterações"
+    "save": "Salvar Alterações",
+    "scheduleAction": "Agendar ação",
+    "stageLabel": "Etapa:"
   },
   "editConversation": {
     "title": "Editar Conversa no Pipeline",
@@ -488,7 +493,11 @@
       "conversations": "Conversas",
       "completedPipelines": "Pipelines Completados",
       "createdAt": "Criado em",
-      "actions": "Ações"
+      "actions": "Ações",
+      "totalValue": "Valor Total",
+      "items": "Leads",
+      "stages": "Etapas",
+      "won": "Ganhos"
     },
     "actions": {
       "view": "Visualizar",
@@ -498,7 +507,8 @@
       "idCopied": "ID copiado para a área de transferência",
       "activate": "Ativar",
       "deactivate": "Desativar",
-      "delete": "Deletar"
+      "delete": "Deletar",
+      "setAsDefault": "Marcar como padrão"
     },
     "types": {
       "sales": "Vendas",
@@ -509,7 +519,8 @@
     "status": {
       "active": "Ativo",
       "inactive": "Inativo"
-    }
+    },
+    "default": "Padrão"
   },
   "pipelineSwitcher": {
     "loading": "Carregando pipeline...",
@@ -582,19 +593,39 @@
         "resolved": "Resolvido",
         "pending": "Pendente",
         "snoozed": "Adiado"
+      },
+      "filters": "Filtros",
+      "all": "Todos",
+      "apply": "Aplicar",
+      "periodFilter": "Período",
+      "priorityFilter": "Prioridade",
+      "period": {
+        "all": "Todo o período",
+        "today": "Hoje",
+        "last7": "Últimos 7 dias",
+        "last30": "Últimos 30 dias",
+        "month": "Este mês"
+      },
+      "priority": {
+        "alta": "Alta",
+        "media": "Média",
+        "baixa": "Baixa"
       }
     },
     "copyId": "Copiar ID",
     "idCopied": "ID copiado para a área de transferência",
     "header": {
-      "conversations": "Itens",
+      "conversations": "Leads",
       "stages": "Etapas",
       "totalValue": "Valor Total",
       "addItem": "Adicionar Item",
       "addConversation": "Adicionar Item",
       "editPipeline": "Editar Pipeline",
       "reorderStages": "Reordenar Etapas",
-      "deletePipeline": "Deletar Pipeline"
+      "deletePipeline": "Deletar Pipeline",
+      "private": "Privado",
+      "noDescription": "Sem descrição",
+      "captureForms": "Formulários de Captura"
     },
     "stage": {
       "addStage": "Adicionar Etapa",
@@ -619,7 +650,11 @@
         "unknown": "Desconhecido"
       },
       "valueLabel": "Valor Total:",
-      "system": "Sistema"
+      "system": "Sistema",
+      "moveCard": "Mover cartão",
+      "moveTo": "Mover para",
+      "addItemShort": "Adicionar item",
+      "openConversation": "Abrir conversa"
     },
     "conversation": {
       "unknownUser": "Usuário Desconhecido",
@@ -629,7 +664,9 @@
       "status": {
         "open": "Aberto",
         "resolved": "Resolvido",
-        "unknown": "Desconhecido"
+        "unknown": "Desconhecido",
+        "pending": "Pendente",
+        "snoozed": "Adiado"
       },
       "valueLabel": "Valor Total:",
       "system": "Sistema"
@@ -782,5 +819,25 @@
       "delete": "Deletar Pipeline",
       "deleting": "Deletando..."
     }
+  },
+  "captureForms": {
+    "title": "Formulários de Captura",
+    "subtitle": "Formulários de captura de lead deste funil: {{pipeline}}",
+    "newForm": "Novo Formulário",
+    "empty": "Nenhum formulário de captura para este funil ainda.",
+    "leadsCount": "{{count}} leads",
+    "published": "Publicado",
+    "draft": "Rascunho",
+    "copyLink": "Copiar link",
+    "openLink": "Abrir",
+    "edit": "Editar",
+    "delete": "Excluir",
+    "deleteConfirm": "Excluir o formulário \"{{name}}\"?",
+    "linkCopied": "Link copiado",
+    "saved": "Formulário salvo",
+    "deleted": "Formulário excluído",
+    "loadError": "Falha ao carregar formulários",
+    "saveError": "Falha ao salvar formulário",
+    "deleteError": "Falha ao excluir formulário"
   }
 }

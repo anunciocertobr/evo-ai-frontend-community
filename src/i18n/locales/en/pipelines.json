@@ -190,7 +190,10 @@
           "description": "Finalized"
         }
       }
-    }
+    },
+    "pageTitle": "Creating a new Pipeline",
+    "back": "Back",
+    "newStageColor": "Stage color"
   },
   "createStage": {
     "title": "Create New Stage",
@@ -318,7 +321,9 @@
     },
     "cancel": "Cancel",
     "saving": "Saving...",
-    "save": "Save Changes"
+    "save": "Save Changes",
+    "scheduleAction": "Schedule action",
+    "stageLabel": "Stage:"
   },
   "editConversation": {
     "title": "Edit Conversation in Pipeline",
@@ -410,6 +415,8 @@
     "finalizeMessagePlaceholder": "Closing message (optional)...",
     "inactivity": {
       "minutes": "minutes",
+      "hour": "hour",
+      "hours": "hours",
       "base": {
         "no_customer_reply": "Customer not replying",
         "stage_stagnation": "Stuck in stage"
@@ -519,7 +526,11 @@
       "conversations": "Conversations",
       "completedPipelines": "Completed Pipelines",
       "createdAt": "Created At",
-      "actions": "Actions"
+      "actions": "Actions",
+      "totalValue": "Total Value",
+      "items": "Leads",
+      "stages": "Stages",
+      "won": "Won"
     },
     "actions": {
       "view": "View",
@@ -529,7 +540,8 @@
       "idCopied": "ID copied to clipboard",
       "activate": "Activate",
       "deactivate": "Deactivate",
-      "delete": "Delete"
+      "delete": "Delete",
+      "setAsDefault": "Set as default"
     },
     "types": {
       "sales": "Sales",
@@ -540,7 +552,8 @@
     "status": {
       "active": "Active",
       "inactive": "Inactive"
-    }
+    },
+    "default": "Default"
   },
   "pipelineSwitcher": {
     "loading": "Loading pipeline...",
@@ -613,19 +626,39 @@
         "resolved": "Resolved",
         "pending": "Pending",
         "snoozed": "Snoozed"
+      },
+      "filters": "Filters",
+      "all": "All",
+      "apply": "Apply",
+      "periodFilter": "Period",
+      "priorityFilter": "Priority",
+      "period": {
+        "all": "All time",
+        "today": "Today",
+        "last7": "Last 7 days",
+        "last30": "Last 30 days",
+        "month": "This month"
+      },
+      "priority": {
+        "alta": "High",
+        "media": "Medium",
+        "baixa": "Low"
       }
     },
     "copyId": "Copy ID",
     "idCopied": "ID copied to clipboard",
     "header": {
-      "conversations": "Items",
+      "conversations": "Leads",
       "stages": "Stages",
       "totalValue": "Total Value",
       "addItem": "Add Item",
       "addConversation": "Add Item",
       "editPipeline": "Edit Pipeline",
       "reorderStages": "Reorder Stages",
-      "deletePipeline": "Delete Pipeline"
+      "deletePipeline": "Delete Pipeline",
+      "private": "Private",
+      "noDescription": "No description",
+      "captureForms": "Capture Forms"
     },
     "stage": {
       "addStage": "Add Stage",
@@ -650,7 +683,11 @@
         "unknown": "Unknown"
       },
       "valueLabel": "Total Value:",
-      "system": "System"
+      "system": "System",
+      "moveCard": "Move card",
+      "moveTo": "Move to",
+      "addItemShort": "Add item",
+      "openConversation": "Open conversation"
     },
     "conversation": {
       "unknownUser": "Unknown User",
@@ -660,7 +697,9 @@
       "status": {
         "open": "Open",
         "resolved": "Resolved",
-        "unknown": "Unknown"
+        "unknown": "Unknown",
+        "pending": "Pending",
+        "snoozed": "Snoozed"
       },
       "valueLabel": "Total Value:",
       "system": "System"
@@ -815,5 +854,25 @@
       "delete": "Delete Pipeline",
       "deleting": "Deleting..."
     }
+  },
+  "captureForms": {
+    "title": "Capture Forms",
+    "subtitle": "Lead capture forms for {{pipeline}}",
+    "newForm": "New Form",
+    "empty": "No capture forms for this pipeline yet.",
+    "leadsCount": "{{count}} leads",
+    "published": "Published",
+    "draft": "Draft",
+    "copyLink": "Copy link",
+    "openLink": "Open",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete the form \"{{name}}\"?",
+    "linkCopied": "Link copied",
+    "saved": "Form saved",
+    "deleted": "Form deleted",
+    "loadError": "Failed to load forms",
+    "saveError": "Failed to save form",
+    "deleteError": "Failed to delete form"
   }
 }

@@ -2,7 +2,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { Button, Input } from '@evoapi/design-system';
 import { Plus, Search, Trash2, X } from 'lucide-react';
 import BaseHeader from '@/components/base/BaseHeader';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface CannedResponsesHeaderProps {
   totalCount: number;
@@ -26,7 +26,7 @@ export default function CannedResponsesHeader({
   showBulkActions,
 }: CannedResponsesHeaderProps) {
   const { t } = useLanguage('cannedResponses');
-  const { can, isReady } = useUserPermissions();
+  const { can, isReady } = usePermissions();
 
   return (
     <BaseHeader

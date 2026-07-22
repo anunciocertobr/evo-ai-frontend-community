@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { agentIntegrationsService } from '@/services/agents/agentIntegrationsService';
+import { useIntegrationAvailability } from '@/hooks/useIntegrationAvailability';
 import type {
   GitHubConfig,
   NotionConfig,
@@ -43,6 +44,9 @@ interface UseMCPIntegrationsReturn {
 
   // Status
   credentialsConfigured: Record<string, boolean>;
+  // Availability signal (from the CRM :3000 endpoint), separate from
+  // "connected". Keys are hyphen-case ids (single-word MCP ids unchanged).
+  available: Record<string, boolean>;
   isCheckingCredentials: boolean;
 
   // Actions
@@ -86,6 +90,7 @@ function sanitizeConfig(config: Record<string, unknown>): Record<string, unknown
 }
 
 export function useMCPIntegrations(agentId: string): UseMCPIntegrationsReturn {
+  const { available, isLoadingAvailability } = useIntegrationAvailability();
   const [githubConfig, setGithubConfig] = useState<GitHubConfig | null>(null);
   const [notionConfig, setNotionConfig] = useState<NotionConfig | null>(null);
   const [stripeConfig, setStripeConfig] = useState<StripeConfig | null>(null);
@@ -277,7 +282,11 @@ export function useMCPIntegrations(agentId: string): UseMCPIntegrationsReturn {
     canvaConfig,
     supabaseConfig,
     credentialsConfigured,
-    isCheckingCredentials,
+    available,
+    // Keep the spinner up until BOTH the per-agent configs and the
+    // availability map have resolved, so the grid never flashes
+    // "Em breve" before availability lands.
+    isCheckingCredentials: isCheckingCredentials || isLoadingAvailability,
     reloadAllConfigs: loadConfigs,
     isConnected,
   };

@@ -1,7 +1,7 @@
 {
-  "title": "Agents",
+  "title": "Utilisateurs",
   "subtitle": "Gérez votre équipe et configurez les permissions d'accès",
-  "loading": "Chargement des agents...",
+  "loading": "Chargement des utilisateurs...",
   "card": {
     "id": "ID",
     "role": "Rôle",

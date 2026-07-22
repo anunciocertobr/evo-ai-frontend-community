@@ -1,5 +1,4 @@
 export { default as PipelinesHeader } from './PipelinesHeader';
-export { default as PipelineCard } from './PipelineCard';
 export { default as PipelinesTable } from './PipelinesTable';
 export { default as CreatePipelineModal } from './CreatePipelineModal';
 export { default as EditPipelineModal } from './EditPipelineModal';

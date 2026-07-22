@@ -151,6 +151,37 @@
       "update": "Save Changes"
     }
   },
+  "wizard": {
+    "progress": {
+      "identity": "Identity",
+      "connection": "Connection",
+      "advanced": "Advanced",
+      "finish": "Finish"
+    },
+    "step1": {
+      "title": "Let's identify your MCP server",
+      "subtitle": "Give it a name, description and tags so your team can find it later."
+    },
+    "step2": {
+      "title": "How does it connect?",
+      "subtitle": "Set the server URL and any HTTP headers sent on every request."
+    },
+    "step3": {
+      "title": "Advanced settings",
+      "subtitle": "Optional. Adjust the request timeout and how many times to retry."
+    },
+    "step4": {
+      "title": "Finishing touches",
+      "subtitle": "Review the settings before saving your MCP server.",
+      "reviewHint": "Check the details below. You can go back to change anything."
+    },
+    "actions": {
+      "continue": "Continue",
+      "back": "Back",
+      "create": "Create MCP server",
+      "save": "Save changes"
+    }
+  },
   "modal": {
     "title": {
       "create": "Create New Custom MCP Server",

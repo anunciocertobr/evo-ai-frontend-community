@@ -9,6 +9,7 @@ import {
 import { Copy, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Agent } from '@/types/agents';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface AgentActionsDropdownProps {
   agent: Agent;
@@ -29,14 +30,17 @@ export default function AgentActionsDropdown({
   align = 'end',
 }: AgentActionsDropdownProps) {
   const { t } = useLanguage('agents');
+  const { can, isReady } = usePermissions();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="w-48">
-        <DropdownMenuItem onClick={() => onEdit(agent)}>
-          <Edit className="h-4 w-4 mr-2" />
-          {t('dropdown.edit')}
-        </DropdownMenuItem>
+        {isReady && can('ai_agents', 'update') && (
+          <DropdownMenuItem onClick={() => onEdit(agent)}>
+            <Edit className="h-4 w-4 mr-2" />
+            {t('dropdown.edit')}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onClick={async () => {
             await navigator.clipboard.writeText(agent.id);
@@ -58,14 +62,18 @@ export default function AgentActionsDropdown({
             {t('dropdown.share')}
           </DropdownMenuItem>
         )} */}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => onDelete(agent)}
-          className="text-red-500 focus:text-red-500"
-        >
-          <Trash2 className="h-4 w-4 mr-2" />
-          {t('dropdown.delete')}
-        </DropdownMenuItem>
+        {isReady && can('ai_agents', 'delete') && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => onDelete(agent)}
+              className="text-red-500 focus:text-red-500"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {t('dropdown.delete')}
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

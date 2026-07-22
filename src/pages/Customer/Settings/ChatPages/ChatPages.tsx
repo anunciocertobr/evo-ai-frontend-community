@@ -20,7 +20,7 @@ import BasePagination from '@/components/base/BasePagination';
 import EmptyState from '@/components/base/EmptyState';
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { chatPagesService } from '@/services/chatPages/chatPagesService';
 import type { ChatPage, ChatPagePayload, PaginationMeta, WebWidgetOption } from '@/types/chatPages';
 import ChatPageModal from '@/components/chatPages/ChatPageModal';
@@ -34,7 +34,7 @@ const EMPTY_PAGINATION: PaginationMeta = {
 
 export default function ChatPages() {
   const { t } = useLanguage('chatPages');
-  const { can, isReady } = useUserPermissions();
+  const { can, isReady } = usePermissions();
   const canCreate = can('chat_pages', 'create');
   const canUpdate = can('chat_pages', 'update');
   const canDelete = can('chat_pages', 'delete');

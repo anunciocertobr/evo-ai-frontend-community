@@ -157,7 +157,10 @@
           "description": "Finalizado"
         }
       }
-    }
+    },
+    "pageTitle": "Creando un nuevo Pipeline",
+    "back": "Volver",
+    "newStageColor": "Color de la etapa"
   },
   "createStage": {
     "title": "Crear Nueva Etapa",
@@ -285,7 +288,9 @@
     },
     "cancel": "Cancelar",
     "saving": "Guardando...",
-    "save": "Guardar Cambios"
+    "save": "Guardar Cambios",
+    "scheduleAction": "Programar acción",
+    "stageLabel": "Etapa:"
   },
   "editConversation": {
     "title": "Editar Conversación en el Pipeline",
@@ -371,6 +376,8 @@
     "finalizeMessagePlaceholder": "Mensaje de cierre (opcional)...",
     "inactivity": {
       "minutes": "minutos",
+      "hour": "hora",
+      "hours": "horas",
       "base": {
         "no_customer_reply": "Cliente sin responder",
         "stage_stagnation": "Detenido en la etapa"
@@ -480,7 +487,11 @@
       "conversations": "Conversaciones",
       "completedPipelines": "Pipelines Completados",
       "createdAt": "Creado el",
-      "actions": "Acciones"
+      "actions": "Acciones",
+      "totalValue": "Valor Total",
+      "items": "Leads",
+      "stages": "Etapas",
+      "won": "Ganados"
     },
     "actions": {
       "view": "Visualizar",
@@ -490,7 +501,8 @@
       "idCopied": "ID copiado al portapapeles",
       "activate": "Activar",
       "deactivate": "Desactivar",
-      "delete": "Eliminar"
+      "delete": "Eliminar",
+      "setAsDefault": "Marcar como predeterminado"
     },
     "types": {
       "sales": "Ventas",
@@ -501,7 +513,8 @@
     "status": {
       "active": "Activo",
       "inactive": "Inactivo"
-    }
+    },
+    "default": "Predeterminado"
   },
   "pipelineSwitcher": {
     "loading": "Cargando pipeline...",
@@ -574,18 +587,38 @@
         "resolved": "Resuelto",
         "pending": "Pendiente",
         "snoozed": "Pospuesto"
+      },
+      "filters": "Filtros",
+      "all": "Todos",
+      "apply": "Aplicar",
+      "periodFilter": "Período",
+      "priorityFilter": "Prioridad",
+      "period": {
+        "all": "Todo el período",
+        "today": "Hoy",
+        "last7": "Últimos 7 días",
+        "last30": "Últimos 30 días",
+        "month": "Este mes"
+      },
+      "priority": {
+        "alta": "Alta",
+        "media": "Media",
+        "baixa": "Baja"
       }
     },
     "copyId": "Copiar ID",
     "idCopied": "ID copiado al portapapeles",
     "header": {
-      "conversations": "Conversaciones",
+      "conversations": "Leads",
       "stages": "Etapas",
       "totalValue": "Valor Total",
       "addConversation": "Agregar Conversación",
       "editPipeline": "Editar Pipeline",
       "reorderStages": "Reordenar Etapas",
-      "deletePipeline": "Eliminar Pipeline"
+      "deletePipeline": "Eliminar Pipeline",
+      "private": "Privado",
+      "noDescription": "Sin descripción",
+      "captureForms": "Formularios de Captura"
     },
     "stage": {
       "addStage": "Agregar Etapa",
@@ -610,7 +643,11 @@
         "unknown": "Desconocido"
       },
       "valueLabel": "Valor Total:",
-      "system": "Sistema"
+      "system": "Sistema",
+      "moveCard": "Mover tarjeta",
+      "moveTo": "Mover a",
+      "addItemShort": "Agregar ítem",
+      "openConversation": "Abrir conversación"
     },
     "conversation": {
       "unknownUser": "Usuario Desconocido",
@@ -620,7 +657,9 @@
       "status": {
         "open": "Abierto",
         "resolved": "Resuelto",
-        "unknown": "Desconocido"
+        "unknown": "Desconocido",
+        "pending": "Pendiente",
+        "snoozed": "Pospuesto"
       },
       "valueLabel": "Valor Total:",
       "system": "Sistema"
@@ -773,5 +812,25 @@
       "delete": "Eliminar Pipeline",
       "deleting": "Eliminando..."
     }
+  },
+  "captureForms": {
+    "title": "Formularios de Captura",
+    "subtitle": "Formularios de captura de leads para {{pipeline}}",
+    "newForm": "Nuevo Formulario",
+    "empty": "Aún no hay formularios de captura para este pipeline.",
+    "leadsCount": "{{count}} leads",
+    "published": "Publicado",
+    "draft": "Borrador",
+    "copyLink": "Copiar enlace",
+    "openLink": "Abrir",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar el formulario \"{{name}}\"?",
+    "linkCopied": "Enlace copiado",
+    "saved": "Formulario guardado",
+    "deleted": "Formulario eliminado",
+    "loadError": "Error al cargar formularios",
+    "saveError": "Error al guardar formulario",
+    "deleteError": "Error al eliminar formulario"
   }
 }

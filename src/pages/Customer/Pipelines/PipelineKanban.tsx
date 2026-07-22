@@ -10,7 +10,6 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Badge,
   Input,
 } from '@evoapi/design-system';
 import { Popover, PopoverContent, PopoverTrigger } from '@evoapi/design-system/popover';
@@ -18,28 +17,28 @@ import {
   ArrowLeft,
   Plus,
   MoreVertical,
-  GripVertical,
   Edit,
   Trash2,
   Copy,
   ArrowUpDown,
   Phone,
-  Mail,
-  MessageSquare,
   User,
   CalendarClock,
-  ListTodo,
   AlertCircle,
   Clock,
-  CheckCircle2,
   Search,
   X,
-  Users,
   ChevronDown,
   Check,
-  Tag,
   CircleDot,
   Calendar,
+  Lock,
+  Star,
+  Filter,
+  ArrowLeftRight,
+  GitBranch,
+  MessageSquare,
+  FileText,
 } from 'lucide-react';
 
 import { pipelinesService } from '@/services/pipelines';
@@ -51,7 +50,6 @@ import {
   UpdatePipelineData,
   CreateStageData,
 } from '@/types/analytics';
-import PipelineSwitcher from '@/components/pipelines/PipelineSwitcher';
 import EditPipelineModal from '@/components/pipelines/EditPipelineModal';
 import CreateStageModal from '@/components/pipelines/CreateStageModal';
 import AddItemModal from '@/components/pipelines/AddItemModal';
@@ -61,7 +59,48 @@ import EditStageModal from '@/components/pipelines/EditStageModal';
 import DeleteStageModal from '@/components/pipelines/DeleteStageModal';
 import DeletePipelineModal from '@/components/pipelines/DeletePipelineModal';
 import ReorderStagesModal from '@/components/pipelines/ReorderStagesModal';
+import PipelineCaptureFormsModal from '@/components/pipelines/PipelineCaptureFormsModal';
 import { ScheduleActionModal } from '@/components/scheduledActions';
+
+// Status/priority badge styles use the design system's semantic Tailwind classes
+// (same palette Chat/Contacts use), with dark-mode variants — NOT arbitrary hex.
+// Small indicator dots in the Filtros popover still use these hexes for a compact
+// swatch; the cards use the class maps below.
+const STATUS_HEX: Record<string, string> = {
+  open: '#359558',
+  pending: '#F59E0B',
+  resolved: '#9aa3b2',
+  snoozed: '#8B5CF6',
+};
+const statusColorHex = (status?: string) => STATUS_HEX[status ?? ''] ?? '#9aa3b2';
+
+const STATUS_BADGE_CLASS: Record<string, string> = {
+  open: 'bg-primary/10 text-primary',
+  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  resolved: 'bg-muted text-muted-foreground',
+  snoozed: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
+};
+const statusBadgeClass = (status?: string) =>
+  STATUS_BADGE_CLASS[status ?? ''] ?? 'bg-muted text-muted-foreground';
+
+// Chatwoot priority → mockup 3-bucket key.
+const priorityBucket = (priority?: string | null): string => {
+  const p = (priority ?? '').toLowerCase();
+  if (p === 'urgent' || p === 'high') return 'alta';
+  if (p === 'medium') return 'media';
+  if (p === 'low') return 'baixa';
+  return '';
+};
+const PRIORITY_HEX: Record<string, string> = {
+  alta: '#EF4444',
+  media: '#F59E0B',
+  baixa: '#359558',
+};
+const PRIORITY_BADGE_CLASS: Record<string, string> = {
+  alta: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  media: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  baixa: 'bg-primary/10 text-primary',
+};
 
 export default function PipelineKanban() {
   const { t } = useLanguage('pipelines');
@@ -75,6 +114,9 @@ export default function PipelineKanban() {
   const dateFrom = searchParams.get('dateFrom') ?? '';
   const dateTo = searchParams.get('dateTo') ?? '';
   const labelFilter = searchParams.get('label') ?? '';
+  const priorityFilter = searchParams.get('priority') ?? '';
+  // Período preset bucket ('today' | '7d' | '30d' | 'month'); drives dateFrom/dateTo.
+  const periodFilter = searchParams.get('period') ?? '';
 
   // Local state for the search input (immediate UI feedback; URL update is debounced)
   const [searchInput, setSearchInput] = useState(() => searchParams.get('search') ?? '');
@@ -98,7 +140,7 @@ export default function PipelineKanban() {
     };
   }, []);
 
-  const { agents, fetchAgents, isLoadingAgents } = useAppDataStore();
+  const { agents, fetchAgents } = useAppDataStore();
 
   useEffect(() => {
     fetchAgents();
@@ -133,6 +175,7 @@ export default function PipelineKanban() {
   const [isDeletingStage, setIsDeletingStage] = useState(false);
   const [showDeletePipelineModal, setShowDeletePipelineModal] = useState(false);
   const [showReorderStagesModal, setShowReorderStagesModal] = useState(false);
+  const [showCaptureFormsModal, setShowCaptureFormsModal] = useState(false);
   const [isDeletingPipeline, setIsDeletingPipeline] = useState(false);
   const [isReorderingStages, setIsReorderingStages] = useState(false);
   const [scheduleActionOpen, setScheduleActionOpen] = useState(false);
@@ -250,10 +293,21 @@ export default function PipelineKanban() {
       dateFrom?: string;
       dateTo?: string;
       label?: string;
+      priority?: string;
+      period?: string;
     }) => {
       setSearchParams(prev => {
         const next = new URLSearchParams(prev);
-        const keys = ['search', 'assignee', 'status', 'dateFrom', 'dateTo', 'label'] as const;
+        const keys = [
+          'search',
+          'assignee',
+          'status',
+          'dateFrom',
+          'dateTo',
+          'label',
+          'priority',
+          'period',
+        ] as const;
         for (const key of keys) {
           if (key in updates) {
             const val = updates[key as keyof typeof updates];
@@ -267,6 +321,31 @@ export default function PipelineKanban() {
     [setSearchParams],
   );
 
+  // Período bucket → concrete dateFrom/dateTo (YYYY-MM-DD, local). Sets both the
+  // preset key (for the UI) and the derived date range (which drives filterItems).
+  const applyPeriod = useCallback(
+    (bucket: string) => {
+      if (!bucket) {
+        updateFilters({ period: undefined, dateFrom: undefined, dateTo: undefined });
+        return;
+      }
+      const fmt = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      let from = today;
+      if (bucket === '7d') from = new Date(today.getTime() - 6 * 86400000);
+      else if (bucket === '30d') from = new Date(today.getTime() - 29 * 86400000);
+      else if (bucket === 'month') from = new Date(now.getFullYear(), now.getMonth(), 1);
+      updateFilters({ period: bucket, dateFrom: fmt(from), dateTo: fmt(today) });
+    },
+    [updateFilters],
+  );
+
   const clearFilters = useCallback(() => {
     // Cancel any pending debounce so it doesn't resurrect the search query
     // a few hundred ms after the user clicked "clear filters".
@@ -274,7 +353,9 @@ export default function PipelineKanban() {
     setSearchInput('');
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
-      ['search', 'assignee', 'status', 'dateFrom', 'dateTo', 'label'].forEach(k => next.delete(k));
+      ['search', 'assignee', 'status', 'dateFrom', 'dateTo', 'label', 'priority', 'period'].forEach(
+        k => next.delete(k),
+      );
       return next;
     }, { replace: true });
   }, [setSearchParams]);
@@ -334,10 +415,22 @@ export default function PipelineKanban() {
           !labelFilter ||
           (item.conversation?.labels ?? []).some(l => l.title === labelFilter);
 
-        return matchesSearch && matchesAssignee && matchesStatus && matchesDateRange && matchesLabel;
+        // Chatwoot priority (urgent/high/medium/low) collapsed into the mockup's
+        // 3 buckets: urgent+high → alta, medium → media, low → baixa.
+        const matchesPriority =
+          !priorityFilter || priorityBucket(item.conversation?.priority) === priorityFilter;
+
+        return (
+          matchesSearch &&
+          matchesAssignee &&
+          matchesStatus &&
+          matchesDateRange &&
+          matchesLabel &&
+          matchesPriority
+        );
       });
     },
-    [searchQuery, assigneeFilter, statusFilter, dateFrom, dateTo, labelFilter],
+    [searchQuery, assigneeFilter, statusFilter, dateFrom, dateTo, labelFilter, priorityFilter],
   );
 
   const hasActiveFilters =
@@ -346,11 +439,20 @@ export default function PipelineKanban() {
     statusFilter !== '' ||
     dateFrom !== '' ||
     dateTo !== '' ||
-    labelFilter !== '';
+    labelFilter !== '' ||
+    priorityFilter !== '';
 
-  const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false);
-  const [statusPopoverOpen, setStatusPopoverOpen] = useState(false);
-  const [labelPopoverOpen, setLabelPopoverOpen] = useState(false);
+  // Number of active filters shown on the "Filtros" chip badge (search excluded — it
+  // has its own box). Date range counts as one regardless of period vs raw dates.
+  const activeFilterCount =
+    (assigneeFilter ? 1 : 0) +
+    (statusFilter ? 1 : 0) +
+    (dateFrom || dateTo ? 1 : 0) +
+    (priorityFilter ? 1 : 0);
+
+  // Consolidated "Filtros" popover (mockup) + which accordion section is expanded.
+  const [filtersPopoverOpen, setFiltersPopoverOpen] = useState(false);
+  const [filterSection, setFilterSection] = useState<string | null>('assignee');
 
   // Memoize filtered items per stage to avoid recomputing 3× per stage per render
   const filteredItemsByStage = useMemo(() => {
@@ -376,34 +478,25 @@ export default function PipelineKanban() {
     [stages],
   );
 
-  // Unique labels collected from all items currently loaded.
-  // Always include the active labelFilter so the popover/chip stays interactive
-  // even after the last matching card moves out of view.
-  const uniqueLabels = useMemo(() => {
-    const set = new Set<string>();
-    for (const stage of stages) {
-      for (const item of stage.items || []) {
-        for (const label of item.conversation?.labels ?? []) {
-          if (label?.title) set.add(label.title);
+  // Defined pipeline attribute display-names (from custom_fields.attributes keys +
+  // attribute_definitions). Names only — there is no per-pipeline filled value.
+  const pipelineAttributeNames = useMemo(() => {
+    const cf = pipeline?.custom_fields as
+      | {
+          attributes?: string[];
+          attribute_definitions?: Record<string, { attribute_display_name?: string }>;
         }
-      }
-    }
-    if (labelFilter) set.add(labelFilter);
-    return Array.from(set).sort();
-  }, [stages, labelFilter]);
+      | undefined;
+    const keys = cf?.attributes ?? [];
+    const defs = cf?.attribute_definitions ?? {};
+    return keys.map(k => defs[k]?.attribute_display_name || k);
+  }, [pipeline]);
 
-  // Calculate stage total value
+
+  // Per-column total: sum of the stage's cards' value. item.value === services_info
+  // .total_value server-side (both = services_total_value); guard undefined with ?? 0.
   const calculateStageTotal = (items: PipelineItem[] = []) => {
-    return items.reduce((total, item) => {
-      return total + (item.value || 0);
-    }, 0);
-  };
-
-  // Calculate pipeline total value
-  const calculatePipelineTotal = () => {
-    return stages.reduce((total, stage) => {
-      return total + calculateStageTotal(stage.items);
-    }, 0);
+    return items.reduce((total, item) => total + (item.value ?? item.services_info?.total_value ?? 0), 0);
   };
 
   // Format currency
@@ -412,6 +505,25 @@ export default function PipelineKanban() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value);
+  };
+
+  // Move a card to a target stage from the card menu (mirrors the drag-and-drop
+  // moveItem path; both call pipelinesService.moveItem then reload).
+  const moveItemToStage = async (item: PipelineItem, targetStageId: string) => {
+    if (!pipelineId || item.stage_id === targetStageId) return;
+    try {
+      await pipelinesService.moveItem({
+        item_id: item.id,
+        pipeline_id: pipelineId,
+        from_stage_id: item.stage_id,
+        to_stage_id: targetStageId,
+      });
+      await loadPipelineData();
+      toast.success(t('kanban.messages.itemMoved'));
+    } catch (error) {
+      console.error('Error moving item:', error);
+      toast.error(t('kanban.messages.itemMoveError'));
+    }
   };
 
   // Pipeline management handlers
@@ -671,13 +783,69 @@ export default function PipelineKanban() {
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
 
-                <div className="flex-1 min-w-0 max-w-full lg:max-w-2xl">
-                  {/* Pipeline Selector */}
-                  <PipelineSwitcher
-                    pipelines={allPipelines}
-                    selectedPipeline={pipeline}
-                    onSwitchPipeline={handlePipelineChange}
-                  />
+                {/* Pipeline identity: themed icon tile + name (with a switch-pipeline
+                    dropdown arrow) + description + badges + edit pencil. */}
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10 text-primary">
+                  <GitBranch className="w-[19px] h-[19px]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    {pipeline?.visibility === 'private' && (
+                      <Lock className="w-4 h-4 text-muted-foreground shrink-0" aria-label={t('kanban.header.private')} />
+                    )}
+                    {/* Name + switch-pipeline dropdown arrow */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 min-w-0 rounded-md hover:bg-muted px-1 -mx-1 transition-colors"
+                        >
+                          <h1 className="text-base font-bold text-foreground truncate">
+                            {pipeline?.name}
+                          </h1>
+                          <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto w-56">
+                        {allPipelines.map(p => (
+                          <DropdownMenuItem
+                            key={p.id}
+                            onClick={() => handlePipelineChange(p.id)}
+                            className={p.id === pipeline?.id ? 'bg-primary/10 text-primary' : ''}
+                          >
+                            {p.visibility === 'private' && (
+                              <Lock className="h-3.5 w-3.5 mr-2 text-muted-foreground shrink-0" />
+                            )}
+                            <span className="truncate">{p.name}</span>
+                            {p.id === pipeline?.id && <Check className="h-3.5 w-3.5 ml-auto" />}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    {pipeline && !pipeline.is_active && (
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-muted text-muted-foreground shrink-0">
+                        {t('pipelinesTable.status.inactive')}
+                      </span>
+                    )}
+                    {pipeline?.is_default && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
+                        <Star className="w-3 h-3 fill-current" />
+                        {t('pipelinesTable.default')}
+                      </span>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleEditPipeline}
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-primary shrink-0"
+                      aria-label={t('kanban.header.editPipeline')}
+                    >
+                      <Edit className="w-[15px] h-[15px]" />
+                    </Button>
+                  </div>
+                  <p className="text-[12.5px] text-muted-foreground truncate">
+                    {pipeline?.description || t('kanban.header.noDescription')}
+                  </p>
                 </div>
               </div>
 
@@ -693,23 +861,16 @@ export default function PipelineKanban() {
                   <div className="font-semibold text-foreground">{stages.length}</div>
                   <div className="text-muted-foreground">{t('kanban.header.stages')}</div>
                 </div>
-                {calculatePipelineTotal() > 0 && (
-                  <div className="text-center min-w-20">
-                    <div className="font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
-                      R$ {formatCurrency(calculatePipelineTotal())}
-                    </div>
-                    <div className="text-muted-foreground">{t('kanban.header.totalValue')}</div>
+                {/* Header total = SERVER pipeline value (whole pipeline, unfiltered).
+                    It can exceed the sum of visible column sums when filters are active
+                    — that's intended (header = true total; columns = current view).
+                    Always shown (R$ 0,00 when empty), matching the mockup. */}
+                <div className="text-center min-w-20">
+                  <div className="font-semibold text-primary whitespace-nowrap">
+                    R$ {formatCurrency(pipeline?.services_info?.total_value ?? 0)}
                   </div>
-                )}
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => handleAddItem()}
-                  className="whitespace-nowrap"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  {t('kanban.header.addItem')}
-                </Button>
+                  <div className="text-muted-foreground">{t('kanban.header.totalValue')}</div>
+                </div>
 
                 {/* Pipeline Options Menu */}
                 <DropdownMenu>
@@ -718,7 +879,7 @@ export default function PipelineKanban() {
                       <MoreVertical className="w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuItem onClick={handleEditPipeline}>
                       <Edit className="h-4 w-4 mr-2" />
                       {t('kanban.header.editPipeline')}
@@ -737,6 +898,10 @@ export default function PipelineKanban() {
                       <ArrowUpDown className="h-4 w-4 mr-2" />
                       {t('kanban.header.reorderStages')}
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowCaptureFormsModal(true)}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      {t('kanban.header.captureForms')}
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="text-destructive" onClick={handleDeletePipeline}>
                       <Trash2 className="h-4 w-4 mr-2" />
@@ -747,11 +912,26 @@ export default function PipelineKanban() {
               </div>
             </div>
 
-            {/* Search & Filter bar */}
-            <div className="border-t border-border/50 py-2.5 space-y-2">
-              <div className="flex items-center gap-2">
-                {/* Search input — constrained width, não estica a tela toda */}
-                <div className="relative w-64 shrink-0">
+            {/* Green attribute chips (defined pipeline attributes — names only; per-item
+                values have no pipeline-scope home). Hidden when none. */}
+            {pipelineAttributeNames.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pb-2">
+                {pipelineAttributeNames.map(name => (
+                  <span
+                    key={name}
+                    className="inline-flex items-center gap-1 text-[11.5px] font-semibold px-2.5 py-1 rounded-md bg-primary/10 border border-primary/20 text-primary"
+                  >
+                    {name}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Search & consolidated Filtros bar */}
+            <div className="border-t border-border/50 py-2.5">
+              <div className="flex items-center gap-3">
+                {/* Search input */}
+                <div className="relative w-[300px] shrink-0">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input
                     placeholder={t('kanban.search.placeholder')}
@@ -769,327 +949,227 @@ export default function PipelineKanban() {
                   )}
                 </div>
 
-                {/* Assignee Popover */}
-                <Popover
-                  open={assigneePopoverOpen}
-                  onOpenChange={open => {
-                    setAssigneePopoverOpen(open);
-                    if (open) fetchAgents(true);
-                  }}
-                >
+                {/* Consolidated Filtros popover */}
+                <Popover open={filtersPopoverOpen} onOpenChange={setFiltersPopoverOpen}>
                   <PopoverTrigger asChild>
-                    {assigneeFilter ? (
-                      /* Active state — chip with avatar + name + × to clear */
-                      <div className="flex items-center gap-1.5 h-9 px-3 rounded-md border bg-secondary text-secondary-foreground text-sm font-medium cursor-pointer select-none hover:bg-secondary/80 transition-colors">
-                        {(() => {
-                          const selected = uniqueAssignees.find(a => a.id === assigneeFilter);
-                          return selected?.avatar_url ? (
-                            <img
-                              src={selected.avatar_url}
-                              alt={selected.name}
-                              className="w-5 h-5 rounded-full object-cover flex-shrink-0"
-                              onClick={() => setAssigneePopoverOpen(true)}
-                            />
-                          ) : (
-                            <div
-                              className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                              style={{ backgroundColor: getContactColor(selected?.name) }}
-                              onClick={() => setAssigneePopoverOpen(true)}
-                            >
-                              {selected?.name?.[0]?.toUpperCase() || 'U'}
-                            </div>
-                          );
-                        })()}
-                        <span
-                          className="max-w-28 truncate"
-                          onClick={() => setAssigneePopoverOpen(true)}
-                        >
-                          {uniqueAssignees.find(a => a.id === assigneeFilter)?.name}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`h-9 gap-2 whitespace-nowrap ${activeFilterCount > 0 ? 'border-primary/40 bg-primary/5 text-primary' : ''}`}
+                    >
+                      <Filter className="w-4 h-4" />
+                      {t('kanban.search.filters')}
+                      {activeFilterCount > 0 && (
+                        <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[11px] font-bold">
+                          {activeFilterCount}
                         </span>
-                        <button
-                          className="ml-0.5 text-secondary-foreground/60 hover:text-secondary-foreground transition-colors"
-                          onClick={e => {
-                            e.stopPropagation();
-                            updateFilters({ assignee: undefined });
-                          }}
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      /* Idle state — filter button */
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-9 gap-2 whitespace-nowrap"
-                      >
-                        <User className="w-4 h-4" />
-                        {t('kanban.search.assigneeFilter')}
-                        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                      </Button>
-                    )}
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="w-72 p-2">
-                    <div className="px-2 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      {t('kanban.search.assigneeFilter')}
-                    </div>
-
-                    {/* Team members list */}
-                    {isLoadingAgents ? (
-                      <div className="flex items-center justify-center py-6 gap-2 text-xs text-muted-foreground">
-                        <div className="w-3.5 h-3.5 border border-muted-foreground border-t-transparent rounded-full animate-spin" />
-                        {t('kanban.search.loadingAgents')}
-                      </div>
-                    ) : uniqueAssignees.length === 0 ? (
-                      <div className="flex flex-col items-center gap-2 py-6 text-center">
-                        <Users className="w-8 h-8 text-muted-foreground/30" />
-                        <span className="text-xs text-muted-foreground">
-                          {t('kanban.search.noAgents')}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="max-h-56 overflow-y-auto space-y-0.5">
-                        {uniqueAssignees.map(assignee => (
-                          <button
-                            key={assignee.id}
-                            onClick={() => {
-                              updateFilters({ assignee: assignee.id });
-                              setAssigneePopoverOpen(false);
-                            }}
-                            className="flex items-center gap-3 w-full px-2 py-2 text-sm rounded-md hover:bg-muted transition-colors"
-                          >
-                            {assignee.avatar_url ? (
-                              <img
-                                src={assignee.avatar_url}
-                                alt={assignee.name}
-                                className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                              />
-                            ) : (
-                              <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                                style={{ backgroundColor: getContactColor(assignee.name) }}
-                              >
-                                {assignee.name?.[0]?.toUpperCase() || 'U'}
-                              </div>
-                            )}
-                            <span className="flex-1 text-left truncate text-foreground">{assignee.name}</span>
-                            {assigneeFilter === assignee.id && (
-                              <Check className="w-4 h-4 text-primary flex-shrink-0" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </PopoverContent>
-                </Popover>
-
-                {/* Status filter */}
-                <Popover open={statusPopoverOpen} onOpenChange={setStatusPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    {statusFilter ? (
-                      <div className="flex items-center gap-1.5 h-9 px-3 rounded-md border bg-secondary text-secondary-foreground text-sm font-medium cursor-pointer select-none hover:bg-secondary/80 transition-colors">
-                        <CircleDot className="w-4 h-4 flex-shrink-0" />
-                        <span className="max-w-24 truncate">
-                          {t(`kanban.search.status.${statusFilter}`, statusFilter)}
-                        </span>
-                        <button
-                          className="ml-0.5 text-secondary-foreground/60 hover:text-secondary-foreground transition-colors"
-                          onClick={e => { e.stopPropagation(); updateFilters({ status: undefined }); }}
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <Button variant="outline" size="sm" className="h-9 gap-2 whitespace-nowrap">
-                        <CircleDot className="w-4 h-4" />
-                        {t('kanban.search.statusFilter')}
-                        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                      </Button>
-                    )}
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="w-48 p-2">
-                    <div className="px-2 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      {t('kanban.search.statusFilter')}
-                    </div>
-                    {(['open', 'resolved', 'pending', 'snoozed'] as const).map(s => (
-                      <button
-                        key={s}
-                        onClick={() => { updateFilters({ status: s }); setStatusPopoverOpen(false); }}
-                        className="flex items-center justify-between w-full px-2 py-2 text-sm rounded-md hover:bg-muted transition-colors"
-                      >
-                        <span className="text-foreground">{t(`kanban.search.status.${s}`)}</span>
-                        {statusFilter === s && <Check className="w-4 h-4 text-primary" />}
-                      </button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
-
-                {/* Date range filter */}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    {(dateFrom || dateTo) ? (
-                      <div className="flex items-center gap-1.5 h-9 px-3 rounded-md border bg-secondary text-secondary-foreground text-sm font-medium cursor-pointer select-none hover:bg-secondary/80 transition-colors">
-                        <Calendar className="w-4 h-4 flex-shrink-0" />
-                        <span className="max-w-32 truncate">
-                          {dateFrom && dateTo ? `${dateFrom} — ${dateTo}` : dateFrom ? `≥ ${dateFrom}` : `≤ ${dateTo}`}
-                        </span>
-                        <button
-                          className="ml-0.5 text-secondary-foreground/60 hover:text-secondary-foreground transition-colors"
-                          onClick={e => { e.stopPropagation(); updateFilters({ dateFrom: undefined, dateTo: undefined }); }}
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <Button variant="outline" size="sm" className="h-9 gap-2 whitespace-nowrap">
-                        <Calendar className="w-4 h-4" />
-                        {t('kanban.search.dateRangeFilter')}
-                        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                      </Button>
-                    )}
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="w-64 p-3 space-y-3">
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      {t('kanban.search.dateRangeFilter')}
-                    </div>
-                    <div className="space-y-2">
-                      <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">{t('kanban.search.dateFrom')}</label>
-                        <Input
-                          type="date"
-                          value={dateFrom}
-                          onChange={e => updateFilters({ dateFrom: e.target.value || undefined })}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground mb-1 block">{t('kanban.search.dateTo')}</label>
-                        <Input
-                          type="date"
-                          value={dateTo}
-                          onChange={e => updateFilters({ dateTo: e.target.value || undefined })}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-
-                {/* Label filter — only shown when pipeline items have labels */}
-                {uniqueLabels.length > 0 && (
-                  <Popover open={labelPopoverOpen} onOpenChange={setLabelPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      {labelFilter ? (
-                        <div className="flex items-center gap-1.5 h-9 px-3 rounded-md border bg-secondary text-secondary-foreground text-sm font-medium cursor-pointer select-none hover:bg-secondary/80 transition-colors">
-                          <Tag className="w-4 h-4 flex-shrink-0" />
-                          <span className="max-w-24 truncate">{labelFilter}</span>
-                          <button
-                            className="ml-0.5 text-secondary-foreground/60 hover:text-secondary-foreground transition-colors"
-                            onClick={e => { e.stopPropagation(); updateFilters({ label: undefined }); }}
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <Button variant="outline" size="sm" className="h-9 gap-2 whitespace-nowrap">
-                          <Tag className="w-4 h-4" />
-                          {t('kanban.search.labelFilter')}
-                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                        </Button>
                       )}
-                    </PopoverTrigger>
-                    <PopoverContent align="start" className="w-48 p-2">
-                      <div className="px-2 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        {t('kanban.search.labelFilter')}
-                      </div>
-                      <div className="max-h-56 overflow-y-auto space-y-0.5">
-                        {uniqueLabels.map(label => (
-                          <button
-                            key={label}
-                            onClick={() => { updateFilters({ label }); setLabelPopoverOpen(false); }}
-                            className="flex items-center justify-between w-full px-2 py-2 text-sm rounded-md hover:bg-muted transition-colors"
-                          >
-                            <span className="text-foreground truncate">{label}</span>
-                            {labelFilter === label && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
-                          </button>
-                        ))}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-[300px] p-0 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-muted/50 border-b border-border">
+                      <span className="text-sm font-semibold text-foreground">
+                        {t('kanban.search.filters')}
+                      </span>
+                      {activeFilterCount > 0 && (
+                        <button
+                          onClick={clearFilters}
+                          className="text-xs font-semibold text-primary hover:text-primary/70 transition-colors"
+                        >
+                          {t('kanban.search.clearFilters')}
+                        </button>
+                      )}
+                    </div>
 
-                {/* Clear all filters */}
+                    <div className="max-h-[380px] overflow-y-auto p-2 space-y-1.5">
+                      {/* Responsável */}
+                      <div className="rounded-lg border border-border overflow-hidden">
+                        <button
+                          className="flex items-center justify-between w-full px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-muted/40 transition-colors"
+                          onClick={() => setFilterSection(s => (s === 'assignee' ? null : 'assignee'))}
+                        >
+                          <span className="flex items-center gap-2">
+                            <User className="w-4 h-4 text-primary" />
+                            {t('kanban.search.assigneeFilter')}
+                          </span>
+                          <ChevronDown className={`w-4 h-4 transition-transform ${filterSection === 'assignee' ? 'rotate-180' : ''}`} />
+                        </button>
+                        {filterSection === 'assignee' && (
+                          <div className="px-2 pb-2 max-h-40 overflow-y-auto space-y-0.5">
+                            <button
+                              onClick={() => updateFilters({ assignee: undefined })}
+                              className="flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-md hover:bg-muted transition-colors"
+                            >
+                              <span className="text-foreground">{t('kanban.search.all')}</span>
+                              {!assigneeFilter && <Check className="w-4 h-4 text-primary" />}
+                            </button>
+                            {uniqueAssignees.map(a => (
+                              <button
+                                key={a.id}
+                                onClick={() => updateFilters({ assignee: a.id })}
+                                className="flex items-center gap-2.5 w-full px-2 py-1.5 text-sm rounded-md hover:bg-muted transition-colors"
+                              >
+                                {a.avatar_url ? (
+                                  <img src={a.avatar_url} alt={a.name} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                                ) : (
+                                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0" style={{ backgroundColor: getContactColor(a.name) }}>
+                                    {a.name?.[0]?.toUpperCase() || 'U'}
+                                  </div>
+                                )}
+                                <span className="flex-1 text-left truncate text-foreground">{a.name}</span>
+                                {assigneeFilter === a.id && <Check className="w-4 h-4 text-primary shrink-0" />}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Status */}
+                      <div className="rounded-lg border border-border overflow-hidden">
+                        <button
+                          className="flex items-center justify-between w-full px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-muted/40 transition-colors"
+                          onClick={() => setFilterSection(s => (s === 'status' ? null : 'status'))}
+                        >
+                          <span className="flex items-center gap-2">
+                            <CircleDot className="w-4 h-4 text-primary" />
+                            {t('kanban.search.statusFilter')}
+                          </span>
+                          <ChevronDown className={`w-4 h-4 transition-transform ${filterSection === 'status' ? 'rotate-180' : ''}`} />
+                        </button>
+                        {filterSection === 'status' && (
+                          <div className="px-2 pb-2 space-y-0.5">
+                            <button
+                              onClick={() => updateFilters({ status: undefined })}
+                              className="flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-md hover:bg-muted transition-colors"
+                            >
+                              <span className="text-foreground">{t('kanban.search.all')}</span>
+                              {!statusFilter && <Check className="w-4 h-4 text-primary" />}
+                            </button>
+                            {(['open', 'pending', 'resolved', 'snoozed'] as const).map(s => (
+                              <button
+                                key={s}
+                                onClick={() => updateFilters({ status: s })}
+                                className="flex items-center gap-2.5 w-full px-2 py-1.5 text-sm rounded-md hover:bg-muted transition-colors"
+                              >
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: statusColorHex(s) }} />
+                                <span className="flex-1 text-left text-foreground">{t(`kanban.search.status.${s}`)}</span>
+                                {statusFilter === s && <Check className="w-4 h-4 text-primary shrink-0" />}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Período */}
+                      <div className="rounded-lg border border-border overflow-hidden">
+                        <button
+                          className="flex items-center justify-between w-full px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-muted/40 transition-colors"
+                          onClick={() => setFilterSection(s => (s === 'period' ? null : 'period'))}
+                        >
+                          <span className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-primary" />
+                            {t('kanban.search.periodFilter')}
+                          </span>
+                          <ChevronDown className={`w-4 h-4 transition-transform ${filterSection === 'period' ? 'rotate-180' : ''}`} />
+                        </button>
+                        {filterSection === 'period' && (
+                          <div className="px-2 pb-2 space-y-0.5">
+                            {([
+                              { key: '', label: t('kanban.search.period.all') },
+                              { key: 'today', label: t('kanban.search.period.today') },
+                              { key: '7d', label: t('kanban.search.period.last7') },
+                              { key: '30d', label: t('kanban.search.period.last30') },
+                              { key: 'month', label: t('kanban.search.period.month') },
+                            ]).map(p => (
+                              <button
+                                key={p.key || 'all'}
+                                onClick={() => applyPeriod(p.key)}
+                                className="flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-md hover:bg-muted transition-colors"
+                              >
+                                <span className="text-foreground">{p.label}</span>
+                                {(periodFilter === p.key || (!periodFilter && !p.key)) && <Check className="w-4 h-4 text-primary" />}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Prioridade */}
+                      <div className="rounded-lg border border-border overflow-hidden">
+                        <button
+                          className="flex items-center justify-between w-full px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-muted/40 transition-colors"
+                          onClick={() => setFilterSection(s => (s === 'priority' ? null : 'priority'))}
+                        >
+                          <span className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-primary" />
+                            {t('kanban.search.priorityFilter')}
+                          </span>
+                          <ChevronDown className={`w-4 h-4 transition-transform ${filterSection === 'priority' ? 'rotate-180' : ''}`} />
+                        </button>
+                        {filterSection === 'priority' && (
+                          <div className="px-2 pb-2 space-y-0.5">
+                            <button
+                              onClick={() => updateFilters({ priority: undefined })}
+                              className="flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-md hover:bg-muted transition-colors"
+                            >
+                              <span className="text-foreground">{t('kanban.search.all')}</span>
+                              {!priorityFilter && <Check className="w-4 h-4 text-primary" />}
+                            </button>
+                            {(['alta', 'media', 'baixa'] as const).map(p => (
+                              <button
+                                key={p}
+                                onClick={() => updateFilters({ priority: p })}
+                                className="flex items-center gap-2.5 w-full px-2 py-1.5 text-sm rounded-md hover:bg-muted transition-colors"
+                              >
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PRIORITY_HEX[p] }} />
+                                <span className="flex-1 text-left text-foreground">{t(`kanban.search.priority.${p}`)}</span>
+                                {priorityFilter === p && <Check className="w-4 h-4 text-primary shrink-0" />}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 px-3 py-2.5 border-t border-border">
+                      <Button variant="outline" size="sm" onClick={clearFilters} disabled={activeFilterCount === 0}>
+                        {t('kanban.search.clearFilters')}
+                      </Button>
+                      <Button size="sm" onClick={() => setFiltersPopoverOpen(false)}>
+                        {t('kanban.search.apply')}
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Inline clear when any filter active */}
                 {hasActiveFilters && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-9 text-muted-foreground hover:text-foreground"
+                    className="h-9 text-primary hover:bg-primary/10"
                     onClick={clearFilters}
                   >
                     <X className="w-4 h-4 mr-1.5" />
                     {t('kanban.search.clearFilters')}
                   </Button>
                 )}
-              </div>
 
-              {/* Active filter chips + results summary */}
-              {hasActiveFilters && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground">
+                {/* Results summary */}
+                {hasActiveFilters && (
+                  <span className="text-xs text-muted-foreground ml-auto">
                     {t('kanban.search.resultsCount', {
                       count: totalFilteredCount,
                       total: totalItemCount,
                       stages: stagesWithResults,
                     })}
                   </span>
-                  {searchQuery && (
-                    <span className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                      &ldquo;{searchQuery}&rdquo;
-                      <button onClick={() => handleSearchChange('')} className="hover:text-primary/60 transition-colors">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  )}
-                  {assigneeFilter && (
-                    <span className="inline-flex items-center gap-1.5 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                      {uniqueAssignees.find(a => a.id === assigneeFilter)?.name}
-                      <button onClick={() => updateFilters({ assignee: undefined })} className="hover:text-primary/60 transition-colors">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  )}
-                  {statusFilter && (
-                    <span className="inline-flex items-center gap-1.5 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                      {t(`kanban.search.status.${statusFilter}`, statusFilter)}
-                      <button onClick={() => updateFilters({ status: undefined })} className="hover:text-primary/60 transition-colors">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  )}
-                  {(dateFrom || dateTo) && (
-                    <span className="inline-flex items-center gap-1.5 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                      <Calendar className="w-3 h-3" />
-                      {dateFrom && dateTo ? `${dateFrom} — ${dateTo}` : dateFrom ? `≥ ${dateFrom}` : `≤ ${dateTo}`}
-                      <button onClick={() => updateFilters({ dateFrom: undefined, dateTo: undefined })} className="hover:text-primary/60 transition-colors">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  )}
-                  {labelFilter && (
-                    <span className="inline-flex items-center gap-1.5 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                      <Tag className="w-3 h-3" />
-                      {labelFilter}
-                      <button onClick={() => updateFilters({ label: undefined })} className="hover:text-primary/60 transition-colors">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Global empty state: all stages empty with active filters */}
               {hasActiveFilters && totalFilteredCount === 0 && (
-                <div className="flex items-center gap-3 py-2 px-3 rounded-lg bg-muted/60 border border-border/50">
+                <div className="flex items-center gap-3 py-2 px-3 mt-2 rounded-lg bg-muted/60 border border-border/50">
                   <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   <span className="text-sm text-muted-foreground flex-1">
                     {t('kanban.search.globalNoResults')}
@@ -1112,40 +1192,45 @@ export default function PipelineKanban() {
               style={{ width: 'fit-content', minWidth: '100%' }}
             >
               {/* Stage Columns */}
-              {stages.map((stage: PipelineStage) => (
-                <div key={stage.id} className="w-80 flex-shrink-0">
-                  <div className="bg-background rounded-xl shadow-sm border border-border h-full flex flex-col">
-                    {/* Stage Header */}
+              {stages.map((stage: PipelineStage) => {
+                const stageItems = filteredItemsByStage.get(stage.id) || [];
+                const stageSum = calculateStageTotal(stage.items);
+                return (
+                <div key={stage.id} className="flex-shrink-0" style={{ flex: '0 0 340px' }}>
+                  <div className="bg-background rounded-xl border border-border h-full flex flex-col overflow-hidden">
+                    {/* Stage Header — clean: color only on the top border + dot */}
                     <div
-                      className="flex-shrink-0 px-4 py-3 border-b border-border bg-muted/50 rounded-t-xl border-t-4"
+                      className="flex-shrink-0 flex items-center justify-between gap-2 px-3.5 py-3 border-b border-border border-t-[3px]"
                       style={{ borderTopColor: stage.color }}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: stage.color }}
-                          />
-                          <h3 className="text-sm font-medium text-foreground">{stage.name}</h3>
-                          <span className="bg-muted text-muted-foreground text-xs px-2 py-1 rounded-full">
-                            {hasActiveFilters
-                              ? `${(filteredItemsByStage.get(stage.id) || []).length}/${stage.items?.length || stage.item_count || 0}`
-                              : (stage.items?.length || stage.item_count || 0)}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-[9px] h-[9px] rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
+                        <h3 className="text-sm font-bold text-foreground truncate">{stage.name}</h3>
+                        <span className="text-[13px] text-muted-foreground shrink-0">
+                          {hasActiveFilters
+                            ? `${stageItems.length}/${stage.items?.length || stage.item_count || 0}`
+                            : (stage.items?.length || stage.item_count || 0)}
+                        </span>
+                        {stageSum > 0 && (
+                          <span className="text-[11.5px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary shrink-0">
+                            R$ {formatCurrency(stageSum)}
                           </span>
-                          {/* Stage Total Value */}
-                          {calculateStageTotal(stage.items) > 0 && (
-                            <span className="bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-xs px-2 py-1 rounded-full font-medium">
-                              {t('kanban.stage.totalValue', {
-                                value: formatCurrency(calculateStageTotal(stage.items)),
-                              })}
-                            </span>
-                          )}
-                        </div>
+                        )}
+                      </div>
 
-                        {/* Stage Options */}
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                          onClick={() => handleAddItem(stage)}
+                          aria-label={t('kanban.header.addItem')}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-auto p-1">
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground">
                               <MoreVertical className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -1164,10 +1249,7 @@ export default function PipelineKanban() {
                               {t('kanban.copyId')}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => handleDeleteStage(stage)}
-                            >
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteStage(stage)}>
                               <Trash2 className="h-4 w-4 mr-2" />
                               {t('kanban.stage.deleteStage')}
                             </DropdownMenuItem>
@@ -1178,358 +1260,226 @@ export default function PipelineKanban() {
 
                     {/* Items Drop Zone */}
                     <div
-                      className="flex-1 overflow-y-auto p-4 space-y-3"
+                      className="flex-1 overflow-y-auto p-3 space-y-3"
                       onDragOver={handleDragOver}
                       onDrop={e => handleDrop(e, stage.id)}
                     >
-                      {/* Items */}
-                      {(filteredItemsByStage.get(stage.id) || []).map(item => (
+                      {stageItems.map(item => {
+                        const pBucket = priorityBucket(item.conversation?.priority);
+                        const firstLabel = item.conversation?.labels?.[0]?.title;
+                        const moveTargets = stages.filter(s => s.id !== item.stage_id);
+                        return (
                         <div
                           key={item.id}
-                          className="group bg-background rounded-xl p-4 border border-border shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 cursor-pointer select-none relative"
+                          className="group relative bg-background rounded-xl p-3.5 border border-border hover:shadow-md hover:border-primary/30 transition-all duration-200 cursor-pointer select-none"
                           draggable
                           onDragStart={() => handleDragStart(item)}
                           onDragEnd={handleDragEnd}
                           onClick={() => {
-                            if (isDraggingRef.current || Date.now() <= suppressClickUntilRef.current) {
-                              return;
-                            }
-                            const conversationUuid = item.conversation?.uuid;
-                            if (conversationUuid) {
-                              navigate(`/conversations/${conversationUuid}`);
-                              return;
-                            }
+                            if (isDraggingRef.current || Date.now() <= suppressClickUntilRef.current) return;
+                            // Clicking a card ALWAYS opens the detail ficha (mockup §3.5).
+                            // "Abrir conversa" lives in the ⋮ menu for conversation items.
                             handleEditItem(item);
                           }}
                         >
-                          {/* Card Options Menu */}
+                          {/* Card menus: move + ⋮ */}
                           <div
-                            className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => e.stopPropagation()}
+                            className="absolute top-2 right-2 flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                            onClick={e => e.stopPropagation()}
                           >
-                            <div className="flex items-center space-x-1">
+                            {moveTargets.length > 0 && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-auto p-1 hover:bg-muted"
-                                  >
-                                    <MoreVertical className="w-4 h-4" />
+                                  <Button variant="ghost" size="sm" className="h-auto p-1 text-muted-foreground hover:bg-muted" aria-label={t('kanban.item.moveCard')}>
+                                    <ArrowLeftRight className="w-4 h-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => handleEditItem(item)}>
-                                    <Edit className="h-4 w-4 mr-2" />
-                                    {t('kanban.item.editItem')}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={async () => {
-                                      await navigator.clipboard.writeText(String(item.id));
-                                      toast.success(t('kanban.idCopied'));
-                                    }}
-                                  >
-                                    <Copy className="h-4 w-4 mr-2" />
-                                    {t('kanban.copyId')}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setSelectedConversationForSchedule(item);
-                                      setScheduleActionOpen(true);
-                                    }}
-                                  >
-                                    <CalendarClock className="h-4 w-4 mr-2" />
-                                    {t('kanban.item.scheduleAction')}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={() => handleRemoveItem(item)}
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    {t('kanban.item.removeFromPipeline')}
-                                  </DropdownMenuItem>
+                                  <div className="px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                                    {t('kanban.item.moveTo')}
+                                  </div>
+                                  {moveTargets.map(target => (
+                                    <DropdownMenuItem key={target.id} onClick={() => moveItemToStage(item, target.id)}>
+                                      <span className="w-2.5 h-2.5 rounded-full mr-2 shrink-0" style={{ backgroundColor: target.color }} />
+                                      {target.name}
+                                    </DropdownMenuItem>
+                                  ))}
                                 </DropdownMenuContent>
                               </DropdownMenu>
-                              <GripVertical className="w-4 h-4 text-muted-foreground" />
-                            </div>
+                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-auto p-1 text-muted-foreground hover:bg-muted">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleEditItem(item)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  {t('kanban.item.editItem')}
+                                </DropdownMenuItem>
+                                {item.conversation?.uuid && (
+                                  <DropdownMenuItem
+                                    onClick={() => navigate(`/conversations/${item.conversation!.uuid}`)}
+                                  >
+                                    <MessageSquare className="h-4 w-4 mr-2" />
+                                    {t('kanban.item.openConversation')}
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem
+                                  onClick={async () => {
+                                    await navigator.clipboard.writeText(String(item.id));
+                                    toast.success(t('kanban.idCopied'));
+                                  }}
+                                >
+                                  <Copy className="h-4 w-4 mr-2" />
+                                  {t('kanban.copyId')}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedConversationForSchedule(item);
+                                    setScheduleActionOpen(true);
+                                  }}
+                                >
+                                  <CalendarClock className="h-4 w-4 mr-2" />
+                                  {t('kanban.item.scheduleAction')}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-destructive" onClick={() => handleRemoveItem(item)}>
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  {t('kanban.item.removeFromPipeline')}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
 
-                          {/* Contact Info Header */}
-                          <div className="flex items-start space-x-3 mb-3">
-                            <div className="relative">
-                              <div
-                                className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm"
-                                style={{
-                                  backgroundColor: getContactColor(item.contact?.name),
-                                }}
-                              >
-                                {item.contact?.name?.[0]?.toUpperCase() || 'U'}
-                              </div>
-                              {/* Online indicator */}
-                              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 border-2 border-background rounded-full" />
+                          {/* Contact header */}
+                          <div className="flex items-start gap-3 mb-2.5 pr-14">
+                            <div
+                              className="w-[34px] h-[34px] shrink-0 rounded-full flex items-center justify-center text-white text-[13px] font-bold shadow-sm"
+                              style={{ backgroundColor: getContactColor(item.contact?.name) }}
+                            >
+                              {item.contact?.name?.[0]?.toUpperCase() || 'U'}
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center space-x-2 mb-1">
-                                <h4 className="text-sm font-semibold text-foreground truncate">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <h4 className="text-sm font-bold text-foreground truncate">
                                   {item.contact?.name || t('kanban.conversation.unknownUser')}
                                 </h4>
-                                <span className="text-xs text-muted-foreground font-medium">
-                                  #{item.conversation?.display_id}
-                                </span>
-                              </div>
-                              {/* Contact details */}
-                              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                                {item.contact?.phone_number && (
-                                  <span className="flex items-center space-x-1">
-                                    <Phone className="w-3 h-3" />
-                                    <span className="truncate max-w-20">
-                                      {item.contact.phone_number}
-                                    </span>
-                                  </span>
-                                )}
-                                {item.contact?.email && (
-                                  <span className="flex items-center space-x-1">
-                                    <Mail className="w-3 h-3" />
-                                    <span className="truncate max-w-20">{item.contact?.email}</span>
-                                  </span>
+                                {item.conversation?.display_id && (
+                                  <span className="text-xs text-muted-foreground shrink-0">#{item.conversation.display_id}</span>
                                 )}
                               </div>
+                              {item.contact?.phone_number && (
+                                <div className="flex items-center gap-1 text-[12.5px] text-muted-foreground mt-0.5">
+                                  <Phone className="w-3 h-3 shrink-0" />
+                                  <span className="truncate">{item.contact.phone_number}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
 
-                          {/* Last Message Preview */}
+                          {/* Message preview */}
                           {item.conversation?.last_non_activity_message?.content && (
-                            <div className="mb-3 p-3 bg-muted/50 rounded-lg border border-border">
-                              <div className="flex items-start space-x-2">
-                                <MessageSquare className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center space-x-2 mb-1">
-                                    <span className="text-xs font-medium text-foreground">
-                                      {item.conversation.last_non_activity_message.sender?.name ||
-                                        t('kanban.conversation.system')}
-                                    </span>
-                                  </div>
-                                  <p
-                                    className="text-sm text-foreground line-clamp-2 leading-relaxed [&_p]:inline [&_br]:hidden"
-                                    dangerouslySetInnerHTML={{
-                                      __html:
-                                        item.conversation.last_non_activity_message
-                                          .processed_message_content ||
-                                        item.conversation.last_non_activity_message.content || '',
-                                    }}
-                                  />
-                                  <div className="flex items-center justify-between mt-2">
-                                    <span className="text-xs text-muted-foreground">
-                                      {new Date(
-                                        typeof item.conversation.last_non_activity_message
-                                          .created_at === 'number'
-                                          ? item.conversation.last_non_activity_message.created_at *
-                                            1000
-                                          : item.conversation.last_non_activity_message.created_at,
-                                      ).toLocaleString('pt-BR', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                      })}
-                                    </span>
-                                    {item.conversation.last_non_activity_message?.message_type !==
-                                      undefined && (
-                                      <span className="text-xs text-muted-foreground">
-                                        {item.conversation.last_non_activity_message
-                                          .message_type === 0
-                                          ? t('kanban.conversation.incoming', 'Incoming')
-                                          : item.conversation.last_non_activity_message
-                                              .message_type === 1
-                                          ? t('kanban.conversation.outgoing', 'Outgoing')
-                                          : ''}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
+                            <div className="mb-2.5 p-2.5 bg-muted/50 rounded-lg">
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <span className="text-[12.5px] font-bold text-foreground truncate">
+                                  {item.conversation.last_non_activity_message.sender?.name || t('kanban.conversation.system')}
+                                </span>
+                                <span className="text-[11.5px] text-muted-foreground shrink-0">
+                                  {new Date(
+                                    typeof item.conversation.last_non_activity_message.created_at === 'number'
+                                      ? item.conversation.last_non_activity_message.created_at * 1000
+                                      : item.conversation.last_non_activity_message.created_at,
+                                  ).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                </span>
                               </div>
+                              <p
+                                className="text-[12.5px] text-muted-foreground line-clamp-2 leading-relaxed [&_p]:inline [&_br]:hidden"
+                                dangerouslySetInnerHTML={{
+                                  __html:
+                                    item.conversation.last_non_activity_message.processed_message_content ||
+                                    item.conversation.last_non_activity_message.content || '',
+                                }}
+                              />
                             </div>
                           )}
 
-                          {/* Inbox and Status Row */}
-                          <div className="flex items-center justify-between mb-3">
-                            {!item.is_lead && (
-                              <div className="flex items-center space-x-2 text-xs">
-                                <div className="flex items-center space-x-1 px-2 py-1 bg-muted/50 rounded-md">
-                                  <div className="w-3 h-3 text-muted-foreground">
-                                    <svg fill="currentColor" viewBox="0 0 20 20">
-                                      <path
-                                        fillRule="evenodd"
-                                        d="M2 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 002 2H4a2 2 0 01-2-2V5zm3 1h6v4H5V6zm6 6H5v2h6v-2z"
-                                        clipRule="evenodd"
-                                      />
-                                    </svg>
-                                  </div>
-                                  <span className="text-foreground font-medium truncate max-w-16">
-                                    {item.conversation?.inbox?.name ||
-                                      t('kanban.conversation.noInbox')}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                            {!item.is_lead && (
-                              <div className="flex items-center space-x-2">
-                                {/* Status badge */}
+                          {/* Services value */}
+                          {item.services_info?.has_services && item.services_info.total_value > 0 && (
+                            <div className="flex items-center justify-between mb-2.5">
+                              <span className="text-[11.5px] text-muted-foreground">{t('kanban.conversation.valueLabel')}</span>
+                              <span className="text-[12.5px] font-bold text-primary">{item.services_info.formatted_total}</span>
+                            </div>
+                          )}
+
+                          {/* Footer: tag + priority + status */}
+                          {(firstLabel || item.conversation?.status || pBucket) && (
+                            <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                              {firstLabel && (
+                                <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-md bg-muted text-muted-foreground max-w-[120px] truncate">
+                                  {firstLabel}
+                                </span>
+                              )}
+                              {pBucket && (
                                 <span
-                                  className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                    item.conversation?.status === 'open'
-                                      ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                                      : item.conversation?.status === 'resolved'
-                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
-                                      : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
-                                  }`}
+                                  className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md ${PRIORITY_BADGE_CLASS[pBucket]}`}
                                 >
-                                  {item.conversation?.status === 'open'
-                                    ? t('kanban.conversation.status.open')
-                                    : item.conversation?.status === 'resolved'
-                                    ? t('kanban.conversation.status.resolved')
-                                    : item.conversation?.status ||
-                                      t('kanban.conversation.status.unknown')}
+                                  <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                                  {t(`kanban.search.priority.${pBucket}`)}
                                 </span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Services Total Value */}
-                          {item.services_info?.has_services &&
-                            item.services_info.total_value > 0 && (
-                              <div className="mb-3 pt-2 border-t border-border">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                                    <div className="w-3 h-3">
-                                      <svg fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
-                                        <path
-                                          fillRule="evenodd"
-                                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.51-1.31c-.562-.649-1.413-1.076-2.353-1.253V5z"
-                                          clipRule="evenodd"
-                                        />
-                                      </svg>
-                                    </div>
-                                    <span className="font-medium">
-                                      {t('kanban.conversation.valueLabel')}
-                                    </span>
-                                  </div>
-                                  <div className="text-xs font-semibold text-green-600 dark:text-green-400">
-                                    {item.services_info.formatted_total}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                          {/* Tasks Summary - Compact and Visual */}
-                          {(item.tasks_info?.pending_count > 0 ||
-                            item.tasks_info?.overdue_count > 0 ||
-                            item.tasks_info?.due_soon_count > 0 ||
-                            item.tasks_info?.completed_count > 0) && (
-                            <div className="mb-3 flex items-center gap-1.5 flex-wrap">
-                              <div className="text-sm">{t('tasks.title')}</div>
-                              {/* Tasks vencidas - Prioridade máxima */}
-                              {item.tasks_info?.overdue_count > 0 && (
-                                <Badge
-                                  title={t('tasks.status.overdue')}
-                                  variant="destructive"
-                                  className="h-5 px-1.5 text-xs"
-                                >
-                                  <AlertCircle className="w-3 h-3 mr-1" />
-                                  {item.tasks_info.overdue_count}
-                                </Badge>
                               )}
-
-                              {/* Tasks próximas do vencimento */}
-                              {item.tasks_info?.due_soon_count > 0 && (
-                                <Badge
-                                  title={t('tasks.status.dueSoon')}
-                                  className="h-5 px-1.5 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
+                              {item.conversation?.status && (
+                                <span
+                                  className={`inline-flex items-center gap-1 text-[11.5px] font-bold px-2 py-0.5 rounded-md ${statusBadgeClass(item.conversation.status)}`}
                                 >
-                                  <Clock className="w-3 h-3 mr-1" />
-                                  {item.tasks_info.due_soon_count}
-                                </Badge>
-                              )}
-
-                              {/* Tasks pendentes (sem urgência) */}
-                              {item.tasks_info?.pending_count > 0 &&
-                                !item.tasks_info?.overdue_count &&
-                                !item.tasks_info?.due_soon_count && (
-                                  <Badge
-                                    title={t('tasks.status.pending')}
-                                    variant="secondary"
-                                    className="h-5 px-1.5 text-xs"
-                                  >
-                                    <ListTodo className="w-3 h-3 mr-1" />
-                                    {item.tasks_info.pending_count}
-                                  </Badge>
-                                )}
-
-                              {/* Tasks concluídas */}
-                              {item.tasks_info?.completed_count > 0 && (
-                                <Badge
-                                  title={t('tasks.status.completed')}
-                                  className="h-5 px-1.5 text-xs bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                                >
-                                  <CheckCircle2 className="w-3 h-3 mr-1" />
-                                  {item.tasks_info.completed_count}
-                                </Badge>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                                  {t(`kanban.conversation.status.${item.conversation.status}`, item.conversation.status)}
+                                </span>
                               )}
                             </div>
                           )}
 
-                          {/* Time and assignee info */}
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center space-x-1 text-muted-foreground">
-                              <div className="w-3 h-3">
-                                <svg fill="currentColor" viewBox="0 0 20 20">
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              </div>
-                              <span>
-                                {item.conversation?.last_activity_at
-                                  ? new Date(
-                                      item.conversation.last_activity_at * 1000,
-                                    ).toLocaleDateString('pt-BR')
-                                  : new Date((item.entered_at || 0) * 1000).toLocaleDateString(
-                                      'pt-BR',
-                                    )}
-                              </span>
-                            </div>
-
-                            {/* Assignee */}
+                          {/* Date + assignee */}
+                          <div className="flex items-center justify-between text-[12px] text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {item.conversation?.last_activity_at
+                                ? new Date(item.conversation.last_activity_at * 1000).toLocaleDateString('pt-BR')
+                                : new Date((item.entered_at || 0) * 1000).toLocaleDateString('pt-BR')}
+                            </span>
                             {item.conversation?.assignee && (
-                              <div className="flex items-center space-x-1 text-muted-foreground">
-                                <User className="w-3 h-3" />
-                                <span className="truncate max-w-20">
-                                  {item.conversation.assignee.name}
-                                </span>
-                              </div>
+                              <span className="flex items-center gap-1 min-w-0">
+                                <User className="w-3 h-3 shrink-0" />
+                                <span className="truncate max-w-24">{item.conversation.assignee.name}</span>
+                              </span>
                             )}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
 
-                      {/* Empty state */}
-                      {(filteredItemsByStage.get(stage.id) || []).length === 0 && (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <div className="text-sm">
-                            {hasActiveFilters
-                              ? t('kanban.search.noResults')
-                              : t('kanban.stage.noConversations')}
-                          </div>
+                      {/* Empty note */}
+                      {stageItems.length === 0 && (
+                        <div className="text-center py-8 text-[13px] text-muted-foreground">
+                          {hasActiveFilters ? t('kanban.search.noResults') : t('kanban.stage.noConversations')}
                         </div>
                       )}
+
+                      {/* '+' ghost add row */}
+                      <button
+                        type="button"
+                        onClick={() => handleAddItem(stage)}
+                        className="flex items-center justify-center gap-1.5 w-full py-2.5 rounded-lg text-[13.5px] font-semibold text-muted-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/20 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {t('kanban.item.addItemShort')}
+                      </button>
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
 
               {/* Add Stage Column */}
               <div className="w-80 flex-shrink-0">
@@ -1610,6 +1560,10 @@ export default function PipelineKanban() {
           pipeline={pipeline}
           onSubmit={handleUpdateItem}
           loading={isEditingItem}
+          onSchedule={it => {
+            setSelectedConversationForSchedule(it);
+            setScheduleActionOpen(true);
+          }}
         />
       )}
 
@@ -1665,6 +1619,15 @@ export default function PipelineKanban() {
           contactId={scheduleActionContactId}
         />
       )}
+
+      {/* Capture Forms (lead capture) for this pipeline */}
+      <PipelineCaptureFormsModal
+        open={showCaptureFormsModal}
+        onOpenChange={setShowCaptureFormsModal}
+        pipeline={pipeline}
+        stages={stages}
+        allPipelines={allPipelines}
+      />
     </div>
   );
 }

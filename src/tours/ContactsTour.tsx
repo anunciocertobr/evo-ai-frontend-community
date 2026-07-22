@@ -40,15 +40,6 @@ export function ContactsTour() {
           scrollOffset: 80,
         },
         {
-          target: '[data-tour="contacts-view-toggle"]',
-          title: t('contacts.step4.title'),
-          content: t('contacts.step4.content'),
-          placement: 'bottom',
-          skipBeacon: true,
-          skipScroll: false,
-          scrollOffset: 80,
-        },
-        {
           target: '[data-tour="contacts-list"]',
           title: t('contacts.step5.title'),
           content: t('contacts.step5.content'),

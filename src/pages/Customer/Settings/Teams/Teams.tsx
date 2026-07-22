@@ -7,7 +7,7 @@ import { Grid3X3, List, Users } from 'lucide-react';
 import EmptyState from '@/components/base/EmptyState';
 import { useNavigate } from 'react-router-dom';
 
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import TeamsService from '@/services/teams/teamsService';
 import {
   Team,
@@ -53,7 +53,7 @@ const INITIAL_STATE: TeamsState = {
 
 export default function Teams() {
   const { t } = useLanguage('teams');
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const navigate = useNavigate();
   const [state, setState] = useState<TeamsState>(INITIAL_STATE);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');

@@ -273,7 +273,8 @@
       "title": "Final touches",
       "subtitle": "Add usage examples that help agents understand when to call this tool.",
       "helperText": "Examples are short text descriptions of how to use the tool.",
-      "testHint": "After creating, you'll be able to test the tool against the real endpoint."
+      "testHint": "After creating, you'll be able to test the tool against the real endpoint.",
+      "attachHint": "Creating the tool only adds it to the catalog. To have an agent use it, attach it to the agent in its Tools tab."
     },
     "actions": {
       "continue": "Continue",
@@ -339,6 +340,19 @@
     "deleteSuccess": "Custom tool deleted successfully",
     "deleteError": "Error deleting custom tool",
     "testSuccess": "Test executed successfully",
-    "testError": "Error testing custom tool"
+    "testError": "Error testing custom tool",
+    "applyFiltersError": "Error applying filters"
+  },
+  "deleteDialog": {
+    "title": "Delete Custom Tool",
+    "description": "Are you sure you want to delete the tool \"{{name}}\"? This action cannot be undone.",
+    "cancel": "Cancel",
+    "confirm": "Delete"
+  },
+  "permissions": {
+    "viewDenied": "You don't have permission to view custom tools",
+    "createDenied": "You don't have permission to create custom tools",
+    "editDenied": "You don't have permission to edit custom tools",
+    "deleteDenied": "You don't have permission to delete custom tools"
   }
 }

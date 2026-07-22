@@ -16,7 +16,7 @@ import {
 } from '@evoapi/design-system';
 import { Search } from 'lucide-react';
 import type { AccessToken, AccessTokenFormData } from '@/types/auth';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { useTranslation } from '@/hooks/useTranslation';
 import { 
   formatScopesForAPI, 
@@ -42,7 +42,7 @@ export default function AccessTokenModal({
   loading,
   onSubmit,
 }: AccessTokenModalProps) {
-  const { can } = useUserPermissions();
+  const { can } = usePermissions();
   const { t } = useTranslation('accessTokens');
   const [formData, setFormData] = useState<AccessTokenFormData>({
     name: '',

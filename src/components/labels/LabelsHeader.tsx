@@ -1,7 +1,7 @@
 import { useLanguage } from '@/hooks/useLanguage';
 import { Plus, Trash2 } from 'lucide-react';
 import BaseHeader from '@/components/base/BaseHeader';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface LabelsHeaderProps {
   totalCount: number;
@@ -25,7 +25,7 @@ export default function LabelsHeader({
   showBulkActions,
 }: LabelsHeaderProps) {
   const { t } = useLanguage('labels');
-  const { can } = useUserPermissions();
+  const { can } = usePermissions();
 
   return (
     <BaseHeader

@@ -5,7 +5,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { BaseHeader, HeaderAction, HeaderFilter } from '@/components/base';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { useLanguage } from '@/hooks/useLanguage';
 
 interface TeamsHeaderProps {
@@ -37,7 +37,7 @@ export default function TeamsHeader({
   activeFilters = [],
   showFilters = true,
 }: TeamsHeaderProps) {
-  const { can } = useUserPermissions();
+  const { can } = usePermissions();
   const { t } = useLanguage('teams');
 
   const primaryAction: HeaderAction | undefined = can('teams', 'create') ? {

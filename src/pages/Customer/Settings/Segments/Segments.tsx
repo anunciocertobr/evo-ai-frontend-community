@@ -14,7 +14,7 @@ import {
 import { Target } from 'lucide-react';
 import EmptyState from '@/components/base/EmptyState';
 
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { segmentsService } from '@/services/segments/segmentsService';
 import { Segment, SegmentsState } from '@/types/analytics';
 
@@ -48,7 +48,7 @@ const INITIAL_STATE: SegmentsState = {
 
 export default function Segments() {
   const { t } = useLanguage('segments');
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const navigate = useNavigate();
   const [state, setState] = useState<SegmentsState>(INITIAL_STATE);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);

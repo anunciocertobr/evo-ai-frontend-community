@@ -1,4 +1,4 @@
-import api from '@/services/core/api';
+import agentProcessorApi from '@/services/core/agentProcessorApi';
 import type {
   NotionConfig,
   NotionOAuthResponse,
@@ -12,7 +12,7 @@ const NotionService = {
    */
   async generateAuthorization(agentId: string): Promise<NotionOAuthResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/notion/authorization`
       );
       return data;
@@ -31,7 +31,7 @@ const NotionService = {
     state: string
   ): Promise<NotionConnectionResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/notion/callback`,
         {
           code,
@@ -50,7 +50,7 @@ const NotionService = {
    */
   async getConfiguration(agentId: string): Promise<NotionConfig | null> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/notion`
       );
       return data.config || null;
@@ -71,7 +71,7 @@ const NotionService = {
     config: Partial<NotionConfig>
   ): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.put(
+      const { data } = await agentProcessorApi.put(
         `/agents/${agentId}/integrations/notion`,
         { config }
       );
@@ -87,7 +87,7 @@ const NotionService = {
    */
   async disconnect(agentId: string): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.delete(
+      const { data } = await agentProcessorApi.delete(
         `/agents/${agentId}/integrations/notion`
       );
       return data;
@@ -103,7 +103,7 @@ const NotionService = {
    */
   async discoverTools(agentId: string): Promise<DiscoverToolsResponse> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/notion/discover-tools`
       );
       return data;

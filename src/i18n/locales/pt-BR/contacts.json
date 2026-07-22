@@ -38,7 +38,8 @@
       "description": "Descrição",
       "timeline": "Timeline",
       "linkedCompanies": "Empresas Vinculadas",
-      "linkedPersons": "Contatos Vinculados"
+      "linkedPersons": "Contatos Vinculados",
+      "socialProfiles": "Redes Sociais"
     },
     "fields": {
       "name": "Nome",
@@ -68,7 +69,15 @@
     "errors": {
       "invalidDate": "Data inválida"
     },
-    "na": "N/A"
+    "na": "N/A",
+    "page": {
+      "back": "Voltar",
+      "close": "Fechar",
+      "notFound": {
+        "title": "Contato não encontrado",
+        "description": "Não foi possível encontrar este contato. Ele pode ter sido excluído."
+      }
+    }
   },
   "export": {
     "title": "Exportar Contatos",
@@ -125,7 +134,7 @@
       "location": "Localização",
       "description": "Descrição",
       "socialProfiles": "Redes Sociais",
-      "labels": "Labels",
+      "labels": "Etiquetas",
       "customAttributes": "Atributos Personalizados",
       "contactStatus": "Status do Contato"
     },
@@ -357,6 +366,12 @@
     "description": "Configure os filtros para encontrar os contatos que você procura",
     "apply": "Aplicar Filtros",
     "clear": "Limpar Filtros",
+    "popover": {
+      "trigger": "Filtros",
+      "title": "Filtrar Contatos",
+      "clearAll": "Limpar tudo",
+      "noOptions": "Nenhuma opção disponível"
+    },
     "attribute": "Atributo",
     "operator": "Operador",
     "value": "Valor",
@@ -391,7 +406,7 @@
       "country_code": "País (código ISO)",
       "city": "Cidade",
       "company": "Empresa",
-      "blocked": "Bloqueado"
+      "blocked": "Status"
     },
     "options": {
       "blocked": {
@@ -442,9 +457,11 @@
   },
   "table": {
     "columns": {
-      "contact": "Contato",
+      "name": "Nome",
+      "email": "E-mail",
+      "phone": "Telefone",
       "type": "Tipo",
-      "tags": "Tags",
+      "labels": "Etiquetas",
       "status": "Status",
       "pipelines": "Pipelines"
     },
@@ -668,7 +685,14 @@
       "occurredAfter": "De",
       "occurredBefore": "Até",
       "clear": "Limpar filtros",
-      "allEventNames": "Todos os nomes"
+      "allEventNames": "Todos os nomes",
+      "period": "Período",
+      "periodPresets": {
+        "today": "Hoje",
+        "7d": "Últimos 7 dias",
+        "30d": "Últimos 30 dias",
+        "all": "Todo o período"
+      }
     },
     "types": {
       "_comment": "Os valores de termos de protocolo (Identify/Track/Page/Screen/Segment) são mantidos sem tradução em todos os locales propositalmente.",
@@ -721,6 +745,28 @@
       "pipeline_conversation_created": "Conversa criada no pipeline",
       "pipeline_conversation_updated": "Conversa atualizada no pipeline",
       "pipeline_stage_changed": "Estágio do pipeline alterado"
+    }
+  },
+  "notes": {
+    "title": "Notas",
+    "addPlaceholder": "Escreva uma nota sobre este contato...",
+    "empty": "Nenhuma nota ainda.",
+    "actions": {
+      "add": "Adicionar nota",
+      "adding": "Adicionando...",
+      "edit": "Editar nota",
+      "delete": "Excluir nota",
+      "cancel": "Cancelar",
+      "save": "Salvar"
+    },
+    "messages": {
+      "loadError": "Erro ao carregar notas",
+      "createSuccess": "Nota adicionada",
+      "createError": "Erro ao adicionar nota",
+      "updateSuccess": "Nota atualizada",
+      "updateError": "Erro ao atualizar nota",
+      "deleteSuccess": "Nota excluída",
+      "deleteError": "Erro ao excluir nota"
     }
   }
 }

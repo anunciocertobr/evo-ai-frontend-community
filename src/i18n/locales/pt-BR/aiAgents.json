@@ -738,6 +738,8 @@
         "theAgentShould": "o agente deve",
         "minute": "minuto",
         "minutes": "minutos",
+        "hour": "hora",
+        "hours": "horas",
         "interactWithClient": "Interagir com cliente",
         "finalizeService": "Finalizar atendimento",
         "whatShouldAgentSay": "O que o agente deve falar?",
@@ -1039,7 +1041,7 @@
         "deactivate": "Desativar integração"
       },
       "github": {
-        "description": "Com GitHub seu agente será capaz de acessar repositórios, issues, pull requests e outras informações do GitHub.",
+        "description": "Integre seu agente com GitHub para acessar repositórios e informações de código.",
         "configTitle": "Configurar GitHub",
         "connectTitle": "Conectar com GitHub",
         "connectDescription": "Conecte sua conta GitHub para permitir que o agente acesse repositórios e informações de código",
@@ -1197,23 +1199,6 @@
         "saveConfig": "SALVAR CONFIGURAÇÕES",
         "disconnect": "Desconectar"
       },
-      "github": {
-        "description": "Integre seu agente com GitHub para acessar repositórios e informações de código.",
-        "configTitle": "Configurar GitHub",
-        "connectTitle": "Conectar com GitHub",
-        "connectDescription": "Conecte sua conta GitHub para permitir que o agente acesse repositórios e informações de código",
-        "connectButton": "Conectar com GitHub",
-        "connecting": "Conectando...",
-        "connected": "Conectado",
-        "connectedAs": "Conectado como",
-        "connectedDescription": "Sua conta GitHub está conectada e o agente pode acessar seus repositórios.",
-        "toolsTitle": "Ferramentas Disponíveis",
-        "toolsDescription": "Selecione quais ferramentas do GitHub o agente poderá usar",
-        "selectAll": "Selecionar todas",
-        "noTools": "Nenhuma ferramenta disponível",
-        "saveConfig": "SALVAR CONFIGURAÇÕES",
-        "disconnect": "Desconectar"
-      },
       "canva": {
         "description": "Com Canva seu agente será capaz de criar e editar designs, apresentações e materiais visuais.",
         "configTitle": "Configurar Canva",
@@ -1325,7 +1310,7 @@
       "subtitle": "Escolha o tipo que melhor se adequa ao seu caso de uso",
       "types": {
         "llm": {
-          "label": "LLM (Modelo de Linguagem)",
+          "label": "Assistente de IA (Nativo)",
           "description": "IA conversacional — raciocina, responde perguntas e conversa usando modelo de linguagem"
         },
         "task": {
@@ -1345,13 +1330,14 @@
           "description": "Repete sub-agentes até atingir uma condição ou número de iterações"
         },
         "external": {
-          "label": "Integrações Externas",
+          "label": "Externo (Integrações)",
           "description": "Delega para fluxos do Flowise, n8n, Typebot, Dify ou OpenAI"
         }
       },
       "badges": {
         "mostPopular": "Mais Popular"
-      }
+      },
+      "advanced": "Tipos avançados"
     },
     "step3": {
       "titles": {
@@ -1560,9 +1546,6 @@
     },
     "notion": {
       "description": "Acesse e atualize páginas, databases e blocos do Notion."
-    },
-    "stripe": {
-      "description": "Gerencie pagamentos, assinaturas e informações de clientes no Stripe."
     },
     "stripe": {
       "description": "Gerencie pagamentos, assinaturas e informações de clientes no Stripe."

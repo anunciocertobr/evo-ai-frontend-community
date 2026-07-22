@@ -14,7 +14,7 @@ import {
   Switch,
 } from '@evoapi/design-system';
 import { Label } from '@/types/settings';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface LabelModalProps {
   open: boolean;
@@ -51,7 +51,7 @@ export default function LabelModal({
   onSubmit,
 }: LabelModalProps) {
   const { t } = useLanguage('labels');
-  const { can } = useUserPermissions();
+  const { can } = usePermissions();
   const [formData, setFormData] = useState({
     title: '',
     description: '',

@@ -20,12 +20,12 @@ import BaseHeader from '@/components/base/BaseHeader';
 import EmptyState from '@/components/base/EmptyState';
 import { rolesService, type Role } from '@/services/roles/rolesService';
 import { permissionsService } from '@/services/permissions';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 export default function RolesList() {
   const { t } = useLanguage('roles');
   const navigate = useNavigate();
-  const { can } = useUserPermissions();
+  const { can } = usePermissions();
 
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);

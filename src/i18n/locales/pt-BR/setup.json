@@ -45,8 +45,13 @@
     },
     "submit": {
       "idle": "Criar conta e continuar",
-      "loading": "Configurando..."
+      "loading": "Configurando...",
+      "continue": "Continuar"
     }
+  },
+  "extension": {
+    "unavailable": "Esta etapa de configuração não está disponível. Volte para concluir a configuração.",
+    "back": "Voltar"
   },
   "success": {
     "title": "Configuração concluída!",

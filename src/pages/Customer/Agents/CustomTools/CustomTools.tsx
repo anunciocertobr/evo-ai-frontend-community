@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { useLanguage } from '@/hooks/useLanguage';
 import { AgentsCustomToolsTour } from '@/tours';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Button } from '@evoapi/design-system';
@@ -35,7 +35,7 @@ import { DEFAULT_PAGE_SIZE } from '@/constants/pagination';
 const INITIAL_STATE: CustomToolsState = initialCustomToolsState;
 
 export default function CustomTools() {
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const { t } = useLanguage('customTools');
   const location = useLocation();
   const navigate = useNavigate();
@@ -53,6 +53,10 @@ export default function CustomTools() {
   const [detailsTool, setDetailsTool] = useState<CustomTool | null>(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<BaseFilter[]>([]);
+  // EVO-1953: ref synced to activeFilters so the applied-chip "x" removes against
+  // the current list, not the stale snapshot captured when the chips were built.
+  const activeFiltersRef = useRef<BaseFilter[]>([]);
+  activeFiltersRef.current = activeFilters;
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilter[]>([]);
   const [testingTool, setTestingTool] = useState<string | null>(null);
   const [testResultOpen, setTestResultOpen] = useState(false);
@@ -60,10 +64,21 @@ export default function CustomTools() {
   const [testResultData, setTestResultData] =
     useState<CustomToolTestResponse['test_result'] | null>(null);
   const hasLoaded = useRef(false);
+  // EVO-1953: debounce the server-side search so typing fires one request after
+  // it settles, not one per keystroke.
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    },
+    [],
+  );
 
   // Load tools
   const loadTools = useCallback(
-    async (params?: Partial<CustomToolsListParams>) => {
+    async (params?: Partial<CustomToolsListParams>, filtersOverride?: BaseFilter[]) => {
       if (!can('ai_custom_tools', 'read')) {
         toast.error(t('permissions.viewDenied'));
         return;
@@ -80,7 +95,21 @@ export default function CustomTools() {
           tags: params?.tags,
         };
 
-        const tools = await listCustomTools(searchParams);
+        const effectiveFilters = filtersOverride ?? activeFilters;
+        const filterParams = effectiveFilters.reduce((acc, filter, index) => {
+          const prefix = `filters[${index}]`;
+          acc[`${prefix}[attribute_key]`] = filter.attributeKey;
+          acc[`${prefix}[filter_operator]`] = filter.filterOperator;
+          acc[`${prefix}[values]`] = Array.isArray(filter.values)
+            ? filter.values.join(',')
+            : String(filter.values);
+          if (index > 0) {
+            acc[`${prefix}[query_operator]`] = filter.queryOperator;
+          }
+          return acc;
+        }, {} as Record<string, string>);
+
+        const tools = await listCustomTools(searchParams, filterParams);
 
         setState(prev => ({
           ...prev,
@@ -97,11 +126,11 @@ export default function CustomTools() {
         }));
       } catch (error) {
         console.error('Error loading custom tools:', error);
-        toast.error(getErrorMessage(error as Error, t('errors.loadError')));
+        toast.error(getErrorMessage(error as Error, t('messages.loadError')));
         setState(prev => ({ ...prev, loading: { ...prev.loading, list: false } }));
       }
     },
-    [can, t],
+    [can, t, activeFilters],
   );
 
   // Initial load
@@ -124,7 +153,12 @@ export default function CustomTools() {
       meta: { ...prev.meta, pagination: { ...prev.meta.pagination, page: 1 } },
     }));
 
-    loadTools({ skip: 0, search: query });
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    searchDebounceRef.current = setTimeout(() => {
+      loadTools({ skip: 0, search: query });
+    }, 500);
   };
 
   const convertFiltersToApplied = (filters: BaseFilter[]): AppliedFilter[] =>
@@ -145,21 +179,21 @@ export default function CustomTools() {
     }));
 
     try {
-      await loadTools({ skip: 0 });
+      await loadTools({ skip: 0, search: state.searchQuery }, filters);
     } catch (error) {
       console.error('Error applying filters:', error);
-      toast.error(getErrorMessage(error as Error, t('errors.applyFiltersError')));
+      toast.error(getErrorMessage(error as Error, t('messages.applyFiltersError')));
     }
   };
 
   const handleClearFilters = () => {
     setActiveFilters([]);
     setAppliedFilters([]);
-    loadTools({ skip: 0 });
+    loadTools({ skip: 0, search: state.searchQuery }, []);
   };
 
   const handleRemoveFilter = (index: number) => {
-    const newFilters = activeFilters.filter((_, i) => i !== index);
+    const newFilters = activeFiltersRef.current.filter((_, i) => i !== index);
     if (newFilters.length === 0) {
       handleClearFilters();
     } else {
@@ -225,7 +259,7 @@ export default function CustomTools() {
       })
       .catch(err => {
         console.error('Failed to load tool for edit:', err);
-        toast.error(t('errors.loadError'));
+        toast.error(t('messages.loadError'));
         navigate('/agents/custom-tools');
       });
     return () => {
@@ -253,7 +287,7 @@ export default function CustomTools() {
       setTestResultOpen(true);
     } catch (error) {
       console.error('Error testing custom tool:', error);
-      toast.error(getErrorMessage(error as Error, t('errors.testError')));
+      toast.error(getErrorMessage(error as Error, t('messages.testError')));
     } finally {
       setTestingTool(null);
       setState(prev => ({ ...prev, loading: { ...prev.loading, test: false } }));
@@ -270,7 +304,7 @@ export default function CustomTools() {
 
     try {
       await deleteCustomTool(toolToDelete.id);
-      toast.success(t('success.deleteSuccess'));
+      toast.success(t('messages.deleteSuccess'));
 
       // Refresh the list
       loadTools();
@@ -279,7 +313,7 @@ export default function CustomTools() {
       setToolToDelete(null);
     } catch (error) {
       console.error('Error deleting custom tool:', error);
-      toast.error(t('errors.deleteError'));
+      toast.error(t('messages.deleteError'));
     } finally {
       setState(prev => ({ ...prev, loading: { ...prev.loading, delete: false } }));
     }
@@ -298,7 +332,7 @@ export default function CustomTools() {
       if (editingTool) {
         // Update existing tool
         const response = await updateCustomTool(editingTool.id, data);
-        toast.success(t('success.updateSuccess'));
+        toast.success(t('messages.updateSuccess'));
 
         // Update the specific tool in the list with the latest data
         setState(prev => ({
@@ -312,7 +346,7 @@ export default function CustomTools() {
       } else {
         // Create new tool
         await createCustomTool(data);
-        toast.success(t('success.createSuccess'));
+        toast.success(t('messages.createSuccess'));
 
         // Refresh the entire list for new tools
         loadTools();
@@ -325,7 +359,7 @@ export default function CustomTools() {
       }
     } catch (error) {
       console.error('Error saving custom tool:', error);
-      toast.error(editingTool ? t('errors.updateError') : t('errors.createError'));
+      toast.error(editingTool ? t('messages.updateError') : t('messages.createError'));
     } finally {
       setState(prev => ({
         ...prev,
@@ -375,7 +409,7 @@ export default function CustomTools() {
 
           onClearSelection={() => setState(prev => ({ ...prev, selectedToolIds: [] }))}
           activeFilters={appliedFilters}
-          showFilters={false}
+          showFilters={true}
         />
       </div>
 

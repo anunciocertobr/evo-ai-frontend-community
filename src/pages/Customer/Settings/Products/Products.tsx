@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { productsService } from '@/services/products/productsService';
 import { toFieldErrors } from './productErrors';
 import type {
@@ -28,7 +28,7 @@ const DEFAULT_PAGE_SIZE = 25;
 
 export default function Products() {
   const { t } = useLanguage('products');
-  const { can } = useUserPermissions();
+  const { can } = usePermissions();
   const canCreate = can('products', 'create');
   const canUpdate = can('products', 'update');
   const canDelete = can('products', 'delete');

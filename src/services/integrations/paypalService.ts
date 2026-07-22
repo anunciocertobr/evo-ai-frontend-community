@@ -1,4 +1,4 @@
-import api from '@/services/core/api';
+import agentProcessorApi from '@/services/core/agentProcessorApi';
 import type {
   PayPalConfig,
   PayPalOAuthResponse,
@@ -12,7 +12,7 @@ const PayPalService = {
    */
   async generateAuthorization(agentId: string): Promise<PayPalOAuthResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/paypal/authorization`
       );
       return data;
@@ -31,7 +31,7 @@ const PayPalService = {
     state: string
   ): Promise<PayPalConnectionResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/paypal/callback`,
         {
           code,
@@ -50,7 +50,7 @@ const PayPalService = {
    */
   async getConfiguration(agentId: string): Promise<PayPalConfig | null> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/paypal`
       );
       return data.config || null;
@@ -71,7 +71,7 @@ const PayPalService = {
     config: Partial<PayPalConfig>
   ): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.put(
+      const { data } = await agentProcessorApi.put(
         `/agents/${agentId}/integrations/paypal`,
         { config }
       );
@@ -87,7 +87,7 @@ const PayPalService = {
    */
   async disconnect(agentId: string): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.delete(
+      const { data } = await agentProcessorApi.delete(
         `/agents/${agentId}/integrations/paypal`
       );
       return data;
@@ -103,7 +103,7 @@ const PayPalService = {
    */
   async discoverTools(agentId: string): Promise<DiscoverToolsResponse> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/paypal/discover-tools`
       );
       return data;

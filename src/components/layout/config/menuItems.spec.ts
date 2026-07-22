@@ -5,6 +5,19 @@ import {
   type SubMenuItem,
 } from './menuItems';
 
+// EVO-2071 AC7: `dashboard.read` is not a catalog resource (it lives in the auth
+// BASIC_READ_PERMISSIONS). Gating the menu on it made `can()` deny for everyone,
+// hiding the Dashboard from all users. The gate is removed — Dashboard is a
+// top-level item, so locate it directly, not via findSubItem.
+describe('menuItems — Dashboard orphan gate removed (EVO-2071 AC7)', () => {
+  it('exposes Dashboard with no resource/action gate (always visible to authenticated users)', () => {
+    const dashboard = getCustomerMenuItems(t).find(i => i.href === '/dashboard');
+    expect(dashboard).toBeDefined();
+    expect(dashboard?.resource).toBeUndefined();
+    expect(dashboard?.action).toBeUndefined();
+  });
+});
+
 // Identity translator: returns the key itself so we can locate items by href.
 const t = (key: string) => key;
 
@@ -60,5 +73,50 @@ describe('menuItems — Settings > Atendentes gating (AC4)', () => {
     );
 
     expect(visible).toBe(true);
+  });
+});
+
+// EVO-1938: the default agent no longer holds the administrative Settings reads
+// (dropped from the auth seed), so the existing `.read` gate hides those items —
+// no menu change needed. These lock in that behavior.
+describe('menuItems — EVO-1938 admin Settings gating for the default agent', () => {
+  // Representative post-fix agent set: operational reads (incl. teams.read for the
+  // in-chat assign-team picker), none of the admin Settings resources.
+  const agentGranted = [
+    'conversations.read',
+    'contacts.read',
+    'pipelines.read',
+    'inboxes.read',
+    'users.read',
+    'labels.read',
+    'canned_responses.read',
+    'macros.read',
+    'message_templates.read',
+    'teams.read',
+  ];
+
+  const isVisible = (item: SubMenuItem, granted: string[]) =>
+    shouldShowMenuItem(item, canFrom(granted), canAnyFrom(granted), canAllFrom(granted));
+
+  it.each(['/settings/integrations', '/settings/segments'])(
+    'hides the admin Settings item %s from the default agent',
+    href => {
+      expect(isVisible(findSubItem(href), agentGranted)).toBe(false);
+    },
+  );
+
+  // teams stays visible (teams.read kept for the chat picker); the Teams Settings
+  // use-vs-manage split is deferred to EVO-1955, like labels/canned/macros.
+  it.each(['/settings/labels', '/settings/canned-responses', '/settings/teams'])(
+    'keeps the operational Settings item %s visible to the agent',
+    href => {
+      expect(isVisible(findSubItem(href), agentGranted)).toBe(true);
+    },
+  );
+
+  it('shows the admin Settings items to an administrator that holds the reads', () => {
+    const adminGranted = [...agentGranted, 'integrations.read', 'segments.read'];
+    expect(isVisible(findSubItem('/settings/integrations'), adminGranted)).toBe(true);
+    expect(isVisible(findSubItem('/settings/segments'), adminGranted)).toBe(true);
   });
 });

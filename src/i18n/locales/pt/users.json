@@ -1,7 +1,7 @@
 {
-  "title": "Atendentes",
+  "title": "Usuários",
   "subtitle": "Gerencie sua equipe e configure permissões de acesso",
-  "loading": "Carregando atendentes...",
+  "loading": "Carregando usuários...",
   "card": {
     "id": "ID",
     "role": "Função",

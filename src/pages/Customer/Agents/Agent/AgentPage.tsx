@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 import AgentHeader from '@/components/ai_agents/Header/AgentHeader';
 import AgentTabs, { TabValidation } from '@/components/ai_agents/Tabs/AgentTabs';
@@ -32,7 +32,7 @@ const AgentPage = () => {
   const { t } = useLanguage('agents');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
 
   // Determinar o modo baseado na presença do ID e na rota
   const mode: AgentPageMode = (() => {

@@ -8,6 +8,12 @@ const hookState: { current: UseContactEventsReturn } = {
   current: {} as UseContactEventsReturn,
 };
 
+// Permission-gated components resolve permissions from the context; grant
+// everything so these specs keep exercising the full behavior under test.
+vi.mock('@/contexts/PermissionsContext', () => ({
+  usePermissions: () => ({ can: () => true, isReady: true, loading: false }),
+}));
+
 vi.mock('@/hooks/useContactEvents', () => ({
   useContactEvents: () => hookState.current,
 }));

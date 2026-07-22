@@ -45,8 +45,13 @@
     },
     "submit": {
       "idle": "Crea account e continua",
-      "loading": "Configurazione in corso..."
+      "loading": "Configurazione in corso...",
+      "continue": "Continua"
     }
+  },
+  "extension": {
+    "unavailable": "Questo passaggio di configurazione non è disponibile. Torna indietro per completare.",
+    "back": "Indietro"
   },
   "success": {
     "title": "Configurazione completata!",

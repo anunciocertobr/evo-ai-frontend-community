@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react';
 import BaseHeader from '@/components/base/BaseHeader';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { useTranslation } from '@/hooks/useTranslation';
 
 interface AccessTokensHeaderProps {
@@ -24,7 +24,7 @@ export default function AccessTokensHeader({
   onClearSelection,
   showBulkActions,
 }: AccessTokensHeaderProps) {
-  const { can } = useUserPermissions();
+  const { can } = usePermissions();
   const { t } = useTranslation('accessTokens');
   
   return (

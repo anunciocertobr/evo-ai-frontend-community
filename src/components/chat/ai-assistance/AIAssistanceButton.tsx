@@ -156,14 +156,14 @@ const AIAssistanceButton: React.FC<AIAssistanceButtonProps> = ({
   return (
     <>
       <Button
-        variant="outline"
+        variant="ghost"
         size="icon"
         disabled={disabled}
-        className="h-10 w-10 flex-shrink-0 border-input hover:bg-accent hover:border-accent-foreground/20 disabled:opacity-50 group"
+        className="h-9 w-9 flex-shrink-0 hover:bg-accent disabled:opacity-50"
         onClick={handleOpenActions}
         title={t('aiAssistance.button.title')}
       >
-        <Sparkles className="h-4 w-4 group-hover:text-primary transition-colors" />
+        <Sparkles className="h-5 w-5 text-primary" />
       </Button>
 
       <AIActionsModal

@@ -7,7 +7,7 @@ import {
   Copy,
 } from 'lucide-react';
 import { BaseHeader, HeaderAction, HeaderFilter } from '@/components/base';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface CampaignsHeaderProps {
   totalCount: number;
@@ -41,7 +41,7 @@ export default function CampaignsHeader({
   showFilters = true,
 }: CampaignsHeaderProps) {
   const { t } = useLanguage('campaigns');
-  const { can, isReady } = useUserPermissions();
+  const { can, isReady } = usePermissions();
 
   const primaryAction: HeaderAction | undefined = isReady && can('campaigns', 'create') ? {
     label: t('header.newCampaign'),

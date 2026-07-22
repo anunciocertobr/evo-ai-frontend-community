@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 
 import { useChatContext } from '@/contexts/chat/ChatContext';
 
@@ -16,7 +16,7 @@ import { NoMessages } from '../empty-states';
 import { MessageInput } from '../message-input';
 import TypingIndicator from '../typing-indicator/TypingIndicator';
 import MessageList from '../messages/MessageList';
-import { Banner } from '../banner';
+import { Banner, ConversationNoteBanner } from '../banner';
 import PendingResponseBanner from '../banner/PendingResponseBanner';
 
 import type { Message, Conversation } from '@/types/chat/api';
@@ -73,6 +73,7 @@ interface ChatAreaProps {
   onLoadMore: () => void;
   onRetryMessage: (messageId: string) => void;
   isPendingConversation?: boolean;
+  onOpenConversation?: () => void;
 }
 
 const ChatArea = ({
@@ -94,6 +95,16 @@ const ChatArea = ({
       conversationId: selectedConversationId,
       enabled: selectedConversation?.inbox?.channel_type === 'Channel::FacebookPage',
     });
+
+  // Nota do atendimento (§3.4) = última mensagem privada da conversa — sem
+  // entidade própria (ver spec-extraida.md). "Ocultar" é só estado de UI local
+  // (a nota em si continua na timeline); reseta ao trocar de conversa.
+  const lastPrivateNote = useMemo(
+    () => [...selectedMessages].reverse().find(m => m.private),
+    [selectedMessages],
+  );
+  const [hiddenNoteId, setHiddenNoteId] = useState<string | null>(null);
+  const noteBannerVisible = !!lastPrivateNote && lastPrivateNote.id !== hiddenNoteId;
 
   const handleLoadMore = useCallback(() => {
     if (selectedConversationId) {
@@ -316,6 +327,16 @@ const ChatArea = ({
           hrefLink={getBannerLink()}
           hrefLinkText={getBannerLinkText()}
           colorScheme="alert"
+        />
+      )}
+
+      {/* Nota do atendimento (Melhorias CRM Chat §3.4) — última mensagem privada
+          da conversa, sempre visível quando existe. */}
+      {noteBannerVisible && lastPrivateNote && (
+        <ConversationNoteBanner
+          key={selectedConversationId}
+          note={lastPrivateNote}
+          onHide={() => setHiddenNoteId(lastPrivateNote.id)}
         />
       )}
 

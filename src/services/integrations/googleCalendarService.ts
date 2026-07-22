@@ -1,4 +1,4 @@
-import api from '@/services/core/api';
+import agentProcessorApi from '@/services/core/agentProcessorApi';
 import type {
   GoogleCalendarConfig,
   GoogleCalendarItem,
@@ -12,11 +12,12 @@ const GoogleCalendarService = {
    */
   async generateAuthorization(agentId: string, email?: string): Promise<GoogleCalendarOAuthResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/google-calendar/authorization`,
         { email }
       );
-      return data;
+      // Processor wraps the payload as { success, data: { url }, message }.
+      return data?.data ?? data;
     } catch (error) {
       console.error('GoogleCalendarService.generateAuthorization error:', error);
       throw error;
@@ -32,14 +33,17 @@ const GoogleCalendarService = {
     state: string
   ): Promise<GoogleCalendarConnectionResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/google-calendar/callback`,
         {
           code,
           state,
         }
       );
-      return data;
+      // The callback may arrive wrapped ({ success, data: {...} }) or already
+      // flattened ({ email, calendars }). Normalize so callers always read
+      // `.success` (CallbackPage) and `.email`/`.calendars` (onSuccess).
+      return { success: data?.success ?? true, ...(data?.data ?? data ?? {}) };
     } catch (error) {
       console.error('GoogleCalendarService.completeAuthorization error:', error);
       throw error;
@@ -51,10 +55,14 @@ const GoogleCalendarService = {
    */
   async getCalendars(agentId: string): Promise<GoogleCalendarItem[]> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/google-calendar/calendars`
       );
-      return data.calendars || [];
+      // Processor wraps the payload as { success, data, message } where `data`
+      // is the calendars array directly (older shapes nested it under
+      // `data.calendars`); handle both.
+      const payload = data?.data ?? data;
+      return Array.isArray(payload) ? payload : (payload?.calendars ?? []);
     } catch (error) {
       console.error('GoogleCalendarService.getCalendars error:', error);
       throw error;
@@ -69,7 +77,7 @@ const GoogleCalendarService = {
     config: Partial<GoogleCalendarConfig>
   ): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.put(
+      const { data } = await agentProcessorApi.put(
         `/agents/${agentId}/integrations/google-calendar`,
         config
       );
@@ -85,7 +93,7 @@ const GoogleCalendarService = {
    */
   async disconnect(agentId: string): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.delete(
+      const { data } = await agentProcessorApi.delete(
         `/agents/${agentId}/integrations/google-calendar`
       );
       return data;
@@ -107,7 +115,7 @@ const GoogleCalendarService = {
     }
   ): Promise<{ available: boolean; slots?: Array<{ start: string; end: string }> }> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/google-calendar/availability`,
         params
       );
@@ -134,7 +142,7 @@ const GoogleCalendarService = {
     }
   ): Promise<{ success: boolean; eventId?: string; meetLink?: string }> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/google-calendar/events`,
         event
       );
@@ -150,7 +158,7 @@ const GoogleCalendarService = {
    */
   getOAuthCallbackUrl(): string {
     const baseUrl = window.location.origin;
-    return `${baseUrl}/oauth/google-calendar/callback`;
+    return `${baseUrl}/google-calendar/callback`;
   },
 };
 

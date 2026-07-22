@@ -4,6 +4,7 @@ import { Edit, Trash2, Play, Eye, Globe, Lock } from 'lucide-react';
 import { Macro } from '@/types/automation';
 import { BaseTable, TableColumn, TableAction } from '@/components/base';
 import { useDateFormat } from '@/hooks/useDateFormat';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface MacrosTableProps {
   macros: Macro[];
@@ -42,6 +43,7 @@ export default function MacrosTable({
 }: MacrosTableProps) {
   const { t } = useLanguage('macros');
   const { formatDateTime } = useDateFormat();
+  const { can, isReady } = usePermissions();
 
   const getVisibilityLabel = (visibility: string) => {
     return visibility === 'global' ? t('table.visibility.public') : t('table.visibility.private');
@@ -138,6 +140,7 @@ export default function MacrosTable({
       icon: <Play className="h-4 w-4" />,
       onClick: onExecuteMacro,
       variant: 'default',
+      show: () => isReady && can('macros', 'execute'),
     },
     {
       label: t('table.actions.edit'),
@@ -168,7 +171,7 @@ export default function MacrosTable({
       getRowKey={getRowKey || ((macro: Macro) => macro.id.toString())}
       emptyTitle={t('empty.title')}
       emptyDescription={t('empty.description')}
-      emptyAction={onCreateMacro ? {
+      emptyAction={onCreateMacro && isReady && can('macros', 'create') ? {
         label: t('empty.action'),
         onClick: onCreateMacro,
       } : undefined}

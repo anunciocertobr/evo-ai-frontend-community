@@ -36,7 +36,8 @@
       "location": "Posizione",
       "description": "Descrizione",
       "timeline": "Cronologia",
-      "linkedCompanies": "Aziende Collegate"
+      "linkedCompanies": "Aziende Collegate",
+      "socialProfiles": "Profili Social"
     },
     "fields": {
       "name": "Nome",
@@ -60,7 +61,15 @@
     "errors": {
       "invalidDate": "Data non valida"
     },
-    "na": "N/D"
+    "na": "N/D",
+    "page": {
+      "back": "Indietro",
+      "close": "Chiudi",
+      "notFound": {
+        "title": "Contatto non trovato",
+        "description": "Non è stato possibile trovare questo contatto. Potrebbe essere stato eliminato."
+      }
+    }
   },
   "export": {
     "title": "Esporta Contatti",
@@ -349,6 +358,12 @@
     "description": "Configura i filtri per trovare i contatti che stai cercando",
     "apply": "Applica Filtri",
     "clear": "Cancella Filtri",
+    "popover": {
+      "trigger": "Filtri",
+      "title": "Filtra Contatti",
+      "clearAll": "Cancella tutto",
+      "noOptions": "Nessuna opzione disponibile"
+    },
     "attribute": "Attributo",
     "operator": "Operatore",
     "value": "Valore",
@@ -383,7 +398,7 @@
       "country_code": "Paese (codice ISO)",
       "city": "Città",
       "company": "Azienda",
-      "blocked": "Bloccato"
+      "blocked": "Stato"
     },
     "options": {
       "blocked": {
@@ -434,9 +449,11 @@
   },
   "table": {
     "columns": {
-      "contact": "Contatto",
+      "name": "Nome",
+      "email": "Email",
+      "phone": "Telefono",
       "type": "Tipo",
-      "tags": "Tag",
+      "labels": "Etichette",
       "status": "Stato",
       "pipelines": "Pipeline"
     },
@@ -660,7 +677,14 @@
       "occurredAfter": "Dal",
       "occurredBefore": "Al",
       "clear": "Pulisci filtri",
-      "allEventNames": "Tutti i nomi"
+      "allEventNames": "Tutti i nomi",
+      "period": "Periodo",
+      "periodPresets": {
+        "today": "Oggi",
+        "7d": "Ultimi 7 giorni",
+        "30d": "Ultimi 30 giorni",
+        "all": "Tutto il periodo"
+      }
     },
     "types": {
       "_comment": "I valori dei termini di protocollo (Identify/Track/Page/Screen/Segment) sono mantenuti non tradotti in tutte le locali per scelta.",
@@ -713,6 +737,28 @@
       "pipeline_conversation_created": "Conversazione creata nel pipeline",
       "pipeline_conversation_updated": "Conversazione aggiornata nel pipeline",
       "pipeline_stage_changed": "Fase del pipeline modificata"
+    }
+  },
+  "notes": {
+    "title": "Note",
+    "addPlaceholder": "Scrivi una nota su questo contatto...",
+    "empty": "Nessuna nota ancora.",
+    "actions": {
+      "add": "Aggiungi nota",
+      "adding": "Aggiunta in corso...",
+      "edit": "Modifica nota",
+      "delete": "Elimina nota",
+      "cancel": "Annulla",
+      "save": "Salva"
+    },
+    "messages": {
+      "loadError": "Errore nel caricamento delle note",
+      "createSuccess": "Nota aggiunta",
+      "createError": "Errore durante l'aggiunta della nota",
+      "updateSuccess": "Nota aggiornata",
+      "updateError": "Errore durante l'aggiornamento della nota",
+      "deleteSuccess": "Nota eliminata",
+      "deleteError": "Errore durante l'eliminazione della nota"
     }
   }
 }

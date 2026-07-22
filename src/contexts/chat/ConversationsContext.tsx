@@ -348,6 +348,43 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     [t],
   );
 
+  // EVO-1680 — mirror of updateConversationStatus but targets the dedicated
+  // return_to_bot endpoint which clears the assignee and persists a
+  // human_to_bot activity in addition to the pending transition.
+  const returnConversationToBot = useCallback(
+    async (conversationId: string, onFilterReload?: () => Promise<void>) => {
+      try {
+        const response = await chatService.returnConversationToBot(conversationId);
+
+        if (response && response.data && response.data.id) {
+          dispatch({ type: 'UPDATE_CONVERSATION', payload: response.data });
+        } else {
+          console.warn('returnConversationToBot: Invalid response', response);
+        }
+
+        useUnreadConversationsStore.getState().fetch();
+
+        toast.success(t('contexts.conversations.success.returnedToBot'));
+
+        if (onFilterReload) {
+          await onFilterReload();
+        }
+
+        return response as unknown as Conversation;
+      } catch (error) {
+        console.error('Error returning conversation to bot:', error);
+        toast.error(t('contexts.conversations.errors.returnToBot'), {
+          description:
+            error instanceof Error
+              ? error.message
+              : t('contexts.conversations.tryAgainDescription'),
+        });
+        throw error;
+      }
+    },
+    [t],
+  );
+
   const updateConversationPriority = useCallback(
     async (
       conversationId: string,
@@ -469,7 +506,11 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   );
 
   const archiveConversation = useCallback(
-    async (conversationId: string, onFilterReload?: () => Promise<void>) => {
+    async (
+      conversationId: string,
+      onFilterReload?: () => Promise<void>,
+      options?: { silent?: boolean },
+    ) => {
       try {
         const response = await chatService.archiveConversation(conversationId);
 
@@ -479,7 +520,9 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           console.warn('archiveConversation: Invalid response', response);
         }
 
-        toast.success(t('contexts.conversations.success.archived'));
+        if (!options?.silent) {
+          toast.success(t('contexts.conversations.success.archived'));
+        }
 
         if (onFilterReload) {
           await onFilterReload();
@@ -488,19 +531,23 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
         return response as unknown as Conversation;
       } catch (error) {
         if (isActionNotSupported(error)) {
-          toast.error(t('contexts.conversations.errors.archiveNotSupported'), {
-            description: t('contexts.conversations.errors.archiveNotSupportedDescription'),
-          });
+          if (!options?.silent) {
+            toast.error(t('contexts.conversations.errors.archiveNotSupported'), {
+              description: t('contexts.conversations.errors.archiveNotSupportedDescription'),
+            });
+          }
           throw error;
         }
 
         console.error('Error archiving conversation:', error);
-        toast.error(t('contexts.conversations.errors.archiveConversation'), {
-          description:
-            error instanceof Error
-              ? error.message
-              : t('contexts.conversations.tryAgainDescription'),
-        });
+        if (!options?.silent) {
+          toast.error(t('contexts.conversations.errors.archiveConversation'), {
+            description:
+              error instanceof Error
+                ? error.message
+                : t('contexts.conversations.tryAgainDescription'),
+          });
+        }
         throw error;
       }
     },
@@ -508,7 +555,11 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   );
 
   const unarchiveConversation = useCallback(
-    async (conversationId: string, onFilterReload?: () => Promise<void>) => {
+    async (
+      conversationId: string,
+      onFilterReload?: () => Promise<void>,
+      options?: { silent?: boolean },
+    ) => {
       try {
         const response = await chatService.unarchiveConversation(conversationId);
 
@@ -518,7 +569,9 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           console.warn('unarchiveConversation: Invalid response', response);
         }
 
-        toast.success(t('contexts.conversations.success.unarchived'));
+        if (!options?.silent) {
+          toast.success(t('contexts.conversations.success.unarchived'));
+        }
 
         if (onFilterReload) {
           await onFilterReload();
@@ -527,19 +580,23 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
         return response as unknown as Conversation;
       } catch (error) {
         if (isActionNotSupported(error)) {
-          toast.error(t('contexts.conversations.errors.archiveNotSupported'), {
-            description: t('contexts.conversations.errors.archiveNotSupportedDescription'),
-          });
+          if (!options?.silent) {
+            toast.error(t('contexts.conversations.errors.archiveNotSupported'), {
+              description: t('contexts.conversations.errors.archiveNotSupportedDescription'),
+            });
+          }
           throw error;
         }
 
         console.error('Error unarchiving conversation:', error);
-        toast.error(t('contexts.conversations.errors.archiveConversation'), {
-          description:
-            error instanceof Error
-              ? error.message
-              : t('contexts.conversations.tryAgainDescription'),
-        });
+        if (!options?.silent) {
+          toast.error(t('contexts.conversations.errors.archiveConversation'), {
+            description:
+              error instanceof Error
+                ? error.message
+                : t('contexts.conversations.tryAgainDescription'),
+          });
+        }
         throw error;
       }
     },
@@ -629,7 +686,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
 
   // Context menu actions
   const deleteConversation = useCallback(
-    async (conversationId: string) => {
+    async (conversationId: string, options?: { silent?: boolean }) => {
       try {
         await conversationAPI.deleteConversation(conversationId);
 
@@ -641,15 +698,19 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
           dispatch({ type: 'SELECT_CONVERSATION', payload: null });
         }
 
-        toast.success(t('contexts.conversations.success.deleted'));
+        if (!options?.silent) {
+          toast.success(t('contexts.conversations.success.deleted'));
+        }
       } catch (error) {
         console.error('Error deleting conversation:', error);
-        toast.error(t('contexts.conversations.errors.deleteConversation'), {
-          description:
-            error instanceof Error
-              ? error.message
-              : t('contexts.conversations.tryAgainDescription'),
-        });
+        if (!options?.silent) {
+          toast.error(t('contexts.conversations.errors.deleteConversation'), {
+            description:
+              error instanceof Error
+                ? error.message
+                : t('contexts.conversations.tryAgainDescription'),
+          });
+        }
         throw error;
       }
     },
@@ -672,12 +733,14 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
         }
       } catch (error) {
         console.error('Error marking conversation as read:', error);
-        toast.error(t('contexts.conversations.errors.markAsRead'), {
-          description:
-            error instanceof Error
-              ? error.message
-              : t('contexts.conversations.tryAgainDescription'),
-        });
+        if (!options?.silent) {
+          toast.error(t('contexts.conversations.errors.markAsRead'), {
+            description:
+              error instanceof Error
+                ? error.message
+                : t('contexts.conversations.tryAgainDescription'),
+          });
+        }
         throw error;
       }
     },
@@ -685,7 +748,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   );
 
   const markAsUnread = useCallback(
-    async (conversationId: string) => {
+    async (conversationId: string, options?: { silent?: boolean }) => {
       try {
         await conversationAPI.markAsUnread(conversationId);
 
@@ -696,15 +759,19 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
         });
         useUnreadConversationsStore.getState().fetch();
 
-        toast.success(t('contexts.conversations.success.markedAsUnread'));
+        if (!options?.silent) {
+          toast.success(t('contexts.conversations.success.markedAsUnread'));
+        }
       } catch (error) {
         console.error('Error marking conversation as unread:', error);
-        toast.error(t('contexts.conversations.errors.markAsUnread'), {
-          description:
-            error instanceof Error
-              ? error.message
-              : t('contexts.conversations.tryAgainDescription'),
-        });
+        if (!options?.silent) {
+          toast.error(t('contexts.conversations.errors.markAsUnread'), {
+            description:
+              error instanceof Error
+                ? error.message
+                : t('contexts.conversations.tryAgainDescription'),
+          });
+        }
         throw error;
       }
     },
@@ -907,6 +974,7 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     loadSpecificConversation,
     selectConversation,
     updateConversationStatus,
+    returnConversationToBot,
     updateConversationPriority,
     pinConversation,
     unpinConversation,

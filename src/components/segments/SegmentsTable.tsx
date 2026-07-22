@@ -4,6 +4,7 @@ import { Badge } from '@evoapi/design-system';
 import BaseTable from '@/components/base/BaseTable';
 import { Segment } from '@/types/analytics';
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface SegmentsTableProps {
   segments: Segment[];
@@ -34,7 +35,9 @@ export default function SegmentsTable({
   onSort,
 }: SegmentsTableProps) {
   const { t } = useLanguage('segments');
+  const { can, isReady } = usePermissions();
   const [loadingRecompute, setLoadingRecompute] = useState<string | null>(null);
+  const canUpdate = () => isReady && can('segments', 'update');
 
   const handleRecompute = async (segment: Segment) => {
     setLoadingRecompute(segment.id);
@@ -121,6 +124,7 @@ export default function SegmentsTable({
       label: t('actions.edit'),
       icon: <Edit className="h-4 w-4" />,
       onClick: onEditSegment,
+      show: canUpdate,
     },
     {
       label: t('actions.viewIds'),
@@ -132,6 +136,7 @@ export default function SegmentsTable({
       icon: <RefreshCw className="h-4 w-4" />,
       onClick: handleRecompute,
       loading: (segment: Segment) => loadingRecompute === segment.id,
+      show: canUpdate,
     },
     {
       label: t('actions.pause'),
@@ -140,7 +145,7 @@ export default function SegmentsTable({
         // TODO: Implementar ação de pausar
         console.log('Pausar segmento:', segment.id);
       },
-      show: (segment: Segment) => segment.status === 'running',
+      show: (segment: Segment) => canUpdate() && segment.status === 'running',
     },
     {
       label: t('actions.activate'),
@@ -149,13 +154,14 @@ export default function SegmentsTable({
         // TODO: Implementar ação de ativar
         console.log('Ativar segmento:', segment.id);
       },
-      show: (segment: Segment) => segment.status !== 'running',
+      show: (segment: Segment) => canUpdate() && segment.status !== 'running',
     },
     {
       label: t('actions.delete'),
       icon: <Trash2 className="h-4 w-4" />,
       onClick: onDeleteSegment,
       variant: 'destructive' as const,
+      show: () => isReady && can('segments', 'delete'),
     },
   ];
 

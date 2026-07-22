@@ -151,6 +151,37 @@
       "update": "Guardar Cambios"
     }
   },
+  "wizard": {
+    "progress": {
+      "identity": "Identidad",
+      "connection": "Conexión",
+      "advanced": "Avanzado",
+      "finish": "Finalizar"
+    },
+    "step1": {
+      "title": "Identifiquemos tu servidor MCP",
+      "subtitle": "Ponle un nombre, descripción y etiquetas para que tu equipo lo encuentre después."
+    },
+    "step2": {
+      "title": "¿Cómo se conecta?",
+      "subtitle": "Indica la URL del servidor y las cabeceras HTTP enviadas en cada solicitud."
+    },
+    "step3": {
+      "title": "Configuración avanzada",
+      "subtitle": "Opcional. Ajusta el tiempo de espera de la solicitud y cuántas veces reintentar."
+    },
+    "step4": {
+      "title": "Toques finales",
+      "subtitle": "Revisa la configuración antes de guardar tu servidor MCP.",
+      "reviewHint": "Revisa los detalles a continuación. Puedes volver para cambiar cualquier cosa."
+    },
+    "actions": {
+      "continue": "Continuar",
+      "back": "Atrás",
+      "create": "Crear servidor MCP",
+      "save": "Guardar cambios"
+    }
+  },
   "modal": {
     "title": {
       "create": "Crear Nuevo Servidor MCP Personalizado",

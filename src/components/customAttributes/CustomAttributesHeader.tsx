@@ -1,4 +1,5 @@
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { Plus, Trash2 } from 'lucide-react';
 import BaseHeader from '@/components/base/BaseHeader';
 import { AttributeModel, ATTRIBUTE_TABS } from '@/types/settings';
@@ -27,6 +28,7 @@ export default function CustomAttributesHeader({
   activeTab,
 }: CustomAttributesHeaderProps) {
   const { t } = useLanguage('customAttributes');
+  const { can, isReady } = usePermissions();
   const currentTab = ATTRIBUTE_TABS.find(tab => tab.key === activeTab);
 
   return (
@@ -42,7 +44,7 @@ export default function CustomAttributesHeader({
       selectedCount={selectedCount}
       onClearSelection={onClearSelection}
       primaryAction={
-        !showBulkActions
+        !showBulkActions && isReady && can('custom_attribute_definitions', 'create')
           ? {
               label: t('header.newAttribute'),
               icon: <Plus className="h-4 w-4" />,
@@ -51,7 +53,7 @@ export default function CustomAttributesHeader({
           : undefined
       }
       bulkActions={
-        showBulkActions
+        showBulkActions && isReady && can('custom_attribute_definitions', 'delete')
           ? [
               {
                 label: t('header.bulkDelete'),

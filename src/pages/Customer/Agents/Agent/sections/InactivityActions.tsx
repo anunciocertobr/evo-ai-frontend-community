@@ -45,7 +45,21 @@ const InactivityActions = ({ actions, onChange }: InactivityActionsProps) => {
     onChange(actions.filter(action => action.id !== id));
   };
 
-  const minuteOptions = [2, 5, 10, 15, 30, 60];
+  const minuteOptions = [2, 5, 10, 15, 30, 60, 120, 240, 480, 720, 1440];
+
+  // Format the delay label: minutes below 60, hours when a whole multiple of 60
+  // (the stored value stays in minutes, only the label changes).
+  const formatMinuteLabel = (min: number): string => {
+    if (min < 60 || min % 60 !== 0) {
+      return `${min} ${t('edit.configuration.inactivityActions.minutes') || 'minutos'}`;
+    }
+    const h = min / 60;
+    return `${h} ${
+      h === 1
+        ? t('edit.configuration.inactivityActions.hour') || 'hora'
+        : t('edit.configuration.inactivityActions.hours') || 'horas'
+    }`;
+  };
 
   return (
     <div className="space-y-6">
@@ -85,8 +99,7 @@ const InactivityActions = ({ actions, onChange }: InactivityActionsProps) => {
                         <SelectContent>
                           {minuteOptions.map(min => (
                             <SelectItem key={min} value={min.toString()}>
-                              {min}{' '}
-                              {t('edit.configuration.inactivityActions.minutes') || 'minutos'}
+                              {formatMinuteLabel(min)}
                             </SelectItem>
                           ))}
                         </SelectContent>

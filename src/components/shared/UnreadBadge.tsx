@@ -14,7 +14,7 @@ export function UnreadBadge({ count, ariaLabel, className }: UnreadBadgeProps) {
       role="status"
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium leading-none',
+        'inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[11.5px] font-bold leading-none',
         className,
       )}
     >

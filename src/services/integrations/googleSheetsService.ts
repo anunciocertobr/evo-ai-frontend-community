@@ -1,4 +1,4 @@
-import api from '@/services/core/api';
+import agentProcessorApi from '@/services/core/agentProcessorApi';
 import type {
   GoogleSheetsConfig,
   GoogleSheetsItem,
@@ -12,11 +12,12 @@ const GoogleSheetsService = {
    */
   async generateAuthorization(agentId: string, email?: string): Promise<GoogleSheetsOAuthResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/google-sheets/authorization`,
         { email }
       );
-      return data;
+      // Processor wraps the payload as { success, data: { url }, message }.
+      return data?.data ?? data;
     } catch (error) {
       console.error('GoogleSheetsService.generateAuthorization error:', error);
       throw error;
@@ -32,14 +33,17 @@ const GoogleSheetsService = {
     state: string
   ): Promise<GoogleSheetsConnectionResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/google-sheets/callback`,
         {
           code,
           state,
         }
       );
-      return data;
+      // The callback may arrive wrapped ({ success, data: {...} }) or already
+      // flattened ({ email, spreadsheets }). Normalize so callers always read
+      // `.success` (CallbackPage) and `.email`/`.spreadsheets` (onSuccess).
+      return { success: data?.success ?? true, ...(data?.data ?? data ?? {}) };
     } catch (error) {
       console.error('GoogleSheetsService.completeAuthorization error:', error);
       throw error;
@@ -51,10 +55,14 @@ const GoogleSheetsService = {
    */
   async getSpreadsheets(agentId: string): Promise<GoogleSheetsItem[]> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/google-sheets/spreadsheets`
       );
-      return data.spreadsheets || [];
+      // Processor wraps the payload as { success, data, message } where `data`
+      // is the spreadsheets array directly (older shapes nested it under
+      // `data.spreadsheets`); handle both.
+      const payload = data?.data ?? data;
+      return Array.isArray(payload) ? payload : (payload?.spreadsheets ?? []);
     } catch (error) {
       console.error('GoogleSheetsService.getSpreadsheets error:', error);
       throw error;
@@ -69,7 +77,7 @@ const GoogleSheetsService = {
     config: Partial<GoogleSheetsConfig>
   ): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.put(
+      const { data } = await agentProcessorApi.put(
         `/agents/${agentId}/integrations/google-sheets`,
         config
       );
@@ -85,7 +93,7 @@ const GoogleSheetsService = {
    */
   async disconnect(agentId: string): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.delete(
+      const { data } = await agentProcessorApi.delete(
         `/agents/${agentId}/integrations/google-sheets`
       );
       return data;
@@ -100,7 +108,7 @@ const GoogleSheetsService = {
    */
   getOAuthCallbackUrl(): string {
     const baseUrl = window.location.origin;
-    return `${baseUrl}/oauth/google-sheets/callback`;
+    return `${baseUrl}/google-sheets/callback`;
   },
 };
 

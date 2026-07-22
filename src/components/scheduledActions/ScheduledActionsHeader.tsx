@@ -1,7 +1,7 @@
 import { useLanguage } from '@/hooks/useLanguage';
 import { Plus, X } from 'lucide-react';
 import { BaseHeader, HeaderAction } from '@/components/base';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface ScheduledActionsHeaderProps {
   totalCount: number;
@@ -25,7 +25,7 @@ export default function ScheduledActionsHeader({
   onClearSelection,
 }: ScheduledActionsHeaderProps) {
   const { t } = useLanguage('contacts');
-  const { can, isReady } = useUserPermissions();
+  const { can, isReady } = usePermissions();
 
   // Uses 'contacts' resource — no dedicated 'scheduled_actions' permission exists in the system
   const primaryAction: HeaderAction | undefined = isReady && can('contacts', 'create') ? {

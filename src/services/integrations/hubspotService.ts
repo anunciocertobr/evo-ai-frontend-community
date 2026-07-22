@@ -1,4 +1,4 @@
-import api from '@/services/core/api';
+import agentProcessorApi from '@/services/core/agentProcessorApi';
 import type {
   HubSpotConfig,
   HubSpotOAuthResponse,
@@ -12,7 +12,7 @@ const HubSpotService = {
    */
   async generateAuthorization(agentId: string): Promise<HubSpotOAuthResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/hubspot/authorization`
       );
       return data;
@@ -31,7 +31,7 @@ const HubSpotService = {
     state: string
   ): Promise<HubSpotConnectionResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/hubspot/callback`,
         {
           code,
@@ -50,7 +50,7 @@ const HubSpotService = {
    */
   async getConfiguration(agentId: string): Promise<HubSpotConfig | null> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/hubspot`
       );
       return data.config || null;
@@ -71,7 +71,7 @@ const HubSpotService = {
     config: Partial<HubSpotConfig>
   ): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.put(
+      const { data } = await agentProcessorApi.put(
         `/agents/${agentId}/integrations/hubspot`,
         { config }
       );
@@ -87,7 +87,7 @@ const HubSpotService = {
    */
   async disconnect(agentId: string): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.delete(
+      const { data } = await agentProcessorApi.delete(
         `/agents/${agentId}/integrations/hubspot`
       );
       return data;
@@ -103,7 +103,7 @@ const HubSpotService = {
    */
   async discoverTools(agentId: string): Promise<DiscoverToolsResponse> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/hubspot/discover-tools`
       );
       return data;

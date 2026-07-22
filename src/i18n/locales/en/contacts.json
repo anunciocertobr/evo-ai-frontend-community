@@ -38,7 +38,8 @@
       "description": "Description",
       "timeline": "Timeline",
       "linkedCompanies": "Linked Companies",
-      "linkedPersons": "Linked Contacts"
+      "linkedPersons": "Linked Contacts",
+      "socialProfiles": "Social Profiles"
     },
     "fields": {
       "name": "Name",
@@ -68,7 +69,15 @@
     "errors": {
       "invalidDate": "Invalid date"
     },
-    "na": "N/A"
+    "na": "N/A",
+    "page": {
+      "back": "Back",
+      "close": "Close",
+      "notFound": {
+        "title": "Contact not found",
+        "description": "We couldn't find this contact. It may have been deleted."
+      }
+    }
   },
   "export": {
     "title": "Export Contacts",
@@ -357,6 +366,12 @@
     "description": "Configure filters to find the contacts you're looking for",
     "apply": "Apply Filters",
     "clear": "Clear Filters",
+    "popover": {
+      "trigger": "Filters",
+      "title": "Filter Contacts",
+      "clearAll": "Clear all",
+      "noOptions": "No options available"
+    },
     "attribute": "Attribute",
     "operator": "Team Member",
     "value": "Value",
@@ -391,7 +406,7 @@
       "country_code": "Country (ISO code)",
       "city": "City",
       "company": "Company",
-      "blocked": "Blocked"
+      "blocked": "Status"
     },
     "options": {
       "blocked": {
@@ -442,9 +457,11 @@
   },
   "table": {
     "columns": {
-      "contact": "Contact",
+      "name": "Name",
+      "email": "Email",
+      "phone": "Phone",
       "type": "Type",
-      "tags": "Tags",
+      "labels": "Labels",
       "status": "Status",
       "pipelines": "Pipelines"
     },
@@ -668,7 +685,14 @@
       "occurredAfter": "From",
       "occurredBefore": "To",
       "clear": "Clear filters",
-      "allEventNames": "All names"
+      "allEventNames": "All names",
+      "period": "Period",
+      "periodPresets": {
+        "today": "Today",
+        "7d": "Last 7 days",
+        "30d": "Last 30 days",
+        "all": "All time"
+      }
     },
     "types": {
       "_comment": "Protocol-term values (Identify/Track/Page/Screen/Segment) are intentionally kept untranslated across locales.",
@@ -721,6 +745,28 @@
       "pipeline_conversation_created": "Pipeline conversation created",
       "pipeline_conversation_updated": "Pipeline conversation updated",
       "pipeline_stage_changed": "Pipeline stage changed"
+    }
+  },
+  "notes": {
+    "title": "Notes",
+    "addPlaceholder": "Write a note about this contact...",
+    "empty": "No notes yet.",
+    "actions": {
+      "add": "Add note",
+      "adding": "Adding...",
+      "edit": "Edit note",
+      "delete": "Delete note",
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "messages": {
+      "loadError": "Error loading notes",
+      "createSuccess": "Note added",
+      "createError": "Error adding note",
+      "updateSuccess": "Note updated",
+      "updateError": "Error updating note",
+      "deleteSuccess": "Note deleted",
+      "deleteError": "Error deleting note"
     }
   }
 }

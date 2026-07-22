@@ -14,7 +14,7 @@ import {
 import { MessageSquare, Search } from 'lucide-react';
 import EmptyState from '@/components/base/EmptyState';
 
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { cannedResponsesService } from '@/services/cannedResponses/cannedResponsesService';
 import {
   CannedResponse,
@@ -53,7 +53,7 @@ const INITIAL_STATE: CannedResponsesState = {
 
 export default function CannedResponses() {
   const { t } = useLanguage('cannedResponses');
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const [state, setState] = useState<CannedResponsesState>(INITIAL_STATE);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [cannedResponseToDelete, setCannedResponseToDelete] = useState<CannedResponse | null>(null);
@@ -323,10 +323,10 @@ export default function CannedResponses() {
               icon={MessageSquare}
               title={t('empty.title')}
               description={t('empty.description')}
-              action={{
+              action={permissionsReady && can('canned_responses', 'create') ? {
                 label: t('empty.action'),
                 onClick: handleCreateCannedResponse,
-              }}
+              } : undefined}
               className="h-full"
             />
           )

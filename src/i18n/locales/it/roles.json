@@ -29,13 +29,42 @@
     "system": "Sistema",
     "custom": "Personalizzato"
   },
+  "domains": {
+    "attendance": "Assistenza",
+    "contacts": "Contatti",
+    "crm": "CRM",
+    "automation": "Automazione",
+    "ai": "IA",
+    "channels": "Canali",
+    "admin": "Amministrazione",
+    "others": "Altri"
+  },
   "detail": {
     "permissionsTitle": "Permessi",
     "permissionsDescription": "Seleziona i permessi che questo profilo deve avere. Le modifiche hanno effetto al prossimo accesso dell'utente.",
     "permissionsSelected": "permessi selezionati",
     "selectAll": "Seleziona tutti",
     "deselectAll": "Deseleziona tutti",
-    "noPermissions": "Nessun permesso disponibile."
+    "noPermissions": "Nessun permesso disponibile.",
+    "filterPlaceholder": "Cerca permessi...",
+    "nested": {
+      "pipelineStages": "Fasi",
+      "workingHours": "Orari di lavoro"
+    },
+    "lock": {
+      "basic": "Concessa a tutti gli utenti autenticati",
+      "impliedBy": "Implicita da {{source}}",
+      "basicBadge": "Base",
+      "impliedBadge": "Implicita"
+    },
+    "actionGroups": {
+      "read": "Lettura",
+      "readDescription": "Vedere questa risorsa e il suo contenuto.",
+      "write": "Scrittura",
+      "writeDescription": "Creare e modificare questa risorsa, inclusa ogni azione che la altera.",
+      "delete": "Eliminazione",
+      "deleteDescription": "Eliminare questa risorsa."
+    }
   },
   "createModal": {
     "title": "Crea Profilo",

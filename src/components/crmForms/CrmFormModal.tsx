@@ -42,6 +42,8 @@ interface CrmFormModalProps {
   pipelines: Pipeline[];
   contactAttrs: CustomAttributeDefinition[];
   dealAttrs: CustomAttributeDefinition[];
+  /** Preselected pipeline for a NEW form (create mode only). */
+  presetPipelineId?: string;
 }
 
 const FIELD_TYPES: CrmFieldType[] = ['text', 'email', 'tel', 'number', 'textarea', 'select', 'checkbox'];
@@ -78,7 +80,7 @@ const contactStdKey = (f: CrmFormField): string | null => {
   return null;
 };
 
-const CrmFormModal = ({ open, onClose, onSave, saving, initial, pipelines, contactAttrs, dealAttrs }: CrmFormModalProps) => {
+const CrmFormModal = ({ open, onClose, onSave, saving, initial, pipelines, contactAttrs, dealAttrs, presetPipelineId }: CrmFormModalProps) => {
   const { t } = useLanguage('crmForms');
   const [name, setName] = useState('');
   const [title, setTitle] = useState('');
@@ -111,10 +113,11 @@ const CrmFormModal = ({ open, onClose, onSave, saving, initial, pipelines, conta
           ],
     );
     setRules(initial?.routing_rules ?? []);
-    setDefaultPipelineId(initial?.default_pipeline_id ?? '');
+    // On create (no initial), preselect the pipeline this modal was opened from.
+    setDefaultPipelineId(initial?.default_pipeline_id ?? presetPipelineId ?? '');
     setDefaultStageId(initial?.default_stage_id ?? '');
     setError(null);
-  }, [open, initial, t]);
+  }, [open, initial, t, presetPipelineId]);
 
   const targetGroups = buildTargetGroups(contactAttrs, dealAttrs, t);
 

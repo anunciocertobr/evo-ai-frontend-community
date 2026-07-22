@@ -15,6 +15,9 @@ export interface SetupStatus {
   status: 'active' | 'inactive';
   instance_id: string | null;
   api_key?: string;
+  licensed?: boolean;
+  /** True when a consumer contributes extra setup steps. */
+  extra_setup_steps?: boolean;
 }
 
 export interface BootstrapPayload {
@@ -23,6 +26,9 @@ export interface BootstrapPayload {
   email: string;
   password: string;
   password_confirmation: string;
+  /** Opaque bag forwarded to the server's after_bootstrap hook; populated
+   *  only by a contributed step. */
+  extension_payload?: Record<string, unknown>;
 }
 
 export interface BootstrapResponse {

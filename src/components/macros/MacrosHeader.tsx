@@ -1,4 +1,5 @@
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { Plus, Trash2 } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 
@@ -28,6 +29,7 @@ export default function MacrosHeader({
   showFilters = true,
 }: MacrosHeaderProps) {
   const { t } = useLanguage('macros');
+  const { can, isReady } = usePermissions();
 
   return (
     <BaseHeader
@@ -36,11 +38,11 @@ export default function MacrosHeader({
       searchValue={searchValue}
       onSearchChange={onSearchChange}
       searchPlaceholder={t('header.searchPlaceholder')}
-      primaryAction={{
+      primaryAction={isReady && can('macros', 'create') ? {
         label: t('header.newMacro'),
         icon: <Plus className="h-4 w-4" />,
         onClick: onNewMacro,
-      }}
+      } : undefined}
       showFilters={showFilters}
       onFilterClick={onFilter}
       filters={activeFilters.map(filter => ({
@@ -50,14 +52,14 @@ export default function MacrosHeader({
       }))}
       selectedCount={selectedCount}
       onClearSelection={onClearSelection}
-      bulkActions={[
+      bulkActions={isReady && can('macros', 'delete') ? [
         {
           label: t('header.bulkDelete'),
           icon: <Trash2 className="h-4 w-4" />,
           onClick: onBulkDelete,
           variant: 'destructive' as const,
         },
-      ]}
+      ] : []}
     />
   );
 }

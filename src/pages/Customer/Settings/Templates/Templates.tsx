@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { Button } from '@evoapi/design-system';
 import { Download, Upload, Package } from 'lucide-react';
 import EmptyState from '@/components/base/EmptyState';
@@ -9,7 +9,7 @@ import ImportModal from './components/ImportModal/ImportModal';
 
 export default function Templates() {
   const { t } = useLanguage('templates');
-  const { can } = useUserPermissions();
+  const { can } = usePermissions();
 
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);

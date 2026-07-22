@@ -10,8 +10,8 @@ vi.mock('@/hooks/useLanguage', () => ({
   }),
 }));
 
-vi.mock('@/hooks/useUserPermissions', () => ({
-  useUserPermissions: () => ({
+vi.mock('@/contexts/PermissionsContext', () => ({
+  usePermissions: () => ({
     can: (resource: string, action: string) => resource === 'templates' && ['read', 'export', 'import'].includes(action),
     canAny: () => true,
     canAll: () => true,

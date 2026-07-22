@@ -1,4 +1,4 @@
-import api from '@/services/core/api';
+import agentProcessorApi from '@/services/core/agentProcessorApi';
 import type {
   CanvaConfig,
   CanvaOAuthResponse,
@@ -12,7 +12,7 @@ const CanvaService = {
    */
   async generateAuthorization(agentId: string): Promise<CanvaOAuthResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/canva/authorization`
       );
       return data;
@@ -31,7 +31,7 @@ const CanvaService = {
     state: string
   ): Promise<CanvaConnectionResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/canva/callback`,
         {
           code,
@@ -50,7 +50,7 @@ const CanvaService = {
    */
   async getConfiguration(agentId: string): Promise<CanvaConfig | null> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/canva`
       );
       return data.config || null;
@@ -74,7 +74,7 @@ const CanvaService = {
     config: Partial<CanvaConfig>
   ): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.put(
+      const { data } = await agentProcessorApi.put(
         `/agents/${agentId}/integrations/canva`,
         { config }
       );
@@ -90,7 +90,7 @@ const CanvaService = {
    */
   async disconnect(agentId: string): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.delete(
+      const { data } = await agentProcessorApi.delete(
         `/agents/${agentId}/integrations/canva`
       );
       return data;
@@ -106,7 +106,7 @@ const CanvaService = {
    */
   async discoverTools(agentId: string): Promise<DiscoverToolsResponse> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/canva/discover-tools`
       );
       return data;

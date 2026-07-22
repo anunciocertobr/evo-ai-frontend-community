@@ -1,4 +1,4 @@
-import api from '@/services/core/api';
+import agentProcessorApi from '@/services/core/agentProcessorApi';
 import type {
   AtlassianConfig,
   AtlassianOAuthResponse,
@@ -12,7 +12,7 @@ const AtlassianService = {
    */
   async generateAuthorization(agentId: string): Promise<AtlassianOAuthResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/atlassian/authorization`
       );
       return data;
@@ -31,7 +31,7 @@ const AtlassianService = {
     state: string
   ): Promise<AtlassianConnectionResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/atlassian/callback`,
         {
           code,
@@ -50,7 +50,7 @@ const AtlassianService = {
    */
   async getConfiguration(agentId: string): Promise<AtlassianConfig | null> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/atlassian`
       );
       return data.config || null;
@@ -71,7 +71,7 @@ const AtlassianService = {
     config: Partial<AtlassianConfig>
   ): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.put(
+      const { data } = await agentProcessorApi.put(
         `/agents/${agentId}/integrations/atlassian`,
         { config }
       );
@@ -87,7 +87,7 @@ const AtlassianService = {
    */
   async disconnect(agentId: string): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.delete(
+      const { data } = await agentProcessorApi.delete(
         `/agents/${agentId}/integrations/atlassian`
       );
       return data;
@@ -103,7 +103,7 @@ const AtlassianService = {
    */
   async discoverTools(agentId: string): Promise<DiscoverToolsResponse> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/atlassian/discover-tools`
       );
       return data;

@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback, Badge } from '@evoapi/design-system';
 import { Edit, Trash2, Shield } from 'lucide-react';
 import { User } from '@/types/users';
 import { BaseTable, TableColumn, TableAction } from '@/components/base';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { useLanguage } from '@/hooks/useLanguage';
 
 interface UsersTableProps {
@@ -34,7 +34,7 @@ export default function UsersTable({
   getRowKey,
   canDeleteUser,
 }: UsersTableProps) {
-  const { can } = useUserPermissions();
+  const { can } = usePermissions();
   const { t } = useLanguage('users');
 
   const getInitials = (name: string) =>

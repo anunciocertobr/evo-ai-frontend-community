@@ -11,7 +11,7 @@ import {
   DialogTitle,
   Button,
 } from '@evoapi/design-system';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { automationService } from '@/services/automation/automationService';
 import type { AutomationRule } from '@/types/automation';
 import { AutomationsHeader, AutomationsTable, AutomationsPagination } from '@/components/automation';
@@ -49,7 +49,7 @@ const INITIAL_STATE: State = {
 export default function AutomationsListPage() {
   const { t } = useLanguage('automation');
   const navigate = useNavigate();
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
 
   const [state, setState] = useState<State>(INITIAL_STATE);
   const [deleteOpen, setDeleteOpen] = useState(false);

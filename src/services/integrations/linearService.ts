@@ -1,4 +1,4 @@
-import api from '@/services/core/api';
+import agentProcessorApi from '@/services/core/agentProcessorApi';
 import type {
   LinearConfig,
   LinearOAuthResponse,
@@ -12,7 +12,7 @@ const LinearService = {
    */
   async generateAuthorization(agentId: string): Promise<LinearOAuthResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/linear/authorization`
       );
       return data;
@@ -31,7 +31,7 @@ const LinearService = {
     state: string
   ): Promise<LinearConnectionResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/linear/callback`,
         {
           code,
@@ -50,7 +50,7 @@ const LinearService = {
    */
   async getConfiguration(agentId: string): Promise<LinearConfig | null> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/linear`
       );
       return data.config || null;
@@ -71,7 +71,7 @@ const LinearService = {
     config: Partial<LinearConfig>
   ): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.put(
+      const { data } = await agentProcessorApi.put(
         `/agents/${agentId}/integrations/linear`,
         { config }
       );
@@ -87,7 +87,7 @@ const LinearService = {
    */
   async disconnect(agentId: string): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.delete(
+      const { data } = await agentProcessorApi.delete(
         `/agents/${agentId}/integrations/linear`
       );
       return data;
@@ -103,7 +103,7 @@ const LinearService = {
    */
   async discoverTools(agentId: string): Promise<DiscoverToolsResponse> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/linear/discover-tools`
       );
       return data;

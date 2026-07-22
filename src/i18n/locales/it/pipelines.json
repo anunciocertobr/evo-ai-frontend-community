@@ -157,7 +157,10 @@
           "description": "Finalizzato"
         }
       }
-    }
+    },
+    "pageTitle": "Creazione di una nuova Pipeline",
+    "back": "Indietro",
+    "newStageColor": "Colore della fase"
   },
   "createStage": {
     "title": "Crea Nuova Fase",
@@ -285,7 +288,9 @@
     },
     "cancel": "Annulla",
     "saving": "Salvataggio...",
-    "save": "Salva Modifiche"
+    "save": "Salva Modifiche",
+    "scheduleAction": "Pianifica azione",
+    "stageLabel": "Fase:"
   },
   "editConversation": {
     "title": "Modifica Conversazione nella Pipeline",
@@ -459,7 +464,11 @@
       "conversations": "Conversazioni",
       "completedPipelines": "Pipeline Completate",
       "createdAt": "Creata il",
-      "actions": "Azioni"
+      "actions": "Azioni",
+      "totalValue": "Valore Totale",
+      "items": "Lead",
+      "stages": "Fasi",
+      "won": "Vinti"
     },
     "actions": {
       "view": "Visualizza",
@@ -469,7 +478,8 @@
       "idCopied": "ID copiato negli appunti",
       "activate": "Attiva",
       "deactivate": "Disattiva",
-      "delete": "Elimina"
+      "delete": "Elimina",
+      "setAsDefault": "Imposta come predefinito"
     },
     "types": {
       "sales": "Vendite",
@@ -480,7 +490,8 @@
     "status": {
       "active": "Attiva",
       "inactive": "Inattiva"
-    }
+    },
+    "default": "Predefinito"
   },
   "pipelineSwitcher": {
     "loading": "Caricamento pipeline...",
@@ -553,18 +564,38 @@
         "resolved": "Risolto",
         "pending": "In attesa",
         "snoozed": "Posticipato"
+      },
+      "filters": "Filtri",
+      "all": "Tutti",
+      "apply": "Applica",
+      "periodFilter": "Periodo",
+      "priorityFilter": "Priorità",
+      "period": {
+        "all": "Tutto il periodo",
+        "today": "Oggi",
+        "last7": "Ultimi 7 giorni",
+        "last30": "Ultimi 30 giorni",
+        "month": "Questo mese"
+      },
+      "priority": {
+        "alta": "Alta",
+        "media": "Media",
+        "baixa": "Bassa"
       }
     },
     "copyId": "Copia ID",
     "idCopied": "ID copiato negli appunti",
     "header": {
-      "conversations": "Conversazioni",
+      "conversations": "Lead",
       "stages": "Fasi",
       "totalValue": "Valore Totale",
       "addConversation": "Aggiungi Conversazione",
       "editPipeline": "Modifica Pipeline",
       "reorderStages": "Riordina Fasi",
-      "deletePipeline": "Elimina Pipeline"
+      "deletePipeline": "Elimina Pipeline",
+      "private": "Privato",
+      "noDescription": "Nessuna descrizione",
+      "captureForms": "Moduli di acquisizione"
     },
     "stage": {
       "addStage": "Aggiungi Fase",
@@ -589,7 +620,11 @@
         "unknown": "Sconosciuto"
       },
       "valueLabel": "Valore Totale:",
-      "system": "Sistema"
+      "system": "Sistema",
+      "moveCard": "Sposta scheda",
+      "moveTo": "Sposta in",
+      "addItemShort": "Aggiungi elemento",
+      "openConversation": "Apri conversazione"
     },
     "conversation": {
       "unknownUser": "Utente Sconosciuto",
@@ -599,7 +634,9 @@
       "status": {
         "open": "Aperta",
         "resolved": "Risolta",
-        "unknown": "Sconosciuto"
+        "unknown": "Sconosciuto",
+        "pending": "In attesa",
+        "snoozed": "Rimandato"
       },
       "valueLabel": "Valore Totale:",
       "system": "Sistema"
@@ -752,5 +789,25 @@
       "delete": "Elimina Pipeline",
       "deleting": "Eliminazione..."
     }
+  },
+  "captureForms": {
+    "title": "Moduli di acquisizione",
+    "subtitle": "Moduli di acquisizione lead per {{pipeline}}",
+    "newForm": "Nuovo modulo",
+    "empty": "Nessun modulo di acquisizione per questa pipeline.",
+    "leadsCount": "{{count}} lead",
+    "published": "Pubblicato",
+    "draft": "Bozza",
+    "copyLink": "Copia link",
+    "openLink": "Apri",
+    "edit": "Modifica",
+    "delete": "Elimina",
+    "deleteConfirm": "Eliminare il modulo \"{{name}}\"?",
+    "linkCopied": "Link copiato",
+    "saved": "Modulo salvato",
+    "deleted": "Modulo eliminato",
+    "loadError": "Impossibile caricare i moduli",
+    "saveError": "Impossibile salvare il modulo",
+    "deleteError": "Impossibile eliminare il modulo"
   }
 }

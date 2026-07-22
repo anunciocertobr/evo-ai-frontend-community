@@ -199,7 +199,7 @@
   "testResult": {
     "titleSuccess": "Test riuscito",
     "titleError": "Test fallito",
-    "statusCode": "Status code",
+    "statusCode": "Codice di stato",
     "responseTime": "Tempo di risposta",
     "errorLabel": "Errore",
     "responseHeaders": "Headers della risposta",
@@ -273,7 +273,8 @@
       "title": "Tocchi finali",
       "subtitle": "Aggiungi esempi d'uso che aiutino gli agenti a sapere quando chiamare questo strumento.",
       "helperText": "Gli esempi sono brevi descrizioni di come usare lo strumento.",
-      "testHint": "Dopo la creazione, potrai testare lo strumento contro l'endpoint reale."
+      "testHint": "Dopo la creazione, potrai testare lo strumento contro l'endpoint reale.",
+      "attachHint": "Creare lo strumento lo aggiunge solo al catalogo. Perché un agente lo usi, collegalo all'agente nella sua scheda Strumenti."
     },
     "actions": {
       "continue": "Continua",
@@ -339,6 +340,19 @@
     "deleteSuccess": "Strumento personalizzato eliminato con successo",
     "deleteError": "Errore nell'eliminazione dello strumento personalizzato",
     "testSuccess": "Test eseguito con successo",
-    "testError": "Errore nel test dello strumento personalizzato"
+    "testError": "Errore nel test dello strumento personalizzato",
+    "applyFiltersError": "Errore durante l'applicazione dei filtri"
+  },
+  "deleteDialog": {
+    "title": "Elimina Strumento Personalizzato",
+    "description": "Vuoi davvero eliminare lo strumento \"{{name}}\"? Questa azione non può essere annullata.",
+    "cancel": "Annulla",
+    "confirm": "Elimina"
+  },
+  "permissions": {
+    "viewDenied": "Non hai il permesso di vedere gli strumenti personalizzati",
+    "createDenied": "Non hai il permesso di creare strumenti personalizzati",
+    "editDenied": "Non hai il permesso di modificare gli strumenti personalizzati",
+    "deleteDenied": "Non hai il permesso di eliminare strumenti personalizzati"
   }
 }

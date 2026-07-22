@@ -15,7 +15,7 @@ import { Search, Tags } from 'lucide-react';
 import EmptyState from '@/components/base/EmptyState';
 
 import { labelsService } from '@/services/contacts/labelsService';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { Label, LabelsState, LabelFormData } from '@/types/settings';
 
 import LabelsHeader from '@/components/labels/LabelsHeader';
@@ -49,7 +49,7 @@ const INITIAL_STATE: LabelsState = {
 
 export default function Labels() {
   const { t } = useLanguage('labels');
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const [state, setState] = useState<LabelsState>(INITIAL_STATE);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [labelToDelete, setLabelToDelete] = useState<Label | null>(null);

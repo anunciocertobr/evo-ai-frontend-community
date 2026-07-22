@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Textarea, Label, Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@evoapi/design-system';
 import { ArrowRight, ArrowLeft, Sparkles, Wand2, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { useGlobalConfig } from '@/contexts/GlobalConfigContext';
 import { openaiService } from '@/services/integrations/openaiService';
 import { toast } from 'sonner';
@@ -16,13 +17,15 @@ interface Step5Props {
 
 const Step5_Instructions = ({ data, onChange, onNext, onBack }: Step5Props) => {
   const { t } = useLanguage('aiAgents');
+  const { can, isReady } = usePermissions();
   const config = useGlobalConfig();
   const [error, setError] = useState<string>('');
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
 
-  // Check if OpenAI is configured to show AI actions
-  const showAIActions = config.openaiConfigured === true;
+  // AI actions call the CRM integrations processor, so they demand both the
+  // configured provider and the integrations.execute grant.
+  const showAIActions = config.openaiConfigured === true && isReady && can('integrations', 'execute');
 
   useEffect(() => {
     if (data.instruction && data.instruction.trim().length < 10) {

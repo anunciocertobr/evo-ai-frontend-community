@@ -1,7 +1,7 @@
 import { Plus, Trash2, RefreshCw } from 'lucide-react';
 import BaseHeader from '@/components/base/BaseHeader';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface SegmentsHeaderProps {
   totalCount: number;
@@ -29,7 +29,7 @@ export default function SegmentsHeader({
   isRecomputingAll,
 }: SegmentsHeaderProps) {
   const { t } = useLanguage('segments');
-  const { can, isReady } = useUserPermissions();
+  const { can, isReady } = usePermissions();
 
   return (
     <BaseHeader

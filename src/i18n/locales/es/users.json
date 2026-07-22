@@ -1,7 +1,7 @@
 {
-  "title": "Agentes",
+  "title": "Usuarios",
   "subtitle": "Gestione su equipo y configure permisos de acceso",
-  "loading": "Cargando agentes...",
+  "loading": "Cargando usuarios...",
   "card": {
     "id": "ID",
     "role": "Función",

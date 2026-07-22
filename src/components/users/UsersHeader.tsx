@@ -5,7 +5,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { BaseHeader, HeaderAction, HeaderFilter } from '@/components/base';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { useLanguage } from '@/hooks/useLanguage';
 
 interface UsersHeaderProps {
@@ -35,7 +35,7 @@ export default function UsersHeader({
   activeFilters = [],
   showFilters = true,
 }: UsersHeaderProps) {
-  const { can } = useUserPermissions();
+  const { can } = usePermissions();
   const { t } = useLanguage('users');
 
   const primaryAction: HeaderAction | undefined = can('users', 'create') ? {

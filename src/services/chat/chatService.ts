@@ -114,6 +114,15 @@ class ChatService {
     return response.data;
   }
 
+  // EVO-1680 — reverse human→bot handoff. Backend moves the conversation to
+  // pending, clears the assignee, persists a timeline activity, and dispatches
+  // CONVERSATION_HUMAN_HANDOFF so the BotProcessorService picks it up on the
+  // next incoming message.
+  async returnConversationToBot(conversationId: string): Promise<ConversationResponse> {
+    const response = await api.post(`/conversations/${conversationId}/return_to_bot`);
+    return response.data;
+  }
+
   async updateConversationPriority(
     conversationId: string,
     priority: 'low' | 'medium' | 'high' | 'urgent' | null,
@@ -282,14 +291,24 @@ class ChatService {
     return extractData<Message>(response);
   }
 
-  async bulkResolve(displayIds: string[]): Promise<{ success_ids: number[]; failed_ids: number[] }> {
+  // Atualiza o status de N conversas via o endpoint dedicado /bulk_actions
+  // (1 request, reconcilia a view no chamador). Mudar status é uma ação
+  // deliberada — dispara automações/webhooks/atividade no backend (correto).
+  async bulkUpdateStatus(
+    displayIds: string[],
+    status: 'open' | 'pending' | 'resolved',
+  ): Promise<{ success_ids: number[]; failed_ids: number[] }> {
     const response = await api.post('/bulk_actions', {
       type: 'Conversation',
       ids: displayIds,
-      fields: { status: 'resolved' },
+      fields: { status },
     });
     const data = response.data?.data;
     return data ?? { success_ids: [], failed_ids: [] };
+  }
+
+  async bulkResolve(displayIds: string[]): Promise<{ success_ids: number[]; failed_ids: number[] }> {
+    return this.bulkUpdateStatus(displayIds, 'resolved');
   }
 }
 

@@ -725,6 +725,8 @@
         "theAgentShould": "l'agent doit",
         "minute": "minute",
         "minutes": "minutes",
+        "hour": "heure",
+        "hours": "heures",
         "interactWithClient": "Interagir avec le client",
         "finalizeService": "Finaliser le service",
         "whatShouldAgentSay": "Que doit dire l'agent ?",
@@ -1242,7 +1244,7 @@
       "subtitle": "Choisissez le type qui convient le mieux à votre cas d'usage",
       "types": {
         "llm": {
-          "label": "LLM (Modèle de Langage)",
+          "label": "Assistant IA (Natif)",
           "description": "IA conversationnelle — raisonne, répond aux questions et discute avec un modèle de langage"
         },
         "task": {
@@ -1262,13 +1264,14 @@
           "description": "Répète les sous-agents jusqu'à atteindre une condition ou un nombre d'itérations"
         },
         "external": {
-          "label": "Intégrations Externes",
+          "label": "Externe (Intégrations)",
           "description": "Délègue aux flux Flowise, n8n, Typebot, Dify ou OpenAI"
         }
       },
       "badges": {
         "mostPopular": "Plus Populaire"
-      }
+      },
+      "advanced": "Types avancés"
     },
     "step3": {
       "titles": {

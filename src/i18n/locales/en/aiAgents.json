@@ -738,6 +738,8 @@
         "theAgentShould": "the agent should",
         "minute": "minute",
         "minutes": "minutes",
+        "hour": "hour",
+        "hours": "hours",
         "interactWithClient": "Interact with client",
         "finalizeService": "Finalize service",
         "whatShouldAgentSay": "What should the agent say?",
@@ -1308,7 +1310,7 @@
       "subtitle": "Choose the type that best fits your use case",
       "types": {
         "llm": {
-          "label": "LLM (Language Model)",
+          "label": "AI Assistant (Native)",
           "description": "Conversational AI — reasons, answers questions and chats using a language model"
         },
         "task": {
@@ -1328,13 +1330,14 @@
           "description": "Repeats sub-agents until a condition is met or iterations complete"
         },
         "external": {
-          "label": "External Integrations",
+          "label": "External (Integrations)",
           "description": "Delegates to Flowise, n8n, Typebot, Dify or OpenAI workflows"
         }
       },
       "badges": {
         "mostPopular": "Most Popular"
-      }
+      },
+      "advanced": "Advanced types"
     },
     "step3": {
       "titles": {

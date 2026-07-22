@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import { BaseHeader, HeaderAction } from '@/components/base';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface ChannelsHeaderProps {
   totalCount: number;
@@ -21,9 +21,9 @@ export default function ChannelsHeader({
   onClearSelection,
 }: ChannelsHeaderProps) {
   const { t } = useLanguage('channels');
-  const { can, isReady } = useUserPermissions();
+  const { can, isReady } = usePermissions();
 
-  const primaryAction: HeaderAction | undefined = isReady && can('channels', 'create') ? {
+  const primaryAction: HeaderAction | undefined = isReady && can('inboxes', 'create') ? {
     label: t('actions.newChannel'),
     icon: <Plus className="h-4 w-4" />,
     onClick: onNewChannel,

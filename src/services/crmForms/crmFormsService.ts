@@ -14,8 +14,13 @@ class CrmFormsService {
     pageSize?: number;
     search?: string;
     published?: boolean;
+    /** Filter to forms whose default destination is this pipeline. */
+    pipelineId?: string;
   }): Promise<{ data: CrmForm[]; meta: { pagination?: PaginationMeta } }> {
-    const response = await api.get(this.baseUrl, { params });
+    const { pipelineId, ...rest } = params ?? {};
+    const response = await api.get(this.baseUrl, {
+      params: { ...rest, ...(pipelineId ? { pipeline_id: pipelineId } : {}) },
+    });
     const env = extractResponse<CrmForm>(response);
     return { data: env.data, meta: env.meta };
   }

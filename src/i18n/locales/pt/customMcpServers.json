@@ -151,6 +151,37 @@
       "update": "Salvar Alterações"
     }
   },
+  "wizard": {
+    "progress": {
+      "identity": "Identidade",
+      "connection": "Ligação",
+      "advanced": "Avançado",
+      "finish": "Finalizar"
+    },
+    "step1": {
+      "title": "Vamos identificar o seu servidor MCP",
+      "subtitle": "Dê um nome, descrição e etiquetas para a sua equipa encontrar depois."
+    },
+    "step2": {
+      "title": "Como é que ele se liga?",
+      "subtitle": "Indique o URL do servidor e os cabeçalhos HTTP enviados em cada pedido."
+    },
+    "step3": {
+      "title": "Definições avançadas",
+      "subtitle": "Opcional. Ajuste o tempo limite do pedido e quantas vezes tentar de novo."
+    },
+    "step4": {
+      "title": "Toques finais",
+      "subtitle": "Reveja as definições antes de guardar o seu servidor MCP.",
+      "reviewHint": "Confira os detalhes abaixo. Pode voltar atrás para alterar qualquer coisa."
+    },
+    "actions": {
+      "continue": "Continuar",
+      "back": "Voltar",
+      "create": "Criar servidor MCP",
+      "save": "Guardar alterações"
+    }
+  },
   "modal": {
     "title": {
       "create": "Criar Novo Servidor MCP Personalizado",

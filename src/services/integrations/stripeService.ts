@@ -1,4 +1,4 @@
-import api from '@/services/core/api';
+import agentProcessorApi from '@/services/core/agentProcessorApi';
 import type {
   StripeConfig,
   StripeOAuthResponse,
@@ -12,7 +12,7 @@ const StripeService = {
    */
   async generateAuthorization(agentId: string): Promise<StripeOAuthResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/stripe/authorization`
       );
       return data;
@@ -31,7 +31,7 @@ const StripeService = {
     state: string
   ): Promise<StripeConnectionResponse> {
     try {
-      const { data } = await api.post(
+      const { data } = await agentProcessorApi.post(
         `/agents/${agentId}/integrations/stripe/callback`,
         {
           code,
@@ -50,7 +50,7 @@ const StripeService = {
    */
   async getConfiguration(agentId: string): Promise<StripeConfig | null> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/stripe`
       );
       return data.config || null;
@@ -74,7 +74,7 @@ const StripeService = {
     config: Partial<StripeConfig>
   ): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.put(
+      const { data } = await agentProcessorApi.put(
         `/agents/${agentId}/integrations/stripe`,
         { config }
       );
@@ -90,7 +90,7 @@ const StripeService = {
    */
   async disconnect(agentId: string): Promise<{ success: boolean }> {
     try {
-      const { data } = await api.delete(
+      const { data } = await agentProcessorApi.delete(
         `/agents/${agentId}/integrations/stripe`
       );
       return data;
@@ -106,7 +106,7 @@ const StripeService = {
    */
   async discoverTools(agentId: string): Promise<DiscoverToolsResponse> {
     try {
-      const { data } = await api.get(
+      const { data } = await agentProcessorApi.get(
         `/agents/${agentId}/integrations/stripe/discover-tools`
       );
       return data;

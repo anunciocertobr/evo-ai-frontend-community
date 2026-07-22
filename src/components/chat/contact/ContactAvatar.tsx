@@ -13,6 +13,15 @@ import {
 } from '@/utils/chat/avatarHelpers';
 import ChannelIcon from '@/components/channels/ChannelIcon';
 
+// Silhueta genérica (fallback quando não há foto nem iniciais coloridas) — espelha o protótipo
+const GenericSilhouette: React.FC<{ className?: string }> = ({ className }) => (
+  <svg viewBox="0 0 46 46" className={className} aria-hidden="true" focusable="false">
+    <rect width="46" height="46" fill="#33403c" />
+    <circle cx="23" cy="18" r="8" fill="#5b6b66" />
+    <path d="M23 28c-9 0-16 5-16 12v6h32v-6c0-7-7-12-16-12Z" fill="#5b6b66" />
+  </svg>
+);
+
 // Tipo genérico para qualquer contato com avatar
 interface AvatarContact {
   id?: string;
@@ -24,11 +33,12 @@ interface AvatarContact {
 
 interface ContactAvatarProps {
   contact: Contact | AvatarContact | null;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'mdlg' | 'lg';
   className?: string;
   showColoredFallback?: boolean;
   channelType?: string;
   channelProvider?: string;
+  showRing?: boolean;
 }
 
 const ContactAvatar: React.FC<ContactAvatarProps> = ({
@@ -38,6 +48,7 @@ const ContactAvatar: React.FC<ContactAvatarProps> = ({
   showColoredFallback = false,
   channelType,
   channelProvider,
+  showRing = false,
 }) => {
   const { t } = useLanguage('chat');
   const [imageError, setImageError] = useState(false);
@@ -51,6 +62,7 @@ const ContactAvatar: React.FC<ContactAvatarProps> = ({
   const sizeClasses = {
     sm: 'h-8 w-8',
     md: 'h-10 w-10',
+    mdlg: 'h-12 w-12',
     lg: 'h-16 w-16',
   };
 
@@ -58,6 +70,7 @@ const ContactAvatar: React.FC<ContactAvatarProps> = ({
   const iconSizes = {
     sm: 'h-4 w-4',
     md: 'h-5 w-5',
+    mdlg: 'h-6 w-6',
     lg: 'h-8 w-8',
   };
 
@@ -65,6 +78,7 @@ const ContactAvatar: React.FC<ContactAvatarProps> = ({
   const textSizes = {
     sm: 'text-xs',
     md: 'text-sm',
+    mdlg: 'text-base',
     lg: 'text-lg',
   };
 
@@ -73,7 +87,7 @@ const ContactAvatar: React.FC<ContactAvatarProps> = ({
   const initials = getContactInitials(contact?.name);
   const colorClass = showColoredFallback
     ? getContactAvatarColor(contact?.name)
-    : 'bg-primary/10 text-primary';
+    : 'bg-[#33403c] text-white p-0';
 
   // 📞 HELPER: Formatar nome do canal para exibição amigável
   const getChannelDisplayName = (channelType?: string, provider?: string): string => {
@@ -127,7 +141,7 @@ const ContactAvatar: React.FC<ContactAvatarProps> = ({
 
   return (
     <div className="relative">
-      <Avatar className={`${sizeClasses[size]} flex-shrink-0 ${className}`}>
+      <Avatar className={`${sizeClasses[size]} flex-shrink-0 ${showRing ? 'ring-2 ring-border/50' : ''} ${className}`}>
         {avatarUrl && (
           <AvatarImage
             src={avatarUrl}
@@ -140,7 +154,11 @@ const ContactAvatar: React.FC<ContactAvatarProps> = ({
           />
         )}
         <AvatarFallback className={`${colorClass} ${textSizes[size]}`}>
-          {initials || <MessageCircle className={iconSizes[size]} />}
+          {showColoredFallback ? (
+            initials || <MessageCircle className={iconSizes[size]} />
+          ) : (
+            <GenericSilhouette className="h-full w-full" />
+          )}
         </AvatarFallback>
       </Avatar>
 

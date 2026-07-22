@@ -21,7 +21,7 @@ import {
   deleteAccessToken,
   regenerateAccessToken,
 } from '@/services/auth/accessTokensService';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import type { AccessToken, AccessTokensState, AccessTokenFormData } from '@/types/auth';
 
 import {
@@ -58,7 +58,7 @@ const INITIAL_STATE: AccessTokensState = {
 };
 
 export default function AccessTokens() {
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const { t } = useTranslation('accessTokens');
   const [state, setState] = useState<AccessTokensState>(INITIAL_STATE);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);

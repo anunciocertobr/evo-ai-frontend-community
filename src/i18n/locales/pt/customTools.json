@@ -199,7 +199,7 @@
   "testResult": {
     "titleSuccess": "Teste bem-sucedido",
     "titleError": "Teste falhou",
-    "statusCode": "Status code",
+    "statusCode": "Código de estado",
     "responseTime": "Tempo de resposta",
     "errorLabel": "Erro",
     "responseHeaders": "Headers da resposta",
@@ -273,7 +273,8 @@
       "title": "Toques finais",
       "subtitle": "Adicione exemplos de uso que ajudam os agentes a saber quando chamar essa tool.",
       "helperText": "Exemplos são descrições curtas de como usar a tool.",
-      "testHint": "Após criar, você poderá testar a tool contra o endpoint real."
+      "testHint": "Após criar, você poderá testar a tool contra o endpoint real.",
+      "attachHint": "Criar a ferramenta apenas a adiciona ao catálogo. Para um agente usá-la, anexe-a ao agente na aba Ferramentas dele."
     },
     "actions": {
       "continue": "Continuar",
@@ -339,6 +340,19 @@
     "deleteSuccess": "Ferramenta personalizada deletada com sucesso",
     "deleteError": "Erro ao deletar ferramenta personalizada",
     "testSuccess": "Teste executado com sucesso",
-    "testError": "Erro ao testar ferramenta personalizada"
+    "testError": "Erro ao testar ferramenta personalizada",
+    "applyFiltersError": "Erro ao aplicar filtros"
+  },
+  "deleteDialog": {
+    "title": "Excluir Ferramenta Personalizada",
+    "description": "Tem certeza que deseja excluir a ferramenta \"{{name}}\"? Esta ação não pode ser desfeita.",
+    "cancel": "Cancelar",
+    "confirm": "Excluir"
+  },
+  "permissions": {
+    "viewDenied": "Você não tem permissão para ver ferramentas personalizadas",
+    "createDenied": "Você não tem permissão para criar ferramentas personalizadas",
+    "editDenied": "Você não tem permissão para editar ferramentas personalizadas",
+    "deleteDenied": "Você não tem permissão para excluir ferramentas personalizadas"
   }
 }

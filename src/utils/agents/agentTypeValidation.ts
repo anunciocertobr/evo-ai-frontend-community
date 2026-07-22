@@ -102,10 +102,6 @@ export const supportsPipelineRules = (type?: string): boolean => {
 export const getAvailableTabs = (type?: string): string[] => {
   const tabs = ['general'];
 
-  if (supportsBehaviorSettings(type) || supportsMessageHandling(type)) {
-    tabs.push('system');
-  }
-
   if (supportsInactivityActions(type)) {
     tabs.push('inactivity');
   }

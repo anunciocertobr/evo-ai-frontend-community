@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { ScheduledActionsTour } from '@/tours';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { scheduledActionsService } from '@/services/scheduledActions/scheduledActionsService';
 import { ScheduledAction } from '@/types/automation';
 import { ScheduleActionModal } from '@/components/scheduledActions/ScheduleActionModal';
@@ -49,7 +49,7 @@ const INITIAL_STATE: ScheduledActionsState = {
 export default function ScheduledActions() {
   const { t } = useLanguage('contacts');
   const navigate = useNavigate();
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const [state, setState] = useState<ScheduledActionsState>(INITIAL_STATE);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAction, setEditingAction] = useState<ScheduledAction | null>(null);

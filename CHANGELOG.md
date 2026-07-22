@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **EVO-1551** Visual masking of contact PII (phone, email, WhatsApp identifier) on five render sites (chat sidebar, chat header, contact card, contacts table, contact details). Controlled by new `account.settings.mask_contact_pii` toggle in Account Settings (default OFF). Admin users always see full data; non-admin users see masked values with a `Lock` icon affordance, tooltip, and clipboard receiving the masked string. i18n added in 6 locales. Frontend-only feature — the API still returns full values.
+- N/A
 
 ### Changed
 
@@ -18,6 +18,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - N/A
+
+## [v1.0.0-rc6] - 2026-07-04
+
+Largest release candidate so far — 125 non-merge commits on top of rc5. Four main themes: **(1) Message Templates end-to-end** — a unified global Message Templates screen, template mode on the Send Message journey node, and template pickers for inbox greeting/out-of-office; **(2) Journey/Flow builder maturity** — a pre-activation validation framework, a structured webhook body builder, six new pipeline-oriented nodes/triggers, a committed node-type manifest as the cross-repo parity source, and a batch of persistence/validation fixes; **(3) chat & channels overhaul** — redesigned conversation list with numeric unread badges, a channel hub with real live connectivity, and a full-width composer with mobile polish and a "Return to bot" action; and **(4) feature breadth** — Lead Capture UI, contact PII masking, products CSV import, Segments canvas builder, advanced list filters, and RBAC gating on agent management. Deploy-wise, the build now consumes `VITE_EVOFLOW_API_URL` and the entrypoint extends the CSP for plain-http installs.
+
+### Added
+
+- **EVO-1907 — Unified global Message Templates screen** (#221) — template management consolidated into a single global screen reusing the per-channel components, replacing the split channel-scoped flows. Follow-up **EVO-1971** (#222) reintroduced example/source fields and fixed i18n/parity of the global template.
+- **EVO-1233 / EVO-1716 — Global message template menu on a dedicated flat endpoint** (#153, #157, #158) — global template menu in the composer, repointed to the new flat message-templates endpoint (stale `channel_id` filter docs dropped).
+- **EVO-1235 / EVO-1255 / EVO-1267 — Template mode on the Send Message journey node** (#156, #154, #155) — Send Message node config gains a template mode: the composer sends `message_template_id`, and template variables can be mapped to variable sources directly in the node config.
+- **EVO-1760 — Template pickers for inbox greeting and out-of-office** (#165) — inbox settings can now pick a global template instead of free text for greeting and out-of-office messages.
+- **EVO-1744 — Journey pre-activation validation framework** (#180) — structured validation runs before a journey can be activated, surfacing per-node errors and warnings. Includes warnings for flows with no path to an exit node (**EVO-1692**, #160) and for no-exit cycles (**EVO-1857**, #189).
+- **EVO-1742 — Structured webhook body builder** (#178) — the Webhook node body is now built field-by-field with variable pickers instead of a raw JSON textarea.
+- **Six pipeline nodes/triggers in the Journey builder** — Create Pipeline Task node (**EVO-1273**, #149), Move to Pipeline Stage node (**EVO-1272**, #148), Assign to Pipeline action node (**EVO-1265**, #119), Send Canned Response action node (**EVO-1257**, #136), pipeline-stage condition in the Conditional node (**EVO-1256**, #132), and Pipeline Stage Changed trigger variant (**EVO-1266**, #125).
+- **EVO-1634 — Journey node-type manifest committed as the cross-repo parity source** (#140) — canonical manifest of node types consumed by parity checks against the backend; **EVO-1935** (#199) added the pipeline nodes to the manifest.
+- **EVO-1960 — Conversation-list overhaul** (#223) — redesigned conversation list (rolls up 4 related cards), plus numeric unread badges on the conversation list and sidebar menu (**EVO-1550**, #137).
+- **EVO-1674 / EVO-1554 — Channel hub with real live connectivity** (#152, #145) — new channel overview hub, now showing real per-inbox connectivity status instead of derived-only state.
+- **EVO-1884 — Full-width composer input with action row below** (#187) — composer redesigned for more writing room; mobile back gesture deselects the conversation. Mobile chat polish and contact drawer declutter (**EVO-1782**, #169) and mobile-usable data tables with horizontal scroll + dvh shell height (**EVO-1869**, #186).
+- **EVO-1680 — "Return to bot" action** (#219) — conversation dropdown gains a button to hand a human-assigned conversation back to the bot.
+- **EVO-1771 — CRM Lead Capture UI** (#171) — form and chat lead-capture builders plus public capture pages.
+- **EVO-1551 — Visual masking of contact PII** (#147) — phone, email, and WhatsApp identifier masked on five render sites (chat sidebar, chat header, contact card, contacts table, contact details). Controlled by new `account.settings.mask_contact_pii` toggle in Account Settings (default OFF). Admin users always see full data; non-admin users see masked values with a `Lock` icon affordance, tooltip, and clipboard receiving the masked string. i18n added in 6 locales. Frontend-only feature — the API still returns full values.
+- **EVO-1734 — Products CSV bulk import UI** (#163) — import products in bulk from a CSV file, with mapping and validation feedback.
+- **EVO-1247 — Segments drag-drop canvas builder + preview** (#114) — visual segment building on a canvas, with direct segment calls routed through the CRM proxy (**EVO-1569**, #115).
+- **EVO-1952 / EVO-1953 — Advanced list filters wired end-to-end** (#216, #217) — the Agents, Custom Tools, and Custom MCP Servers lists gain functional advanced filters; filter chip rendering and operator i18n centralized, with non-functional filters hidden (**EVO-1937**, #207).
+- **EVO-1938 — RBAC gating on agent management** (#220) — the Atendentes (agents) screen is gated on `users.manage`, and the permission cache is cleared on logout.
+- **EVO-1790 — Custom Tools redesigned as a 6-step wizard with edit support** (#191).
+- **Setup wizard — "Your brand" step** — the install wizard gains a branding step.
+- **CI — per-PR image builds** (EVO-1998) — every internal PR now builds a `:pr-N` (+ `:sha`) image for the review environment.
+
+### Changed
+
+- **Integrations screen reorganized** (#203) — OAuth and reCAPTCHA/Clarity grouped under Integrations, e-mail configuration moved to Channels, and the screen redesigned as a card directory. (The change was reverted and reapplied during the cycle; the final state is the reorganized card directory.)
+- **EVO-1906 — `VITE_EVOFLOW_API_URL` injected into the frontend Docker build** (#193) — the EvoFlow API base URL is now a first-class build-time environment variable instead of being derived at runtime. See Upgrade notes.
+- **EVO-1961 — Entrypoint extends CSP for plain-http origins** — `img-src`/`media-src` in the runtime-patched CSP now allow plain-http media origins, so installs without TLS (e.g. LAN/IP-based) can render media.
+- **EVO-1855 — Polished variable/expression pickers in the Journey builder** (#185).
+
+### Fixed
+
+- **Journey persistence/validation fixes** — Update Custom Attribute node persists its value by `attribute_key` (**EVO-1850**, #181) and its validator checks `attributeName` (**EVO-1905**, #197); Create Pipeline Task writes `task_type` and `due_date` in the backend format (**EVO-1903**, #195); exit-journey node gains a config panel with `exitReason` (**EVO-1904**, #196); `unreachableExit` restricted to real cycles instead of flagging linear chains (**EVO-1889**, #212); Conditional node keeps its `path-<id>` handles with legacy-flow regression coverage (**EVO-1902**, #194); removed an auto-persist effect that caused an infinite render loop in assign panels (**EVO-1945**, #204); manual trigger treated as conversation-indeterminate like webhook (**EVO-1946**, #205).
+- **EVO-1939 — "Clear filters" resets global filters so the badge clears** (#214).
+- **EVO-1974 — Theme-aware conversation-list scrollbar visible in light theme** (#224).
+- **Composer — empty editor doc kept schema-valid** so the placeholder and focus survive send, with the wrapper focus-forward scoped to padding clicks only.
+- **Flow Builder — editor mutations persisted to the store** (**EVO-1643**, #143) and canvas edge mutations propagated to the editor store (**EVO-1573**, #120).
+- **Chat/list stability** — conversation-list pagination with the current query preserving totals (**EVO-1671**, #146), smooth scroll pagination (**EVO-1672**, #151), page prefetch before reaching the bottom (#134), and in-flight GET neutralized on unread-store reset (**EVO-1675**, #159).
+- **EVO-1687 — Journeys, Campaigns and Segments re-exposed in the community sidebar** (#161).
+- **EVO-1943 / EVO-1944 / EVO-1887 — Contacts fixes** (#200, #201, #202) — linked companies loaded on edit to prevent association wipe, pagination spacing + compact mobile toolbar, and a company-picker filter with a readable applied chip.
+- **EVO-1681 — Audio transcription toggle persisted under account settings** (#177) and canned responses inserted correctly into the composer (**EVO-1685**, #173).
+
+### Upgrade notes
+
+- **New environment variable: `VITE_EVOFLOW_API_URL`** (EVO-1906) — the base URL of the EvoFlow API, consumed at **build time** by Vite and injected into the frontend Docker image build. Deployments that build their own image must pass it as a build arg; installs using the standard compose/swarm stacks get it from the stack configuration. Without it, Journey/Flow builder API calls fall back to the previous derivation and may point at the wrong host.
+- **Plain-http installs** (EVO-1961) — the container entrypoint now extends the runtime-patched CSP so `img-src`/`media-src` accept `http:` media origins. No action needed; TLS installs are unaffected.
+- The Journey node-type manifest (EVO-1634/EVO-1935) is the cross-repo parity source — backend node additions must land in the manifest to pass the parity check.
 
 ## [v1.0.0-rc5] - 2026-05-27
 
@@ -251,7 +304,8 @@ PR #25 migrated from static PNGs to monochromatic SVGs from `@icons-pack/react-s
 
 ---
 
-[Unreleased]: https://github.com/evolution-foundation/evo-ai-frontend-community/compare/v1.0.0-rc5...HEAD
+[Unreleased]: https://github.com/evolution-foundation/evo-ai-frontend-community/compare/v1.0.0-rc6...HEAD
+[v1.0.0-rc6]: https://github.com/evolution-foundation/evo-ai-frontend-community/compare/v1.0.0-rc5...v1.0.0-rc6
 [v1.0.0-rc5]: https://github.com/evolution-foundation/evo-ai-frontend-community/compare/v1.0.0-rc4...v1.0.0-rc5
 [v1.0.0-rc4]: https://github.com/evolution-foundation/evo-ai-frontend-community/compare/v1.0.0-rc3...v1.0.0-rc4
 [v1.0.0-rc3]: https://github.com/evolution-foundation/evo-ai-frontend-community/compare/v1.0.0-rc2...v1.0.0-rc3

@@ -1,12 +1,11 @@
 import {
   Plus,
-  Download,
   Key,
   Trash2,
 } from 'lucide-react';
 import { BaseHeader, HeaderAction, HeaderFilter } from '@/components/base';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface AgentsHeaderProps {
   totalCount: number;
@@ -14,10 +13,10 @@ interface AgentsHeaderProps {
   searchValue: string;
   onSearchChange: (value: string) => void;
   onNewAgent: () => void;
-  onExport: () => void;
   onManageApiKeys: () => void;
   onBulkDelete: () => void;
   onClearSelection: () => void;
+  onFilter?: () => void;
   activeFilters?: HeaderFilter[];
   showFilters?: boolean;
 }
@@ -28,15 +27,15 @@ export default function AgentsHeader({
   searchValue,
   onSearchChange,
   onNewAgent,
-  onExport,
   onManageApiKeys,
   onBulkDelete,
   onClearSelection,
+  onFilter,
   activeFilters = [],
   showFilters = true,
 }: AgentsHeaderProps) {
   const { t } = useLanguage('agents');
-  const { can, isReady } = useUserPermissions();
+  const { can, isReady } = usePermissions();
 
   const primaryAction: HeaderAction | undefined = isReady && can('ai_agents', 'create') ? {
     label: t('createAgent'),
@@ -52,12 +51,6 @@ export default function AgentsHeader({
       onClick: onManageApiKeys,
       variant: 'outline' as const,
       dataTour: 'agents-api-keys',
-    },
-    {
-      label: t('export.all'),
-      icon: <Download className="h-4 w-4" />,
-      onClick: onExport,
-      variant: 'outline' as const,
     },
   ];
 
@@ -83,7 +76,7 @@ export default function AgentsHeader({
       secondaryActions={secondaryActions}
       bulkActions={bulkActions}
       filters={activeFilters}
-      onFilterClick={() => {}} // TODO: Implement filter functionality
+      onFilterClick={onFilter ?? (() => {})}
       showFilters={showFilters}
       onClearSelection={onClearSelection}
     />

@@ -113,6 +113,7 @@ export interface PipelineStage {
   };
   item_count?: number;
   conversations_count?: number;
+  total_value?: number; // Sum of services value of the stage's items (list payload)
   items?: PipelineItem[]; // Items already included in the stage
   created_at: string | number;
   updated_at: string | number;

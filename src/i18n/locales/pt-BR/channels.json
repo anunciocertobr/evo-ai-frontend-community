@@ -30,6 +30,7 @@
   "permissions": {
     "viewDenied": "Você não tem permissão para visualizar canais",
     "createDenied": "Você não tem permissão para criar canais",
+    "updateDenied": "Você não tem permissão para atualizar canais",
     "deleteDenied": "Você não tem permissão para excluir canais"
   },
   "errors": {
@@ -132,27 +133,27 @@
       },
       "whatsapp": {
         "name": "WhatsApp",
-        "description": "Canal do WhatsApp para atendimento ao cliente"
+        "description": "WhatsApp Business"
       },
       "telegram": {
         "name": "Telegram",
-        "description": "Bot do Telegram para suporte automatizado"
+        "description": "Bot de atendimento"
       },
       "instagram": {
         "name": "Instagram",
-        "description": "Mensagens diretas do Instagram"
+        "description": "Perfil profissional"
       },
       "facebook": {
-        "name": "Facebook Messenger",
-        "description": "Chat do Facebook Messenger"
+        "name": "Facebook",
+        "description": "Página"
       },
       "sms": {
         "name": "SMS",
-        "description": "Mensagens de texto SMS"
+        "description": "Mensagens de texto"
       },
       "email": {
         "name": "Email",
-        "description": "Suporte por email"
+        "description": "Marketing e atendimento"
       },
       "api": {
         "name": "API",
@@ -186,7 +187,8 @@
       },
       "twilio": {
         "name": "Twilio",
-        "description": "Twilio WhatsApp Business API"
+        "description": "Twilio WhatsApp Business API",
+        "comingSoon": "Em breve"
       },
       "twilioSms": {
         "name": "Twilio SMS",
@@ -239,9 +241,22 @@
       "connectDescription": "Conecte a oferecer suporte a seus clientes pelo {{channelName}}",
       "apiProvider": "Provedor de API",
       "facebookIntegrationDescription": "Conecte sua conta do Facebook para preencher automaticamente as informações do WhatsApp Business"
+    },
+    "fields": {
+      "displayName": {
+        "label": "Nome de Exibição",
+        "placeholder": "ex.: Equipe de Suporte",
+        "helpText": "Nome amigável exibido para sua equipe."
+      },
+      "channelName": {
+        "label": "Nome do Canal",
+        "placeholder": "gerado automaticamente",
+        "helpText": "Gerado automaticamente a partir do nome de exibição."
+      }
     }
   },
   "settings": {
+    "updateConfig": "Atualizar Configurações",
     "loading": "Carregando configurações...",
     "saving": "Salvando...",
     "save": "Salvar",
@@ -643,6 +658,8 @@
         "templateType": "Tipo de Template",
         "templateTypes": {
           "text": "Texto",
+          "interactive": "Interativo",
+          "media": "Mídia",
           "image": "Imagem",
           "video": "Vídeo",
           "document": "Documento",
@@ -1119,12 +1136,32 @@
       }
     },
     "preChatForm": {
-      "success": {
-        "updated": "Configurações do formulário pré-chat atualizadas com sucesso!"
+      "title": "Formulário Pré-Chat",
+      "description": "Colete informações dos visitantes antes de iniciar a conversa",
+      "totalFields": "Total de Campos",
+      "activeFields": "Campos Ativos",
+      "requiredFields": "Campos Obrigatórios",
+      "welcomeMessage": "Mensagem de Boas-vindas",
+      "welcomeMessagePlaceholder": "Olá! Para melhor atendê-lo, por favor preencha as informações abaixo:",
+      "welcomeMessageHelp": "Esta mensagem será exibida no topo do formulário pré-chat.",
+      "fieldConfiguration": "Configuração dos Campos",
+      "hidePreview": "Ocultar Preview",
+      "showPreview": "Ver Preview",
+      "formPreview": "Preview do Formulário",
+      "noActiveFields": "Nenhum campo ativo para exibir",
+      "howItWorksTitle": "Como funciona o formulário pré-chat",
+      "howItWorks": {
+        "point1": "O formulário é exibido antes do cliente iniciar a conversa",
+        "point2": "Informações coletadas são anexadas ao perfil do contato",
+        "point3": "Campos obrigatórios devem ser preenchidos para continuar",
+        "point4": "Use a função arrastar para reordenar os campos"
       },
-      "errors": {
-        "updateError": "Erro ao atualizar configurações do formulário pré-chat"
-      }
+      "disabledTitle": "Formulário pré-chat desabilitado",
+      "disabledDescription": "Ative para coletar informações dos visitantes antes de iniciar a conversa.",
+      "saving": "Salvando...",
+      "save": "Salvar Configurações",
+      "success": "Configurações do formulário pré-chat atualizadas com sucesso",
+      "error": "Erro ao atualizar configurações do formulário pré-chat"
     },
     "greeting": {
       "title": "Mensagem de Saudação",
@@ -1624,34 +1661,6 @@
         "channelCreated": "Canal criado com sucesso"
       }
     },
-    "preChatForm": {
-      "title": "Formulário Pré-Chat",
-      "description": "Colete informações dos visitantes antes de iniciar a conversa",
-      "totalFields": "Total de Campos",
-      "activeFields": "Campos Ativos",
-      "requiredFields": "Campos Obrigatórios",
-      "welcomeMessage": "Mensagem de Boas-vindas",
-      "welcomeMessagePlaceholder": "Olá! Para melhor atendê-lo, por favor preencha as informações abaixo:",
-      "welcomeMessageHelp": "Esta mensagem será exibida no topo do formulário pré-chat.",
-      "fieldConfiguration": "Configuração dos Campos",
-      "hidePreview": "Ocultar Preview",
-      "showPreview": "Ver Preview",
-      "formPreview": "Preview do Formulário",
-      "noActiveFields": "Nenhum campo ativo para exibir",
-      "howItWorksTitle": "Como funciona o formulário pré-chat",
-      "howItWorks": {
-        "point1": "O formulário é exibido antes do cliente iniciar a conversa",
-        "point2": "Informações coletadas são anexadas ao perfil do contato",
-        "point3": "Campos obrigatórios devem ser preenchidos para continuar",
-        "point4": "Use a função arrastar para reordenar os campos"
-      },
-      "disabledTitle": "Formulário pré-chat desabilitado",
-      "disabledDescription": "Ative para coletar informações dos visitantes antes de iniciar a conversa.",
-      "saving": "Salvando...",
-      "save": "Salvar Configurações",
-      "success": "Configurações do formulário pré-chat atualizadas com sucesso",
-      "error": "Erro ao atualizar configurações do formulário pré-chat"
-    },
     "moderation": {
       "title": "Moderação de Comentários",
       "description": "Revise e modere comentários do Facebook que requerem aprovação",
@@ -1724,6 +1733,7 @@
     "deleting": "Excluindo..."
   },
   "overview": {
+    "noIntegrationConfigured": "Nenhuma integração configurada",
     "tabLabel": "Visão geral",
     "title": "Visão geral dos canais",
     "subtitle": "Veja todos os tipos de canal, o status de cada um e como configurar.",
@@ -1737,7 +1747,12 @@
       "active": "{{count}} ativo(s)",
       "attention": "{{count}} com atenção",
       "error": "{{count}} com erro",
-      "notConfigured": "Não configurado"
+      "notConfigured": "Não configurado",
+      "connected": "{{count}} conectada(s)",
+      "total": "{{count}} conexões"
+    },
+    "drawer": {
+      "title": "Conexões"
     },
     "inboxState": {
       "connected": "Conectado",
@@ -1750,10 +1765,26 @@
     },
     "liveCheckFailed": "A verificação ao vivo falhou — exibindo o último estado conhecido",
     "moreInboxes": "+{{count}} outras caixas de entrada",
+    "providersCount": "{{count}} providers",
     "actions": {
       "add": "Adicionar",
       "manage": "Gerenciar",
-      "howToConfigure": "Como configurar"
+      "howToConfigure": "Como configurar",
+      "connect": "Conectar",
+      "addConnection": "Adicionar conexão",
+      "deleteConnection": "Excluir conexão",
+      "viewAds": "Ver anúncios"
+    },
+    "capabilities": {
+      "publishing": "Publicação",
+      "conversations": "Conversas",
+      "campaigns": "Campanhas"
+    },
+    "statusMeta": {
+      "live": "Ao vivo",
+      "stored": "Informado",
+      "storedTooltip": "Estado informado pela configuração, não verificado ao vivo",
+      "lastSync": "Sincronizado {{time}}"
     },
     "help": {
       "website": "Incorpore um widget de chat ao vivo no seu site para conversar com visitantes em tempo real.",

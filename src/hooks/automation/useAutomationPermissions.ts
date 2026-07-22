@@ -1,4 +1,4 @@
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 export interface AutomationPermissions {
   canRead: boolean;
@@ -10,7 +10,7 @@ export interface AutomationPermissions {
 }
 
 export function useAutomationPermissions(): AutomationPermissions {
-  const { can, isReady } = useUserPermissions();
+  const { can, isReady } = usePermissions();
   return {
     canRead: can('automation_rules', 'read'),
     canCreate: can('automation_rules', 'create'),

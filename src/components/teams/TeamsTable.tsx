@@ -3,6 +3,7 @@ import { Users, Edit, Trash2 } from 'lucide-react';
 import { Team } from '@/types/users';
 import { BaseTable, TableColumn, TableAction } from '@/components/base';
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface TeamsTableProps {
   teams: Team[];
@@ -36,6 +37,7 @@ export default function TeamsTable({
   getRowKey,
 }: TeamsTableProps) {
   const { t } = useLanguage('teams');
+  const { can, isReady } = usePermissions();
 
   const getInitials = (name: string) =>
     name
@@ -121,17 +123,20 @@ export default function TeamsTable({
       label: t('table.actions.manageUsers'),
       icon: <Users className="h-4 w-4" />,
       onClick: onManageUsers,
+      show: () => isReady && can('teams', 'update'),
     },
     {
       label: t('table.actions.edit'),
       icon: <Edit className="h-4 w-4" />,
       onClick: onEditTeam,
+      show: () => isReady && can('teams', 'update'),
     },
     {
       label: t('table.actions.delete'),
       icon: <Trash2 className="h-4 w-4" />,
       onClick: onDeleteTeam,
       variant: 'destructive',
+      show: () => isReady && can('teams', 'delete'),
     },
   ];
 
@@ -149,7 +154,7 @@ export default function TeamsTable({
       getRowKey={getRowKey || ((team: Team) => team.id.toString())}
       emptyTitle={t('table.empty.title')}
       emptyDescription={t('table.empty.description')}
-      emptyAction={onCreateTeam ? {
+      emptyAction={onCreateTeam && isReady && can('teams', 'create') ? {
         label: t('table.empty.action'),
         onClick: onCreateTeam,
       } : undefined}

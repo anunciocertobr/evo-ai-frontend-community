@@ -1,5 +1,6 @@
 import { useLanguage } from '@/hooks/useLanguage';
 import { MessageSquare, Edit, Trash, Users, Lock } from 'lucide-react';
+import { Button } from '@evoapi/design-system';
 import { Contact } from '@/types/contacts';
 import { BaseTable, TableColumn, TableAction } from '@/components/base';
 import ContactAvatar from '@/components/chat/contact/ContactAvatar';
@@ -57,43 +58,51 @@ export default function ContactsTable({
 
   const columns: TableColumn<Contact>[] = [
     {
-      key: 'contact',
-      label: t('table.columns.contact'),
+      key: 'name',
+      label: t('table.columns.name'),
       sortable: true,
+      width: 'w-56',
       render: contact => (
         <div
           className="flex items-center gap-3 cursor-pointer hover:opacity-80 py-2"
           onClick={() => onContactClick(contact)}
         >
           <ContactAvatar contact={contact} size="md" showColoredFallback={true} />
-          <div className="min-w-0 flex-1">
-            <div className="font-medium text-sm truncate mb-1">
-              {contact.name || t('table.noName')}
-            </div>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              {contact.email && (
-                <span className="truncate flex items-center gap-1" title={protectedTitle}>
-                  {shouldMask && (
-                    <Lock className="h-3 w-3 flex-shrink-0" aria-label={protectedTitle} />
-                  )}
-                  {maskEmail(contact.email)}
-                </span>
-              )}
-              {contact.email && contact.phone_number && (
-                <span className="text-muted-foreground/50">|</span>
-              )}
-              {contact.phone_number && (
-                <span className="whitespace-nowrap flex items-center gap-1" title={protectedTitle}>
-                  {shouldMask && (
-                    <Lock className="h-3 w-3 flex-shrink-0" aria-label={protectedTitle} />
-                  )}
-                  {maskPhone(contact.phone_number)}
-                </span>
-              )}
-            </div>
+          <div className="min-w-0 flex-1 font-medium text-sm break-words">
+            {contact.name || t('table.noName')}
           </div>
         </div>
       ),
+    },
+    {
+      key: 'email',
+      label: t('table.columns.email'),
+      sortable: true,
+      width: 'w-48',
+      render: contact =>
+        contact.email ? (
+          <span className="truncate flex items-center gap-1 text-sm" title={protectedTitle}>
+            {shouldMask && <Lock className="h-3 w-3 flex-shrink-0" aria-label={protectedTitle} />}
+            {maskEmail(contact.email)}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      key: 'phone_number',
+      label: t('table.columns.phone'),
+      sortable: true,
+      width: 'w-40',
+      render: contact =>
+        contact.phone_number ? (
+          <span className="whitespace-nowrap flex items-center gap-1 text-sm" title={protectedTitle}>
+            {shouldMask && <Lock className="h-3 w-3 flex-shrink-0" aria-label={protectedTitle} />}
+            {maskPhone(contact.phone_number)}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
     {
       key: 'type',
@@ -105,7 +114,7 @@ export default function ContactsTable({
     },
     {
       key: 'labels',
-      label: t('table.columns.tags'),
+      label: t('table.columns.labels'),
       sortable: false,
       render: contact => <ContactTagsList labels={contact.labels} maxVisible={3} size="sm" />,
     },
@@ -124,15 +133,31 @@ export default function ContactsTable({
       sortable: false,
       render: contact => <ContactStatusBadge blocked={contact.blocked} />,
     },
+    {
+      key: 'startConversation',
+      label: '',
+      sortable: false,
+      align: 'center',
+      width: 'w-10',
+      render: contact =>
+        !contact.blocked ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            onClick={e => {
+              e.stopPropagation();
+              onStartConversation(contact);
+            }}
+            title={t('table.actions.startConversation')}
+          >
+            <MessageSquare className="h-4 w-4" />
+          </Button>
+        ) : null,
+    },
   ];
 
   const actions: TableAction<Contact>[] = [
-    {
-      label: t('table.actions.startConversation'),
-      icon: <MessageSquare className="h-4 w-4" />,
-      onClick: onStartConversation,
-      show: contact => !contact.blocked,
-    },
     {
       label: t('table.actions.edit'),
       icon: <Edit className="h-4 w-4" />,

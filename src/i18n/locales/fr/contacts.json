@@ -36,7 +36,8 @@
       "location": "Localisation",
       "description": "Description",
       "timeline": "Chronologie",
-      "linkedCompanies": "Entreprises Liées"
+      "linkedCompanies": "Entreprises Liées",
+      "socialProfiles": "Réseaux Sociaux"
     },
     "fields": {
       "name": "Nom",
@@ -60,7 +61,15 @@
     "errors": {
       "invalidDate": "Date invalide"
     },
-    "na": "N/A"
+    "na": "N/A",
+    "page": {
+      "back": "Retour",
+      "close": "Fermer",
+      "notFound": {
+        "title": "Contact introuvable",
+        "description": "Impossible de trouver ce contact. Il a peut-être été supprimé."
+      }
+    }
   },
   "export": {
     "title": "Exporter les Contacts",
@@ -349,6 +358,12 @@
     "description": "Configurez les filtres pour trouver les contacts que vous recherchez",
     "apply": "Appliquer les Filtres",
     "clear": "Effacer les Filtres",
+    "popover": {
+      "trigger": "Filtres",
+      "title": "Filtrer les Contacts",
+      "clearAll": "Tout effacer",
+      "noOptions": "Aucune option disponible"
+    },
     "attribute": "Attribut",
     "operator": "Opérateur",
     "value": "Valeur",
@@ -383,7 +398,7 @@
       "country_code": "Pays (code ISO)",
       "city": "Ville",
       "company": "Entreprise",
-      "blocked": "Bloqué"
+      "blocked": "Statut"
     },
     "options": {
       "blocked": {
@@ -434,9 +449,11 @@
   },
   "table": {
     "columns": {
-      "contact": "Contact",
+      "name": "Nom",
+      "email": "E-mail",
+      "phone": "Téléphone",
       "type": "Type",
-      "tags": "Tags",
+      "labels": "Étiquettes",
       "status": "Statut",
       "pipelines": "Pipelines"
     },
@@ -660,7 +677,14 @@
       "occurredAfter": "Du",
       "occurredBefore": "Au",
       "clear": "Effacer les filtres",
-      "allEventNames": "Tous les noms"
+      "allEventNames": "Tous les noms",
+      "period": "Période",
+      "periodPresets": {
+        "today": "Aujourd'hui",
+        "7d": "7 derniers jours",
+        "30d": "30 derniers jours",
+        "all": "Toute la période"
+      }
     },
     "types": {
       "_comment": "Les valeurs de termes de protocole (Identify/Track/Page/Screen/Segment) sont volontairement conservées non traduites dans toutes les locales.",
@@ -713,6 +737,28 @@
       "pipeline_conversation_created": "Conversation créée dans le pipeline",
       "pipeline_conversation_updated": "Conversation mise à jour dans le pipeline",
       "pipeline_stage_changed": "Étape du pipeline modifiée"
+    }
+  },
+  "notes": {
+    "title": "Notes",
+    "addPlaceholder": "Écrivez une note à propos de ce contact...",
+    "empty": "Aucune note pour le moment.",
+    "actions": {
+      "add": "Ajouter une note",
+      "adding": "Ajout en cours...",
+      "edit": "Modifier la note",
+      "delete": "Supprimer la note",
+      "cancel": "Annuler",
+      "save": "Enregistrer"
+    },
+    "messages": {
+      "loadError": "Erreur lors du chargement des notes",
+      "createSuccess": "Note ajoutée",
+      "createError": "Erreur lors de l'ajout de la note",
+      "updateSuccess": "Note mise à jour",
+      "updateError": "Erreur lors de la mise à jour de la note",
+      "deleteSuccess": "Note supprimée",
+      "deleteError": "Erreur lors de la suppression de la note"
     }
   }
 }

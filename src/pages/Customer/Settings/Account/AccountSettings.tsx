@@ -14,7 +14,7 @@ import {
   Switch,
 } from '@evoapi/design-system';
 import { toast } from 'sonner';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { useCurrentUser } from '@/utils/auth';
 import { isAdminRole } from '@/constants/roles';
 import BaseHeader from '@/components/base/BaseHeader';
@@ -57,7 +57,7 @@ function SectionLayout({
 
 export default function AccountSettings() {
   const { t, changeLanguage } = useLanguage('accountSettings');
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const currentUser = useCurrentUser();
   const isAdmin = !!currentUser?.role?.key && isAdminRole(currentUser.role.key);
   const normalizeAccountLocale = (locale?: string | null): string => {

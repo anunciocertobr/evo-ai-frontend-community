@@ -5,20 +5,19 @@ import { A2AConfigData } from '@/components/ai_agents/Forms/A2AConfigForm';
 import { TaskConfigData } from '@/components/ai_agents/Forms/TaskConfigForm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@evoapi/design-system';
 import { Agent, ApiKey } from '@/types/agents';
-import { Settings, MessageSquare, Timer } from 'lucide-react';
+import { Settings, Timer } from 'lucide-react';
 import { InactivityAction } from '../InactivityActions';
 import { TransferRule } from '../TransferRules';
 import { PipelineRule } from '../PipelineRules';
 import { ContactEditConfig } from '../ContactEditRules';
 import {
   GeneralTab,
-  SystemTab,
   InactivityActionsTab,
   TransferRulesModal,
   PipelineRulesModal,
 } from '@/components/agents/configuration';
 import ContactEditModal from '@/components/agents/configuration/ContactEditModal';
-import { BehaviorSettings } from '@/components/agents/configuration/SystemTab';
+import { BehaviorSettings } from '@/components/agents/configuration/types';
 import {
   getAvailableTabs,
   supportsInactivityActions,
@@ -91,8 +90,6 @@ const ConfigurationSection = ({
   taskConfigData,
   externalConfigData,
   apiKeys,
-  outputSchema,
-  advancedSettings,
   behaviorSettings,
   inactivityActions,
   transferRules,
@@ -105,8 +102,6 @@ const ConfigurationSection = ({
   onA2AConfigChange,
   onTaskConfigChange,
   onExternalConfigChange,
-  onOutputSchemaChange,
-  onAdvancedSettingsChange,
   onBehaviorSettingsChange,
   onInactivityActionsChange,
   onTransferRulesChange,
@@ -126,23 +121,22 @@ const ConfigurationSection = ({
   // Get available tabs based on agent type
   const availableTabs = getAvailableTabs(agent.type);
 
+  // Tailwind não gera classes por interpolação dinâmica (purge); usar mapa estático.
+  const gridColsMap: Record<number, string> = {
+    1: 'grid-cols-1',
+    2: 'grid-cols-2',
+  };
+  const gridColsClass = gridColsMap[availableTabs.length] || 'grid-cols-1';
+
   return (
     <>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
+        <TabsList className={`grid w-full ${gridColsClass} mb-6`}>
           {/* Aba Geral */}
           {availableTabs.includes('general') && (
             <TabsTrigger value="general" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               <span>{t('edit.configuration.tabs.general') || 'Geral'}</span>
-            </TabsTrigger>
-          )}
-
-          {/* Aba Sistema */}
-          {availableTabs.includes('system') && (
-            <TabsTrigger value="system" className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              <span>{t('edit.configuration.tabs.system') || 'Sistema'}</span>
             </TabsTrigger>
           )}
 
@@ -165,34 +159,17 @@ const ConfigurationSection = ({
               taskConfigData={taskConfigData}
               externalConfigData={externalConfigData}
               apiKeys={apiKeys}
-              outputSchema={outputSchema}
-              advancedSettings={advancedSettings}
+              behaviorSettings={behaviorSettings}
               onLLMConfigChange={onLLMConfigChange}
               onA2AConfigChange={onA2AConfigChange}
               onTaskConfigChange={onTaskConfigChange}
-              onExternalConfigChange={onExternalConfigChange}
-              onOutputSchemaChange={onOutputSchemaChange}
-              onAdvancedSettingsChange={onAdvancedSettingsChange}
-              onInstructionSync={onInstructionSync}
-              onApiKeysReload={onApiKeysReload}
-            />
-          </TabsContent>
-        )}
-
-        {/* Conteúdo da Aba Sistema */}
-        {availableTabs.includes('system') && (
-          <TabsContent value="system" className="mt-0">
-            <SystemTab
-              agent={agent}
-              llmConfigData={llmConfigData}
-              externalConfigData={externalConfigData}
-              behaviorSettings={behaviorSettings}
-              onLLMConfigChange={onLLMConfigChange}
               onExternalConfigChange={onExternalConfigChange}
               onBehaviorSettingsChange={onBehaviorSettingsChange}
               onShowTransferRulesModal={() => setShowTransferRulesModal(true)}
               onShowPipelineRulesModal={() => setShowPipelineRulesModal(true)}
               onShowContactEditModal={() => setShowContactEditModal(true)}
+              onInstructionSync={onInstructionSync}
+              onApiKeysReload={onApiKeysReload}
             />
           </TabsContent>
         )}

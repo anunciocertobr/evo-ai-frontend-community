@@ -3,10 +3,6 @@ import { Button } from '@evoapi/design-system/button';
 import {
   ArrowLeft,
   X,
-  MessageCircle,
-  CheckCircle,
-  Clock,
-  Pause,
   MoreVertical,
   ArrowUp,
   ArrowDown,
@@ -15,23 +11,9 @@ import {
   User as UserIcon,
   Users,
   Tag,
-  Trash2,
-  Mail,
-  MailOpen,
-  Unlock,
-  Pin,
-  Archive,
   GitBranch,
   Check,
-  PanelRightOpen,
-  PanelRightClose,
 } from 'lucide-react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@evoapi/design-system/tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,7 +28,9 @@ import {
 import { Conversation } from '@/types/chat/api';
 import type { Pipeline, PipelineStage } from '@/types/analytics';
 import ContactAvatar from '@/components/chat/contact/ContactAvatar';
-import { getStatusLabel, isPendingStatus } from '@/utils/chat/conversationStatus';
+import { getStatusLabel } from '@/utils/chat/conversationStatus';
+import ConversationStatusButton from './ConversationStatusButton';
+import { STATUS_META, STATUS_META_LIGHT } from './statusMeta';
 import { isPhoneBearingChannel } from '@/utils/channelUtils';
 import { formatContactPhone } from '@/utils/contact/formatContactPhone';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -61,8 +45,6 @@ interface ChatHeaderProps {
   onBackClick: () => void;
   onCloseConversation: () => void;
   onContactSidebarOpen: () => void;
-  isContactSidebarOpen: boolean;
-  onContactSidebarToggle: () => void;
   onMarkAsRead: (conversation: Conversation) => void;
   onMarkAsUnread: (conversation: Conversation) => void;
   onMarkAsOpen: (conversation: Conversation) => void;
@@ -93,31 +75,18 @@ const ChatHeader = ({
   onBackClick,
   onCloseConversation,
   onContactSidebarOpen,
-  isContactSidebarOpen,
-  onContactSidebarToggle,
-  onMarkAsRead,
-  onMarkAsUnread,
   onMarkAsOpen,
   onMarkAsResolved,
   onPostpone,
   onMarkAsSnoozed,
   onSetPriority,
-  onPinConversation,
-  onUnpinConversation,
-  onArchiveConversation,
-  onUnarchiveConversation,
   onAssignAgent,
   onAssignTeam,
   onAssignTag,
-  onDeleteConversation,
-  unreadCount,
 }: ChatHeaderProps) => {
   const { t } = useLanguage('chat');
   const chatContext = useChatContext();
   const currentStatus = conversation.status;
-  const hasUnreadMessages = unreadCount > 0;
-  const isPinned = Boolean(conversation.custom_attributes?.pinned);
-  const isArchived = Boolean(conversation.custom_attributes?.archived);
 
   const inboxName = conversation.inbox?.name || '';
   const phoneDisplay = isPhoneBearingChannel(conversation.inbox?.channel_type)
@@ -204,18 +173,21 @@ const ChatHeader = ({
   const handlePipelineStageSelect = useCallback(
     async (pipeline: Pipeline, stage: PipelineStage) => {
       const currentPipelines = convPipelineData?.pipelines ?? [];
-      const existingInSamePipeline = currentPipelines.find(p => p.id === pipeline.id);
+      const samePipeline = currentPipelines.find(p => p.id === pipeline.id);
       const existingInOtherPipelines = currentPipelines.filter(p => p.id !== pipeline.id);
+      // MOVER vs ADICIONAR por item ATIVO encontrável, não por presença do pipeline
+      // (pipeline com jornada COMPLETED volta sem item ativo → precisa cair no ADD,
+      // senão morre em moveError). Mesmo fix do ChatSidebar.
+      const existingItem = samePipeline
+        ? findItemInPipeline(samePipeline, String(conversation.id))
+        : undefined;
 
-      if (existingInSamePipeline) {
-        const item = findItemInPipeline(existingInSamePipeline, String(conversation.id));
-        const itemId = item?.id;
-        if (!itemId) { toast.error(t('pipeline.moveError')); return; }
+      if (existingItem?.id) {
         try {
           await pipelinesService.moveItem({
             pipeline_id: pipeline.id,
-            item_id: itemId,
-            from_stage_id: item.stage_id,
+            item_id: existingItem.id,
+            from_stage_id: existingItem.stage_id,
             to_stage_id: stage.id,
           });
           toast.success(t('pipeline.moveSuccess'));
@@ -360,80 +332,61 @@ const ChatHeader = ({
     );
   };
 
+  // Menu de 3 pontinhos (§3.3 do protótipo): SÓ pipeline/atribuir/prioridade.
+  // Status (aberto/pendente/pausada/concluído) já vive no ConversationStatusButton
+  // dedicado — não duplica aqui. Fixar/Arquivar/Deletar/Marcar lida-não lida
+  // vivem no context menu da LISTA (clique-direito), não no header da conversa
+  // aberta — ver spec-extraida.md.
   const renderConversationStatusDropdown = () => {
     return (
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <MoreVertical className="h-4 w-4" />
+            <MoreVertical className="h-4 w-4 fill-current text-primary" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          {/* Read/Unread Actions */}
-          {hasUnreadMessages ? (
-            <DropdownMenuItem
-              onClick={() => onMarkAsRead(conversation)}
-              className="flex items-center gap-2"
-            >
-              <MailOpen className="h-4 w-4" />
-              {t('chatHeader.actions.markAsRead')}
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem
-              onClick={() => onMarkAsUnread(conversation)}
-              className="flex items-center gap-2"
-            >
-              <Mail className="h-4 w-4" />
-              {t('chatHeader.actions.markAsUnread')}
-            </DropdownMenuItem>
-          )}
+          {/* Pipeline Actions */}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="flex items-center gap-2">
+              <GitBranch className="h-4 w-4 text-primary" />
+              {t('pipeline.addTo')}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-48">
+              {renderPipelineSubmenuContent()}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+
+          <DropdownMenuItem
+            onClick={() => onAssignAgent(conversation)}
+            className="flex items-center gap-2"
+          >
+            <UserIcon className="h-4 w-4 text-primary" />
+            {t('chatHeader.actions.assignAgent')}
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => onAssignTeam(conversation)}
+            className="flex items-center gap-2"
+          >
+            <Users className="h-4 w-4 text-primary" />
+            {t('chatHeader.actions.assignTeam')}
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => onAssignTag(conversation)}
+            className="flex items-center gap-2"
+          >
+            <Tag className="h-4 w-4 text-primary" />
+            {t('chatHeader.actions.assignTag')}
+          </DropdownMenuItem>
 
           <DropdownMenuSeparator />
 
-          {/* Status Actions */}
-          {currentStatus !== 'open' && (
-            <DropdownMenuItem
-              onClick={() => onMarkAsOpen(conversation)}
-              className="flex items-center gap-2"
-            >
-              <MessageCircle className="h-4 w-4" />
-              {t('chatHeader.actions.markAsOpen')}
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuLabel className="text-xs uppercase tracking-wide text-muted-foreground">
+            {t('chatHeader.actions.priorityLabel', 'Prioridade')}
+          </DropdownMenuLabel>
 
-          {currentStatus !== 'resolved' && (
-            <DropdownMenuItem
-              onClick={() => onMarkAsResolved(conversation)}
-              className="flex items-center gap-2"
-            >
-              <CheckCircle className="h-4 w-4" />
-              {t('chatHeader.actions.markAsResolved')}
-            </DropdownMenuItem>
-          )}
-
-          {currentStatus !== 'pending' && (
-            <DropdownMenuItem
-              onClick={() => onPostpone(conversation)}
-              className="flex items-center gap-2"
-            >
-              <Clock className="h-4 w-4" />
-              {t('chatHeader.actions.markAsPending')}
-            </DropdownMenuItem>
-          )}
-
-          {currentStatus !== 'snoozed' && (
-            <DropdownMenuItem
-              onClick={() => onMarkAsSnoozed(conversation)}
-              className="flex items-center gap-2"
-            >
-              <Pause className="h-4 w-4" />
-              {t('chatHeader.actions.pauseConversation')}
-            </DropdownMenuItem>
-          )}
-
-          <DropdownMenuSeparator />
-
-          {/* Priority Actions */}
           <DropdownMenuItem
             onClick={() => onSetPriority(conversation, 'urgent')}
             className="flex items-center gap-2"
@@ -475,94 +428,13 @@ const ChatHeader = ({
               {t('chatHeader.actions.removePriority')}
             </DropdownMenuItem>
           )}
-
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem
-            onClick={() =>
-              isPinned ? onUnpinConversation(conversation) : onPinConversation(conversation)
-            }
-            className="flex items-center gap-2"
-          >
-            <Pin className="h-4 w-4" />
-            {isPinned
-              ? t('chatHeader.actions.unpinConversation')
-              : t('chatHeader.actions.pinConversation')}
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            onClick={() =>
-              isArchived
-                ? onUnarchiveConversation(conversation)
-                : onArchiveConversation(conversation)
-            }
-            className="flex items-center gap-2"
-          >
-            <Archive className="h-4 w-4" />
-            {isArchived
-              ? t('chatHeader.actions.unarchiveConversation')
-              : t('chatHeader.actions.archiveConversation')}
-          </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
-
-          {/* Pipeline Actions */}
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="flex items-center gap-2">
-              <GitBranch className="h-4 w-4" />
-              {t('pipeline.addTo')}
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-48">
-              {renderPipelineSubmenuContent()}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem
-            onClick={() => onAssignAgent(conversation)}
-            className="flex items-center gap-2"
-          >
-            <UserIcon className="h-4 w-4" />
-            {t('chatHeader.actions.assignAgent')}
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            onClick={() => onAssignTeam(conversation)}
-            className="flex items-center gap-2"
-          >
-            <Users className="h-4 w-4" />
-            {t('chatHeader.actions.assignTeam')}
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            onClick={() => onAssignTag(conversation)}
-            className="flex items-center gap-2"
-          >
-            <Tag className="h-4 w-4" />
-            {t('chatHeader.actions.assignTag')}
-          </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem
-            onClick={() => onDeleteConversation(conversation)}
-            className="flex items-center gap-2 text-destructive focus:text-destructive"
-          >
-            <Trash2 className="h-4 w-4" />
-            {t('chatHeader.actions.deleteConversation')}
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     );
   };
 
-  const contactPanelLabel = isContactSidebarOpen
-    ? t('chatHeader.closeContactPanel')
-    : t('chatHeader.openContactPanel');
-
   return (
-    <div className="flex-shrink-0 p-3 md:p-4 border-b bg-background/95 backdrop-blur-sm">
+    <div className="relative z-20 flex-shrink-0 p-3 md:p-4 border-b bg-background/95 backdrop-blur-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {/* Back button for mobile */}
@@ -577,7 +449,10 @@ const ChatHeader = ({
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-semibold">
+              <h3
+                className="font-semibold cursor-pointer hover:text-primary transition-colors"
+                onClick={onContactSidebarOpen}
+              >
                 {conversation.contact?.name || t('chatHeader.contactNoName')}
               </h3>
               {phoneDisplay && (
@@ -591,61 +466,50 @@ const ChatHeader = ({
               )}
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {inboxName && (
-                <>
-                  <span>{inboxName}</span>
-                  <span>•</span>
-                </>
-              )}
-              <span>
-                {t('chatHeader.status')} {getStatusLabel(conversation.status)}
-              </span>
+              {inboxName && <span>{inboxName}</span>}
+              {(() => {
+                const meta = STATUS_META_LIGHT[conversation.status] || STATUS_META_LIGHT.snoozed;
+                // Rótulo LONGO do protótipo ("Atendimento em Aberto" etc.), distinto do
+                // rótulo curto de getStatusLabel ("Aberta") usado em badges compactos —
+                // chave própria (chatHeader.statusPill.*) para não regressar os outros
+                // 5 idiomas ao fallback PT-BR do protótipo.
+                const pillLabel = t(
+                  `chatHeader.statusPill.${conversation.status}`,
+                  STATUS_META[conversation.status]?.label || getStatusLabel(conversation.status, t),
+                );
+                return (
+                  <span
+                    style={{
+                      background: meta.bg,
+                      border: `1px solid ${meta.border}`,
+                      color: meta.text,
+                      borderRadius: 9,
+                      padding: '7px 14px',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      lineHeight: 1,
+                    }}
+                  >
+                    • {pillLabel}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>
         {/* Ações do chat */}
         <div className="flex items-center gap-2">
-          {/* Botão abrir conversa pendente */}
-          {isPendingStatus(conversation.status) && (
-            <Button
-              variant="plain"
-              size="sm"
-              onClick={() => onMarkAsOpen(conversation)}
-              className="flex items-center gap-2 text-primary hover:text-primary/80 hover:bg-primary/10 transition-all duration-200"
-            >
-              <Unlock className="h-4 w-4" />
-              {t('chatHeader.openConversation')}
-            </Button>
-          )}
+          {/* Botão de status: cor + próxima ação mudam conforme o status atual */}
+          <ConversationStatusButton
+            status={currentStatus}
+            onMarkAsOpen={() => onMarkAsOpen(conversation)}
+            onMarkAsResolved={() => onMarkAsResolved(conversation)}
+            onMarkAsPending={() => onPostpone(conversation)}
+            onMarkAsSnoozed={() => onMarkAsSnoozed(conversation)}
+          />
 
           {/* Dropdown de ações da conversa */}
           {renderConversationStatusDropdown()}
-
-          {/* Botão abrir/fechar painel de contato */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onContactSidebarToggle}
-                  aria-label={contactPanelLabel}
-                  className={`hidden md:inline-flex ${
-                    isContactSidebarOpen
-                      ? 'text-primary hover:text-primary/80'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {isContactSidebarOpen ? (
-                    <PanelRightClose className="h-4 w-4" />
-                  ) : (
-                    <PanelRightOpen className="h-4 w-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{contactPanelLabel}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
 
           {/* Botão fechar conversa */}
           <Button

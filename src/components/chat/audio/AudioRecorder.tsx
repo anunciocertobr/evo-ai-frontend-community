@@ -1,6 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { Button } from '@evoapi/design-system/button';
-import { Play, Pause, Square, Trash2, Mic } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Trash2, Send, Mic } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAudioRecorder, AudioRecordingData } from '@/hooks/chat/useAudioRecorder';
@@ -12,13 +11,17 @@ interface AudioRecorderProps {
   className?: string;
   autoStart?: boolean;
   preferWhatsAppCloudFormat?: boolean;
-  /**
-   * Kept for prop compatibility with existing callers. opus-recorder encodes in
-   * real time so no separate converter needs to be pre-loaded; this flag is a no-op now.
-   */
-  shouldPreloadConverter?: boolean;
 }
 
+const WAVEFORM_BARS = 32;
+
+/**
+ * Gravador inline estilo WhatsApp: substitui a barra do composer (não é um
+ * bloco extra). Fluxo DIRETO — gravar → parar JÁ envia, sem etapa de preview
+ * intermediária (WhatsApp não tem "ouvir antes de mandar" na gravação normal).
+ * Waveform reage à amplitude REAL do microfone (audioLevel do hook), não é
+ * decorativo estático.
+ */
 const AudioRecorder: React.FC<AudioRecorderProps> = ({
   onRecordingComplete,
   onRecordingCancel,
@@ -26,19 +29,16 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   className = '',
   autoStart = false,
   preferWhatsAppCloudFormat = false,
-  shouldPreloadConverter: _shouldPreloadConverter = false,
 }) => {
   const { t } = useLanguage('chat');
   const {
     isRecording,
-    isPaused,
     duration,
+    audioLevel,
     hasRecording,
     recordingData,
     startRecording,
     stopRecording,
-    pauseRecording,
-    resumeRecording,
     deleteRecording,
     isSupported,
   } = useAudioRecorder({
@@ -46,17 +46,27 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     onMaxDurationReached: () => toast.warning(t('audioRecorder.maxDurationReached')),
   });
 
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [isPlaying, setIsPlaying] = React.useState(false);
+  // Histórico de amplitude — cada nova leitura de audioLevel entra no fim e
+  // empurra as barras mais antigas pra esquerda, como o waveform real do
+  // WhatsApp desenhando enquanto grava.
+  const [levels, setLevels] = useState<number[]>(() => new Array(WAVEFORM_BARS).fill(0.15));
+  const levelsRef = useRef(levels);
+  levelsRef.current = levels;
 
-  // Formatar duração
+  useEffect(() => {
+    if (!isRecording) return;
+    setLevels(prev => {
+      const next = [...prev.slice(1), Math.max(0.12, Math.min(1, audioLevel * 1.8))];
+      return next;
+    });
+  }, [audioLevel, isRecording]);
+
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Auto-iniciar gravação se especificado
   useEffect(() => {
     if (autoStart && !isRecording && !hasRecording && !disabled) {
       startRecording();
@@ -64,33 +74,23 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStart, isRecording, hasRecording, disabled]);
 
-  // Controlar reprodução do áudio
-  const togglePlayback = () => {
-    if (!audioRef.current || !recordingData) return;
-
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play();
-      setIsPlaying(true);
-    }
-  };
-
-  // Finalizar gravação
-  const handleComplete = () => {
-    if (recordingData) {
+  // Assim que a gravação para, o hook popula recordingData — envia direto
+  // (nenhuma etapa de "ouvir antes de mandar"), como o WhatsApp.
+  useEffect(() => {
+    if (hasRecording && recordingData) {
       onRecordingComplete(recordingData);
       deleteRecording();
+      setLevels(new Array(WAVEFORM_BARS).fill(0.15));
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRecording, recordingData]);
 
-  // Cancelar gravação
   const handleCancel = () => {
     if (isRecording) {
       stopRecording();
     }
     deleteRecording();
+    setLevels(new Array(WAVEFORM_BARS).fill(0.15));
     onRecordingCancel?.();
   };
 
@@ -104,91 +104,46 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   }
 
   return (
-    <div className={`bg-background border rounded-lg p-3 ${className}`}>
-      {/* Tudo em uma linha compacta */}
-      <div className="flex items-center justify-between gap-3">
-        {/* Controles à esquerda */}
-        <div className="flex items-center gap-2">
-          {!isRecording && !hasRecording && (
-            <Button
-              size="sm"
-              onClick={startRecording}
-              disabled={disabled}
-              className="bg-green-500 hover:bg-green-600 text-white"
-            >
-              <Mic className="h-4 w-4 mr-1" />
-              {t('audioRecorder.record')}
-            </Button>
-          )}
+    <div className={`flex items-center justify-end gap-3 px-4 py-3 ${className}`}>
+      {/* Cancelar (lixeira) */}
+      <button
+        type="button"
+        onClick={handleCancel}
+        disabled={disabled}
+        className="flex-shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50 transition-colors"
+        title={t('audioRecorder.cancel', 'Cancelar')}
+      >
+        <Trash2 className="h-5 w-5" />
+      </button>
 
-          {isRecording && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={isPaused ? resumeRecording : pauseRecording}
-                disabled={disabled}
-              >
-                {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-              </Button>
-              <Button size="sm" variant="destructive" onClick={stopRecording} disabled={disabled}>
-                <Square className="h-4 w-4" />
-              </Button>
-            </>
-          )}
-
-          {hasRecording && (
-            <>
-              <Button size="sm" variant="outline" onClick={togglePlayback} disabled={disabled}>
-                {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleCancel} disabled={disabled}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </>
-          )}
-        </div>
-
-        {/* Timer no centro */}
-        <div className="flex items-center gap-2">
-          {isRecording && !isPaused && (
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-          )}
-          {isRecording && isPaused && <div className="w-2 h-2 bg-yellow-500 rounded-full" />}
-          <span className="text-lg font-mono font-medium">{formatDuration(duration)}</span>
-          {isPaused && (
-            <span className="text-sm text-muted-foreground">
-              {t('audioRecorder.paused')}
-            </span>
-          )}
-        </div>
-
-        {/* Botão enviar à direita */}
-        {hasRecording ? (
-          <Button
-            size="sm"
-            onClick={handleComplete}
-            disabled={disabled}
-            className="bg-green-500 hover:bg-green-600 text-white"
-          >
-            {t('audioRecorder.send')}
-          </Button>
-        ) : (
-          <div className="w-16" /> // Placeholder para manter alinhamento
-        )}
+      {/* Ponto vermelho + timer */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+        <span className="text-sm font-mono text-foreground tabular-nums">{formatDuration(duration)}</span>
       </div>
 
-      {/* Audio element para reprodução */}
-      {recordingData && (
-        <audio
-          ref={audioRef}
-          src={recordingData.url}
-          onEnded={() => setIsPlaying(false)}
-          onPause={() => setIsPlaying(false)}
-          onPlay={() => setIsPlaying(true)}
-          className="hidden"
-        />
-      )}
+      {/* Waveform reativo — largura fixa (não flex-1: tudo fica agrupado à
+          direita, colado nos outros controles, como o WhatsApp) */}
+      <div className="flex-shrink-0 flex items-center gap-[3px] h-8 w-40">
+        {levels.map((level, i) => (
+          <div
+            key={i}
+            className="flex-shrink-0 w-[2px] rounded-full bg-primary/70 transition-[height] duration-75"
+            style={{ height: `${Math.max(12, level * 100)}%` }}
+          />
+        ))}
+      </div>
+
+      {/* Enviar — para (se ainda gravando) e envia direto, um só clique */}
+      <button
+        type="button"
+        onClick={stopRecording}
+        disabled={disabled}
+        title={t('audioRecorder.send', 'Enviar')}
+        className="flex-shrink-0 w-9 h-9 rounded-full bg-primary hover:bg-primary/85 text-primary-foreground flex items-center justify-center disabled:opacity-50 transition-colors"
+      >
+        <Send className="h-4 w-4" />
+      </button>
     </div>
   );
 };

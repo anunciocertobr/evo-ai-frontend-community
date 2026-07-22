@@ -56,6 +56,9 @@ export interface Inbox {
   lock_to_single_conversation?: boolean;
   // Auth/status
   reauthorization_required?: boolean;
+  // EVO-1680 — true when an AgentBot is connected and its AgentBotInbox.status
+  // is :active. Gates the "Devolver ao bot" UI control in ConversationActionsDropdown.
+  agent_bot_active?: boolean;
   // Live channel health (EVO-1674)
   connection_state?: InboxConnectionState;
   health_source?: InboxHealthSource;
@@ -192,6 +195,7 @@ export interface WhatsappCloudPayload {
     provider_config: {
       api_key: string;
       phone_number_id: string;
+      business_account_id: string;
       waba_id: string;
     };
   };
@@ -753,7 +757,7 @@ export interface TemplateFormData {
   language: string;
   category?: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION' | 'TRANSACTIONAL';
   template_type?: 'text' | 'interactive' | 'media' | 'location';
-  headerFormat?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+  headerFormat?: 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
   headerText?: string;
   bodyText?: string;
   footerText?: string;

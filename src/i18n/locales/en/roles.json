@@ -29,13 +29,42 @@
     "system": "System",
     "custom": "Custom"
   },
+  "domains": {
+    "attendance": "Attendance",
+    "contacts": "Contacts",
+    "crm": "CRM",
+    "automation": "Automation",
+    "ai": "AI",
+    "channels": "Channels",
+    "admin": "Administration",
+    "others": "Others"
+  },
   "detail": {
     "permissionsTitle": "Permissions",
     "permissionsDescription": "Check the permissions this role should have. Changes take effect on the user's next session refresh.",
     "permissionsSelected": "permissions selected",
     "selectAll": "Select all",
     "deselectAll": "Deselect all",
-    "noPermissions": "No permissions available."
+    "noPermissions": "No permissions available.",
+    "filterPlaceholder": "Search permissions...",
+    "nested": {
+      "pipelineStages": "Stages",
+      "workingHours": "Working hours"
+    },
+    "lock": {
+      "basic": "Granted to every authenticated user",
+      "impliedBy": "Implied by {{source}}",
+      "basicBadge": "Basic",
+      "impliedBadge": "Implied"
+    },
+    "actionGroups": {
+      "read": "Read",
+      "readDescription": "See this resource and its contents.",
+      "write": "Write",
+      "writeDescription": "Create and change this resource, including every action that modifies it.",
+      "delete": "Delete",
+      "deleteDescription": "Delete this resource."
+    }
   },
   "createModal": {
     "title": "Create Role",

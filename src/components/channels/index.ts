@@ -1,8 +1,5 @@
 export { default as ChannelsHeader } from './ChannelsHeader';
-export { default as ChannelsTable } from './ChannelsTable';
-export { default as ChannelsPagination } from './ChannelsPagination';
 export { default as ChannelIcon } from './ChannelIcon';
-export { default as ChannelCard } from './ChannelCard';
 export { default as ChannelTypeHub } from './ChannelTypeHub';
 export { default as ChannelTypeCard } from './ChannelTypeCard';
 export { default as ChannelStatusBadge } from './ChannelStatusBadge';
@@ -30,4 +27,5 @@ export { default as WidgetBuilderForm } from './settings/WidgetBuilderForm';
 export { default as AgentBotConfigurationForm } from './settings/AgentBotConfigurationForm';
 export { default as ModerationDashboard } from './settings/ModerationDashboard';
 export { default as ConfigurationForm } from './settings/ConfigurationForm';
-export { default as MessageTemplateForm } from './settings/MessageTemplateForm';
+export { default as TemplateFormModal } from './settings/TemplateFormModal';
+export { TemplatePreview } from './settings/TemplatePreview';

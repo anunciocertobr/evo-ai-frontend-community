@@ -157,7 +157,10 @@
           "description": "Finalisé"
         }
       }
-    }
+    },
+    "pageTitle": "Création d'un nouveau Pipeline",
+    "back": "Retour",
+    "newStageColor": "Couleur de l'étape"
   },
   "createStage": {
     "title": "Créer une Nouvelle Étape",
@@ -285,7 +288,9 @@
     },
     "cancel": "Annuler",
     "saving": "Enregistrement...",
-    "save": "Enregistrer les Modifications"
+    "save": "Enregistrer les Modifications",
+    "scheduleAction": "Planifier une action",
+    "stageLabel": "Étape :"
   },
   "editConversation": {
     "title": "Modifier la Conversation dans le Pipeline",
@@ -463,7 +468,10 @@
       "completedPipelines": "Pipelines Complétés",
       "totalValue": "Valeur Totale",
       "createdAt": "Créé le",
-      "actions": "Actions"
+      "actions": "Actions",
+      "items": "Leads",
+      "stages": "Étapes",
+      "won": "Gagnés"
     },
     "actions": {
       "view": "Visualiser",
@@ -473,7 +481,8 @@
       "idCopied": "ID copié dans le presse-papiers",
       "activate": "Activer",
       "deactivate": "Désactiver",
-      "delete": "Supprimer"
+      "delete": "Supprimer",
+      "setAsDefault": "Définir par défaut"
     },
     "types": {
       "sales": "Ventes",
@@ -484,7 +493,8 @@
     "status": {
       "active": "Actif",
       "inactive": "Inactif"
-    }
+    },
+    "default": "Par défaut"
   },
   "pipelineSwitcher": {
     "loading": "Chargement du pipeline...",
@@ -557,18 +567,38 @@
         "resolved": "Résolu",
         "pending": "En attente",
         "snoozed": "Reporté"
+      },
+      "filters": "Filtres",
+      "all": "Tous",
+      "apply": "Appliquer",
+      "periodFilter": "Période",
+      "priorityFilter": "Priorité",
+      "period": {
+        "all": "Toute la période",
+        "today": "Aujourd'hui",
+        "last7": "7 derniers jours",
+        "last30": "30 derniers jours",
+        "month": "Ce mois-ci"
+      },
+      "priority": {
+        "alta": "Haute",
+        "media": "Moyenne",
+        "baixa": "Basse"
       }
     },
     "copyId": "Copier l'ID",
     "idCopied": "ID copié dans le presse-papiers",
     "header": {
-      "conversations": "Conversations",
+      "conversations": "Leads",
       "stages": "Étapes",
       "totalValue": "Valeur Totale",
       "addConversation": "Ajouter une Conversation",
       "editPipeline": "Modifier le Pipeline",
       "reorderStages": "Réorganiser les Étapes",
-      "deletePipeline": "Supprimer le Pipeline"
+      "deletePipeline": "Supprimer le Pipeline",
+      "private": "Privé",
+      "noDescription": "Sans description",
+      "captureForms": "Formulaires de capture"
     },
     "stage": {
       "addStage": "Ajouter une Étape",
@@ -593,7 +623,11 @@
         "unknown": "Inconnu"
       },
       "valueLabel": "Valeur Totale :",
-      "system": "Système"
+      "system": "Système",
+      "moveCard": "Déplacer la carte",
+      "moveTo": "Déplacer vers",
+      "addItemShort": "Ajouter un élément",
+      "openConversation": "Ouvrir la conversation"
     },
     "conversation": {
       "unknownUser": "Utilisateur Inconnu",
@@ -603,7 +637,9 @@
       "status": {
         "open": "Ouvert",
         "resolved": "Résolu",
-        "unknown": "Inconnu"
+        "unknown": "Inconnu",
+        "pending": "En attente",
+        "snoozed": "Reporté"
       },
       "valueLabel": "Valeur Totale :",
       "system": "Système"
@@ -756,5 +792,25 @@
       "delete": "Supprimer le Pipeline",
       "deleting": "Suppression..."
     }
+  },
+  "captureForms": {
+    "title": "Formulaires de capture",
+    "subtitle": "Formulaires de capture de leads pour {{pipeline}}",
+    "newForm": "Nouveau formulaire",
+    "empty": "Aucun formulaire de capture pour ce pipeline.",
+    "leadsCount": "{{count}} leads",
+    "published": "Publié",
+    "draft": "Brouillon",
+    "copyLink": "Copier le lien",
+    "openLink": "Ouvrir",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer le formulaire « {{name}} » ?",
+    "linkCopied": "Lien copié",
+    "saved": "Formulaire enregistré",
+    "deleted": "Formulaire supprimé",
+    "loadError": "Échec du chargement des formulaires",
+    "saveError": "Échec de l'enregistrement",
+    "deleteError": "Échec de la suppression"
   }
 }

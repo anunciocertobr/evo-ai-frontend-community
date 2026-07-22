@@ -73,7 +73,7 @@ const makeEmptyRule = (): StageAutomationRule => ({
 });
 
 const CONVERSATION_STATUSES = ['open', 'resolved', 'pending', 'snoozed'] as const;
-const INACTIVITY_MINUTES = [2, 5, 10, 15, 30, 60] as const;
+const INACTIVITY_MINUTES = [2, 5, 10, 15, 30, 60, 120, 240, 480, 720, 1440] as const;
 const INACTIVITY_BASES: InactivityBase[] = ['no_customer_reply', 'stage_stagnation'];
 
 const ANY_VALUE_SENTINEL = '__any__';
@@ -136,6 +136,16 @@ export default function StageAutomationRules({
 
   const otherStages = stages.filter(s => s.id !== currentStageId);
 
+  // Format the inactivity delay label: minutes below 60, hours when a whole
+  // multiple of 60 (the stored value stays in minutes, only the label changes).
+  const formatInactivityLabel = (m: number): string => {
+    if (m < 60 || m % 60 !== 0) {
+      return `${m} ${t('stageAutomation.inactivity.minutes')}`;
+    }
+    const h = m / 60;
+    return `${h} ${t(h === 1 ? 'stageAutomation.inactivity.hour' : 'stageAutomation.inactivity.hours')}`;
+  };
+
   const renderTriggerValue = (rule: StageAutomationRule, index: number) => {
     if (rule.trigger === 'custom_attribute_updated') return null;
 
@@ -156,7 +166,7 @@ export default function StageAutomationRules({
             <SelectContent>
               {INACTIVITY_MINUTES.map(m => (
                 <SelectItem key={m} value={String(m)}>
-                  {m} {t('stageAutomation.inactivity.minutes')}
+                  {formatInactivityLabel(m)}
                 </SelectItem>
               ))}
             </SelectContent>

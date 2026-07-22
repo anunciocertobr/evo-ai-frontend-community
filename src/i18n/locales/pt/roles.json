@@ -29,13 +29,42 @@
     "system": "Sistema",
     "custom": "Personalizado"
   },
+  "domains": {
+    "attendance": "Atendimento",
+    "contacts": "Contactos",
+    "crm": "CRM",
+    "automation": "Automação",
+    "ai": "IA",
+    "channels": "Canais",
+    "admin": "Administração",
+    "others": "Outros"
+  },
   "detail": {
     "permissionsTitle": "Permissões",
     "permissionsDescription": "Marque as permissões que este perfil deve ter. As alterações entram em vigor no próximo acesso do usuário.",
     "permissionsSelected": "permissões selecionadas",
     "selectAll": "Selecionar todos",
     "deselectAll": "Desmarcar todos",
-    "noPermissions": "Nenhuma permissão disponível."
+    "noPermissions": "Nenhuma permissão disponível.",
+    "filterPlaceholder": "Procurar permissões...",
+    "nested": {
+      "pipelineStages": "Etapas",
+      "workingHours": "Horário de funcionamento"
+    },
+    "lock": {
+      "basic": "Concedida a todos os usuários autenticados",
+      "impliedBy": "Implícita por {{source}}",
+      "basicBadge": "Básica",
+      "impliedBadge": "Implícita"
+    },
+    "actionGroups": {
+      "read": "Leitura",
+      "readDescription": "Ver este recurso e o seu conteúdo.",
+      "write": "Escrita",
+      "writeDescription": "Criar e alterar este recurso, incluindo toda ação que o modifica.",
+      "delete": "Eliminação",
+      "deleteDescription": "Eliminar este recurso."
+    }
   },
   "createModal": {
     "title": "Criar Perfil",

@@ -1,4 +1,5 @@
 import { useLanguage } from '@/hooks/useLanguage';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { Edit, Paperclip, Trash2 } from 'lucide-react';
 import BaseTable from '@/components/base/BaseTable';
 import { CannedResponse } from '@/types/knowledge';
@@ -27,6 +28,7 @@ export default function CannedResponsesTable({
   sortOrder,
 }: CannedResponsesTableProps) {
   const { t } = useLanguage('cannedResponses');
+  const { can, isReady } = usePermissions();
 
   const columns = [
     {
@@ -73,12 +75,14 @@ export default function CannedResponsesTable({
       label: t('actions.edit'),
       icon: <Edit className="h-4 w-4" />,
       onClick: onEditCannedResponse,
+      show: () => isReady && can('canned_responses', 'update'),
     },
     {
       label: t('actions.delete'),
       icon: <Trash2 className="h-4 w-4" />,
       onClick: onDeleteCannedResponse,
       variant: 'destructive' as const,
+      show: () => isReady && can('canned_responses', 'delete'),
     },
   ];
 

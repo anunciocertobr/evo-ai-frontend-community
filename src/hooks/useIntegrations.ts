@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { agentIntegrationsService } from '@/services/agents/agentIntegrationsService';
+import { useIntegrationAvailability } from '@/hooks/useIntegrationAvailability';
 
 interface ElevenLabsConfig {
   provider?: string;
@@ -45,6 +46,9 @@ interface UseIntegrationsReturn {
 
   // Status
   credentialsConfigured: Record<string, boolean>;
+  // Availability signal (from the CRM :3000 endpoint), separate from
+  // "connected". Keys are hyphen-case ids (e.g. `google-calendar`).
+  available: Record<string, boolean>;
   isCheckingIntegrations: boolean;
 
   // Actions
@@ -91,6 +95,7 @@ function sanitizeConfig(config: Record<string, unknown>): Record<string, unknown
 }
 
 export function useIntegrations(agentId: string): UseIntegrationsReturn {
+  const { available, isLoadingAvailability } = useIntegrationAvailability();
   const [elevenLabsConfig, setElevenLabsConfig] = useState<ElevenLabsConfig | null>(null);
   const [googleCalendarConfig, setGoogleCalendarConfig] = useState<GoogleCalendarConfig | null>(null);
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState<GoogleSheetsConfig | null>(null);
@@ -206,7 +211,11 @@ export function useIntegrations(agentId: string): UseIntegrationsReturn {
     googleSheetsConfig,
     knowledgeNexusConfig,
     credentialsConfigured,
-    isCheckingIntegrations,
+    available,
+    // Keep the spinner up until BOTH the per-agent configs and the
+    // availability map have resolved, so the grid never flashes
+    // "Em breve"/"NÃO DISPONÍVEL" before availability lands.
+    isCheckingIntegrations: isCheckingIntegrations || isLoadingAvailability,
     reloadConfigs: loadConfigs,
     isConnected,
   };

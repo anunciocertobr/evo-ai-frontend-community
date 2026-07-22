@@ -30,6 +30,7 @@
   "permissions": {
     "viewDenied": "You don't have permission to view channels",
     "createDenied": "You don't have permission to create channels",
+    "updateDenied": "You don't have permission to update channels",
     "deleteDenied": "You don't have permission to delete channels"
   },
   "errors": {
@@ -132,27 +133,27 @@
       },
       "whatsapp": {
         "name": "WhatsApp",
-        "description": "WhatsApp channel for customer service"
+        "description": "WhatsApp Business"
       },
       "telegram": {
         "name": "Telegram",
-        "description": "Telegram bot for automated support"
+        "description": "Support bot"
       },
       "instagram": {
         "name": "Instagram",
-        "description": "Instagram direct messages"
+        "description": "Professional profile"
       },
       "facebook": {
-        "name": "Facebook Messenger",
-        "description": "Facebook Messenger chat"
+        "name": "Facebook",
+        "description": "Page"
       },
       "sms": {
         "name": "SMS",
-        "description": "SMS text messages"
+        "description": "Text messages"
       },
       "email": {
         "name": "Email",
-        "description": "Email support"
+        "description": "Marketing and support"
       },
       "api": {
         "name": "API",
@@ -186,7 +187,8 @@
       },
       "twilio": {
         "name": "Twilio",
-        "description": "Twilio WhatsApp Business API"
+        "description": "Twilio WhatsApp Business API",
+        "comingSoon": "Coming soon"
       },
       "twilioSms": {
         "name": "Twilio SMS",
@@ -239,9 +241,22 @@
       "connectDescription": "Connect to offer support to your customers through {{channelName}}",
       "apiProvider": "API Provider",
       "facebookIntegrationDescription": "Connect your Facebook account to automatically fill in the WhatsApp Business information"
+    },
+    "fields": {
+      "displayName": {
+        "label": "Display Name",
+        "placeholder": "e.g. Support Team",
+        "helpText": "Friendly name shown to your team."
+      },
+      "channelName": {
+        "label": "Channel Name",
+        "placeholder": "auto-generated",
+        "helpText": "Auto-generated from the display name."
+      }
     }
   },
   "settings": {
+    "updateConfig": "Update Settings",
     "loading": "Loading settings...",
     "saving": "Saving...",
     "save": "Save",
@@ -643,6 +658,8 @@
         "templateType": "Template Type",
         "templateTypes": {
           "text": "Text",
+          "interactive": "Interactive",
+          "media": "Media",
           "image": "Image",
           "video": "Video",
           "document": "Document",
@@ -1119,12 +1136,32 @@
       }
     },
     "preChatForm": {
-      "success": {
-        "updated": "Pre-chat form settings updated successfully!"
+      "title": "Pre-Chat Form",
+      "description": "Collect visitor information before starting the conversation",
+      "totalFields": "Total Fields",
+      "activeFields": "Active Fields",
+      "requiredFields": "Required Fields",
+      "welcomeMessage": "Welcome Message",
+      "welcomeMessagePlaceholder": "Hello! To better assist you, please complete the information below:",
+      "welcomeMessageHelp": "This message will be displayed at the top of the pre-chat form.",
+      "fieldConfiguration": "Field Configuration",
+      "hidePreview": "Hide Preview",
+      "showPreview": "Show Preview",
+      "formPreview": "Form Preview",
+      "noActiveFields": "No active fields to display",
+      "howItWorksTitle": "How the pre-chat form works",
+      "howItWorks": {
+        "point1": "The form is displayed before the client starts the conversation",
+        "point2": "Collected information is attached to the contact profile",
+        "point3": "Required fields must be completed to continue",
+        "point4": "Use the drag function to reorder fields"
       },
-      "errors": {
-        "updateError": "Error updating pre-chat form settings"
-      }
+      "disabledTitle": "Pre-chat form disabled",
+      "disabledDescription": "Enable to collect visitor information before starting the conversation.",
+      "saving": "Saving...",
+      "save": "Save Settings",
+      "success": "Pre-chat form settings updated successfully",
+      "error": "Error updating pre-chat form settings"
     },
     "greeting": {
       "title": "Greeting Message",
@@ -1684,34 +1721,6 @@
       "success": {
         "channelCreated": "Channel created successfully"
       }
-    },
-    "preChatForm": {
-      "title": "Pre-Chat Form",
-      "description": "Collect visitor information before starting the conversation",
-      "totalFields": "Total Fields",
-      "activeFields": "Active Fields",
-      "requiredFields": "Required Fields",
-      "welcomeMessage": "Welcome Message",
-      "welcomeMessagePlaceholder": "Hello! To better assist you, please complete the information below:",
-      "welcomeMessageHelp": "This message will be displayed at the top of the pre-chat form.",
-      "fieldConfiguration": "Field Configuration",
-      "hidePreview": "Hide Preview",
-      "showPreview": "Show Preview",
-      "formPreview": "Form Preview",
-      "noActiveFields": "No active fields to display",
-      "howItWorksTitle": "How the pre-chat form works",
-      "howItWorks": {
-        "point1": "The form is displayed before the client starts the conversation",
-        "point2": "Collected information is attached to the contact profile",
-        "point3": "Required fields must be completed to continue",
-        "point4": "Use the drag function to reorder fields"
-      },
-      "disabledTitle": "Pre-chat form disabled",
-      "disabledDescription": "Enable to collect visitor information before starting the conversation.",
-      "saving": "Saving...",
-      "save": "Save Settings",
-      "success": "Pre-chat form settings updated successfully",
-      "error": "Error updating pre-chat form settings"
     }
   },
   "deleteDialog": {
@@ -1724,6 +1733,7 @@
     "deleting": "Deleting..."
   },
   "overview": {
+    "noIntegrationConfigured": "No integration configured",
     "tabLabel": "Overview",
     "title": "Channel overview",
     "subtitle": "See every channel type, its status, and how to set it up.",
@@ -1737,7 +1747,12 @@
       "active": "{{count}} active",
       "attention": "{{count}} need attention",
       "error": "{{count}} with errors",
-      "notConfigured": "Not configured"
+      "notConfigured": "Not configured",
+      "connected": "{{count}} connected",
+      "total": "{{count}} connections"
+    },
+    "drawer": {
+      "title": "Connections"
     },
     "inboxState": {
       "connected": "Connected",
@@ -1750,10 +1765,26 @@
     },
     "liveCheckFailed": "Live check failed — showing the last known state",
     "moreInboxes": "+{{count}} more inboxes",
+    "providersCount": "{{count}} providers",
     "actions": {
       "add": "Add",
       "manage": "Manage",
-      "howToConfigure": "How to set up"
+      "howToConfigure": "How to set up",
+      "connect": "Connect",
+      "addConnection": "Add connection",
+      "deleteConnection": "Delete connection",
+      "viewAds": "View ads"
+    },
+    "capabilities": {
+      "publishing": "Publishing",
+      "conversations": "Conversations",
+      "campaigns": "Campaigns"
+    },
+    "statusMeta": {
+      "live": "Live",
+      "stored": "Reported",
+      "storedTooltip": "State reported by the configuration, not verified live",
+      "lastSync": "Synced {{time}}"
     },
     "help": {
       "website": "Embed a live-chat widget on your website so visitors can talk to your team in real time.",

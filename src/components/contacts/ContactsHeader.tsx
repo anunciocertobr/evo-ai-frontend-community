@@ -7,7 +7,7 @@ import {
   Merge,
 } from 'lucide-react';
 import { BaseHeader, HeaderAction, HeaderFilter } from '@/components/base';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface ContactsHeaderProps {
   totalCount: number;
@@ -41,7 +41,7 @@ export default function ContactsHeader({
   showFilters = true,
 }: ContactsHeaderProps) {
   const { t } = useLanguage('contacts');
-  const { can, isReady } = useUserPermissions();
+  const { can, isReady } = usePermissions();
 
   const primaryAction: HeaderAction | undefined = isReady && can('contacts', 'create') ? {
     label: t('header.newContact'),

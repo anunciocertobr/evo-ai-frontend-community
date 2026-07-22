@@ -117,6 +117,12 @@
     }
   },
   "socialLogin": {
+    "callbackUrl": {
+      "label": "OAuth redirect URI (register in the provider console)",
+      "hint": "Add this exact URL to your OAuth app's authorized redirect URIs — it must match exactly (https, no trailing slash).",
+      "copy": "Copy callback URL",
+      "copied": "Callback URL copied"
+    },
     "title": "Email provider credentials (OAuth)",
     "description": "OAuth app credentials (Google / Microsoft) used to connect Gmail and Outlook email channels.",
     "google": {
@@ -343,6 +349,12 @@
     "saving": "Saving..."
   },
   "integrations": {
+    "callbackUrl": {
+      "label": "OAuth redirect URI (register in the provider console)",
+      "hint": "Add this exact URL to your OAuth app's authorized redirect URIs — it must match exactly (https, no trailing slash).",
+      "copy": "Copy callback URL",
+      "copied": "Callback URL copied"
+    },
     "title": "Integrations Configuration",
     "description": "Configure OAuth credentials for third-party integrations such as Linear, GitHub, Notion, and others.",
     "secretConfigured": "Configured",
@@ -521,7 +533,15 @@
     },
     "messages": {
       "loadError": "Failed to load integrations configuration"
-    }
+    },
+    "statusConfigured": "Configured",
+    "statusNotConfigured": "Not configured",
+    "dialogSubtitle": "Enter the OAuth credentials for this integration.",
+    "remove": "Remove",
+    "removing": "Removing...",
+    "removeSuccess": "Configuration removed",
+    "removeError": "Failed to remove configuration",
+    "cancel": "Cancel"
   },
   "inboundEmail": {
     "title": "Inbound email (receive as conversations)",

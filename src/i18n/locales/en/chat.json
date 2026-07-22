@@ -268,6 +268,10 @@
       "linkText": "24-hour messaging window restrictions",
       "zapiDisconnected": "WhatsApp disconnected. Connect the number to send messages."
     },
+    "noteBanner": {
+      "title": "Attendance note",
+      "hide": "Hide"
+    },
     "errors": {
       "loadMessages": "Error loading messages",
       "tryAgain": "Try again"
@@ -278,7 +282,7 @@
       "markAsRead": "Mark as read",
       "markAsUnread": "Mark as unread",
       "markAsOpen": "Mark as open",
-      "markAsResolved": "Mark as resolved",
+      "markAsResolved": "Mark as completed",
       "markAsPending": "Mark as pending",
       "pauseConversation": "Pause conversation",
       "priorityUrgent": "Urgent Priority",
@@ -294,13 +298,24 @@
       "assignTeam": "Assign Team",
       "assignTag": "Assign Label",
       "deleteConversation": "Delete conversation",
-      "bulkResolveSuccess": "{{count}} conversation(s) resolved",
-      "bulkResolvePartialSuccess": "{{success}} resolved, {{failed}} failed",
-      "bulkResolveError": "Error resolving conversations",
-      "bulkResolveNoPermission": "You do not have permission to resolve conversations"
+      "bulkStatusSuccess": "{{count}} conversation(s) updated",
+      "bulkStatusPartialSuccess": "{{success}} updated, {{failed}} failed",
+      "bulkStatusError": "Error updating conversations",
+      "bulkStatusNoPermission": "You do not have permission to update conversations"
     },
     "contactNoName": "Contact without name",
     "status": "Status:",
+    "statusButton": {
+      "open": "Open",
+      "complete": "Complete",
+      "reopen": "Reopen"
+    },
+    "statusPill": {
+      "open": "Open Conversation",
+      "resolved": "Conversation Completed",
+      "pending": "Pending",
+      "snoozed": "Conversation Paused"
+    },
     "openConversation": "Open Conversation",
     "closeConversation": "Close conversation",
     "phoneNumber": "Phone number",
@@ -308,7 +323,16 @@
     "closeContactPanel": "Close contact details"
   },
   "chatSidebar": {
+    "segments": {
+      "ariaLabel": "Conversation views",
+      "open": "Open",
+      "pending": "Pending",
+      "resolved": "Completed",
+      "unread": "Unread",
+      "groups": "Groups"
+    },
     "searchPlaceholder": "Search conversations...",
+    "resizeHandle": "Resize conversation list",
     "conversation": "conversation",
     "conversations": "conversations",
     "selectedCount_one": "{{count}} conversation selected",
@@ -317,6 +341,15 @@
     "filter": "filter",
     "filters": "filters",
     "filtersButton": "Filters",
+    "select": "Select",
+    "doneSelection": "Done",
+    "bulkActions": "Bulk actions",
+    "bulkDeleteDescription": "Are you sure you want to delete {{count}} conversation(s)? This action cannot be undone.",
+    "undo": "Undo",
+    "bulkApplied": "Applied to {{count}} conversation(s)",
+    "bulkDeleted": "{{count}} conversation(s) deleted",
+    "bulkFailed": "{{count}} conversation(s) failed",
+    "advancedFiltersCleared": "Advanced filters cleared — Unread/Groups can't be combined with them",
     "view": {
       "active": "Active",
       "archived": "Archived"
@@ -393,6 +426,7 @@
       "offline": "Offline"
     },
     "contactDetails": {
+      "noContact": "No contact loaded.",
       "actions": {
         "edit": "Edit",
         "updateSuccess": "Contact updated successfully",
@@ -419,7 +453,7 @@
       "dataProtectedTooltip": "Data protected by account policy"
     },
     "customAttributes": {
-      "noAttributes": "No custom attributes configured",
+      "noAttributes": "No attributes registered.",
       "updateSuccess": "Attributes updated successfully",
       "updateError": "Error updating attributes",
       "refreshError": "Attributes saved, but failed to reload contact data",
@@ -427,7 +461,7 @@
       "no": "No"
     },
     "conversationAttributes": {
-      "noAttributes": "No conversation attributes configured",
+      "noAttributes": "No attributes registered.",
       "updateSuccess": "Conversation attributes updated",
       "updateError": "Error updating conversation attributes",
       "yes": "Yes",
@@ -437,7 +471,7 @@
       "status": {
         "title": "Conversation Status",
         "open": "Open",
-        "resolved": "Resolved",
+        "resolved": "Completed",
         "pending": "Pending",
         "snoozed": "Paused",
         "changed": "Status changed to: {{status}}",
@@ -519,7 +553,7 @@
           "all": "All",
           "open": "Open",
           "pending": "Pending",
-          "resolved": "Resolved",
+          "resolved": "Completed",
           "snoozed": "Snoozed"
         },
         "clearFilters": "Clear filters"
@@ -572,11 +606,12 @@
         "loadConversation": "Error loading conversation",
         "conversationNotFound": "Conversation not found",
         "updateStatus": "Error updating conversation status",
+        "returnToBot": "Error returning conversation to bot",
         "updatePriority": "Error updating conversation priority",
         "deleteConversation": "Error deleting conversation",
         "markAsRead": "Error marking as read",
         "markAsUnread": "Error marking as unread",
-        "markAsResolved": "Error marking as resolved",
+        "markAsResolved": "Error marking as completed",
         "markAsPending": "Error marking as pending",
         "assignAgent": "Error assigning team member",
         "assignTeam": "Error assigning team",
@@ -590,11 +625,12 @@
       },
       "success": {
         "statusChanged": "Status changed to: {{status}}",
+        "returnedToBot": "Conversation returned to bot",
         "priorityChanged": "Priority changed to: {{priority}}",
         "deleted": "Conversation deleted successfully",
         "markedAsRead": "Conversation marked as read",
         "markedAsUnread": "Conversation marked as unread",
-        "markedAsResolved": "Conversation marked as resolved",
+        "markedAsResolved": "Conversation marked as completed",
         "markedAsPending": "Conversation marked as pending",
         "agentAssigned": "Team Member assigned successfully",
         "agentRemoved": "Team Member removed successfully",
@@ -608,7 +644,7 @@
       },
       "statusNames": {
         "open": "Open",
-        "resolved": "Resolved",
+        "resolved": "Completed",
         "pending": "Pending",
         "snoozed": "Paused"
       },
@@ -659,9 +695,15 @@
       "mediaBlocksManualUpload": "This canned response already includes media; remove it to attach another file.",
       "removeMediaAriaLabel": "Remove canned response media"
     },
-    "pendingPlaceholder": "This conversation is pending. Only private notes can be sent.",
+    "pendingPlaceholder": "Click Open to reply",
     "restrictedPlaceholder": "Cannot send messages due to 24-hour messaging window",
     "defaultPlaceholder": "Type your message...",
+    "noteComposer": {
+      "helper": "Save important notes on the conversation so other users can see them later.",
+      "placeholder": "Add a note to this conversation...",
+      "save": "Save",
+      "saving": "Saving..."
+    },
     "emojiPicker": {
       "searchPlaceholder": "Search emojis..."
     },
@@ -699,7 +741,8 @@
       "sendError": "Error sending audio",
       "converting": "Converting audio...",
       "conversionWarning": "Conversion warning",
-      "conversionWarningDescription": "Could not convert audio to OGG/Opus. Sending in original format."
+      "conversionWarningDescription": "Could not convert audio to OGG/Opus. Sending in original format.",
+      "recordTooltip": "Record audio"
     },
     "templates": {
       "inDevelopment": "Message templates in development 📝"
@@ -722,8 +765,37 @@
     },
     "placeholders": {
       "default": "Type your message... (type / for canned responses)",
-      "pendingNote": "Type your private note (pending conversation)...",
+      "pendingNote": "Click Open to reply",
       "privateNote": "Type your private note... (type / for canned responses)"
+    },
+    "composerMenu": {
+      "tooltip": "More options",
+      "quickReplies": "Quick Replies",
+      "documents": "Documents",
+      "media": "Photos and Videos",
+      "conversationNote": "Conversation Notes",
+      "schedule": "Schedule"
+    },
+    "macros": {
+      "tooltip": "Macros",
+      "subtitle": "Run automations"
+    },
+    "schedule": {
+      "title": "Schedule message",
+      "messagePreview": "Message",
+      "emptyMessage": "Type a message in the composer before scheduling.",
+      "dateTime": "Date and time",
+      "note": "Note",
+      "notePlaceholder": "Internal note (optional)",
+      "cancel": "Cancel",
+      "save": "Schedule",
+      "success": "Message scheduled successfully",
+      "error": "Error scheduling message",
+      "errors": {
+        "dateTimeRequired": "Date and time are required",
+        "dateTimeFuture": "Date and time must be in the future",
+        "messageRequired": "Type a message before scheduling"
+      }
     }
   },
   "conversationsFilter": {
@@ -753,13 +825,18 @@
       "last_activity_at": "Last Activity",
       "priority": "Priority",
       "pipeline_id": "Pipeline",
-      "contact_id": "Contact"
+      "contact_id": "Contact",
+      "assignee_id": "Users"
+    },
+    "popover": {
+      "clearAll": "Clear all",
+      "noOptions": "No options available"
     },
     "options": {
       "status": {
         "all": "All",
         "open": "Open",
-        "resolved": "Resolved",
+        "resolved": "Completed",
         "pending": "Pending",
         "snoozed": "Snoozed"
       },
@@ -806,7 +883,7 @@
       "description": "Waiting for customer response"
     },
     "resolved": {
-      "label": "Resolved",
+      "label": "Completed",
       "description": "Conversation successfully completed"
     },
     "snoozed": {
@@ -830,8 +907,9 @@
     "markAsUnread": "Mark as unread",
     "status": "Status",
     "markAsOpen": "Mark as open",
-    "markAsResolved": "Mark as resolved",
+    "markAsResolved": "Mark as completed",
     "markAsPending": "Mark as pending",
+    "returnToBot": "Return to bot",
     "pauseConversation": "Pause conversation",
     "priority": "Priority",
     "priorityLabels": {

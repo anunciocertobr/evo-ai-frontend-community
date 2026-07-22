@@ -45,8 +45,13 @@
     },
     "submit": {
       "idle": "Create account and continue",
-      "loading": "Setting up..."
+      "loading": "Setting up...",
+      "continue": "Continue"
     }
+  },
+  "extension": {
+    "unavailable": "This setup step isn't available. Go back to finish setup.",
+    "back": "Back"
   },
   "success": {
     "title": "Setup complete!",

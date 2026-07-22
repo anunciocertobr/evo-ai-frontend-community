@@ -199,7 +199,7 @@
   "testResult": {
     "titleSuccess": "Test réussi",
     "titleError": "Test échoué",
-    "statusCode": "Status code",
+    "statusCode": "Code de statut",
     "responseTime": "Temps de réponse",
     "errorLabel": "Erreur",
     "responseHeaders": "Headers de réponse",
@@ -273,7 +273,8 @@
       "title": "Touches finales",
       "subtitle": "Ajoutez des exemples d'usage pour aider les agents à savoir quand appeler cet outil.",
       "helperText": "Les exemples sont de courtes descriptions d'utilisation de l'outil.",
-      "testHint": "Après création, vous pourrez tester l'outil contre l'endpoint réel."
+      "testHint": "Après création, vous pourrez tester l'outil contre l'endpoint réel.",
+      "attachHint": "Créer l'outil ne fait que l'ajouter au catalogue. Pour qu'un agent l'utilise, attachez-le à l'agent dans son onglet Outils."
     },
     "actions": {
       "continue": "Continuer",
@@ -339,6 +340,19 @@
     "deleteSuccess": "Outil personnalisé supprimé avec succès",
     "deleteError": "Erreur lors de la suppression de l'outil personnalisé",
     "testSuccess": "Test exécuté avec succès",
-    "testError": "Erreur lors du test de l'outil personnalisé"
+    "testError": "Erreur lors du test de l'outil personnalisé",
+    "applyFiltersError": "Erreur lors de l'application des filtres"
+  },
+  "deleteDialog": {
+    "title": "Supprimer l'outil personnalisé",
+    "description": "Voulez-vous vraiment supprimer l'outil \"{{name}}\" ? Cette action est irréversible.",
+    "cancel": "Annuler",
+    "confirm": "Supprimer"
+  },
+  "permissions": {
+    "viewDenied": "Vous n'avez pas la permission de voir les outils personnalisés",
+    "createDenied": "Vous n'avez pas la permission de créer des outils personnalisés",
+    "editDenied": "Vous n'avez pas la permission de modifier les outils personnalisés",
+    "deleteDenied": "Vous n'avez pas la permission de supprimer les outils personnalisés"
   }
 }

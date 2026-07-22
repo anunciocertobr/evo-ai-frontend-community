@@ -2,7 +2,7 @@ import { Edit, Trash2, Eye, Key, Copy } from 'lucide-react';
 import { Badge } from '@evoapi/design-system';
 import BaseTable from '@/components/base/BaseTable';
 import type { AccessToken } from '@/types/auth';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { parseScopesFromAPI } from '@/services/auth/accessTokensService';
 
 interface AccessTokensTableProps {
@@ -35,7 +35,7 @@ export default function AccessTokensTable({
   sortBy,
   sortOrder,
 }: AccessTokensTableProps) {
-  const { can } = useUserPermissions();
+  const { can } = usePermissions();
 
   const columns = [
     {

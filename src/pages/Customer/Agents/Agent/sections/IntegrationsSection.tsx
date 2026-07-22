@@ -43,8 +43,10 @@ const IntegrationsSection = ({
   const [showGoogleSheetsConfig, setShowGoogleSheetsConfig] = useState(false);
   const [showKnowledgeNexusConfig, setShowKnowledgeNexusConfig] = useState(false);
 
-  // Use custom hook for integrations status
-  const { credentialsConfigured, isCheckingIntegrations, isConnected, reloadConfigs } =
+  // Use custom hook for integrations status.
+  // `available` is the DISPONIBILIDADE signal (CRM :3000 endpoint) used to gate
+  // "Em breve"/ATIVAR-disabled; `isConnected` is the per-agent "connected" state.
+  const { available, isCheckingIntegrations, isConnected, reloadConfigs } =
     useIntegrations(agentId);
 
   // Persist an integration immediately via the backend Upsert endpoint, then
@@ -98,11 +100,15 @@ const IntegrationsSection = ({
   };
 
   // Integrações que sempre estão disponíveis porque o usuário fornece sua
-  // própria credencial (API key) — não dependem de OAuth global configurado
+  // própria credencial (API key). Não dependem de OAuth global configurado
   // pelo administrador. Google Calendar / Sheets usam OAuth global e portanto
-  // só ficam disponíveis quando `credentialsConfigured` indica que o admin
-  // configurou as chaves correspondentes.
-  const ALWAYS_AVAILABLE_INTEGRATIONS = ['elevenlabs', 'knowledge-nexus'];
+  // só ficam disponíveis quando o mapa `available` (endpoint de disponibilidade
+  // do CRM) indica que o admin configurou as chaves correspondentes.
+  // Google Calendar / Sheets connect via per-agent OAuth (their own config
+  // dialogs), not a globally-configured client credential — so they are always
+  // available, like ElevenLabs (API key). Keeping them out of this list left them
+  // stuck on "NÃO DISPONÍVEL" despite the render logic already wiring their dialogs.
+  const ALWAYS_AVAILABLE_INTEGRATIONS = ['elevenlabs', 'knowledge-nexus', 'google-calendar', 'google-sheets'];
 
   const availableIntegrations: Integration[] = [
     {
@@ -178,7 +184,7 @@ const IntegrationsSection = ({
                 // Integrações que sempre estão disponíveis (ElevenLabs usa API Key, Google Calendar configurado localmente)
                 const isAlwaysAvailable = ALWAYS_AVAILABLE_INTEGRATIONS.includes(integration.id);
                 const hasCredentials =
-                  isAlwaysAvailable || (credentialsConfigured[integration.id] ?? false);
+                  isAlwaysAvailable || (available[integration.id] ?? false);
                 const connected = isConnected(integration.id);
 
                 return (
@@ -205,6 +211,15 @@ const IntegrationsSection = ({
                         </span>
                       )}
 
+                      {/* Discreet connected indicator — mirrors the admin Integrations
+                          screen (small green text, no oversized button). */}
+                      {connected && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600">
+                          <Check className="h-3.5 w-3.5" />
+                          {t('edit.integrations.active') || 'Ativo'}
+                        </span>
+                      )}
+
                       {/* Descrição */}
                       <CardDescription className="text-sm leading-relaxed">
                         {integration.description}
@@ -215,16 +230,8 @@ const IntegrationsSection = ({
                     <CardContent className="mt-auto pt-0 space-y-2">
                       {connected ? (
                         <>
-                          {/* Botão de Status - Conectado */}
-                          <Button
-                            variant="success"
-                            className="w-full gap-2 bg-green-600 text-white hover:bg-green-700 border-green-600 cursor-default"
-                            disabled
-                          >
-                            <Check className="h-4 w-4" />
-                            {t('edit.integrations.active') || 'ATIVO'}
-                          </Button>
-                          {/* Botão de Configuração */}
+                          {/* Only the configure action — the connected state is shown
+                              by the discreet badge near the title (see above). */}
                           <Button
                             variant="outline"
                             className="w-full gap-2"

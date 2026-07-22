@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@evoapi/design-system';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { Grid3X3, List, Wrench } from 'lucide-react';
 import EmptyState from '@/components/base/EmptyState';
 
@@ -41,7 +41,7 @@ const INITIAL_STATE: ToolsState = {
 
 export default function Tools() {
   const { t } = useLanguage('tools');
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const [state, setState] = useState<ToolsState>(INITIAL_STATE);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);

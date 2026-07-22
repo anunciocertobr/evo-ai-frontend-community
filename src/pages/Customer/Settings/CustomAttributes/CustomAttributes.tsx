@@ -18,7 +18,7 @@ import {
 import { Search, Settings } from 'lucide-react';
 import EmptyState from '@/components/base/EmptyState';
 
-import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { customAttributesService } from '@/services/customAttributes/customAttributesService';
 import {
   CustomAttributeDefinition,
@@ -60,7 +60,7 @@ const INITIAL_STATE: CustomAttributesState = {
 
 export default function CustomAttributes() {
   const { t } = useLanguage('customAttributes');
-  const { can, isReady: permissionsReady } = useUserPermissions();
+  const { can, isReady: permissionsReady } = usePermissions();
   const [state, setState] = useState<CustomAttributesState>(INITIAL_STATE);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [attributeToDelete, setAttributeToDelete] = useState<CustomAttributeDefinition | null>(
