@@ -182,6 +182,9 @@ export interface PipelinesListParams {
   q?: string;
   is_active?: boolean;
   pipeline_type?: string;
+  // Opt-in: the API hides deactivated pipelines unless this is set, so pickers
+  // elsewhere in the app keep listing active pipelines only.
+  include_inactive?: boolean;
 }
 
 export interface CreatePipelineData {

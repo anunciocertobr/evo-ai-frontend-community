@@ -82,6 +82,9 @@ export default function Pipelines() {
           per_page: state.meta.pagination.page_size,
           sort: 'name',
           order: 'asc',
+          // This is the management screen: a deactivated pipeline must stay listed
+          // (badge + "Activate" action), otherwise it becomes unreachable.
+          include_inactive: true,
           ...params,
         };
 
@@ -165,11 +168,17 @@ export default function Pipelines() {
 
   const handleToggleStatus = async (pipeline: Pipeline) => {
     try {
-      await pipelinesService.togglePipelineStatus(pipeline.id, !pipeline.is_active);
-      toast.success(
-        pipeline.is_active ? t('messages.deactivateSuccess') : t('messages.activateSuccess'),
+      // The toast reports the state the API actually persisted, not the state we asked
+      // for, and only after the list reflects it — a silently dropped update must never
+      // read as success (EVO-2122).
+      const updated = await pipelinesService.togglePipelineStatus(
+        pipeline.id,
+        !pipeline.is_active,
       );
-      loadPipelines();
+      await loadPipelines();
+      toast.success(
+        updated.is_active ? t('messages.activateSuccess') : t('messages.deactivateSuccess'),
+      );
     } catch (error) {
       console.error('Error toggling pipeline status:', error);
       toast.error(t('messages.toggleError'));
