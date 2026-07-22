@@ -83,6 +83,10 @@ export default function Pipelines() {
           sort: 'name',
           order: 'asc',
           ...params,
+          // Not a default a caller may override: this is the management screen, and
+          // reactivation (AC3) only exists while the deactivated pipeline stays listed
+          // with its badge and its "Activate" action.
+          include_inactive: true,
         };
 
         const response = await pipelinesService.getPipelines(requestParams);
@@ -164,12 +168,23 @@ export default function Pipelines() {
   };
 
   const handleToggleStatus = async (pipeline: Pipeline) => {
+    const requestedState = !pipeline.is_active;
+
     try {
-      await pipelinesService.togglePipelineStatus(pipeline.id, !pipeline.is_active);
+      const updated = await pipelinesService.togglePipelineStatus(pipeline.id, requestedState);
+      await loadPipelines();
+
+      // Success is only reported when the API persisted the state we asked for, and only
+      // after the list reflects it. An update the API silently dropped comes back with the
+      // old state — that is a failure, not a success for the opposite action (EVO-2122).
+      if (updated.is_active !== requestedState) {
+        toast.error(t('messages.toggleError'));
+        return;
+      }
+
       toast.success(
-        pipeline.is_active ? t('messages.deactivateSuccess') : t('messages.activateSuccess'),
+        requestedState ? t('messages.activateSuccess') : t('messages.deactivateSuccess'),
       );
-      loadPipelines();
     } catch (error) {
       console.error('Error toggling pipeline status:', error);
       toast.error(t('messages.toggleError'));
