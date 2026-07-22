@@ -384,42 +384,59 @@ export default function Pipelines() {
             </p>
           )}
 
-          {!pendingDeactivation?.loading && !!pendingDeactivation?.dependents?.count && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">
-                {t('dialog.deactivatePipeline.formsHeading', {
-                  count: pendingDeactivation.dependents.published_count,
-                })}
-              </p>
+          {!pendingDeactivation?.loading &&
+            !pendingDeactivation?.failed &&
+            pendingDeactivation?.dependents && (
+              <div className="space-y-2">
+                {pendingDeactivation.dependents.count ? (
+                  <>
+                    <p className="text-sm font-medium">
+                      {/* Drafts do not receive submissions, so the alarm counts published
+                          forms — but a pipeline fed only by drafts must not read as "0". */}
+                      {pendingDeactivation.dependents.published_count > 0
+                        ? t('dialog.deactivatePipeline.formsHeading', {
+                            count: pendingDeactivation.dependents.published_count,
+                          })
+                        : t('dialog.deactivatePipeline.draftsHeading', {
+                            count: pendingDeactivation.dependents.count,
+                          })}
+                    </p>
 
-              {pendingDeactivation.dependents.names_redacted ? (
-                <p className="text-sm text-muted-foreground">
-                  {t('dialog.deactivatePipeline.namesRedacted', {
-                    count: pendingDeactivation.dependents.count,
-                  })}
+                    {pendingDeactivation.dependents.names_redacted ? (
+                      <p className="text-sm text-muted-foreground">
+                        {t('dialog.deactivatePipeline.namesRedacted', {
+                          count: pendingDeactivation.dependents.count,
+                        })}
+                      </p>
+                    ) : (
+                      <ul className="max-h-40 overflow-y-auto space-y-1 text-sm text-muted-foreground">
+                        {pendingDeactivation.dependents.crm_forms.map(form => (
+                          <li key={form.id}>
+                            {form.title || form.name}
+                            {form.published
+                              ? ` · ${t('dialog.deactivatePipeline.published')}`
+                              : ` · ${t('dialog.deactivatePipeline.draft')}`}
+                            {form.via === 'routing_rule' &&
+                              ` · ${t('dialog.deactivatePipeline.viaRoutingRule')}`}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {t('dialog.deactivatePipeline.noForms')}
+                  </p>
+                )}
+
+                {/* Only capture forms were inspected — state it on every successful
+                    lookup, the empty one included, so the silence never reads as an
+                    all-clear for automations and journeys (EVO-2199 children). */}
+                <p className="text-xs text-muted-foreground">
+                  {t('dialog.deactivatePipeline.partialWarning')}
                 </p>
-              ) : (
-                <ul className="max-h-40 overflow-y-auto space-y-1 text-sm text-muted-foreground">
-                  {pendingDeactivation.dependents.crm_forms.map(form => (
-                    <li key={form.id}>
-                      {form.title || form.name}
-                      {form.published
-                        ? ` · ${t('dialog.deactivatePipeline.published')}`
-                        : ` · ${t('dialog.deactivatePipeline.draft')}`}
-                      {form.via === 'routing_rule' &&
-                        ` · ${t('dialog.deactivatePipeline.viaRoutingRule')}`}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Automations and journeys are not inspected yet (EVO-2199): say so
-                  rather than let an incomplete list read as an all-clear. */}
-              <p className="text-xs text-muted-foreground">
-                {t('dialog.deactivatePipeline.partialWarning')}
-              </p>
-            </div>
-          )}
+              </div>
+            )}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setPendingDeactivation(null)}>

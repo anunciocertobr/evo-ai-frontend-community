@@ -248,6 +248,22 @@ describe('Pipelines management screen', () => {
       ).toBeInTheDocument();
     });
 
+    // The empty result is the case most likely to read as an all-clear, so the caveat
+    // that automations and journeys were not inspected must show there too (EVO-2200).
+    it('still states automations and journeys were not inspected when nothing feeds it', async () => {
+      render(<Pipelines />);
+      await screen.findByText('Live funnel');
+
+      await clickDeactivate();
+
+      expect(
+        await screen.findByText('dialog.deactivatePipeline.noForms'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('dialog.deactivatePipeline.partialWarning'),
+      ).toBeInTheDocument();
+    });
+
     it('activating skips the confirmation entirely', async () => {
       getPipelines.mockResolvedValue({ data: [inactivePipeline], meta: {} });
       togglePipelineStatus.mockResolvedValue({ ...inactivePipeline, is_active: true });
