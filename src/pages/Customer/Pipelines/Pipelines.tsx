@@ -17,6 +17,7 @@ import {
   Pipeline,
   PipelinesState,
   PipelinesListParams,
+  PipelineDependents,
   UpdatePipelineData,
 } from '@/types/analytics';
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination';
@@ -63,6 +64,11 @@ export default function Pipelines() {
   const [editingPipeline, setEditingPipeline] = useState<Pipeline | null>(null);
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [pipelineToDuplicate, setPipelineToDuplicate] = useState<Pipeline | null>(null);
+  const [pendingDeactivation, setPendingDeactivation] = useState<{
+    pipeline: Pipeline;
+    dependents: PipelineDependents | null;
+    loading: boolean;
+  } | null>(null);
 
   const hasLoaded = useRef(false);
 
@@ -167,7 +173,27 @@ export default function Pipelines() {
     setDuplicateModalOpen(true);
   };
 
+  // Deactivating hides the pipeline from every picker while whatever feeds it keeps
+  // running. Ask first, naming what we could find (EVO-2200).
   const handleToggleStatus = async (pipeline: Pipeline) => {
+    if (!pipeline.is_active) {
+      applyToggleStatus(pipeline);
+      return;
+    }
+
+    setPendingDeactivation({ pipeline, dependents: null, loading: true });
+
+    try {
+      const dependents = await pipelinesService.getDependents(pipeline.id);
+      setPendingDeactivation({ pipeline, dependents, loading: false });
+    } catch {
+      // The confirmation is a courtesy, not a gate: if we cannot list what depends on the
+      // pipeline, still let the user decide rather than blocking the action.
+      setPendingDeactivation({ pipeline, dependents: null, loading: false });
+    }
+  };
+
+  const applyToggleStatus = async (pipeline: Pipeline) => {
     const requestedState = !pipeline.is_active;
 
     try {
@@ -328,6 +354,68 @@ export default function Pipelines() {
       </div>
 
       {/* Delete Pipeline Dialog */}
+      <Dialog
+        open={!!pendingDeactivation}
+        onOpenChange={v => !v && setPendingDeactivation(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('dialog.deactivatePipeline.title')}</DialogTitle>
+            <DialogDescription>
+              {t('dialog.deactivatePipeline.description', {
+                name: pendingDeactivation?.pipeline.name ?? '',
+              })}
+            </DialogDescription>
+          </DialogHeader>
+
+          {pendingDeactivation?.loading && (
+            <p className="text-sm text-muted-foreground">
+              {t('dialog.deactivatePipeline.checking')}
+            </p>
+          )}
+
+          {!pendingDeactivation?.loading &&
+            !!pendingDeactivation?.dependents?.crm_forms.length && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  {t('dialog.deactivatePipeline.formsHeading', {
+                    count: pendingDeactivation.dependents.crm_forms.length,
+                  })}
+                </p>
+                <ul className="max-h-40 overflow-y-auto space-y-1 text-sm text-muted-foreground">
+                  {pendingDeactivation.dependents.crm_forms.map(form => (
+                    <li key={form.id}>
+                      {form.title || form.name}
+                      {form.published && ` · ${t('dialog.deactivatePipeline.published')}`}
+                    </li>
+                  ))}
+                </ul>
+                {/* Automations and journeys are not inspected yet (EVO-2199): say so
+                    rather than let an incomplete list read as an all-clear. */}
+                <p className="text-xs text-muted-foreground">
+                  {t('dialog.deactivatePipeline.partialWarning')}
+                </p>
+              </div>
+            )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDeactivation(null)}>
+              {t('dialog.deactivatePipeline.cancel')}
+            </Button>
+            <Button
+              onClick={() => {
+                const target = pendingDeactivation?.pipeline;
+                setPendingDeactivation(null);
+                if (target) applyToggleStatus(target);
+              }}
+              disabled={pendingDeactivation?.loading}
+            >
+              {t('dialog.deactivatePipeline.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>

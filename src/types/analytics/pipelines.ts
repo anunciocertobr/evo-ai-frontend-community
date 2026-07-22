@@ -187,6 +187,13 @@ export interface PipelinesListParams {
   include_inactive?: boolean;
 }
 
+// EVO-2200: `inspected` names the dependency kinds the backend actually checked, so the
+// UI can say the list is partial instead of implying automations and journeys were covered.
+export interface PipelineDependents {
+  inspected: string[];
+  crm_forms: Array<{ id: string; name: string; title?: string | null; published: boolean }>;
+}
+
 export interface CreatePipelineData {
   name: string;
   description?: string;

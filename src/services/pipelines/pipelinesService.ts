@@ -4,6 +4,7 @@ import type { StandardResponse } from '@/types/core';
 import type {
   Pipeline,
   PipelinesListParams,
+  PipelineDependents,
   CreatePipelineData,
   UpdatePipelineData,
   CreateStageData,
@@ -81,6 +82,12 @@ class PipelinesService {
       is_active: isActive,
     });
     return extractData<Pipeline>(response);
+  }
+
+  // What still feeds this pipeline. Drives the archive confirmation (EVO-2200).
+  async getDependents(pipelineId: string): Promise<PipelineDependents> {
+    const response = await api.get(`/pipelines/${pipelineId}/dependents`);
+    return extractData<PipelineDependents>(response);
   }
 
   // Set pipeline as default

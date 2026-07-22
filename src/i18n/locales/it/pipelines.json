@@ -782,6 +782,17 @@
     }
   },
   "dialog": {
+      "deactivatePipeline": {
+          "title": "Disattiva pipeline",
+          "description": "\"{{name}}\" sparirà da tutti i selettori di pipeline. Ciò che è già al suo interno resta dov'è.",
+          "checking": "Verifica di cosa dipende da questa pipeline…",
+          "formsHeading": "{{count}} modulo di acquisizione invia lead qui:",
+          "formsHeading_plural": "{{count}} moduli di acquisizione inviano lead qui:",
+          "published": "pubblicato",
+          "partialWarning": "Sono stati verificati solo i moduli di acquisizione. Automazioni e journey non sono stati consultati.",
+          "cancel": "Annulla",
+          "confirm": "Disattiva"
+      },
     "deletePipeline": {
       "title": "Elimina Pipeline",
       "description": "Sei sicuro di voler eliminare questa pipeline? Questa azione non può essere annullata e influenzerà tutti i dati correlati.",

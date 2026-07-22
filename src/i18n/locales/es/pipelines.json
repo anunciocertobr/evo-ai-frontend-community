@@ -805,6 +805,17 @@
     }
   },
   "dialog": {
+      "deactivatePipeline": {
+          "title": "Desactivar pipeline",
+          "description": "\"{{name}}\" dejará de aparecer en todos los selectores de pipeline. Lo que ya está dentro permanece donde está.",
+          "checking": "Comprobando qué depende de este pipeline…",
+          "formsHeading": "{{count}} formulario de captación envía leads aquí:",
+          "formsHeading_plural": "{{count}} formularios de captación envían leads aquí:",
+          "published": "publicado",
+          "partialWarning": "Solo se comprobaron los formularios de captación. No se consultaron automatizaciones ni journeys.",
+          "cancel": "Cancelar",
+          "confirm": "Desactivar"
+      },
     "deletePipeline": {
       "title": "Eliminar Pipeline",
       "description": "¿Está seguro de que desea eliminar este pipeline? Esta acción no se puede deshacer y afectará todos los datos relacionados.",

@@ -91,7 +91,10 @@ export default function CrmForms() {
   const loadContext = useCallback(async () => {
     try {
       const [pipes, cAttrs, dAttrs] = await Promise.all([
-        pipelinesService.getPipelines(),
+        // Archived pipelines are still valid destinations for existing forms, so the list
+        // has to include them — otherwise a form bound to one resolves to nothing and the
+        // screen goes quiet about a misconfiguration (EVO-2200).
+        pipelinesService.getPipelines({ include_inactive: true }),
         customAttributesService.getCustomAttributes('contact_attribute'),
         customAttributesService.getCustomAttributes('pipeline_item_attribute'),
       ]);
@@ -167,6 +170,11 @@ export default function CrmForms() {
     } finally {
       setLeadsLoading(false);
     }
+  };
+
+  const destinationArchived = (form: CrmForm) => {
+    const pipe = pipelines.find(p => p.id === form.default_pipeline_id);
+    return !!pipe && !pipe.is_active;
   };
 
   const stageLabel = (lead: FormLead) => {
@@ -258,9 +266,20 @@ export default function CrmForms() {
                       </button>
                     </td>
                     <td className="px-4 py-3 hidden sm:table-cell">
-                      <Badge variant={form.published ? 'default' : 'secondary'} className="text-xs">
-                        {form.published ? t('status.published') : t('status.draft')}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge variant={form.published ? 'default' : 'secondary'} className="text-xs">
+                          {form.published ? t('status.published') : t('status.draft')}
+                        </Badge>
+                        {destinationArchived(form) && (
+                          <Badge
+                            variant="destructive"
+                            className="text-xs"
+                            title={t('status.archivedPipelineHint')}
+                          >
+                            {t('status.archivedPipeline')}
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums hidden sm:table-cell">
                       <button
