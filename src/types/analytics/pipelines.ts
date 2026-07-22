@@ -191,7 +191,18 @@ export interface PipelinesListParams {
 // UI can say the list is partial instead of implying automations and journeys were covered.
 export interface PipelineDependents {
   inspected: string[];
-  crm_forms: Array<{ id: string; name: string; title?: string | null; published: boolean }>;
+  count: number;
+  published_count: number;
+  // Names live behind crm_forms.read: the counts are always shared, the list may be empty
+  // for a caller allowed to archive a pipeline but not to enumerate forms.
+  names_redacted: boolean;
+  crm_forms: Array<{
+    id: string;
+    name: string;
+    title?: string | null;
+    published: boolean;
+    via: 'default' | 'routing_rule';
+  }>;
 }
 
 export interface CreatePipelineData {

@@ -848,6 +848,11 @@
   },
   "dialog": {
       "deactivatePipeline": {
+      "lookupFailed": "We could not check what depends on this pipeline. Deactivate anyway?",
+      "draft": "draft",
+      "viaRoutingRule": "via routing rule",
+      "namesRedacted": "{{count}} form in total — you do not have permission to see their names.",
+      "namesRedacted_plural": "{{count}} forms in total — you do not have permission to see their names.",
           "title": "Deactivate pipeline",
           "description": "\"{{name}}\" will be hidden from every pipeline picker. Anything already inside it stays where it is.",
           "checking": "Checking what depends on this pipeline…",

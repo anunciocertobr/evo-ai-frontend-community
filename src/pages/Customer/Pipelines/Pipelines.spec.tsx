@@ -137,7 +137,13 @@ describe('Pipelines management screen', () => {
     beforeEach(() => {
       getPipelines.mockResolvedValue({ data: [activePipeline], meta: {} });
       togglePipelineStatus.mockResolvedValue({ ...activePipeline, is_active: false });
-      getDependents.mockResolvedValue({ inspected: ['crm_forms'], crm_forms: [] });
+      getDependents.mockResolvedValue({
+        inspected: ['crm_forms'],
+        count: 0,
+        published_count: 0,
+        names_redacted: false,
+        crm_forms: [],
+      });
     });
 
     it('does not deactivate before the user confirms', async () => {
@@ -153,7 +159,12 @@ describe('Pipelines management screen', () => {
     it('names the capture forms that still feed the pipeline', async () => {
       getDependents.mockResolvedValue({
         inspected: ['crm_forms'],
-        crm_forms: [{ id: 'f1', name: 'Landing page', title: null, published: true }],
+        count: 1,
+        published_count: 1,
+        names_redacted: false,
+        crm_forms: [
+          { id: 'f1', name: 'Landing page', title: null, published: true, via: 'default' },
+        ],
       });
       render(<Pipelines />);
       await screen.findByText('Live funnel');
@@ -176,17 +187,65 @@ describe('Pipelines management screen', () => {
       await waitFor(() => expect(success).toHaveBeenCalledWith('messages.deactivateSuccess'));
     });
 
-    // The confirmation is a courtesy: a failing lookup must not strand the user.
-    it('still lets the user decide when the dependency lookup fails', async () => {
+    // The confirmation is a courtesy: a failing lookup must not strand the user — but the
+    // silence must not read as "nothing depends on this pipeline" either.
+    it('says so when the dependency lookup fails, and still lets the user decide', async () => {
       getDependents.mockRejectedValue(new Error('boom'));
       render(<Pipelines />);
       await screen.findByText('Live funnel');
 
       await clickDeactivate();
 
+      expect(
+        await screen.findByText('dialog.deactivatePipeline.lookupFailed'),
+      ).toBeInTheDocument();
+
       await userEvent.click(await screen.findByText('dialog.deactivatePipeline.confirm'));
 
       await waitFor(() => expect(togglePipelineStatus).toHaveBeenCalled());
+    });
+
+    it('counts only published forms in the heading', async () => {
+      getDependents.mockResolvedValue({
+        inspected: ['crm_forms'],
+        count: 3,
+        published_count: 1,
+        names_redacted: false,
+        crm_forms: [
+          { id: 'f1', name: 'Live one', title: null, published: true, via: 'default' },
+          { id: 'f2', name: 'Draft one', title: null, published: false, via: 'default' },
+          { id: 'f3', name: 'Draft two', title: null, published: false, via: 'routing_rule' },
+        ],
+      });
+      render(<Pipelines />);
+      await screen.findByText('Live funnel');
+
+      await clickDeactivate();
+
+      // A draft form does not receive submissions, so it must not inflate the alarm.
+      await waitFor(() =>
+        expect(getDependents).toHaveBeenCalled(),
+      );
+      expect(await screen.findByText(/Draft one/)).toBeInTheDocument();
+      expect(screen.getByText(/Draft two/).textContent).toMatch(/viaRoutingRule/);
+    });
+
+    it('falls back to the count when the caller cannot see form names', async () => {
+      getDependents.mockResolvedValue({
+        inspected: ['crm_forms'],
+        count: 2,
+        published_count: 2,
+        names_redacted: true,
+        crm_forms: [],
+      });
+      render(<Pipelines />);
+      await screen.findByText('Live funnel');
+
+      await clickDeactivate();
+
+      expect(
+        await screen.findByText('dialog.deactivatePipeline.namesRedacted'),
+      ).toBeInTheDocument();
     });
 
     it('activating skips the confirmation entirely', async () => {

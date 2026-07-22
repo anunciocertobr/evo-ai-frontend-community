@@ -806,6 +806,11 @@
   },
   "dialog": {
       "deactivatePipeline": {
+      "lookupFailed": "No se pudo comprobar qué depende de este pipeline. ¿Desactivar de todos modos?",
+      "draft": "borrador",
+      "viaRoutingRule": "por regla de enrutamiento",
+      "namesRedacted": "{{count}} formulario en total — no tienes permiso para ver los nombres.",
+      "namesRedacted_plural": "{{count}} formularios en total — no tienes permiso para ver los nombres.",
           "title": "Desactivar pipeline",
           "description": "\"{{name}}\" dejará de aparecer en todos los selectores de pipeline. Lo que ya está dentro permanece donde está.",
           "checking": "Comprobando qué depende de este pipeline…",

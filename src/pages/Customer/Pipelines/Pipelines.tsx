@@ -68,6 +68,9 @@ export default function Pipelines() {
     pipeline: Pipeline;
     dependents: PipelineDependents | null;
     loading: boolean;
+    // Distinct from `dependents: null` on its own: the user must be able to tell "nothing
+    // depends on this" from "we could not find out".
+    failed: boolean;
   } | null>(null);
 
   const hasLoaded = useRef(false);
@@ -181,15 +184,16 @@ export default function Pipelines() {
       return;
     }
 
-    setPendingDeactivation({ pipeline, dependents: null, loading: true });
+    setPendingDeactivation({ pipeline, dependents: null, loading: true, failed: false });
 
     try {
       const dependents = await pipelinesService.getDependents(pipeline.id);
-      setPendingDeactivation({ pipeline, dependents, loading: false });
+      setPendingDeactivation({ pipeline, dependents, loading: false, failed: false });
     } catch {
       // The confirmation is a courtesy, not a gate: if we cannot list what depends on the
-      // pipeline, still let the user decide rather than blocking the action.
-      setPendingDeactivation({ pipeline, dependents: null, loading: false });
+      // pipeline, still let the user decide — but say so, instead of letting the silence
+      // read as an all-clear.
+      setPendingDeactivation({ pipeline, dependents: null, loading: false, failed: true });
     }
   };
 
@@ -374,29 +378,48 @@ export default function Pipelines() {
             </p>
           )}
 
-          {!pendingDeactivation?.loading &&
-            !!pendingDeactivation?.dependents?.crm_forms.length && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">
-                  {t('dialog.deactivatePipeline.formsHeading', {
-                    count: pendingDeactivation.dependents.crm_forms.length,
+          {pendingDeactivation?.failed && (
+            <p className="text-sm text-destructive">
+              {t('dialog.deactivatePipeline.lookupFailed')}
+            </p>
+          )}
+
+          {!pendingDeactivation?.loading && !!pendingDeactivation?.dependents?.count && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">
+                {t('dialog.deactivatePipeline.formsHeading', {
+                  count: pendingDeactivation.dependents.published_count,
+                })}
+              </p>
+
+              {pendingDeactivation.dependents.names_redacted ? (
+                <p className="text-sm text-muted-foreground">
+                  {t('dialog.deactivatePipeline.namesRedacted', {
+                    count: pendingDeactivation.dependents.count,
                   })}
                 </p>
+              ) : (
                 <ul className="max-h-40 overflow-y-auto space-y-1 text-sm text-muted-foreground">
                   {pendingDeactivation.dependents.crm_forms.map(form => (
                     <li key={form.id}>
                       {form.title || form.name}
-                      {form.published && ` · ${t('dialog.deactivatePipeline.published')}`}
+                      {form.published
+                        ? ` · ${t('dialog.deactivatePipeline.published')}`
+                        : ` · ${t('dialog.deactivatePipeline.draft')}`}
+                      {form.via === 'routing_rule' &&
+                        ` · ${t('dialog.deactivatePipeline.viaRoutingRule')}`}
                     </li>
                   ))}
                 </ul>
-                {/* Automations and journeys are not inspected yet (EVO-2199): say so
-                    rather than let an incomplete list read as an all-clear. */}
-                <p className="text-xs text-muted-foreground">
-                  {t('dialog.deactivatePipeline.partialWarning')}
-                </p>
-              </div>
-            )}
+              )}
+
+              {/* Automations and journeys are not inspected yet (EVO-2199): say so
+                  rather than let an incomplete list read as an all-clear. */}
+              <p className="text-xs text-muted-foreground">
+                {t('dialog.deactivatePipeline.partialWarning')}
+              </p>
+            </div>
+          )}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setPendingDeactivation(null)}>
