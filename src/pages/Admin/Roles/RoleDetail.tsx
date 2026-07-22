@@ -26,6 +26,7 @@ import {
   type ActionGroup,
   RESOURCE_NESTING,
 } from '@/config/permissionDomains';
+import { ROLE_KEYS } from '@/constants/roles';
 
 // Nested resource -> i18n key for its sub-label inside the parent card (AC6).
 const NESTED_LABEL_KEYS: Record<string, string> = {
@@ -257,7 +258,14 @@ export default function RoleDetail() {
 
   if (!role || !resourceActions) return null;
 
-  const canEdit = can('roles', 'bulk_update_permissions');
+  // The installation owner's grant set is an invariant, not a preference: auth
+  // reconciles it against the whole permission catalog on every boot and
+  // `bulk_update_permissions` answers 403 for this role. Render it read-only —
+  // offering checkboxes and a Save button whose request is refused (or, before
+  // the backend guard existed, silently reverted by the next deploy) is exactly
+  // the lying control this screen must not have.
+  const isInstallationOwner = role.key === ROLE_KEYS.SUPER_ADMIN;
+  const canEdit = can('roles', 'bulk_update_permissions') && !isInstallationOwner;
   const canUpdate = can('roles', 'update');
   const resources = resourceActions.resources;
 
