@@ -82,10 +82,11 @@ export default function Pipelines() {
           per_page: state.meta.pagination.page_size,
           sort: 'name',
           order: 'asc',
-          // This is the management screen: a deactivated pipeline must stay listed
-          // (badge + "Activate" action), otherwise it becomes unreachable.
-          include_inactive: true,
           ...params,
+          // Not a default a caller may override: this is the management screen, and
+          // reactivation (AC3) only exists while the deactivated pipeline stays listed
+          // with its badge and its "Activate" action.
+          include_inactive: true,
         };
 
         const response = await pipelinesService.getPipelines(requestParams);
