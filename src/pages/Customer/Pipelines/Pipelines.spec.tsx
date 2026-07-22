@@ -25,6 +25,7 @@ const inactivePipeline: Pipeline = {
 
 const getPipelines = vi.fn();
 const togglePipelineStatus = vi.fn();
+const getDependents = vi.fn();
 const success = vi.fn();
 const error = vi.fn();
 
@@ -32,6 +33,7 @@ vi.mock('@/services/pipelines', () => ({
   pipelinesService: {
     getPipelines: (...args: unknown[]) => getPipelines(...args),
     togglePipelineStatus: (...args: unknown[]) => togglePipelineStatus(...args),
+    getDependents: (...args: unknown[]) => getDependents(...args),
     updatePipeline: vi.fn(),
     deletePipeline: vi.fn(),
     duplicatePipeline: vi.fn(),
@@ -117,5 +119,161 @@ describe('Pipelines management screen', () => {
 
     await waitFor(() => expect(success).toHaveBeenCalledWith('messages.activateSuccess'));
     expect(error).not.toHaveBeenCalled();
+  });
+
+  // EVO-2200: deactivating hid the pipeline while its capture forms kept feeding it.
+  describe('deactivation confirmation', () => {
+    const activePipeline = { ...inactivePipeline, is_active: true, name: 'Live funnel' };
+
+    async function clickDeactivate() {
+      const [trigger] = screen
+        .getAllByRole('button')
+        .filter(button => button.getAttribute('aria-haspopup') === 'menu');
+
+      await userEvent.click(trigger);
+      await userEvent.click(await screen.findByText('pipelinesTable.actions.deactivate'));
+    }
+
+    beforeEach(() => {
+      getPipelines.mockResolvedValue({ data: [activePipeline], meta: {} });
+      togglePipelineStatus.mockResolvedValue({ ...activePipeline, is_active: false });
+      getDependents.mockResolvedValue({
+        inspected: ['crm_forms'],
+        count: 0,
+        published_count: 0,
+        names_redacted: false,
+        crm_forms: [],
+      });
+    });
+
+    it('does not deactivate before the user confirms', async () => {
+      render(<Pipelines />);
+      await screen.findByText('Live funnel');
+
+      await clickDeactivate();
+
+      await screen.findByText('dialog.deactivatePipeline.title');
+      expect(togglePipelineStatus).not.toHaveBeenCalled();
+    });
+
+    it('names the capture forms that still feed the pipeline', async () => {
+      getDependents.mockResolvedValue({
+        inspected: ['crm_forms'],
+        count: 1,
+        published_count: 1,
+        names_redacted: false,
+        crm_forms: [
+          { id: 'f1', name: 'Landing page', title: null, published: true, via: 'default' },
+        ],
+      });
+      render(<Pipelines />);
+      await screen.findByText('Live funnel');
+
+      await clickDeactivate();
+
+      expect(await screen.findByText(/Landing page/)).toBeInTheDocument();
+      // The dialog must not read as an all-clear for automations and journeys.
+      expect(screen.getByText('dialog.deactivatePipeline.partialWarning')).toBeInTheDocument();
+    });
+
+    it('deactivates once confirmed', async () => {
+      render(<Pipelines />);
+      await screen.findByText('Live funnel');
+      await clickDeactivate();
+
+      await userEvent.click(await screen.findByText('dialog.deactivatePipeline.confirm'));
+
+      await waitFor(() => expect(togglePipelineStatus).toHaveBeenCalledWith('p-inactive', false));
+      await waitFor(() => expect(success).toHaveBeenCalledWith('messages.deactivateSuccess'));
+    });
+
+    // The confirmation is a courtesy: a failing lookup must not strand the user — but the
+    // silence must not read as "nothing depends on this pipeline" either.
+    it('says so when the dependency lookup fails, and still lets the user decide', async () => {
+      getDependents.mockRejectedValue(new Error('boom'));
+      render(<Pipelines />);
+      await screen.findByText('Live funnel');
+
+      await clickDeactivate();
+
+      expect(
+        await screen.findByText('dialog.deactivatePipeline.lookupFailed'),
+      ).toBeInTheDocument();
+
+      await userEvent.click(await screen.findByText('dialog.deactivatePipeline.confirm'));
+
+      await waitFor(() => expect(togglePipelineStatus).toHaveBeenCalled());
+    });
+
+    it('counts only published forms in the heading', async () => {
+      getDependents.mockResolvedValue({
+        inspected: ['crm_forms'],
+        count: 3,
+        published_count: 1,
+        names_redacted: false,
+        crm_forms: [
+          { id: 'f1', name: 'Live one', title: null, published: true, via: 'default' },
+          { id: 'f2', name: 'Draft one', title: null, published: false, via: 'default' },
+          { id: 'f3', name: 'Draft two', title: null, published: false, via: 'routing_rule' },
+        ],
+      });
+      render(<Pipelines />);
+      await screen.findByText('Live funnel');
+
+      await clickDeactivate();
+
+      // A draft form does not receive submissions, so it must not inflate the alarm.
+      await waitFor(() =>
+        expect(getDependents).toHaveBeenCalled(),
+      );
+      expect(await screen.findByText(/Draft one/)).toBeInTheDocument();
+      expect(screen.getByText(/Draft two/).textContent).toMatch(/viaRoutingRule/);
+    });
+
+    it('falls back to the count when the caller cannot see form names', async () => {
+      getDependents.mockResolvedValue({
+        inspected: ['crm_forms'],
+        count: 2,
+        published_count: 2,
+        names_redacted: true,
+        crm_forms: [],
+      });
+      render(<Pipelines />);
+      await screen.findByText('Live funnel');
+
+      await clickDeactivate();
+
+      expect(
+        await screen.findByText('dialog.deactivatePipeline.namesRedacted'),
+      ).toBeInTheDocument();
+    });
+
+    // The empty result is the case most likely to read as an all-clear, so the caveat
+    // that automations and journeys were not inspected must show there too (EVO-2200).
+    it('still states automations and journeys were not inspected when nothing feeds it', async () => {
+      render(<Pipelines />);
+      await screen.findByText('Live funnel');
+
+      await clickDeactivate();
+
+      expect(
+        await screen.findByText('dialog.deactivatePipeline.noForms'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('dialog.deactivatePipeline.partialWarning'),
+      ).toBeInTheDocument();
+    });
+
+    it('activating skips the confirmation entirely', async () => {
+      getPipelines.mockResolvedValue({ data: [inactivePipeline], meta: {} });
+      togglePipelineStatus.mockResolvedValue({ ...inactivePipeline, is_active: true });
+      render(<Pipelines />);
+      await screen.findByText('Retired funnel');
+
+      await clickActivate();
+
+      await waitFor(() => expect(togglePipelineStatus).toHaveBeenCalled());
+      expect(getDependents).not.toHaveBeenCalled();
+    });
   });
 });

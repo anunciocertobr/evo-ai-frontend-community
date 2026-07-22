@@ -785,6 +785,25 @@
     }
   },
   "dialog": {
+      "deactivatePipeline": {
+      "lookupFailed": "Impossible de vérifier ce qui dépend de ce pipeline. Désactiver quand même ?",
+      "draft": "brouillon",
+      "viaRoutingRule": "via une règle de routage",
+      "namesRedacted": "{{count}} formulaire au total — vous n'avez pas la permission de voir les noms.",
+      "namesRedacted_plural": "{{count}} formulaires au total — vous n'avez pas la permission de voir les noms.",
+          "title": "Désactiver le pipeline",
+          "description": "« {{name}} » disparaîtra de tous les sélecteurs de pipeline. Ce qui s'y trouve déjà reste en place.",
+          "checking": "Vérification de ce qui dépend de ce pipeline…",
+          "formsHeading": "{{count}} formulaire de capture envoie des leads ici :",
+          "formsHeading_plural": "{{count}} formulaires de capture envoient des leads ici :",
+          "noForms": "Aucun formulaire de capture n'alimente ce pipeline.",
+          "draftsHeading": "{{count}} formulaire brouillon cible ce pipeline (pas encore de capture) :",
+          "draftsHeading_plural": "{{count}} formulaires brouillons ciblent ce pipeline (pas encore de capture) :",
+          "published": "publié",
+          "partialWarning": "Seuls les formulaires de capture ont été vérifiés. Les automatisations et les parcours n'ont pas été consultés.",
+          "cancel": "Annuler",
+          "confirm": "Désactiver"
+      },
     "deletePipeline": {
       "title": "Supprimer le Pipeline",
       "description": "Êtes-vous sûr de vouloir supprimer ce pipeline ? Cette action ne peut pas être annulée et affectera toutes les données associées.",
