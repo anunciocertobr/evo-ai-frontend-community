@@ -172,9 +172,19 @@ export default function CrmForms() {
     }
   };
 
+  // A form reaches a pipeline through its default destination OR a routing rule that
+  // overrides it — the same two paths the deactivation lookup covers. Flag the form when
+  // ANY of those targets is archived, not just the default, so a rule that routes leads
+  // into an archived pipeline is not silently missed (EVO-2200).
   const destinationArchived = (form: CrmForm) => {
-    const pipe = pipelines.find(p => p.id === form.default_pipeline_id);
-    return !!pipe && !pipe.is_active;
+    const targetIds = [
+      form.default_pipeline_id,
+      ...(form.routing_rules ?? []).map(rule => rule.pipeline_id),
+    ];
+    return targetIds.some(id => {
+      const pipe = pipelines.find(p => p.id === id);
+      return !!pipe && !pipe.is_active;
+    });
   };
 
   const stageLabel = (lead: FormLead) => {

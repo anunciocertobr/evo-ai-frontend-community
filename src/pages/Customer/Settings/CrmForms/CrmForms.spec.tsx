@@ -110,4 +110,47 @@ describe('Capture forms screen', () => {
     expect(await screen.findByText('status.archivedPipeline')).toBeInTheDocument();
     expect(screen.getByText('status.published')).toBeInTheDocument();
   });
+
+  // A form can keep an active default but route some leads into an archived pipeline via a
+  // rule — the same path the deactivation lookup covers, so the badge must catch it too.
+  it('flags a form that routes to an archived pipeline through a rule', async () => {
+    list.mockResolvedValue({
+      data: [
+        buildForm({
+          default_pipeline_id: ACTIVE_PIPELINE.id,
+          routing_rules: [
+            { field: 'plan', op: 'equals', value: 'gold', pipeline_id: ARCHIVED_PIPELINE.id },
+          ],
+        }),
+      ],
+      meta: { page: 1, page_size: 25, total: 1 },
+    });
+
+    render(<CrmForms />);
+
+    expect(await screen.findByText('Website Contact')).toBeInTheDocument();
+    expect(await screen.findByText('status.archivedPipeline')).toBeInTheDocument();
+  });
+
+  // Negative control for the rule path: an active default plus a rule to another active
+  // pipeline must stay unflagged, so the badge is not just always-on.
+  it('leaves a form whose rule targets an active pipeline unflagged', async () => {
+    list.mockResolvedValue({
+      data: [
+        buildForm({
+          default_pipeline_id: ACTIVE_PIPELINE.id,
+          routing_rules: [
+            { field: 'plan', op: 'equals', value: 'gold', pipeline_id: ACTIVE_PIPELINE.id },
+          ],
+        }),
+      ],
+      meta: { page: 1, page_size: 25, total: 1 },
+    });
+
+    render(<CrmForms />);
+
+    expect(await screen.findByText('Website Contact')).toBeInTheDocument();
+    await waitFor(() => expect(getPipelines).toHaveBeenCalled());
+    expect(screen.queryByText('status.archivedPipeline')).not.toBeInTheDocument();
+  });
 });
