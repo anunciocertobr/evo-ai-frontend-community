@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { SettingsAgentsTour } from '@/tours';
 import { toast } from 'sonner';
@@ -15,12 +15,14 @@ import { Grid3X3, List, Users as UsersIcon } from 'lucide-react';
 import EmptyState from '@/components/base/EmptyState';
 
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { usersService } from '@/services/users';
+import { rolesService } from '@/services/roles/rolesService';
 import { User, UsersListParams, UsersState, USER_FILTER_TYPES } from '@/types/users';
 import { buildAppliedFilterChips } from '@/utils/appliedFilterChips';
 import { BaseFilter } from '@/types/core';
-import { AppliedFilter } from '@/types/core';
+import { AppliedFilter, FilterType } from '@/types/core';
 
 import {
   UserCard,
@@ -77,13 +79,25 @@ export default function Users() {
   // EVO-1947: the applied-filter chips are built at apply time and capture a
   // snapshot of handleRemoveFilter. This ref keeps the current filters reachable
   // so the chip "x" removes against the latest list, not a stale closure value.
+  // Mirrored in an effect, never during render — a render can be discarded.
   const activeFiltersRef = useRef<BaseFilter[]>([]);
-  activeFiltersRef.current = activeFilters;
+  useEffect(() => {
+    activeFiltersRef.current = activeFilters;
+  }, [activeFilters]);
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilter[]>([]);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [detailsUser, setDetailsUser] = useState<User | null>(null);
+  const [roleOptions, setRoleOptions] = useState<{ label: string; value: string }[]>([]);
   const currentUserId = currentUser?.id?.toString() || '';
   const hasLoaded = useRef(false);
+  // EVO-1947: the search term is the one request param every reload has to
+  // carry — pagination, per-page and filter-apply all reload the list and none
+  // of them know the term. A ref (not state) so those callbacks read the
+  // current value instead of the one captured when they were last recreated.
+  const searchQueryRef = useRef('');
+  // Requests are fired per keystroke; without a sequence the response to "sil"
+  // can land after the response to "silva" and repaint the older list.
+  const requestSeqRef = useRef(0);
 
   // Load users
   const loadUsers = useCallback(
@@ -94,6 +108,7 @@ export default function Users() {
       }
 
       setState(prev => ({ ...prev, loading: { ...prev.loading, list: true } }));
+      const seq = ++requestSeqRef.current;
 
       try {
         const requestParams: UsersListParams = {
@@ -103,6 +118,16 @@ export default function Users() {
           order: 'asc',
           ...params,
         };
+
+        // EVO-1947: keep the search term on every reload. The server honors `q`
+        // now, so omitting it here made page 2 (and applying a filter) silently
+        // return the unsearched list while the search box still showed the term.
+        const search = (params?.q ?? searchQueryRef.current).trim();
+        if (search) {
+          requestParams.q = search;
+        } else {
+          delete requestParams.q;
+        }
 
         // EVO-1947: usar os filtros passados explicitamente quando houver, para não
         // cair no closure defasado de activeFilters logo após setActiveFilters.
@@ -126,6 +151,9 @@ export default function Users() {
 
         const response = await usersService.getUsers(requestParams);
 
+        // A newer request already went out: its answer is the current one.
+        if (seq !== requestSeqRef.current) return;
+
         setState(prev => ({
           ...prev,
           users: response.data || [],
@@ -135,6 +163,8 @@ export default function Users() {
           loading: { ...prev.loading, list: false },
         }));
       } catch (error) {
+        if (seq !== requestSeqRef.current) return;
+
         console.error('Error loading users:', error);
         toast.error(t('messages.loadError'));
         setState(prev => ({ ...prev, loading: { ...prev.loading, list: false } }));
@@ -157,7 +187,14 @@ export default function Users() {
   }, [permissionsReady]);
 
   // Handlers
+  // One request per keystroke used to be free (the server ignored `q`); now it
+  // is a full ILIKE scan, so the reload waits for a pause in the typing.
+  const debouncedSearchReload = useDebouncedCallback(() => {
+    loadUsers({ page: 1 });
+  }, 400);
+
   const handleSearchChange = (query: string) => {
+    searchQueryRef.current = query;
     setState(prev => ({
       ...prev,
       searchQuery: query,
@@ -168,15 +205,36 @@ export default function Users() {
     }));
 
     // Reload with new search
-    loadUsers({ page: 1, q: query || undefined });
+    debouncedSearchReload();
   };
 
   // Funções para o sistema de filtros
-  const convertFiltersToApplied = (filters: BaseFilter[]): AppliedFilter[] =>
-    buildAppliedFilterChips(filters, USER_FILTER_TYPES, t, handleRemoveFilter);
+  // The role options ship hard-coded as administrator/agent, which predates
+  // custom roles (RBAC). Filtering has to offer whatever roles the account
+  // actually has — the backend already matches on any role key.
+  const userFilterTypes: FilterType[] = useMemo(() => {
+    if (roleOptions.length === 0) return USER_FILTER_TYPES;
 
-  const handleOpenFilter = () => {
+    return USER_FILTER_TYPES.map(filterType =>
+      filterType.attributeKey === 'role' ? { ...filterType, options: roleOptions } : filterType,
+    );
+  }, [roleOptions]);
+
+  const convertFiltersToApplied = (filters: BaseFilter[]): AppliedFilter[] =>
+    buildAppliedFilterChips(filters, userFilterTypes, t, handleRemoveFilter);
+
+  const handleOpenFilter = async () => {
     setFilterModalOpen(true);
+    if (roleOptions.length > 0) return;
+
+    try {
+      const roles = await rolesService.list();
+      setRoleOptions(roles.map(role => ({ label: role.name, value: role.key })));
+    } catch (error) {
+      // Listing roles needs its own permission; without it the filter keeps the
+      // built-in options instead of failing to open.
+      console.error('Error loading role options:', error);
+    }
   };
 
   const handleApplyFilters = async (filters: BaseFilter[]) => {
@@ -574,6 +632,7 @@ export default function Users() {
         open={filterModalOpen}
         onOpenChange={setFilterModalOpen}
         filters={activeFilters}
+        filterTypes={userFilterTypes}
         onFiltersChange={setActiveFilters}
         onApplyFilters={handleApplyFilters}
         onClearFilters={handleClearFilters}
