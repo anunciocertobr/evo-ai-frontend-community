@@ -30,12 +30,15 @@ vi.mock('@/contexts/PermissionsContext', () => ({
 
 // Mutable so each test can seed the role's real grants before rendering.
 let rolePermissions: Record<string, string[]> = { labels: ['create'] };
+// Which role is being edited. Only the installation owner is read-only.
+let roleKey = 'agent';
 
 vi.mock('@/services/roles/rolesService', () => ({
   rolesService: {
     get: vi.fn().mockImplementation(() =>
       Promise.resolve({
         id: 'r1',
+        key: roleKey,
         name: 'Agent',
         description: '',
         permissions_by_resource: rolePermissions,
@@ -199,9 +202,43 @@ beforeAll(() => {
 beforeEach(() => {
   bulkUpdateMock.mockClear();
   rolePermissions = { labels: ['create'] };
+  roleKey = 'agent';
 });
 
 const cb = (key: string) => document.getElementById(key) as HTMLButtonElement | null;
+
+// EVO-2062. The installation owner's grant set is an invariant, not a
+// preference: auth reconciles it against the whole catalog on every boot and
+// `bulk_update_permissions` answers 403 for it. The editor must render it
+// read-only — checkboxes that save nothing (or, before the backend guard, saved
+// and were silently reverted by the next deploy) are exactly the lying control
+// this screen exists to eliminate.
+describe('RoleDetail — the installation owner is read-only', () => {
+  it('offers no Save button for super_admin', async () => {
+    roleKey = 'super_admin';
+    render(<RoleDetail />);
+    await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
+
+    expect(screen.queryByText('savePermissions')).toBeNull();
+  });
+
+  it('renders its checkboxes disabled', async () => {
+    roleKey = 'super_admin';
+    render(<RoleDetail />);
+    await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
+
+    expect(cb('group-labels-write')).toBeDisabled();
+  });
+
+  it('still lets every other role be edited and saved', async () => {
+    render(<RoleDetail />);
+    await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
+
+    expect(cb('group-labels-write')).not.toBeDisabled();
+    await userEvent.click(screen.getByText('savePermissions'));
+    await waitFor(() => expect(bulkUpdateMock).toHaveBeenCalled());
+  });
+});
 
 describe('RoleDetail — locked basic/implied permissions', () => {
   // A locked permission is held regardless of the role, so the editor offers no
