@@ -26,6 +26,7 @@ const inactivePipeline: Pipeline = {
 const getPipelines = vi.fn();
 const togglePipelineStatus = vi.fn();
 const success = vi.fn();
+const error = vi.fn();
 
 vi.mock('@/services/pipelines', () => ({
   pipelinesService: {
@@ -41,7 +42,7 @@ vi.mock('@/services/pipelines', () => ({
 vi.mock('sonner', () => ({
   toast: {
     success: (...args: unknown[]) => success(...args),
-    error: vi.fn(),
+    error: (...args: unknown[]) => error(...args),
   },
 }));
 
@@ -60,6 +61,19 @@ vi.mock('react-router-dom', () => ({
 vi.mock('@/tours', () => ({
   PipelinesTour: () => null,
 }));
+
+// The row action menu is an unlabelled icon button; anchor on the ARIA contract
+// (aria-haspopup="menu") instead of the design-system's internal markup.
+async function clickActivate() {
+  await screen.findByText('Retired funnel');
+
+  const [trigger] = screen
+    .getAllByRole('button')
+    .filter(button => button.getAttribute('aria-haspopup') === 'menu');
+
+  await userEvent.click(trigger);
+  await userEvent.click(await screen.findByText('pipelinesTable.actions.activate'));
+}
 
 describe('Pipelines management screen', () => {
   beforeEach(() => {
@@ -84,18 +98,24 @@ describe('Pipelines management screen', () => {
     expect(screen.getByText('pipelinesTable.status.inactive')).toBeInTheDocument();
   });
 
-  it('reports the state the API persisted, not the one requested (AC4)', async () => {
-    // The API answers with is_active still false: the update did not take effect.
+  it('reports no success when the API did not persist the requested state (AC4)', async () => {
+    // The API answers with is_active still false: the "Activate" click did not take effect.
     togglePipelineStatus.mockResolvedValue({ ...inactivePipeline, is_active: false });
     render(<Pipelines />);
 
-    await screen.findByText('Retired funnel');
-    await userEvent.click(
-      document.querySelector('[data-slot="dropdown-menu-trigger"]') as HTMLElement,
-    );
-    await userEvent.click(await screen.findByText('pipelinesTable.actions.activate'));
+    await clickActivate();
 
-    await waitFor(() => expect(success).toHaveBeenCalled());
-    expect(success).toHaveBeenCalledWith('messages.deactivateSuccess');
+    await waitFor(() => expect(error).toHaveBeenCalledWith('messages.toggleError'));
+    expect(success).not.toHaveBeenCalled();
+  });
+
+  it('reports success when the API persisted the requested state (AC3)', async () => {
+    togglePipelineStatus.mockResolvedValue({ ...inactivePipeline, is_active: true });
+    render(<Pipelines />);
+
+    await clickActivate();
+
+    await waitFor(() => expect(success).toHaveBeenCalledWith('messages.activateSuccess'));
+    expect(error).not.toHaveBeenCalled();
   });
 });

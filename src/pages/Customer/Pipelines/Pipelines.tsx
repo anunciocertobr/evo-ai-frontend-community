@@ -167,17 +167,22 @@ export default function Pipelines() {
   };
 
   const handleToggleStatus = async (pipeline: Pipeline) => {
+    const requestedState = !pipeline.is_active;
+
     try {
-      // The toast reports the state the API actually persisted, not the state we asked
-      // for, and only after the list reflects it — a silently dropped update must never
-      // read as success (EVO-2122).
-      const updated = await pipelinesService.togglePipelineStatus(
-        pipeline.id,
-        !pipeline.is_active,
-      );
+      const updated = await pipelinesService.togglePipelineStatus(pipeline.id, requestedState);
       await loadPipelines();
+
+      // Success is only reported when the API persisted the state we asked for, and only
+      // after the list reflects it. An update the API silently dropped comes back with the
+      // old state — that is a failure, not a success for the opposite action (EVO-2122).
+      if (updated.is_active !== requestedState) {
+        toast.error(t('messages.toggleError'));
+        return;
+      }
+
       toast.success(
-        updated.is_active ? t('messages.activateSuccess') : t('messages.deactivateSuccess'),
+        requestedState ? t('messages.activateSuccess') : t('messages.deactivateSuccess'),
       );
     } catch (error) {
       console.error('Error toggling pipeline status:', error);
