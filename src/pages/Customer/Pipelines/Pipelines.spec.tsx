@@ -28,6 +28,7 @@ const togglePipelineStatus = vi.fn();
 const getDependents = vi.fn();
 const success = vi.fn();
 const error = vi.fn();
+const deletePipeline = vi.fn();
 
 vi.mock('@/services/pipelines', () => ({
   pipelinesService: {
@@ -35,7 +36,7 @@ vi.mock('@/services/pipelines', () => ({
     togglePipelineStatus: (...args: unknown[]) => togglePipelineStatus(...args),
     getDependents: (...args: unknown[]) => getDependents(...args),
     updatePipeline: vi.fn(),
-    deletePipeline: vi.fn(),
+    deletePipeline: (...args: unknown[]) => deletePipeline(...args),
     duplicatePipeline: vi.fn(),
     setAsDefault: vi.fn(),
   },
@@ -119,6 +120,56 @@ describe('Pipelines management screen', () => {
 
     await waitFor(() => expect(success).toHaveBeenCalledWith('messages.activateSuccess'));
     expect(error).not.toHaveBeenCalled();
+  });
+
+  // EVO-2205: the delete error used to be swallowed into a generic toast. The specific
+  // "still has active items" reason must reach the user.
+  describe('delete error handling', () => {
+    async function clickDelete() {
+      const [trigger] = screen
+        .getAllByRole('button')
+        .filter(button => button.getAttribute('aria-haspopup') === 'menu');
+      await userEvent.click(trigger);
+      await userEvent.click(await screen.findByText('pipelinesTable.actions.delete'));
+      await userEvent.click(await screen.findByText('dialog.deletePipeline.delete'));
+    }
+
+    it('surfaces the active-items reason for the specific backend code', async () => {
+      // The full envelope Api::V1::PipelinesController#destroy renders — `success: false`
+      // included, since that is what marks the standard error format.
+      deletePipeline.mockRejectedValue({
+        response: {
+          status: 422,
+          data: {
+            success: false,
+            error: {
+              code: 'CANNOT_DELETE_PIPELINE_WITH_CONVERSATIONS',
+              message: 'Cannot delete pipeline with active items',
+            },
+          },
+        },
+      });
+      render(<Pipelines />);
+      await screen.findByText('Retired funnel');
+
+      await clickDelete();
+
+      await waitFor(() =>
+        expect(error).toHaveBeenCalledWith('messages.deleteBlockedActiveItems'),
+      );
+      expect(success).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the generic message for any other failure', async () => {
+      deletePipeline.mockRejectedValue(new Error('network'));
+      render(<Pipelines />);
+      await screen.findByText('Retired funnel');
+
+      await clickDelete();
+
+      await waitFor(() => expect(error).toHaveBeenCalledWith('messages.deleteError'));
+      expect(success).not.toHaveBeenCalled();
+    });
   });
 
   // EVO-2200: deactivating hid the pipeline while its capture forms kept feeding it.
