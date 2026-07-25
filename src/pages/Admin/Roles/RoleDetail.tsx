@@ -10,7 +10,7 @@ import {
   Label,
   Textarea,
 } from '@evoapi/design-system';
-import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Pencil, Save, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Lock, Pencil, Save, X } from 'lucide-react';
 import BaseHeader from '@/components/base/BaseHeader';
 import { TooltipInfo } from '@/components/base/TooltipInfo';
 import { rolesService, type Role } from '@/services/roles/rolesService';
@@ -26,7 +26,6 @@ import {
   type ActionGroup,
   RESOURCE_NESTING,
 } from '@/config/permissionDomains';
-import { ROLE_KEYS } from '@/constants/roles';
 
 // Nested resource -> i18n key for its sub-label inside the parent card (AC6).
 const NESTED_LABEL_KEYS: Record<string, string> = {
@@ -258,14 +257,14 @@ export default function RoleDetail() {
 
   if (!role || !resourceActions) return null;
 
-  // The installation owner's grant set is an invariant, not a preference: auth
-  // reconciles it against the whole permission catalog on every boot and
-  // `bulk_update_permissions` answers 403 for this role. Render it read-only —
-  // offering checkboxes and a Save button whose request is refused (or, before
-  // the backend guard existed, silently reverted by the next deploy) is exactly
-  // the lying control this screen must not have.
-  const isInstallationOwner = role.key === ROLE_KEYS.SUPER_ADMIN;
-  const canEdit = can('roles', 'bulk_update_permissions') && !isInstallationOwner;
+  // EVO-2152 (PM ruling): a system role's permission set is immutable (FR18) — auth
+  // answers 403 on bulk_update_permissions for ANY system role, not just the
+  // installation owner it reconciles every boot. Render it read-only: the grid and
+  // every permission stay VISIBLE (view yes), but no toggles / select-all / Save.
+  // Offering a Save whose request is refused — or, before the backend guard, silently
+  // reverted by the next seed — is exactly the lying control this screen must not have.
+  const isSystemRole = role.system === true;
+  const canEdit = can('roles', 'bulk_update_permissions') && !isSystemRole;
   const canUpdate = can('roles', 'update');
   const resources = resourceActions.resources;
 
@@ -549,6 +548,16 @@ export default function RoleDetail() {
           )}
         </div>
       </BaseHeader>
+
+      {isSystemRole && (
+        <div
+          data-testid="system-role-readonly-notice"
+          className="mt-4 flex items-start gap-2 rounded-md border border-sidebar-border bg-sidebar/60 p-3 text-sm text-sidebar-foreground/80"
+        >
+          <Lock className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          <span>{t('detail.systemReadOnly')}</span>
+        </div>
+      )}
 
       {editingMeta && (
         <div className="mt-4 mb-2 rounded-md border border-sidebar-border bg-sidebar p-4 space-y-3">

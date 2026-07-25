@@ -40,6 +40,7 @@
     "others": "Autres"
   },
   "detail": {
+    "systemReadOnly": "Ceci est un profil système — son ensemble de permissions est en lecture seule. Dupliquez-le en tant que profil personnalisé pour modifier les permissions.",
     "permissionsTitle": "Permissions",
     "permissionsDescription": "Cochez les permissions que ce profil doit avoir. Les modifications prennent effet à la prochaine connexion de l'utilisateur.",
     "permissionsSelected": "permissions sélectionnées",

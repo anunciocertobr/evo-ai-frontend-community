@@ -40,6 +40,7 @@
     "others": "Others"
   },
   "detail": {
+    "systemReadOnly": "This is a system role — its permission set is read-only. Duplicate it as a custom role to change permissions.",
     "permissionsTitle": "Permissions",
     "permissionsDescription": "Check the permissions this role should have. Changes take effect on the user's next session refresh.",
     "permissionsSelected": "permissions selected",

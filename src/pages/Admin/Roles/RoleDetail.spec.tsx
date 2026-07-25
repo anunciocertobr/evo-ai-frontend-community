@@ -30,8 +30,10 @@ vi.mock('@/contexts/PermissionsContext', () => ({
 
 // Mutable so each test can seed the role's real grants before rendering.
 let rolePermissions: Record<string, string[]> = { labels: ['create'] };
-// Which role is being edited. Only the installation owner is read-only.
+// Which role is being edited, and whether it is a system role. EVO-2152: a system
+// role's permission set is read-only; a custom (non-system) role's is editable.
 let roleKey = 'agent';
+let roleSystem = false;
 
 vi.mock('@/services/roles/rolesService', () => ({
   rolesService: {
@@ -39,6 +41,7 @@ vi.mock('@/services/roles/rolesService', () => ({
       Promise.resolve({
         id: 'r1',
         key: roleKey,
+        system: roleSystem,
         name: 'Agent',
         description: '',
         permissions_by_resource: rolePermissions,
@@ -203,38 +206,43 @@ beforeEach(() => {
   bulkUpdateMock.mockClear();
   rolePermissions = { labels: ['create'] };
   roleKey = 'agent';
+  roleSystem = false;
 });
 
 const cb = (key: string) => document.getElementById(key) as HTMLButtonElement | null;
 
-// EVO-2062. The installation owner's grant set is an invariant, not a
-// preference: auth reconciles it against the whole catalog on every boot and
-// `bulk_update_permissions` answers 403 for it. The editor must render it
-// read-only — checkboxes that save nothing (or, before the backend guard, saved
-// and were silently reverted by the next deploy) are exactly the lying control
-// this screen exists to eliminate.
-describe('RoleDetail — the installation owner is read-only', () => {
-  it('offers no Save button for super_admin', async () => {
-    roleKey = 'super_admin';
+// EVO-2152 (PM ruling — Option A). A system role's permission set is immutable
+// (FR18): auth answers 403 on bulk_update_permissions for ANY system role, not just
+// the installation owner. The editor renders it read-only — the grid stays visible
+// (view yes) but with no toggles, no Save, and a lock notice. A checkbox that saves
+// nothing (or, before the backend guard, was silently reverted by the next seed) is
+// exactly the lying control this screen exists to eliminate. A custom role stays fully
+// editable.
+describe('RoleDetail — system roles are read-only (EVO-2152)', () => {
+  it('offers no Save button for a system role', async () => {
+    roleSystem = true;
     render(<RoleDetail />);
     await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
 
     expect(screen.queryByText('savePermissions')).toBeNull();
   });
 
-  it('renders its checkboxes disabled', async () => {
-    roleKey = 'super_admin';
+  it('renders its checkboxes disabled and shows the read-only notice, grid still visible', async () => {
+    roleSystem = true;
     render(<RoleDetail />);
     await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
 
     expect(cb('group-labels-write')).toBeDisabled();
+    expect(screen.getByTestId('system-role-readonly-notice')).toBeTruthy();
   });
 
-  it('still lets every other role be edited and saved', async () => {
+  it('still lets a custom (non-system) role be edited and saved', async () => {
+    roleSystem = false;
     render(<RoleDetail />);
     await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
 
     expect(cb('group-labels-write')).not.toBeDisabled();
+    expect(screen.queryByTestId('system-role-readonly-notice')).toBeNull();
     await userEvent.click(screen.getByText('savePermissions'));
     await waitFor(() => expect(bulkUpdateMock).toHaveBeenCalled());
   });
