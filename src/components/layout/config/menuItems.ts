@@ -42,6 +42,11 @@ export interface MenuItem {
   requireAll?: boolean;
   requiredRoleKey?: string;
   badge?: number;
+  /**
+   * Click target when the item has a badge. Separate from `href`, which
+   * useMenuState#isMenuItemActive compares and which never matches a querystring.
+   */
+  badgeHref?: string;
 }
 
 export interface SubMenuItem {
