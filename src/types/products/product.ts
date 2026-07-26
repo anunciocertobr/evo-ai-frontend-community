@@ -135,6 +135,42 @@ export interface ProductBulkDryRunResponse {
   meta: { created: number; updated: number; skipped: number; errors: number };
 }
 
+/* ---------- Remote import (EVO-1785 Phase 2 — Shopify / WooCommerce) ---------- */
+
+export type ProductImportSource = 'woocommerce' | 'shopify';
+
+export interface ProductImportCredentials {
+  store_url?: string;
+  consumer_key?: string;
+  consumer_secret?: string;
+  shop_domain?: string;
+  access_token?: string;
+}
+
+/**
+ * An item as returned by the connector (`POST /products/import_fetch`): the same
+ * shape as ProductBulkItem, but numeric fields may arrive as strings (the store's
+ * raw JSON). The client normalizes them before feeding the shared bulk preview.
+ */
+export interface FetchedProductItem {
+  name: string;
+  kind?: ProductKind;
+  slug?: string;
+  description?: string;
+  sku?: string;
+  default_price?: string | number;
+  currency?: ProductCurrency;
+  purchase_url?: string;
+  status?: ProductStatus;
+  stock_quantity?: number;
+  labels?: string[];
+}
+
+export interface ProductImportFetchResponse {
+  data: { items: FetchedProductItem[] };
+  meta: { source: string; count: number };
+}
+
 export interface ProductsResponse extends PaginatedResponse<Product> {}
 export interface ProductResponse extends StandardResponse<Product> {}
 export interface ProductDeleteResponse extends StandardResponse<{ id: string }> {}

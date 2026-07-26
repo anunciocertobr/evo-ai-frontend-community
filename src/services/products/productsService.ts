@@ -14,6 +14,9 @@ import {
   ProductBulkPayload,
   ProductBulkRealResponse,
   ProductBulkDryRunResponse,
+  ProductImportSource,
+  ProductImportCredentials,
+  ProductImportFetchResponse,
 } from '@/types/products';
 
 class ProductsService {
@@ -77,6 +80,21 @@ class ProductsService {
       params: dry_run ? { dry_run: true } : undefined,
     });
     return response.data;
+  }
+
+  /**
+   * Fetch a remote store's catalog through a connector (EVO-1785 Phase 2).
+   * The backend authenticates with the user-supplied credentials, pulls the
+   * products and returns them already mapped into the bulk-import item shape —
+   * the client then runs them through the same dry-run + `bulkProducts` path the
+   * CSV import uses. Credentials are one-time (never persisted).
+   */
+  async importFetch(
+    source: ProductImportSource,
+    credentials: ProductImportCredentials,
+  ): Promise<ProductImportFetchResponse> {
+    const response = await api.post(`${this.baseUrl}/import_fetch`, { source, credentials });
+    return response.data as ProductImportFetchResponse;
   }
 
   async deleteProduct(id: string): Promise<ProductDeleteResponse> {
