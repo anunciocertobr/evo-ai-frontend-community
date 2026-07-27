@@ -10,6 +10,7 @@ import userEvent from '@testing-library/user-event';
 // never reach the save payload.
 
 const bulkUpdateMock = vi.fn().mockResolvedValue({ id: 'r1', permissions_by_resource: {} });
+const createMock = vi.fn().mockResolvedValue({ id: 'r2', key: 'agent_copy', system: false, name: 'Agent (copy)' });
 
 // Stable references: loadData depends on [id, t, navigate]; fresh identities
 // each render would re-fire the effect in a loop (stuck loading).
@@ -30,8 +31,9 @@ vi.mock('@/contexts/PermissionsContext', () => ({
 
 // Mutable so each test can seed the role's real grants before rendering.
 let rolePermissions: Record<string, string[]> = { labels: ['create'] };
-// Which role is being edited. Only the installation owner is read-only.
+// Which role is being edited, and whether it is a system role.
 let roleKey = 'agent';
+let roleSystem = false;
 
 vi.mock('@/services/roles/rolesService', () => ({
   rolesService: {
@@ -39,12 +41,14 @@ vi.mock('@/services/roles/rolesService', () => ({
       Promise.resolve({
         id: 'r1',
         key: roleKey,
+        system: roleSystem,
         name: 'Agent',
         description: '',
         permissions_by_resource: rolePermissions,
       }),
     ),
     bulkUpdatePermissions: (...args: unknown[]) => bulkUpdateMock(...args),
+    create: (...args: unknown[]) => createMock(...args),
   },
 }));
 
@@ -201,42 +205,103 @@ beforeAll(() => {
 
 beforeEach(() => {
   bulkUpdateMock.mockClear();
+  createMock.mockClear();
+  navigateStub.mockClear();
   rolePermissions = { labels: ['create'] };
   roleKey = 'agent';
+  roleSystem = false;
 });
 
 const cb = (key: string) => document.getElementById(key) as HTMLButtonElement | null;
 
-// EVO-2062. The installation owner's grant set is an invariant, not a
-// preference: auth reconciles it against the whole catalog on every boot and
-// `bulk_update_permissions` answers 403 for it. The editor must render it
-// read-only — checkboxes that save nothing (or, before the backend guard, saved
-// and were silently reverted by the next deploy) are exactly the lying control
-// this screen exists to eliminate.
-describe('RoleDetail — the installation owner is read-only', () => {
-  it('offers no Save button for super_admin', async () => {
-    roleKey = 'super_admin';
+// Auth answers 403 on bulk_update_permissions for any system role, so the editor
+// renders one read-only: grid visible, no toggles, no Save, lock notice. A checkbox
+// whose save is refused is the lying control this screen exists to eliminate.
+describe('RoleDetail — system roles are read-only', () => {
+  it('offers no Save button for a system role', async () => {
+    roleSystem = true;
     render(<RoleDetail />);
     await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
 
     expect(screen.queryByText('savePermissions')).toBeNull();
   });
 
-  it('renders its checkboxes disabled', async () => {
-    roleKey = 'super_admin';
+  it('renders its checkboxes disabled and shows the read-only notice, grid still visible', async () => {
+    roleSystem = true;
     render(<RoleDetail />);
     await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
 
     expect(cb('group-labels-write')).toBeDisabled();
+    expect(screen.getByTestId('system-role-readonly-notice')).toBeTruthy();
   });
 
-  it('still lets every other role be edited and saved', async () => {
+  // Pinned separately from the generic system-role case: it is the one the backend
+  // guard is keyed on.
+  it('is read-only for the installation owner specifically', async () => {
+    roleKey = 'super_admin';
+    roleSystem = true;
+    render(<RoleDetail />);
+    await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
+
+    expect(screen.queryByText('savePermissions')).toBeNull();
+    expect(cb('group-labels-write')).toBeDisabled();
+  });
+
+  it('still lets a custom (non-system) role be edited and saved', async () => {
+    roleSystem = false;
     render(<RoleDetail />);
     await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
 
     expect(cb('group-labels-write')).not.toBeDisabled();
+    expect(screen.queryByTestId('system-role-readonly-notice')).toBeNull();
     await userEvent.click(screen.getByText('savePermissions'));
     await waitFor(() => expect(bulkUpdateMock).toHaveBeenCalled());
+  });
+});
+
+// The read-only notice names this action, so it has to exist and has to carry the
+// source permissions over.
+describe('RoleDetail — duplicating a system role as a custom one', () => {
+  const openDialog = async () => {
+    roleSystem = true;
+    render(<RoleDetail />);
+    await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
+    await userEvent.click(screen.getByText('detail.duplicate'));
+  };
+
+  it('offers the duplicate action on a system role and not on a custom one', async () => {
+    await openDialog();
+    expect(screen.getByText('detail.duplicateTitle')).toBeTruthy();
+  });
+
+  it('creates the copy and carries the source permissions over', async () => {
+    await openDialog();
+    await userEvent.click(screen.getByText('detail.duplicateConfirm'));
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled());
+    // The copy is written by id of the NEW role, never the source.
+    const [newId, keys] = bulkUpdateMock.mock.calls.at(-1) as [string, string[]];
+    expect(newId).toBe('r2');
+    expect(keys).toContain('labels.create');
+    // …and the user lands on the copy, which is editable.
+    await waitFor(() => expect(navigateStub).toHaveBeenCalledWith('/settings/roles/r2'));
+  });
+
+  it('keeps the created role and still navigates when copying the permissions fails', async () => {
+    bulkUpdateMock.mockRejectedValueOnce(new Error('403'));
+    await openDialog();
+    await userEvent.click(screen.getByText('detail.duplicateConfirm'));
+
+    await waitFor(() => expect(navigateStub).toHaveBeenCalledWith('/settings/roles/r2'));
+    expect(createMock).toHaveBeenCalled();
+  });
+
+  it('does not offer it on a custom role — that one is editable in place', async () => {
+    roleSystem = false;
+    render(<RoleDetail />);
+    await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
+
+    expect(screen.queryByText('detail.duplicate')).toBeNull();
   });
 });
 

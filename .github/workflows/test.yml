@@ -33,7 +33,8 @@ jobs:
       # Scoped, opt-in list: a spec earns a line here when it guards a behaviour
       # we do not want silently reverted, is fully mocked, and runs fast.
       #   - PermissionsContext / RoleDetail (EVO-2062): can() stays data-driven,
-      #     and the installation-owner role is read-only.
+      #     system roles stay read-only, and duplicating one keeps its permissions.
+      #   - RolesList: the row icon keeps matching what the detail screen allows.
       #   - campaignsService (EVO-1838): the campaign endpoints keep their
       #     bare-body fallback when the backend skips the response envelope.
       # The whole list runs in ~10s and is deterministic.
@@ -49,4 +50,5 @@ jobs:
           npx vitest run --reporter=basic \
             src/contexts/PermissionsContext.spec.tsx \
             src/pages/Admin/Roles/RoleDetail.spec.tsx \
+            src/pages/Admin/Roles/RolesList.spec.tsx \
             src/services/campaigns/campaignsService.spec.ts
