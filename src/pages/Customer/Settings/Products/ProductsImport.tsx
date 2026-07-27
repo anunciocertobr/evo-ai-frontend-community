@@ -120,6 +120,8 @@ export default function ProductsImport() {
   const [credentials, setCredentials] = useState<ProductImportCredentials>({});
   const [fetchLoading, setFetchLoading] = useState(false);
   const [fetchCount, setFetchCount] = useState(0);
+  const [fetchTruncated, setFetchTruncated] = useState(false);
+  const [variantsDropped, setVariantsDropped] = useState(0);
 
   const [fileName, setFileName] = useState<string>('');
   const [headers, setHeaders] = useState<string[]>([]);
@@ -194,6 +196,10 @@ export default function ProductsImport() {
       }));
       setValidations(fetched);
       setFetchCount(fetched.length);
+      // What the fetch could not bring back. Surfaced on the preview so a big or
+      // multi-variant catalog does not look like a complete import.
+      setFetchTruncated(res.meta?.truncated === true);
+      setVariantsDropped(res.meta?.variants_dropped ?? 0);
       setDryRun(null);
       setStage('preview');
     } catch (error) {
@@ -333,6 +339,8 @@ export default function ProductsImport() {
     setSource('');
     setCredentials({});
     setFetchCount(0);
+    setFetchTruncated(false);
+    setVariantsDropped(0);
     setHeaders([]);
     setRows([]);
     setMapping({});
@@ -456,6 +464,11 @@ export default function ProductsImport() {
               {t('import.upload.selectFile')}
             </Button>
           </div>
+          <div className="mt-4">
+            <Button variant="outline" onClick={() => setStage('source')} data-testid="upload-back">
+              {t('import.upload.backToSource')}
+            </Button>
+          </div>
         </TabsContent>
 
         <TabsContent value="mapping">
@@ -529,6 +542,20 @@ export default function ProductsImport() {
             <p className="mb-3 text-sm text-muted-foreground">
               {t('import.preview.fetched', { count: fetchCount, source: t(`import.source.${source}.title`) })}
             </p>
+          )}
+          {isConnector && (fetchTruncated || variantsDropped > 0) && (
+            <div
+              className="mb-4 flex gap-2 rounded border border-amber-500/40 bg-amber-500/5 p-3 text-sm"
+              data-testid="fetch-warning"
+            >
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+              <div className="space-y-1">
+                {fetchTruncated && <p>{t('import.preview.truncated', { count: fetchCount })}</p>}
+                {variantsDropped > 0 && (
+                  <p>{t('import.preview.variantsDropped', { count: variantsDropped })}</p>
+                )}
+              </div>
+            </div>
           )}
           <div className="grid grid-cols-3 gap-3 mb-4">
             <SummaryCard

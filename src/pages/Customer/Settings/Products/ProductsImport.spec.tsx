@@ -190,6 +190,45 @@ describe('ProductsImport CSV flow (EVO-1734)', () => {
     expect(importBtn).toBeDisabled();
   });
 
+  // The dry-run can report per-row errors while still resolving 200; the Import button
+  // has to stay locked on that path too, not only when the submit itself is rejected.
+  it('dry-run with errors[] keeps Submit disabled even when the call resolves successfully', async () => {
+    bulkProductsMock.mockResolvedValueOnce({
+      success: true,
+      data: {
+        dry_run: true,
+        would_create: [],
+        would_update: [],
+        would_skip: [],
+        errors: [{ index: 0, sku: 'SKU-1', errors: { sku: ['has already been taken'] } }],
+      },
+      meta: { created: 0, updated: 0, skipped: 0, errors: 1 },
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+    await gotoCsvUpload();
+    fireEvent.change(screen.getByTestId('csv-file-input') as HTMLInputElement, {
+      target: { files: [makeCsvFile('name,sku\nFoo,SKU-1\n')] },
+    });
+    await waitFor(() => screen.getByText('import.mapping.next'));
+    await user.click(screen.getByText('import.mapping.next'));
+    await waitFor(() => screen.getByText('import.preview.runDryRun'));
+    await user.click(screen.getByText('import.preview.runDryRun'));
+    await waitFor(() => expect(bulkProductsMock).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => expect(screen.getByText(/has already been taken/i)).toBeInTheDocument());
+    expect(screen.getByText('import.preview.import').closest('button')).toBeDisabled();
+  });
+
+  it('goes back to the source step from the upload stage', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await gotoCsvUpload();
+    await user.click(screen.getByTestId('upload-back'));
+    expect(await screen.findByTestId('source-woocommerce')).toBeInTheDocument();
+  });
+
   it('happy dry-run + submit path calls bulkProducts twice with expected payloads', async () => {
     bulkProductsMock
       .mockResolvedValueOnce({
@@ -248,6 +287,75 @@ describe('ProductsImport connector flow (EVO-1785 Phase 2)', () => {
     expect(importFetchMock).not.toHaveBeenCalled();
     const args = toastErrorMock.mock.calls.at(-1)?.[0] as string;
     expect(args).toContain('import.credentials.missing');
+  });
+
+  // A store bigger than one fetch, or with multi-variant products, must not look like a
+  // complete import: the preview says what was left behind.
+  it('warns on the preview when the fetch was truncated or dropped variants', async () => {
+    importFetchMock.mockResolvedValueOnce({
+      data: { items: [{ name: 'Widget', sku: 'W-1', default_price: '19.90', status: 'active', kind: 'physical' }] },
+      meta: { source: 'woocommerce', count: 1, truncated: true, variants_dropped: 3 },
+    });
+
+    const user = await gotoWooCredentials();
+    fireEvent.change(screen.getByTestId('cred-store_url'), { target: { value: 'https://shop.example.com' } });
+    fireEvent.change(screen.getByTestId('cred-consumer_key'), { target: { value: 'ck_1' } });
+    fireEvent.change(screen.getByTestId('cred-consumer_secret'), { target: { value: 'cs_1' } });
+    await user.click(screen.getByTestId('fetch-products'));
+
+    // The i18n stub appends the interpolation payload, so match on the key prefix.
+    await screen.findByTestId('fetch-warning');
+    expect(screen.getByText(/^import\.preview\.truncated\b/)).toBeInTheDocument();
+    expect(screen.getByText(/^import\.preview\.variantsDropped\b/)).toBeInTheDocument();
+  });
+
+  it('shows no warning when the whole catalog came back', async () => {
+    importFetchMock.mockResolvedValueOnce({
+      data: { items: [{ name: 'Widget', sku: 'W-1', default_price: '19.90', status: 'active', kind: 'physical' }] },
+      meta: { source: 'woocommerce', count: 1, truncated: false, variants_dropped: 0 },
+    });
+
+    const user = await gotoWooCredentials();
+    fireEvent.change(screen.getByTestId('cred-store_url'), { target: { value: 'https://shop.example.com' } });
+    fireEvent.change(screen.getByTestId('cred-consumer_key'), { target: { value: 'ck_1' } });
+    fireEvent.change(screen.getByTestId('cred-consumer_secret'), { target: { value: 'cs_1' } });
+    await user.click(screen.getByTestId('fetch-products'));
+
+    await screen.findByText('import.preview.runDryRun');
+    expect(screen.queryByTestId('fetch-warning')).not.toBeInTheDocument();
+  });
+
+  // Connector items skip the CSV client-side validation, so the dry-run gate is the only
+  // thing standing between a bad remote catalog and the import.
+  it('keeps Import disabled when the dry-run reports conflicts on fetched items', async () => {
+    importFetchMock.mockResolvedValueOnce({
+      data: { items: [{ name: 'Widget', sku: 'W-1', default_price: '19.90', status: 'active', kind: 'physical' }] },
+      meta: { source: 'woocommerce', count: 1 },
+    });
+    bulkProductsMock.mockResolvedValueOnce({
+      success: true,
+      data: {
+        dry_run: true,
+        would_create: [],
+        would_update: [],
+        would_skip: [],
+        errors: [{ index: 0, sku: 'W-1', errors: { sku: ['has already been taken'] } }],
+      },
+      meta: { created: 0, updated: 0, skipped: 0, errors: 1 },
+    });
+
+    const user = await gotoWooCredentials();
+    fireEvent.change(screen.getByTestId('cred-store_url'), { target: { value: 'https://shop.example.com' } });
+    fireEvent.change(screen.getByTestId('cred-consumer_key'), { target: { value: 'ck_1' } });
+    fireEvent.change(screen.getByTestId('cred-consumer_secret'), { target: { value: 'cs_1' } });
+    await user.click(screen.getByTestId('fetch-products'));
+
+    await screen.findByText('import.preview.runDryRun');
+    await user.click(screen.getByText('import.preview.runDryRun'));
+    await waitFor(() => expect(bulkProductsMock).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => expect(screen.getByText(/has already been taken/i)).toBeInTheDocument());
+    expect(screen.getByText('import.preview.import').closest('button')).toBeDisabled();
   });
 
   it('shows the "how to get keys" help dialog', async () => {

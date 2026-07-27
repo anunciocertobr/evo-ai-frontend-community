@@ -131,7 +131,8 @@
     },
     "upload": {
       "hint": "Selecione um ficheiro CSV UTF-8 com linha de cabeçalho. Limite: {{max}} linhas.",
-      "selectFile": "Selecionar CSV"
+      "selectFile": "Selecionar CSV",
+      "backToSource": "Mudar a fonte de importação"
     },
     "mapping": {
       "file": "{{name}} — {{count}} linha(s)",
@@ -169,7 +170,9 @@
       "sku": "SKU",
       "errors": "Erros",
       "fetched": "{{count}} produtos buscados de {{source}}.",
-      "backToCredentials": "Voltar às credenciais"
+      "backToCredentials": "Voltar às credenciais",
+      "truncated": "Só os primeiros {{count}} produtos foram obtidos — a loja tem mais do que esta importação consegue trazer de uma vez.",
+      "variantsDropped": "{{count}} variante(s) não foram importadas — cada produto torna-se uma única linha do catálogo."
     },
     "done": {
       "title": "Importação concluída",

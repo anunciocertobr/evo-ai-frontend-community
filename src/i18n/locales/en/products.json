@@ -131,7 +131,8 @@
     },
     "upload": {
       "hint": "Select a UTF-8 CSV file with a header row. Limit: {{max}} rows.",
-      "selectFile": "Select CSV"
+      "selectFile": "Select CSV",
+      "backToSource": "Change import source"
     },
     "mapping": {
       "file": "{{name}} — {{count}} row(s)",
@@ -169,7 +170,9 @@
       "sku": "SKU",
       "errors": "Errors",
       "fetched": "{{count}} products fetched from {{source}}.",
-      "backToCredentials": "Back to credentials"
+      "backToCredentials": "Back to credentials",
+      "truncated": "Only the first {{count}} products were fetched — the store holds more than this import can carry in one run.",
+      "variantsDropped": "{{count}} variant(s) were not imported — each product becomes a single row in the catalog."
     },
     "done": {
       "title": "Import complete",

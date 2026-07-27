@@ -171,7 +171,14 @@ export interface FetchedProductItem {
 
 export interface ProductImportFetchResponse {
   data: { items: FetchedProductItem[] };
-  meta: { source: string; count: number };
+  meta: {
+    source: string;
+    count: number;
+    /** The walk stopped on a budget (row cap, page cap, deadline) — the store holds more. */
+    truncated?: boolean;
+    /** Variants the fetch could not carry: /products/bulk creates one row per product. */
+    variants_dropped?: number;
+  };
 }
 
 export interface ProductsResponse extends PaginatedResponse<Product> {}

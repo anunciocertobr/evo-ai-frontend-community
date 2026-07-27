@@ -125,7 +125,8 @@
     },
     "upload": {
       "hint": "Seleziona un file CSV UTF-8 con riga di intestazione. Limite: {{max}} righe.",
-      "selectFile": "Seleziona CSV"
+      "selectFile": "Seleziona CSV",
+      "backToSource": "Cambia origine dell’importazione"
     },
     "mapping": {
       "file": "{{name}} — {{count}} riga/e",
@@ -163,7 +164,9 @@
       "sku": "SKU",
       "errors": "Errori",
       "fetched": "{{count}} prodotti recuperati da {{source}}.",
-      "backToCredentials": "Torna alle credenziali"
+      "backToCredentials": "Torna alle credenziali",
+      "truncated": "Sono stati recuperati solo i primi {{count}} prodotti — il negozio ne contiene più di quanti questa importazione possa gestirne in una volta.",
+      "variantsDropped": "{{count}} variante/i non sono state importate — ogni prodotto diventa una sola riga del catalogo."
     },
     "done": {
       "title": "Importazione completata",
