@@ -10,6 +10,7 @@ import userEvent from '@testing-library/user-event';
 // never reach the save payload.
 
 const bulkUpdateMock = vi.fn().mockResolvedValue({ id: 'r1', permissions_by_resource: {} });
+const createMock = vi.fn().mockResolvedValue({ id: 'r2', key: 'agent_copy', system: false, name: 'Agent (copy)' });
 
 // Stable references: loadData depends on [id, t, navigate]; fresh identities
 // each render would re-fire the effect in a loop (stuck loading).
@@ -48,6 +49,7 @@ vi.mock('@/services/roles/rolesService', () => ({
       }),
     ),
     bulkUpdatePermissions: (...args: unknown[]) => bulkUpdateMock(...args),
+    create: (...args: unknown[]) => createMock(...args),
   },
 }));
 
@@ -204,6 +206,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   bulkUpdateMock.mockClear();
+  createMock.mockClear();
+  navigateStub.mockClear();
   rolePermissions = { labels: ['create'] };
   roleKey = 'agent';
   roleSystem = false;
@@ -236,6 +240,19 @@ describe('RoleDetail — system roles are read-only (EVO-2152)', () => {
     expect(screen.getByTestId('system-role-readonly-notice')).toBeTruthy();
   });
 
+  // The installation owner is the case EVO-2062 pinned and the one the backend
+  // guard regressed on, so it gets its own example rather than riding on the
+  // generic system-role one.
+  it('is read-only for the installation owner specifically', async () => {
+    roleKey = 'super_admin';
+    roleSystem = true;
+    render(<RoleDetail />);
+    await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
+
+    expect(screen.queryByText('savePermissions')).toBeNull();
+    expect(cb('group-labels-write')).toBeDisabled();
+  });
+
   it('still lets a custom (non-system) role be edited and saved', async () => {
     roleSystem = false;
     render(<RoleDetail />);
@@ -245,6 +262,54 @@ describe('RoleDetail — system roles are read-only (EVO-2152)', () => {
     expect(screen.queryByTestId('system-role-readonly-notice')).toBeNull();
     await userEvent.click(screen.getByText('savePermissions'));
     await waitFor(() => expect(bulkUpdateMock).toHaveBeenCalled());
+  });
+});
+
+// EVO-2152. Read-only is only defensible because there IS a way out: duplicating
+// the role as a custom one. The notice names that action, so the action has to
+// exist and has to carry the permissions over — a copy that starts empty sends
+// the admin back to re-checking ~67 boxes by hand.
+describe('RoleDetail — duplicating a system role as a custom one', () => {
+  const openDialog = async () => {
+    roleSystem = true;
+    render(<RoleDetail />);
+    await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
+    await userEvent.click(screen.getByText('detail.duplicate'));
+  };
+
+  it('offers the duplicate action on a system role and not on a custom one', async () => {
+    await openDialog();
+    expect(screen.getByText('detail.duplicateTitle')).toBeTruthy();
+  });
+
+  it('creates the copy and carries the source permissions over', async () => {
+    await openDialog();
+    await userEvent.click(screen.getByText('detail.duplicateConfirm'));
+
+    await waitFor(() => expect(createMock).toHaveBeenCalled());
+    // The copy is written by id of the NEW role, never the source.
+    const [newId, keys] = bulkUpdateMock.mock.calls.at(-1) as [string, string[]];
+    expect(newId).toBe('r2');
+    expect(keys).toContain('labels.create');
+    // …and the user lands on the copy, which is editable.
+    await waitFor(() => expect(navigateStub).toHaveBeenCalledWith('/settings/roles/r2'));
+  });
+
+  it('keeps the created role and still navigates when copying the permissions fails', async () => {
+    bulkUpdateMock.mockRejectedValueOnce(new Error('403'));
+    await openDialog();
+    await userEvent.click(screen.getByText('detail.duplicateConfirm'));
+
+    await waitFor(() => expect(navigateStub).toHaveBeenCalledWith('/settings/roles/r2'));
+    expect(createMock).toHaveBeenCalled();
+  });
+
+  it('does not offer it on a custom role — that one is editable in place', async () => {
+    roleSystem = false;
+    render(<RoleDetail />);
+    await waitFor(() => expect(cb('group-labels-write')).not.toBeNull());
+
+    expect(screen.queryByText('detail.duplicate')).toBeNull();
   });
 });
 

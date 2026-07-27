@@ -6,11 +6,17 @@ import {
   Badge,
   Button,
   Checkbox,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
   Label,
   Textarea,
 } from '@evoapi/design-system';
-import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Lock, Pencil, Save, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Copy, Loader2, Lock, Pencil, Save, X } from 'lucide-react';
 import BaseHeader from '@/components/base/BaseHeader';
 import { TooltipInfo } from '@/components/base/TooltipInfo';
 import { rolesService, type Role } from '@/services/roles/rolesService';
@@ -50,6 +56,7 @@ export default function RoleDetail() {
   const [editingMeta, setEditingMeta] = useState(false);
   const [metaForm, setMetaForm] = useState({ name: '', description: '' });
   const [savingMeta, setSavingMeta] = useState(false);
+  const [duplicate, setDuplicate] = useState({ open: false, name: '', running: false });
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -247,6 +254,63 @@ export default function RoleDetail() {
     }
   };
 
+  const startDuplicate = () => {
+    if (!role) return;
+    setDuplicate({ open: true, name: `${role.name} ${t('detail.duplicateSuffix')}`, running: false });
+  };
+
+  // EVO-2152. A system role's permission set is immutable, so "duplicate as a
+  // custom role" is the only supported way to get a tuned one — the read-only
+  // notice points here, and a notice pointing at an action that does not exist is
+  // just a nicer dead end. Two existing endpoints, no new backend: create (which
+  // always yields `system: false`) then bulk_update_permissions on the copy.
+  const handleDuplicate = async () => {
+    if (!role || !resourceActions || !duplicate.name.trim()) return;
+    setDuplicate(prev => ({ ...prev, running: true }));
+
+    let created: Role;
+    try {
+      created = await rolesService.create({
+        name: duplicate.name.trim(),
+        description: role.description ?? undefined,
+      });
+    } catch (err: unknown) {
+      const apiErr = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error;
+      toast.error(apiErr?.message ?? t('messages.createError'));
+      setDuplicate(prev => ({ ...prev, running: false }));
+      return;
+    }
+
+    // Copy only grants the live catalog still defines. A role can hold keys a
+    // later release dropped (RbacGrantReconciler tracks exactly this as
+    // `stale_keys`), and the endpoint 422s the whole batch on the first unknown
+    // one — a stale grant on the source would otherwise cost the user every
+    // permission in the copy.
+    const keys = Object.entries(role.permissions_by_resource)
+      .flatMap(([resource, actions]) => (actions as string[]).map(action => `${resource}.${action}`))
+      .filter(key => {
+        const [resource, action] = key.split('.');
+        return resourceActions.resources[resource]?.actions?.[action] !== undefined;
+      });
+
+    try {
+      await rolesService.bulkUpdatePermissions(created.id, keys);
+      toast.success(t('messages.duplicateSuccess'));
+    } catch (err: unknown) {
+      // The role exists and carries a name the user chose; deleting it behind
+      // their back can fail too and destroys that. Land them on the copy with the
+      // reason instead — an empty custom role is editable, so it is recoverable.
+      // The likely cause is the anti-escalation gate: copying a role whose grants
+      // exceed the caller's own is refused key by key.
+      const apiErr = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error;
+      toast.error(apiErr?.message ?? t('messages.duplicatePartial'));
+    }
+
+    permissionsService.clearPermissionsCache();
+    setDuplicate({ open: false, name: '', running: false });
+    navigate(`/settings/roles/${created.id}`);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -266,6 +330,9 @@ export default function RoleDetail() {
   const isSystemRole = role.system === true;
   const canEdit = can('roles', 'bulk_update_permissions') && !isSystemRole;
   const canUpdate = can('roles', 'update');
+  // Needs both halves of the flow: create the copy, then write its permissions.
+  const canDuplicate =
+    isSystemRole && can('roles', 'create') && can('roles', 'bulk_update_permissions');
   const resources = resourceActions.resources;
 
   const term = filter.trim().toLowerCase();
@@ -518,7 +585,16 @@ export default function RoleDetail() {
                 onClick: handleSave,
                 disabled: saving,
               }
-            : undefined
+            : canDuplicate
+              ? {
+                  // A read-only screen still gets a primary action — the one thing
+                  // the user CAN do from here.
+                  label: t('detail.duplicate'),
+                  icon: <Copy className="h-4 w-4" />,
+                  onClick: startDuplicate,
+                  disabled: duplicate.running,
+                }
+              : undefined
         }
         secondaryActions={[
           {
@@ -688,6 +764,44 @@ export default function RoleDetail() {
           </div>
         )}
       </div>
+
+      <Dialog
+        open={duplicate.open}
+        onOpenChange={open => !open && !duplicate.running && setDuplicate({ open: false, name: '', running: false })}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('detail.duplicateTitle')}</DialogTitle>
+            <DialogDescription>{t('detail.duplicateDescription', { name: role.name })}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label htmlFor="duplicate-name">{t('createModal.nameLabel')}</Label>
+            <Input
+              id="duplicate-name"
+              value={duplicate.name}
+              onChange={e => setDuplicate(prev => ({ ...prev, name: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && handleDuplicate()}
+              disabled={duplicate.running}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDuplicate({ open: false, name: '', running: false })}
+              disabled={duplicate.running}
+            >
+              {t('createModal.cancel')}
+            </Button>
+            <Button onClick={handleDuplicate} disabled={duplicate.running || !duplicate.name.trim()}>
+              {duplicate.running ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('detail.duplicating')}</>
+              ) : (
+                <><Copy className="h-4 w-4 mr-2" />{t('detail.duplicateConfirm')}</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
