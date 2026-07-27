@@ -7,6 +7,7 @@
   },
   "addRole": "New Role",
   "editRole": "Edit Role",
+  "viewRole": "View permissions",
   "deleteRole": "Delete Role",
   "backToList": "Back to Roles",
   "savePermissions": "Save Permissions",

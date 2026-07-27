@@ -7,6 +7,7 @@
   },
   "addRole": "Nuevo Perfil",
   "editRole": "Editar Perfil",
+  "viewRole": "Ver permisos",
   "deleteRole": "Eliminar Perfil",
   "backToList": "Volver a Perfiles",
   "savePermissions": "Guardar Permisos",

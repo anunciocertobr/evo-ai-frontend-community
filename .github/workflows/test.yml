@@ -32,8 +32,12 @@ jobs:
 
       # Scoped, opt-in list: a spec earns a line here when it guards a behaviour
       # we do not want silently reverted, is fully mocked, and runs fast.
-      #   - PermissionsContext / RoleDetail (EVO-2062): can() stays data-driven,
-      #     and the installation-owner role is read-only.
+      #   - PermissionsContext / RoleDetail (EVO-2062, EVO-2152): can() stays
+      #     data-driven; a system role's permission set is read-only; and the
+      #     duplicate-as-custom-role escape hatch the read-only notice names
+      #     keeps existing and keeps carrying the permissions over.
+      #   - RolesList (EVO-2152): the row action keeps saying which screen it
+      #     opens, and viewing keeps not requiring `roles.update`.
       #   - campaignsService (EVO-1838): the campaign endpoints keep their
       #     bare-body fallback when the backend skips the response envelope.
       # The whole list runs in ~10s and is deterministic.
@@ -49,4 +53,5 @@ jobs:
           npx vitest run --reporter=basic \
             src/contexts/PermissionsContext.spec.tsx \
             src/pages/Admin/Roles/RoleDetail.spec.tsx \
+            src/pages/Admin/Roles/RolesList.spec.tsx \
             src/services/campaigns/campaignsService.spec.ts
