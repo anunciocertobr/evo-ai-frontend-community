@@ -55,16 +55,9 @@ export default function RolesList() {
     loadRoles();
   }, [loadRoles]);
 
-  // EVO-2152. The row action opens the detail screen; the icon has to say which
-  // screen the user is about to get. A system role's permission set is immutable
-  // and its name/description are locked too, so the detail is read-only no matter
-  // what the caller holds — a pencil there promises an edit that does not exist.
-  // For a custom role it depends on the caller: either grant reaches an editable
-  // control (`update` the name/description, `bulk_update_permissions` the grid).
-  //
-  // The entry itself now only needs `read`. It used to require `update`, which
-  // locked a read-only viewer out of the one thing this card says is always
-  // allowed — viewing. This button is the only way in; the row does not navigate.
+  // Picks the row icon: pencil or eye. A system role's detail screen is read-only
+  // whatever the caller holds; for a custom one, either grant reaches an editable
+  // control. The button is the only way in — the row itself does not navigate.
   const rowIsEditable = (role: Role) =>
     !role.system && (can('roles', 'update') || can('roles', 'bulk_update_permissions'));
 

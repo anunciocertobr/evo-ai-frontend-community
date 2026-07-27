@@ -31,8 +31,7 @@ vi.mock('@/contexts/PermissionsContext', () => ({
 
 // Mutable so each test can seed the role's real grants before rendering.
 let rolePermissions: Record<string, string[]> = { labels: ['create'] };
-// Which role is being edited, and whether it is a system role. EVO-2152: a system
-// role's permission set is read-only; a custom (non-system) role's is editable.
+// Which role is being edited, and whether it is a system role.
 let roleKey = 'agent';
 let roleSystem = false;
 
@@ -215,14 +214,10 @@ beforeEach(() => {
 
 const cb = (key: string) => document.getElementById(key) as HTMLButtonElement | null;
 
-// EVO-2152 (PM ruling — Option A). A system role's permission set is immutable
-// (FR18): auth answers 403 on bulk_update_permissions for ANY system role, not just
-// the installation owner. The editor renders it read-only — the grid stays visible
-// (view yes) but with no toggles, no Save, and a lock notice. A checkbox that saves
-// nothing (or, before the backend guard, was silently reverted by the next seed) is
-// exactly the lying control this screen exists to eliminate. A custom role stays fully
-// editable.
-describe('RoleDetail — system roles are read-only (EVO-2152)', () => {
+// Auth answers 403 on bulk_update_permissions for any system role, so the editor
+// renders one read-only: grid visible, no toggles, no Save, lock notice. A checkbox
+// whose save is refused is the lying control this screen exists to eliminate.
+describe('RoleDetail — system roles are read-only', () => {
   it('offers no Save button for a system role', async () => {
     roleSystem = true;
     render(<RoleDetail />);
@@ -240,9 +235,8 @@ describe('RoleDetail — system roles are read-only (EVO-2152)', () => {
     expect(screen.getByTestId('system-role-readonly-notice')).toBeTruthy();
   });
 
-  // The installation owner is the case EVO-2062 pinned and the one the backend
-  // guard regressed on, so it gets its own example rather than riding on the
-  // generic system-role one.
+  // Pinned separately from the generic system-role case: it is the one the backend
+  // guard is keyed on.
   it('is read-only for the installation owner specifically', async () => {
     roleKey = 'super_admin';
     roleSystem = true;
@@ -265,10 +259,8 @@ describe('RoleDetail — system roles are read-only (EVO-2152)', () => {
   });
 });
 
-// EVO-2152. Read-only is only defensible because there IS a way out: duplicating
-// the role as a custom one. The notice names that action, so the action has to
-// exist and has to carry the permissions over — a copy that starts empty sends
-// the admin back to re-checking ~67 boxes by hand.
+// The read-only notice names this action, so it has to exist and has to carry the
+// source permissions over.
 describe('RoleDetail — duplicating a system role as a custom one', () => {
   const openDialog = async () => {
     roleSystem = true;

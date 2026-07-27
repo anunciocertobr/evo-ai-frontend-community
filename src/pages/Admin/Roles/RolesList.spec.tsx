@@ -1,12 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
-// EVO-2152. The row action is the ONLY way into a role's detail screen — the row
-// itself does not navigate — so what it promises has to match what that screen
-// delivers. A system role is read-only there no matter what the caller holds, so
-// it gets an eye, not a pencil; and the entry is gated on `read`, not `update`,
-// or a read-only viewer cannot reach the one thing this card says is always
-// allowed.
+// The row action is the only way into a role's detail screen, so its icon must
+// match what that screen allows, and `read` alone must be enough to open it.
 
 const navigateStub = vi.fn();
 vi.mock('react-router-dom', () => ({

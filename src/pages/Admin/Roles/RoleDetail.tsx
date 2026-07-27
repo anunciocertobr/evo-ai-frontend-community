@@ -259,11 +259,9 @@ export default function RoleDetail() {
     setDuplicate({ open: true, name: `${role.name} ${t('detail.duplicateSuffix')}`, running: false });
   };
 
-  // EVO-2152. A system role's permission set is immutable, so "duplicate as a
-  // custom role" is the only supported way to get a tuned one — the read-only
-  // notice points here, and a notice pointing at an action that does not exist is
-  // just a nicer dead end. Two existing endpoints, no new backend: create (which
-  // always yields `system: false`) then bulk_update_permissions on the copy.
+  // The only supported way to get a tuned copy of a system role, and what the
+  // read-only notice points at. `create` always yields `system: false`, so the copy
+  // accepts bulk_update_permissions.
   const handleDuplicate = async () => {
     if (!role || !resourceActions || !duplicate.name.trim()) return;
     setDuplicate(prev => ({ ...prev, running: true }));
@@ -281,11 +279,8 @@ export default function RoleDetail() {
       return;
     }
 
-    // Copy only grants the live catalog still defines. A role can hold keys a
-    // later release dropped (RbacGrantReconciler tracks exactly this as
-    // `stale_keys`), and the endpoint 422s the whole batch on the first unknown
-    // one — a stale grant on the source would otherwise cost the user every
-    // permission in the copy.
+    // Only grants the live catalog still defines: a role can hold keys a later
+    // release dropped, and the endpoint 422s the whole batch on the first one.
     const keys = Object.entries(role.permissions_by_resource)
       .flatMap(([resource, actions]) => (actions as string[]).map(action => `${resource}.${action}`))
       .filter(key => {
@@ -297,11 +292,8 @@ export default function RoleDetail() {
       await rolesService.bulkUpdatePermissions(created.id, keys);
       toast.success(t('messages.duplicateSuccess'));
     } catch (err: unknown) {
-      // The role exists and carries a name the user chose; deleting it behind
-      // their back can fail too and destroys that. Land them on the copy with the
-      // reason instead — an empty custom role is editable, so it is recoverable.
-      // The likely cause is the anti-escalation gate: copying a role whose grants
-      // exceed the caller's own is refused key by key.
+      // Keep the created role: it carries a name the user chose, and an empty custom
+      // role is editable. Usual cause is the anti-escalation gate.
       const apiErr = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error;
       toast.error(apiErr?.message ?? t('messages.duplicatePartial'));
     }
@@ -321,12 +313,9 @@ export default function RoleDetail() {
 
   if (!role || !resourceActions) return null;
 
-  // EVO-2152 (PM ruling): a system role's permission set is immutable (FR18) — auth
-  // answers 403 on bulk_update_permissions for ANY system role, not just the
-  // installation owner it reconciles every boot. Render it read-only: the grid and
-  // every permission stay VISIBLE (view yes), but no toggles / select-all / Save.
-  // Offering a Save whose request is refused — or, before the backend guard, silently
-  // reverted by the next seed — is exactly the lying control this screen must not have.
+  // Auth answers 403 on bulk_update_permissions for any system role, so the grid and
+  // every permission stay visible but nothing is writable: no toggles, no select-all,
+  // no Save. A Save whose request is refused is the lying control to avoid.
   const isSystemRole = role.system === true;
   const canEdit = can('roles', 'bulk_update_permissions') && !isSystemRole;
   const canUpdate = can('roles', 'update');
@@ -587,8 +576,6 @@ export default function RoleDetail() {
               }
             : canDuplicate
               ? {
-                  // A read-only screen still gets a primary action — the one thing
-                  // the user CAN do from here.
                   label: t('detail.duplicate'),
                   icon: <Copy className="h-4 w-4" />,
                   onClick: startDuplicate,
