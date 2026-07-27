@@ -83,11 +83,7 @@ const HELP_STEPS: Record<ProductImportSource, string[]> = {
   shopify: ['step1', 'step2', 'step3', 'step4'],
 };
 
-/**
- * A connector item arrives already mapped, but numeric fields come as the
- * store's raw strings — normalize them into the BulkItem shape the shared
- * preview/dry-run path expects.
- */
+/** A connector item arrives mapped, but numeric fields come as the store's raw strings. */
 function toBulkItem(raw: FetchedProductItem): BulkItem {
   const price = raw.default_price;
   const parsedPrice = price === undefined || price === null || price === '' ? undefined : Number(price);
@@ -103,8 +99,7 @@ function toBulkItem(raw: FetchedProductItem): BulkItem {
     status: raw.status,
     stock_quantity: raw.stock_quantity ?? undefined,
     labels: raw.labels,
-    // EVO-2226: pass the connector's image URLs through to /products/bulk, which
-    // downloads + attaches them server-side.
+    // /products/bulk downloads + attaches these server-side (EVO-2226).
     image_urls: raw.image_urls,
   };
 }
@@ -196,8 +191,7 @@ export default function ProductsImport() {
       }));
       setValidations(fetched);
       setFetchCount(fetched.length);
-      // What the fetch could not bring back. Surfaced on the preview so a big or
-      // multi-variant catalog does not look like a complete import.
+      // Shown on the preview so a partial fetch does not read as a complete import.
       setFetchTruncated(res.meta?.truncated === true);
       setVariantsDropped(res.meta?.variants_dropped ?? 0);
       setDryRun(null);
@@ -745,10 +739,8 @@ type ApiErrorOutcome =
   | { kind: 'other' };
 
 /**
- * Surfaces a connector fetch failure (`POST /products/import_fetch`). The
- * backend relays the store's own message verbatim in a 422 (bad credentials,
- * unsupported source, SSRF-refused host, empty catalog), so we show it as-is
- * rather than flattening every failure into a generic toast.
+ * The backend relays the store's own message verbatim in a 422, so it is shown as-is
+ * rather than flattened into a generic toast.
  */
 function handleFetchError(
   error: unknown,

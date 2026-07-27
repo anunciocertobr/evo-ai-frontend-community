@@ -84,11 +84,9 @@ class ProductsService {
   }
 
   /**
-   * Fetch a remote store's catalog through a connector (EVO-1785 Phase 2).
-   * The backend authenticates with the user-supplied credentials, pulls the
-   * products and returns them already mapped into the bulk-import item shape —
-   * the client then runs them through the same dry-run + `bulkProducts` path the
-   * CSV import uses. Credentials are one-time (never persisted).
+   * Fetches a remote store's catalog, already mapped into the bulk-import item shape:
+   * the caller runs it through the same dry-run + `bulkProducts` path the CSV import
+   * uses. Credentials are one-time.
    */
   async importFetch(
     source: ProductImportSource,

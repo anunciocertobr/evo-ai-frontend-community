@@ -50,7 +50,7 @@ const STATUSES: ProductStatus[] = ['active', 'inactive', 'draft'];
 const CURRENCIES: ProductCurrency[] = ['BRL', 'USD', 'EUR'];
 const URL_REGEX = /^https?:\/\/.+/i;
 
-// EVO-2226: kept in step with Products::ImagePolicy on the API side.
+// Kept in step with Products::ImagePolicy on the API side.
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGES_PER_PRODUCT = 10;
@@ -208,9 +208,8 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
     await onSubmit(payload, files.length ? files : undefined);
   };
 
-  // Mirrors Products::ImagePolicy on the server. Validating here is not a
-  // security control — it exists so a refused file says why, instead of the
-  // product saving and the image simply not being there.
+  // Mirrors Products::ImagePolicy. Not a security control: it exists so a refused file
+  // says why, instead of the product saving without the image.
   const handleFilesPicked = (list: FileList | null) => {
     if (!list) return;
 

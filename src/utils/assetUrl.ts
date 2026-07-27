@@ -4,12 +4,9 @@ const rawApiBaseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const apiOrigin = rawApiBaseURL.replace(/\/api\/v\d+$/i, '').replace(/\/$/, '');
 
 /**
- * Resolves a backend asset URL against the API origin.
- *
- * The API serialises blob URLs as relative paths (only_path: true), and an
- * `<img src>` resolves those against the SPA's own origin — the wrong server in a
- * split-origin setup, which answers with the SPA shell instead of the image.
- * Absolute, blob: and data: URLs pass through untouched.
+ * Resolves a backend asset URL against the API origin. The API serialises blob URLs as
+ * relative paths, and `<img src>` would resolve those against the SPA's own origin —
+ * the wrong server in a split-origin setup. Absolute, blob: and data: pass through.
  */
 export const assetUrl = (url?: string | null): string => {
   if (!url) return '';

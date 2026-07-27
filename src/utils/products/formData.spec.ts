@@ -32,15 +32,13 @@ describe('appendField', () => {
     ]);
   });
 
-  // Clearing the last label has to be expressible: an omitted key means
-  // "unchanged" to the API, not "empty".
+  // An omitted key means "unchanged" to the API, not "empty".
   it('sends an empty array as a single blank element', () => {
     expect(entries(build([], 'product[labels]'))).toEqual([['product[labels][]', '']]);
   });
 
-  // EVO-2226: serialising nested attributes as a JSON string made strong
-  // parameters drop the whole branch, so variant edits silently vanished on any
-  // submit that carried an image.
+  // As a JSON string, strong parameters drops the branch and variant edits vanish on
+  // any submit that carries an image.
   it('expands an array of objects into indexed Rails keys', () => {
     const value = [
       { id: 'v1', name: 'M', position: 0 },

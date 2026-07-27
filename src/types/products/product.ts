@@ -150,9 +150,8 @@ export interface ProductImportCredentials {
 }
 
 /**
- * An item as returned by the connector (`POST /products/import_fetch`): the same
- * shape as ProductBulkItem, but numeric fields may arrive as strings (the store's
- * raw JSON). The client normalizes them before feeding the shared bulk preview.
+ * As returned by `POST /products/import_fetch`: ProductBulkItem's shape, except numeric
+ * fields may arrive as strings (the store's raw JSON).
  */
 export interface FetchedProductItem {
   name: string;
@@ -174,7 +173,7 @@ export interface ProductImportFetchResponse {
   meta: {
     source: string;
     count: number;
-    /** The walk stopped on a budget (row cap, page cap, deadline) — the store holds more. */
+    /** The walk stopped on a budget, so the store holds more than came back. */
     truncated?: boolean;
     /** Variants the fetch could not carry: /products/bulk creates one row per product. */
     variants_dropped?: number;
