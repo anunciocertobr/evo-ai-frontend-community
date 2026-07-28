@@ -866,10 +866,10 @@
       "title": "Integraciones",
       "subtitle": "Conecta tu agente a otras aplicaciones, esto le permite obtener información más precisa o programar reuniones para ti.",
       "comingSoon": "Próximamente...",
-      "activate": "ACTIVAR",
-      "active": "ACTIVO",
-      "configure": "CONFIGURAR",
-      "notAvailable": "NO DISPONIBLE",
+      "activate": "Activar",
+      "active": "Activado",
+      "configure": "Configurar",
+      "notAvailable": "Próximamente",
       "elevenlabs": {
         "description": "Con ElevenLabs le das a tu agente la capacidad de responder a tus clientes en audio, haciéndolo aún más humanizado."
       },

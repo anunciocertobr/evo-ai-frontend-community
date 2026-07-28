@@ -7,6 +7,9 @@ import { openaiService } from '@/services/integrations/openaiService';
 import { useGlobalConfig } from '@/contexts/GlobalConfigContext';
 import { toast } from 'sonner';
 import PromptGeneratorModal from '@/components/agents/wizard/PromptGeneratorModal';
+import TaskSection from './TaskSection';
+import { TaskConfigData } from '@/components/ai_agents/Forms/TaskConfigForm';
+import { isTaskAgent } from '@/utils/agents';
 
 interface ProfileSectionProps {
   formData: {
@@ -18,9 +21,19 @@ interface ProfileSectionProps {
   };
   onFormDataChange: (field: string, value: string) => void;
   agentType?: string;
+  taskConfigData?: TaskConfigData | null;
+  onTaskConfigChange?: (data: TaskConfigData) => void;
+  editingAgentId?: string;
 }
 
-const ProfileSection = ({ formData, onFormDataChange, agentType }: ProfileSectionProps) => {
+const ProfileSection = ({
+  formData,
+  onFormDataChange,
+  agentType,
+  taskConfigData,
+  onTaskConfigChange,
+  editingAgentId,
+}: ProfileSectionProps) => {
   const { t } = useLanguage('aiAgents');
   const { can, isReady } = usePermissions();
   const config = useGlobalConfig();
@@ -188,6 +201,18 @@ const ProfileSection = ({ formData, onFormDataChange, agentType }: ProfileSectio
             </div>
           )}
         </div>
+
+        {/* Configuração de Tarefa — exclusiva de agentes do tipo `task` */}
+        {isTaskAgent(agentType) && onTaskConfigChange && (
+          <div className="border-t pt-6">
+            <TaskSection
+              data={taskConfigData || { tasks: [] }}
+              onChange={onTaskConfigChange}
+              editingAgentId={editingAgentId}
+              folderId={undefined}
+            />
+          </div>
+        )}
       </div>
 
       {/* Prompt Generator Modal */}

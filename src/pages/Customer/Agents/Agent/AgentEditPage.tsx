@@ -15,7 +15,7 @@ import { extractBackendErrorMessage } from '@/utils/agentUtils';
 import { LLMConfigData } from '@/components/ai_agents/Forms/LLMConfigForm';
 import { A2AConfigData } from '@/components/ai_agents/Forms/A2AConfigForm';
 import { TaskConfigData } from '@/components/ai_agents/Forms/TaskConfigForm';
-import SubAgentsForm, { SubAgentsData } from '@/components/ai_agents/Forms/SubAgentsForm';
+import { SubAgentsData } from '@/components/ai_agents/Forms/SubAgentsForm';
 import { ApiKey } from '@/types/agents';
 import integrationService from '@/services/agents/integrationService';
 import { CustomTool } from '@/types/ai';
@@ -25,28 +25,34 @@ import usersService from '@/services/users/usersService';
 import teamsService from '@/services/teams/teamsService';
 import ProfileSection from './sections/ProfileSection';
 import ProductsSection from './sections/ProductsSection';
-import TaskSection from './sections/TaskSection';
 import ConfigurationSection from './sections/ConfigurationSection';
-import ToolsSection from './sections/ToolsSection';
-import MCPServersSection from './sections/MCPServersSection';
-import IntegrationsSection from './sections/IntegrationsSection';
-import AgentEditSidebar from './sections/AgentEditSidebar';
 import AgentEditHeader from './sections/AgentEditHeader';
+import AgentDetailTabs from './components/AgentDetailTabs';
+import { AgentDetailTab, getVisibleAgentTabs } from './components/agentTabs';
+import AgentToolsAccordion from './components/AgentToolsAccordion';
+import AgentChannelsShell from './components/AgentChannelsShell';
 import AgentTestChat from '@/components/agents/AgentTestChat';
+import { TabsContent } from '@evoapi/design-system';
 import { Team, Tool } from '@/types';
 
-type SidebarMenu =
-  | 'profile'
-  | 'task'
-  | 'subAgents'
-  | 'configuration'
-  | 'knowledge'
-  | 'tools'
-  | 'integrations'
-  | 'mcpServers'
-  | 'channels'
-  | 'products'
-  | 'settings';
+/**
+ * Deep-links legados: o rail vertical expunha 10 valores de `?tab=`. Cada um é
+ * remapeado para a aba nova que hoje hospeda aquele conteúdo, em vez de cair no
+ * default 'profile' (esses links circulam em e-mails, onboarding e outras telas).
+ */
+const LEGACY_TAB_MAP: Record<string, AgentDetailTab> = {
+  profile: 'profile',
+  task: 'profile',
+  'sub-agents': 'tools',
+  tools: 'tools',
+  integrations: 'tools',
+  'mcp-servers': 'tools',
+  products: 'products',
+  configuration: 'configuration',
+  knowledge: 'configuration',
+  settings: 'configuration',
+  channels: 'channels',
+};
 
 interface AgentFormData {
   name: string;
@@ -68,7 +74,7 @@ const AgentEditPage = () => {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
-  const [activeMenu, setActiveMenu] = useState<SidebarMenu>('profile');
+  const [activeTab, setActiveTab] = useState<AgentDetailTab>('profile');
   const [isTestChatOpen, setIsTestChatOpen] = useState(false);
 
 
@@ -197,31 +203,17 @@ const AgentEditPage = () => {
   const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; name: string }>>([]);
   const [availableTeams, setAvailableTeams] = useState<Array<{ id: string; name: string }>>([]);
 
-  // Read tab query parameter and set active menu
+  // Read tab query parameter and set active tab
   useEffect(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam) {
-      // Map query param to SidebarMenu type
-      const validTabs: Record<string, SidebarMenu> = {
-        'mcp-servers': 'mcpServers',
-        profile: 'profile',
-        task: 'task',
-        'sub-agents': 'subAgents',
-        configuration: 'configuration',
-        knowledge: 'knowledge',
-        tools: 'tools',
-        integrations: 'integrations',
-        channels: 'channels',
-        settings: 'settings',
-      };
-
-      const menu = validTabs[tabParam];
-      if (menu) {
-        setActiveMenu(menu);
-        // Remove the tab param from URL after setting the menu
-        searchParams.delete('tab');
-        setSearchParams(searchParams, { replace: true });
+      const tab = LEGACY_TAB_MAP[tabParam];
+      if (tab) {
+        setActiveTab(tab);
       }
+      // Remove the tab param from URL after resolving it
+      searchParams.delete('tab');
+      setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
 
@@ -234,15 +226,14 @@ const AgentEditPage = () => {
     }
   }, [searchParams, setSearchParams]);
 
-  // Redirect blocked menus for external agents
+  // Um deep-link (ou uma troca de tipo) pode apontar para uma aba que este tipo de
+  // agente não expõe — cai de volta em Perfil.
   useEffect(() => {
-    if (agent?.type === 'external') {
-      const blockedMenus: SidebarMenu[] = ['knowledge', 'tools', 'integrations', 'mcpServers'];
-      if (blockedMenus.includes(activeMenu)) {
-        setActiveMenu('profile');
-      }
+    if (!agent) return;
+    if (!getVisibleAgentTabs(agent.type).includes(activeTab)) {
+      setActiveTab('profile');
     }
-  }, [agent?.type, activeMenu]);
+  }, [agent, activeTab]);
 
   // Carregar API Keys
   const loadApiKeys = useCallback(async () => {
@@ -809,196 +800,6 @@ const AgentEditPage = () => {
     }
   };
 
-  const renderContent = () => {
-    if (!agent) return null;
-
-    switch (activeMenu) {
-      case 'profile':
-        return (
-          <ProfileSection
-            formData={formData}
-            onFormDataChange={handleFormDataChange}
-            agentType={agent.type}
-          />
-        );
-
-      case 'task':
-        return (
-          <TaskSection
-            data={taskConfigData || { tasks: [] }}
-            onChange={data => {
-              setTaskConfigData(data);
-              setIsDirty(true);
-            }}
-            editingAgentId={id}
-            folderId={undefined}
-          />
-        );
-
-      case 'subAgents':
-        return (
-          <SubAgentsForm
-            mode="edit"
-            data={subAgentsData}
-            onChange={data => {
-              setSubAgentsData(data);
-              setIsDirty(true);
-            }}
-            onValidationChange={() => {}}
-            editingAgentId={id}
-            folderId={undefined}
-          />
-        );
-
-      case 'configuration':
-        return (
-          <ConfigurationSection
-            agent={agent}
-            llmConfigData={llmConfigData}
-            a2aConfigData={a2aConfigData}
-            taskConfigData={taskConfigData}
-            externalConfigData={externalConfigData}
-            apiKeys={apiKeys}
-            outputSchema={outputSchema}
-            advancedSettings={advancedSettings}
-            behaviorSettings={behaviorSettings}
-            inactivityActions={inactivityActions}
-            transferRules={transferRules}
-            pipelineRules={pipelineRules}
-            contactEditConfig={contactEditConfig}
-            availablePipelines={availablePipelines}
-            availableUsers={availableUsers}
-            availableTeams={availableTeams}
-            onLLMConfigChange={data => {
-              setLLMConfigData(data);
-              setIsDirty(true);
-            }}
-            onA2AConfigChange={data => {
-              setA2AConfigData(data);
-              setIsDirty(true);
-            }}
-            onTaskConfigChange={data => {
-              setTaskConfigData(data);
-              setIsDirty(true);
-            }}
-            onExternalConfigChange={data => {
-              setExternalConfigData(data);
-              setIsDirty(true);
-            }}
-            onOutputSchemaChange={schema => {
-              setOutputSchema(schema);
-              setIsDirty(true);
-            }}
-            onAdvancedSettingsChange={settings => {
-              // Only update planner from ConfigurationSection, keep knowledge/memory settings
-              setAdvancedSettings(prev => ({
-                ...prev,
-                planner: settings.planner,
-              }));
-              setIsDirty(true);
-            }}
-            onBehaviorSettingsChange={settings => {
-              setBehaviorSettings(settings);
-              setIsDirty(true);
-            }}
-            onInactivityActionsChange={actions => {
-              setInactivityActions(actions);
-              setIsDirty(true);
-            }}
-            onTransferRulesChange={rules => {
-              setTransferRules(rules);
-              setIsDirty(true);
-            }}
-            onPipelineRulesChange={rules => {
-              setPipelineRules(rules);
-              setIsDirty(true);
-            }}
-            onContactEditConfigChange={config => {
-              setContactEditConfig(config);
-              setIsDirty(true);
-            }}
-            onInstructionSync={instruction => {
-              setFormData(prev => ({ ...prev, instruction }));
-            }}
-            onApiKeysReload={loadApiKeys}
-          />
-        );
-
-      case 'tools':
-        return (
-          <ToolsSection
-            agentTools={agentTools}
-            agentToolsData={agentToolsData}
-            customTools={customTools}
-            onAgentToolsChange={(newAgentTools, newAgentToolsData) => {
-              setAgentTools(newAgentTools);
-              setAgentToolsData(newAgentToolsData || []);
-              setIsDirty(true);
-            }}
-            onCustomToolsChange={newCustomTools => {
-              setCustomTools(newCustomTools);
-              setIsDirty(true);
-            }}
-            editingAgentId={id}
-            folderId={undefined}
-          />
-        );
-
-      case 'mcpServers':
-        return (
-          <MCPServersSection
-            mcpServers={mcpServers}
-            customMCPServerIds={customMCPServerIds}
-            onMCPServersChange={newMcpServers => {
-              setMcpServers(newMcpServers);
-              setIsDirty(true);
-            }}
-            onCustomMCPServersChange={newCustomMCPServerIds => {
-              setCustomMCPServerIds(newCustomMCPServerIds);
-              setIsDirty(true);
-            }}
-            agentId={id || ''}
-          />
-        );
-
-      case 'integrations':
-        return (
-          <IntegrationsSection
-            integrations={integrations}
-            agentId={id || ''}
-            onIntegrationsChange={newIntegrations => {
-              setIntegrations(newIntegrations);
-              setIsDirty(true);
-            }}
-          />
-        );
-
-      case 'products':
-        return <ProductsSection agent={agent} />;
-
-      case 'channels':
-      case 'settings':
-        return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold mb-2">
-                {t(`edit.${activeMenu}.title`) || activeMenu}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {t(`edit.${activeMenu}.subtitle`) || 'Em breve...'}
-              </p>
-            </div>
-            <div className="text-center py-12 text-muted-foreground">
-              {t(`edit.${activeMenu}.comingSoon`) || 'Em breve...'}
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -1011,35 +812,147 @@ const AgentEditPage = () => {
     return null;
   }
 
+  const visibleTabs = getVisibleAgentTabs(agent.type);
+
   return (
-    <div className="flex h-full bg-background">
-      {/* Sidebar */}
-      <AgentEditSidebar
-        agent={agent}
+    <div className="flex h-full flex-col bg-background">
+      {/* Header */}
+      <AgentEditHeader
+        onBack={() => navigate('/agents/list')}
+        onSave={handleSave}
+        onTestAgent={() => setIsTestChatOpen(true)}
+        isDirty={isDirty}
+        isSaving={isSaving}
         agentName={formData.name || agent.name}
-        activeMenu={activeMenu}
-        onMenuChange={setActiveMenu}
+        agentType={agent.type}
       />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <AgentEditHeader
-          onBack={() => navigate('/agents/list')}
-          onSave={handleSave}
-          onTestAgent={() => setIsTestChatOpen(true)}
-          isDirty={isDirty}
-          isSaving={isSaving}
-        />
+      {/* Abas horizontais + conteudo */}
+      <div className="flex-1 overflow-y-auto">
+        <AgentDetailTabs agentType={agent.type} value={activeTab} onValueChange={setActiveTab}>
+          <TabsContent value="profile" className="mt-0 p-6">
+            <ProfileSection
+              formData={formData}
+              onFormDataChange={handleFormDataChange}
+              agentType={agent.type}
+              taskConfigData={taskConfigData}
+              onTaskConfigChange={data => {
+                setTaskConfigData(data);
+                setIsDirty(true);
+              }}
+              editingAgentId={id}
+            />
+          </TabsContent>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">{renderContent()}</div>
+          {visibleTabs.includes('tools') && (
+            <TabsContent value="tools" className="mt-0 p-6">
+              <AgentToolsAccordion
+                agentId={id || ''}
+                agentType={agent.type}
+                subAgentsData={subAgentsData}
+                onSubAgentsChange={data => {
+                  setSubAgentsData(data);
+                  setIsDirty(true);
+                }}
+                agentTools={agentTools}
+                agentToolsData={agentToolsData}
+                customTools={customTools}
+                onAgentToolsChange={(newAgentTools, newAgentToolsData) => {
+                  setAgentTools(newAgentTools);
+                  setAgentToolsData(newAgentToolsData || []);
+                  setIsDirty(true);
+                }}
+                onCustomToolsChange={newCustomTools => {
+                  setCustomTools(newCustomTools);
+                  setIsDirty(true);
+                }}
+                integrations={integrations}
+                onIntegrationsChange={newIntegrations => {
+                  setIntegrations(newIntegrations);
+                  setIsDirty(true);
+                }}
+                mcpServers={mcpServers}
+                customMCPServerIds={customMCPServerIds}
+                onMCPServersChange={newMcpServers => {
+                  setMcpServers(newMcpServers);
+                  setIsDirty(true);
+                }}
+                onCustomMCPServersChange={newCustomMCPServerIds => {
+                  setCustomMCPServerIds(newCustomMCPServerIds);
+                  setIsDirty(true);
+                }}
+              />
+            </TabsContent>
+          )}
+
+          {visibleTabs.includes('products') && (
+            <TabsContent value="products" className="mt-0 p-6">
+              <ProductsSection agent={agent} />
+            </TabsContent>
+          )}
+
+          <TabsContent value="configuration" className="mt-0 p-6">
+            <ConfigurationSection
+              agent={agent}
+              llmConfigData={llmConfigData}
+              a2aConfigData={a2aConfigData}
+              externalConfigData={externalConfigData}
+              apiKeys={apiKeys}
+              behaviorSettings={behaviorSettings}
+              inactivityActions={inactivityActions}
+              transferRules={transferRules}
+              pipelineRules={pipelineRules}
+              contactEditConfig={contactEditConfig}
+              availablePipelines={availablePipelines}
+              availableUsers={availableUsers}
+              availableTeams={availableTeams}
+              onLLMConfigChange={data => {
+                setLLMConfigData(data);
+                setIsDirty(true);
+              }}
+              onA2AConfigChange={data => {
+                setA2AConfigData(data);
+                setIsDirty(true);
+              }}
+              onExternalConfigChange={data => {
+                setExternalConfigData(data);
+                setIsDirty(true);
+              }}
+              onBehaviorSettingsChange={settings => {
+                setBehaviorSettings(settings);
+                setIsDirty(true);
+              }}
+              onInactivityActionsChange={actions => {
+                setInactivityActions(actions);
+                setIsDirty(true);
+              }}
+              onTransferRulesChange={rules => {
+                setTransferRules(rules);
+                setIsDirty(true);
+              }}
+              onPipelineRulesChange={rules => {
+                setPipelineRules(rules);
+                setIsDirty(true);
+              }}
+              onContactEditConfigChange={config => {
+                setContactEditConfig(config);
+                setIsDirty(true);
+              }}
+              onInstructionSync={instruction => {
+                setFormData(prev => ({ ...prev, instruction }));
+              }}
+              onApiKeysReload={loadApiKeys}
+            />
+          </TabsContent>
+
+          <TabsContent value="channels" className="mt-0 p-6">
+            <AgentChannelsShell />
+          </TabsContent>
+        </AgentDetailTabs>
       </div>
 
       {/* Chat de Teste */}
-      {agent && (
-        <AgentTestChat open={isTestChatOpen} onOpenChange={setIsTestChatOpen} agent={agent} />
-      )}
+      <AgentTestChat open={isTestChatOpen} onOpenChange={setIsTestChatOpen} agent={agent} />
     </div>
   );
 };

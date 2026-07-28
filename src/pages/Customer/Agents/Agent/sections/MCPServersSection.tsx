@@ -4,6 +4,7 @@ import { Server, Network, Plus, Loader2 } from 'lucide-react';
 import { MCPServerConfig } from '@/types/ai';
 import { useState } from 'react';
 import CustomMCPServersSection from '@/components/ai_agents/CustomMCPServersSection';
+import CustomMCPDialog from '@/components/ai_agents/Dialogs/CustomMCPDialog';
 import { MCPCard } from '@/components/integrations/MCPCard';
 import { IntegrationDialogs } from '@/components/integrations/IntegrationDialogs';
 import { useMCPIntegrations } from '@/hooks/useMCPIntegrations';
@@ -25,7 +26,12 @@ const MCPServersSection = ({
   agentId,
 }: MCPServersSectionProps) => {
   const { t } = useLanguage('aiAgents');
-  const [showCustomMCPs, setShowCustomMCPs] = useState(false);
+  const [showCustomMcpPicker, setShowCustomMcpPicker] = useState(false);
+
+  const addCustomMCPServers = (serverIds: string[]) => {
+    const newIds = serverIds.filter(id => !customMCPServerIds.includes(id));
+    onCustomMCPServersChange([...customMCPServerIds, ...newIds]);
+  };
 
   // Dialog states
   const [showGitHubConfig, setShowGitHubConfig] = useState(false);
@@ -123,7 +129,6 @@ const MCPServersSection = ({
             <Server className="h-5 w-5 text-green-500" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold">{t('mcpServers.title') || 'Servidores MCP'}</h3>
             <p className="text-sm text-muted-foreground">
               {t('mcpServers.subtitle') ||
                 'Conecte o agente a serviços externos através do Model Context Protocol'}
@@ -131,7 +136,7 @@ const MCPServersSection = ({
           </div>
         </div>
 
-        <div className="pl-11">
+        <div>
           {isCheckingCredentials ? (
             <div className="flex flex-col gap-3 items-center py-12 h-32 text-muted-foreground">
               <Loader2 className="h-7 w-7 animate-spin" />
@@ -140,7 +145,7 @@ const MCPServersSection = ({
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {availableMCPs.map(mcp => {
                 const isEnabled = isMCPEnabled(mcp.id);
                 // DISPONIBILIDADE (CRM :3000 endpoint) — gates ATIVAR-disabled +
@@ -187,23 +192,30 @@ const MCPServersSection = ({
             variant="outline"
             size="sm"
             className="gap-2"
-            onClick={() => setShowCustomMCPs(!showCustomMCPs)}
+            onClick={() => setShowCustomMcpPicker(true)}
           >
             <Plus className="h-4 w-4" />
             {t('customMCPServers.add') || 'Adicionar Custom MCP'}
           </Button>
         </div>
 
-        {showCustomMCPs && (
-          <div className="pl-11">
-            <CustomMCPServersSection
-              customMCPServerIds={customMCPServerIds}
-              onCustomMCPServersChange={onCustomMCPServersChange}
-              isReadOnly={false}
-            />
-          </div>
-        )}
+        <CustomMCPServersSection
+          customMCPServerIds={customMCPServerIds}
+          onCustomMCPServersChange={onCustomMCPServersChange}
+          isReadOnly={false}
+          showAddButton={false}
+        />
       </div>
+
+      {/* Picker de MCPs personalizados já cadastrados. `hideCreateNew` porque criar um
+          novo MCP navega para fora de /agents/:id/edit e descartaria o form não salvo. */}
+      <CustomMCPDialog
+        open={showCustomMcpPicker}
+        onOpenChange={setShowCustomMcpPicker}
+        onSave={addCustomMCPServers}
+        initialSelectedIds={customMCPServerIds}
+        hideCreateNew
+      />
 
       {/* Integration Dialogs */}
       <IntegrationDialogs

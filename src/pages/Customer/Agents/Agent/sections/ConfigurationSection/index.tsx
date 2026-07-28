@@ -2,50 +2,38 @@ import { useState } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { LLMConfigData } from '@/components/ai_agents/Forms/LLMConfigForm';
 import { A2AConfigData } from '@/components/ai_agents/Forms/A2AConfigForm';
-import { TaskConfigData } from '@/components/ai_agents/Forms/TaskConfigForm';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@evoapi/design-system';
 import { Agent, ApiKey } from '@/types/agents';
-import { Settings, Timer } from 'lucide-react';
+import { Key, MessageSquare, Clock, Timer } from 'lucide-react';
 import { InactivityAction } from '../InactivityActions';
 import { TransferRule } from '../TransferRules';
 import { PipelineRule } from '../PipelineRules';
 import { ContactEditConfig } from '../ContactEditRules';
 import {
-  GeneralTab,
+  BehaviorPanel,
   InactivityActionsTab,
+  MessageHandlingPanel,
+  ModelApiPanel,
   TransferRulesModal,
   PipelineRulesModal,
+  hasMessageHandlingContent,
 } from '@/components/agents/configuration';
 import ContactEditModal from '@/components/agents/configuration/ContactEditModal';
-import { BehaviorSettings } from '@/components/agents/configuration/types';
+import { BehaviorSettings, ExternalConfigData } from '@/components/agents/configuration/types';
+import CollapsibleCard from '@/components/ai_agents/CollapsibleCard';
 import {
-  getAvailableTabs,
+  isA2AAgent,
+  isExternalAgent,
+  supportsBehaviorSettings,
   supportsInactivityActions,
+  supportsModelConfig,
 } from '@/utils/agents';
-
-interface AdvancedSettingsData {
-  planner: boolean;
-}
 
 interface ConfigurationSectionProps {
   agent: Agent;
   llmConfigData: LLMConfigData | null;
   a2aConfigData: A2AConfigData | null;
-  taskConfigData: TaskConfigData | null;
-  externalConfigData?: {
-    provider?: string;
-    advanced_config?: {
-      message_wait_time: number;
-      message_signature: string;
-      enable_text_segmentation: boolean;
-      max_characters_per_segment: number;
-      min_segment_size: number;
-      character_delay_ms: number;
-    };
-  } | null;
+  externalConfigData?: ExternalConfigData | null;
   apiKeys: ApiKey[];
-  outputSchema: Record<string, { type?: string; description?: string }>;
-  advancedSettings: AdvancedSettingsData;
   behaviorSettings: BehaviorSettings;
   inactivityActions: InactivityAction[];
   transferRules: TransferRule[];
@@ -60,20 +48,7 @@ interface ConfigurationSectionProps {
   availableTeams?: Array<{ id: string; name: string }>;
   onLLMConfigChange: (data: LLMConfigData) => void;
   onA2AConfigChange: (data: A2AConfigData) => void;
-  onTaskConfigChange: (data: TaskConfigData) => void;
-  onExternalConfigChange?: (data: {
-    provider?: string;
-    advanced_config?: {
-      message_wait_time: number;
-      message_signature: string;
-      enable_text_segmentation: boolean;
-      max_characters_per_segment: number;
-      min_segment_size: number;
-      character_delay_ms: number;
-    };
-  }) => void;
-  onOutputSchemaChange: (schema: Record<string, { type?: string; description?: string }>) => void;
-  onAdvancedSettingsChange: (settings: AdvancedSettingsData) => void;
+  onExternalConfigChange?: (data: ExternalConfigData) => void;
   onBehaviorSettingsChange: (settings: BehaviorSettings) => void;
   onInactivityActionsChange: (actions: InactivityAction[]) => void;
   onTransferRulesChange: (rules: TransferRule[]) => void;
@@ -87,7 +62,6 @@ const ConfigurationSection = ({
   agent,
   llmConfigData,
   a2aConfigData,
-  taskConfigData,
   externalConfigData,
   apiKeys,
   behaviorSettings,
@@ -100,7 +74,6 @@ const ConfigurationSection = ({
   availableTeams = [],
   onLLMConfigChange,
   onA2AConfigChange,
-  onTaskConfigChange,
   onExternalConfigChange,
   onBehaviorSettingsChange,
   onInactivityActionsChange,
@@ -112,78 +85,107 @@ const ConfigurationSection = ({
 }: ConfigurationSectionProps) => {
   const { t } = useLanguage('aiAgents');
 
-  // Estados para modais
   const [showTransferRulesModal, setShowTransferRulesModal] = useState(false);
   const [showPipelineRulesModal, setShowPipelineRulesModal] = useState(false);
   const [showContactEditModal, setShowContactEditModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('general');
 
-  // Get available tabs based on agent type
-  const availableTabs = getAvailableTabs(agent.type);
-
-  // Tailwind não gera classes por interpolação dinâmica (purge); usar mapa estático.
-  const gridColsMap: Record<number, string> = {
-    1: 'grid-cols-1',
-    2: 'grid-cols-2',
-  };
-  const gridColsClass = gridColsMap[availableTabs.length] || 'grid-cols-1';
+  // Card "Modelo e API" cobre a config de modelo/provider de cada tipo: chave+modelo
+  // (llm), agent card (a2a) e provider externo (external).
+  const showModelCard =
+    (supportsModelConfig(agent.type) && Boolean(llmConfigData)) ||
+    (isA2AAgent(agent.type) && Boolean(a2aConfigData)) ||
+    (isExternalAgent(agent.type) && Boolean(externalConfigData) && Boolean(onExternalConfigChange));
+  const showBehaviorCard = supportsBehaviorSettings(agent.type);
+  const showMessageCard = hasMessageHandlingContent(agent, llmConfigData, externalConfigData);
 
   return (
     <>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={`grid w-full ${gridColsClass} mb-6`}>
-          {/* Aba Geral */}
-          {availableTabs.includes('general') && (
-            <TabsTrigger value="general" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              <span>{t('edit.configuration.tabs.general') || 'Geral'}</span>
-            </TabsTrigger>
-          )}
-
-          {/* Aba Ações de Inatividade */}
-          {availableTabs.includes('inactivity') && supportsInactivityActions(agent.type) && (
-            <TabsTrigger value="inactivity" className="flex items-center gap-2">
-              <Timer className="h-4 w-4" />
-              <span>{t('edit.configuration.tabs.inactivityActions') || 'Ações de inatividade'}</span>
-            </TabsTrigger>
-          )}
-        </TabsList>
-
-        {/* Conteúdo da Aba Geral */}
-        {availableTabs.includes('general') && (
-          <TabsContent value="general" className="mt-0">
-            <GeneralTab
+      <div className="space-y-4">
+        {showModelCard && (
+          <CollapsibleCard
+            title={t('edit.configuration.sections.modelAndApi.title') || 'Modelo e API'}
+            subtitle={
+              t('edit.configuration.sections.modelAndApi.subtitle') ||
+              'Configure o modelo de linguagem e a chave de API'
+            }
+            icon={<Key className="h-5 w-5" />}
+          >
+            <ModelApiPanel
               agent={agent}
               llmConfigData={llmConfigData}
               a2aConfigData={a2aConfigData}
-              taskConfigData={taskConfigData}
               externalConfigData={externalConfigData}
               apiKeys={apiKeys}
-              behaviorSettings={behaviorSettings}
               onLLMConfigChange={onLLMConfigChange}
               onA2AConfigChange={onA2AConfigChange}
-              onTaskConfigChange={onTaskConfigChange}
               onExternalConfigChange={onExternalConfigChange}
-              onBehaviorSettingsChange={onBehaviorSettingsChange}
-              onShowTransferRulesModal={() => setShowTransferRulesModal(true)}
-              onShowPipelineRulesModal={() => setShowPipelineRulesModal(true)}
-              onShowContactEditModal={() => setShowContactEditModal(true)}
               onInstructionSync={onInstructionSync}
               onApiKeysReload={onApiKeysReload}
             />
-          </TabsContent>
+          </CollapsibleCard>
         )}
 
-        {/* Conteúdo da Aba Ações de Inatividade */}
-        {availableTabs.includes('inactivity') && supportsInactivityActions(agent.type) && (
-          <TabsContent value="inactivity" className="mt-0">
-            <InactivityActionsTab
-              actions={inactivityActions}
-              onChange={onInactivityActionsChange}
-            />
-          </TabsContent>
+        {showBehaviorCard && (
+          <CollapsibleCard
+            title={t('edit.configuration.sections.behavior.title') || 'Comportamento na Conversa'}
+            subtitle={
+              t('edit.configuration.sections.behavior.subtitle') ||
+              'Configure como o agente interage com os usuários'
+            }
+            icon={<MessageSquare className="h-5 w-5" />}
+          >
+            <div className="space-y-8">
+              <BehaviorPanel
+                behaviorSettings={behaviorSettings}
+                onBehaviorSettingsChange={onBehaviorSettingsChange}
+                onShowTransferRulesModal={() => setShowTransferRulesModal(true)}
+                onShowPipelineRulesModal={() => setShowPipelineRulesModal(true)}
+                onShowContactEditModal={() => setShowContactEditModal(true)}
+              />
+
+              {supportsInactivityActions(agent.type) && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 border-b pb-2">
+                    <div className="rounded-lg bg-amber-500/10 p-2">
+                      <Timer className="h-5 w-5 text-amber-500" />
+                    </div>
+                    <h3 className="text-base font-semibold">
+                      {t('edit.configuration.tabs.inactivityActions') || 'Ações de inatividade'}
+                    </h3>
+                  </div>
+                  <InactivityActionsTab
+                    actions={inactivityActions}
+                    onChange={onInactivityActionsChange}
+                  />
+                </div>
+              )}
+            </div>
+          </CollapsibleCard>
         )}
-      </Tabs>
+
+        {showMessageCard && (
+          <CollapsibleCard
+            title={
+              t('edit.configuration.sections.messageHandling.title') || 'Tratamento de Mensagens'
+            }
+            subtitle={
+              t('edit.configuration.sections.messageHandling.subtitle') ||
+              'Configure como as mensagens são processadas e enviadas'
+            }
+            icon={<Clock className="h-5 w-5" />}
+          >
+            <MessageHandlingPanel
+              agent={agent}
+              llmConfigData={llmConfigData}
+              externalConfigData={externalConfigData}
+              behaviorSettings={behaviorSettings}
+              onLLMConfigChange={onLLMConfigChange}
+              onExternalConfigChange={onExternalConfigChange}
+              onBehaviorSettingsChange={onBehaviorSettingsChange}
+            />
+          </CollapsibleCard>
+        )}
+      </div>
 
       {/* Modal de Regras de Transferência */}
       <TransferRulesModal

@@ -15,12 +15,17 @@ interface CustomMCPServersSectionProps {
   customMCPServerIds: string[];
   onCustomMCPServersChange: (serverIds: string[]) => void;
   isReadOnly?: boolean;
+  /** Quando o caller já expõe o próprio botão "Adicionar Custom MCP". */
+  showAddButton?: boolean;
+  hideCreateNew?: boolean;
 }
 
 const CustomMCPServersSection = ({
   customMCPServerIds,
   onCustomMCPServersChange,
   isReadOnly = false,
+  showAddButton = true,
+  hideCreateNew = false,
 }: CustomMCPServersSectionProps) => {
   const { t } = useLanguage('aiAgents');
   const [showCustomMCPDialog, setShowCustomMCPDialog] = useState(false);
@@ -60,7 +65,7 @@ const CustomMCPServersSection = ({
                       {t('tools.mcpServers.externallyManaged')}
                     </p>
                   </div>
-                  {!isReadOnly && (
+                  {!isReadOnly && showAddButton && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -73,7 +78,7 @@ const CustomMCPServersSection = ({
                 </div>
               ))}
 
-              {!isReadOnly && (
+              {!isReadOnly && showAddButton && (
                 <Button
                   type="button"
                   variant="outline"
@@ -94,7 +99,7 @@ const CustomMCPServersSection = ({
                   {t('tools.mcpServers.connectFromManagement')}
                 </p>
               </div>
-              {!isReadOnly && (
+              {!isReadOnly && showAddButton && (
                 <Button
                   type="button"
                   variant="outline"
@@ -114,6 +119,7 @@ const CustomMCPServersSection = ({
         onOpenChange={setShowCustomMCPDialog}
         onSave={handleAddCustomMCPServers}
         initialSelectedIds={customMCPServerIds}
+        hideCreateNew={hideCreateNew}
       />
     </div>
   );

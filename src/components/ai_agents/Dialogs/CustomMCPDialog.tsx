@@ -22,6 +22,12 @@ interface CustomMCPDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (selectedServerIds: string[]) => void;
   initialSelectedIds?: string[];
+  /**
+   * Esconde os atalhos "criar novo MCP". Eles navegam para /custom-mcp-servers e
+   * descartariam o formulário não salvo de quem abriu o picker (ex.: detalhe do
+   * agente). Nesses contextos o dialog serve só para SELECIONAR MCPs já criados.
+   */
+  hideCreateNew?: boolean;
 }
 
 const CustomMCPDialog = ({
@@ -29,6 +35,7 @@ const CustomMCPDialog = ({
   onOpenChange,
   onSave,
   initialSelectedIds = [],
+  hideCreateNew = false,
 }: CustomMCPDialogProps) => {
   const { t } = useLanguage('aiAgents');
   const navigate = useNavigate();
@@ -231,7 +238,7 @@ const CustomMCPDialog = ({
                 <p className="text-muted-foreground text-sm mt-1 mb-3">
                   {!searchTerm && t('dialogs.customMcp.createFirst')}
                 </p>
-                {!searchTerm && (
+                {!searchTerm && !hideCreateNew && (
                   <Button
                     size="sm"
                     onClick={() => {
@@ -262,7 +269,7 @@ const CustomMCPDialog = ({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('actions.cancel')}
           </Button>
-          {customMCPServers.length > 0 && (
+          {customMCPServers.length > 0 && !hideCreateNew && (
             <Button
               onClick={() => {
                 onOpenChange(false);
