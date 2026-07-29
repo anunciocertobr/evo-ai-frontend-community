@@ -11,6 +11,11 @@ vi.mock('@/services/agents/customToolsService', () => ({
   testCustomTool: vi.fn(),
 }));
 
+// The vault picker (EVO-2250 story 2.4) loads credentials on mount.
+vi.mock('@/services/agents', () => ({
+  listIntegrationCredentials: vi.fn().mockResolvedValue([]),
+}));
+
 const baseTool: CustomTool = {
   id: 'tool-1',
   name: 'My Tool',
@@ -83,5 +88,34 @@ describe('CustomToolForm (refactored)', () => {
     fireEvent.click(screen.getByText('advancedConfig.title'));
     expect(screen.getByLabelText('form.fields.values.label')).toBeTruthy();
     expect(screen.getByLabelText('form.fields.errorHandling.label')).toBeTruthy();
+  });
+
+  // EVO-2250 story 2.4: the vault reference is a MAP (header -> credential),
+  // round-tripped untouched through the save payload. A scalar credential_id
+  // column could not carry the two-entry case (negative proof).
+  it('round-trips credential_refs as a map in the save payload (2.4)', () => {
+    const toolWithRefs: CustomTool = {
+      ...baseTool,
+      credential_refs: { Authorization: 'cred-1', 'X-API-Key': 'cred-2' },
+    };
+    const onSubmit = vi.fn();
+    render(<CustomToolForm tool={toolWithRefs} mode="edit" onSubmit={onSubmit} />);
+    fireEvent.submit(screen.getByText('form.actions.save').closest('form')!);
+
+    const payload = onSubmit.mock.calls[0][0];
+    expect(payload.credential_refs).toEqual({
+      Authorization: 'cred-1',
+      'X-API-Key': 'cred-2',
+    });
+    // The inline headers stay as the fallback until story 2.7.
+    expect(payload.headers).toEqual({ Authorization: 'Bearer x' });
+  });
+
+  it('sends an empty credential_refs map when nothing references the vault', () => {
+    const onSubmit = vi.fn();
+    render(<CustomToolForm tool={baseTool} mode="edit" onSubmit={onSubmit} />);
+    fireEvent.submit(screen.getByText('form.actions.save').closest('form')!);
+
+    expect(onSubmit.mock.calls[0][0].credential_refs).toEqual({});
   });
 });

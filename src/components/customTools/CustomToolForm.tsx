@@ -25,6 +25,7 @@ import {
   KeyValueEditor,
   AdvancedJsonCollapse,
   TestRequestButton,
+  CredentialRefsEditor,
 } from '@/components/ai_agents/shared';
 
 
@@ -42,6 +43,7 @@ interface FormData {
   method: string;
   endpoint: string;
   headers: Record<string, unknown>;
+  credential_refs: Record<string, string>;
   path_params: Record<string, unknown>;
   query_params: Record<string, unknown>;
   body_params: Record<string, unknown>;
@@ -59,6 +61,7 @@ const initialFormData: FormData = {
   method: 'GET',
   endpoint: '',
   headers: {},
+  credential_refs: {},
   path_params: {},
   query_params: {},
   body_params: {},
@@ -97,6 +100,7 @@ export default function CustomToolForm({
         method: tool.method || 'GET',
         endpoint: tool.endpoint || '',
         headers: (tool.headers as Record<string, unknown>) || {},
+        credential_refs: tool.credential_refs || {},
         path_params: (tool.path_params as Record<string, unknown>) || {},
         query_params: (tool.query_params as Record<string, unknown>) || {},
         body_params: (tool.body_params as Record<string, unknown>) || {},
@@ -271,6 +275,7 @@ export default function CustomToolForm({
       method: formData.method,
       endpoint: formData.endpoint.trim(),
       headers: formData.headers,
+      credential_refs: formData.credential_refs,
       path_params: formData.path_params,
       query_params: formData.query_params,
       body_params: formData.body_params,
@@ -386,6 +391,17 @@ export default function CustomToolForm({
             hint={t('form.fields.headers.hint')}
             keyPlaceholder={t('form.fields.headers.keyPlaceholder')}
             valuePlaceholder={t('form.fields.headers.valuePlaceholder')}
+          />
+
+          {/* Vault-backed auth headers (EVO-2250 story 2.4): each entry maps
+              one header name to one vault credential — inline headers above
+              keep working as the fallback until story 2.7. */}
+          <CredentialRefsEditor
+            id="credential_refs"
+            value={formData.credential_refs}
+            onChange={refs => setFormData(prev => ({ ...prev, credential_refs: refs }))}
+            disabled={loading}
+            keyPlaceholder={t('form.fields.headers.keyPlaceholder')}
           />
 
           {showBodyParams && (

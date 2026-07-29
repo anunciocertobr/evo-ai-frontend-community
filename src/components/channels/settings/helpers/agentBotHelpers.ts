@@ -7,6 +7,9 @@ export interface AgentBot {
   description: string;
   outgoing_url: string;
   api_key?: string;
+  /** EVO-2250 story 2.4: scalar vault reference (a bot holds one secret).
+   * While present, api_key stays as the inline fallback until story 2.7. */
+  credential_id?: string;
   bot_type: string;
   bot_provider: string;
   thumbnail?: string;
@@ -29,6 +32,7 @@ export interface AgentBotFormData {
   description: string;
   outgoing_url: string;
   api_key: string;
+  credential_id: string;
   bot_provider: string;
   avatar?: File | null;
   avatarUrl: string;
@@ -94,6 +98,7 @@ export const getDefaultAgentBotFormData = (): AgentBotFormData => ({
   description: '',
   outgoing_url: '',
   api_key: '',
+  credential_id: '',
   bot_provider: 'webhook_provider',
   avatar: null,
   avatarUrl: '',
@@ -201,6 +206,10 @@ export const prepareAgentBotPayload = (formData: AgentBotFormData) => {
     payload.append('api_key', formData.api_key);
   }
 
+  if (formData.credential_id) {
+    payload.append('credential_id', formData.credential_id);
+  }
+
   if (formData.avatar) {
     payload.append('avatar', formData.avatar);
   }
@@ -214,6 +223,7 @@ export const parseAgentBotForForm = (bot: AgentBot): AgentBotFormData => ({
   description: bot.description || '',
   outgoing_url: bot.outgoing_url || bot.bot_config?.webhook_url || '',
   api_key: bot.api_key || '',
+  credential_id: bot.credential_id || '',
   bot_provider: bot.bot_provider || 'webhook_provider',
   avatar: null,
   avatarUrl: bot.thumbnail || '',

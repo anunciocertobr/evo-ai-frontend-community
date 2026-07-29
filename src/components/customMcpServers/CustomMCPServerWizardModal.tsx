@@ -100,6 +100,7 @@ export default function CustomMCPServerWizardModal({
       description: data.description.trim() || '',
       url: data.url.trim(),
       headers: data.headers,
+      credential_refs: data.credential_refs,
       timeout: data.timeout,
       retry_count: data.retry_count,
       tags: data.tags,
@@ -155,6 +156,7 @@ export default function CustomMCPServerWizardModal({
             data={{
               url: data.url,
               headers: data.headers,
+              credential_refs: data.credential_refs,
             }}
             onChange={d => setData(prev => ({ ...prev, ...d }))}
             onNext={handleNext}

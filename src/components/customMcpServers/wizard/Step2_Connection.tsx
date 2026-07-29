@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { Input, Label, Button } from '@evoapi/design-system';
 import { ArrowRight, ArrowLeft, PlugZap, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { KeyValueEditor } from '@/components/ai_agents/shared';
+import { CredentialRefsEditor, KeyValueEditor } from '@/components/ai_agents/shared';
 import { testCustomMcpServerConnection } from '@/services/agents/customMcpServerService';
 import type { McpTestResult } from '@/types/ai';
 
 export interface Step2Data {
   url: string;
   headers: Record<string, unknown>;
+  credential_refs: Record<string, string>;
 }
 
 interface Step2Props {
@@ -95,6 +96,16 @@ export default function Step2_Connection({ data, onChange, onNext, onBack }: Ste
               value={data.headers}
               onChange={next => onChange({ ...data, headers: next })}
               hint={t('form.hints.headers')}
+            />
+          </div>
+
+          {/* Vault-backed auth headers (EVO-2250 story 2.4): one credential
+              per header name; inline headers above stay as the fallback. */}
+          <div className="pt-2">
+            <CredentialRefsEditor
+              id="credential_refs"
+              value={data.credential_refs}
+              onChange={refs => onChange({ ...data, credential_refs: refs })}
             />
           </div>
 

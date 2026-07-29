@@ -20,10 +20,13 @@ import { maskKey } from '@/constants/aiProviders';
 import {
   createIntegrationCredential,
   deleteIntegrationCredential,
+  listCustomMcpServers,
+  listCustomTools,
   listIntegrationCredentials,
   updateIntegrationCredential,
 } from '@/services/agents';
 import agentIntegrationsService from '@/services/agents/agentIntegrationsService';
+import AgentBotsService from '@/services/channels/agentBotsService';
 import type {
   ApiKeyScope,
   IntegrationCredential,
@@ -60,6 +63,14 @@ const EMPTY_DRAFT: CredentialDraft = {
   scope: 'account',
 };
 
+interface ConsumerInUse {
+  key: string;
+  /** i18n suffix under inUse.kinds.* */
+  kind: 'tool' | 'mcp' | 'bot';
+  name: string;
+  credentialIds: string[];
+}
+
 export default function IntegrationCredentials() {
   const { t } = useLanguage('integrationCredentials');
   const { can, isReady: permissionsReady } = usePermissions();
@@ -72,6 +83,7 @@ export default function IntegrationCredentials() {
   const [credentialToDelete, setCredentialToDelete] = useState<IntegrationCredential | null>(null);
   const [connectionToDisconnect, setConnectionToDisconnect] =
     useState<IntegrationCredential | null>(null);
+  const [consumersInUse, setConsumersInUse] = useState<ConsumerInUse[]>([]);
 
   const canRead = can('ai_integration_credentials', 'read');
   const canCreate = can('ai_integration_credentials', 'create');
@@ -110,6 +122,57 @@ export default function IntegrationCredentials() {
     [staticCredentials],
   );
 
+  // The panel is fed client-side from the consumer listings, the same way the
+  // AI credentials screen reads agents. Advisory: any listing failure leaves
+  // the panel empty without blocking the vault itself.
+  const loadConsumers = useCallback(async () => {
+    const [tools, mcpServers, bots] = await Promise.allSettled([
+      listCustomTools(),
+      listCustomMcpServers(),
+      AgentBotsService.getAll(),
+    ]);
+
+    const rows: ConsumerInUse[] = [];
+
+    if (tools.status === 'fulfilled') {
+      tools.value.forEach(tool => {
+        const ids = Object.values(tool.credential_refs ?? {});
+        if (ids.length > 0) {
+          rows.push({ key: `tool-${tool.id}`, kind: 'tool', name: tool.name, credentialIds: ids });
+        }
+      });
+    }
+
+    if (mcpServers.status === 'fulfilled') {
+      mcpServers.value.forEach(server => {
+        const ids = Object.values(server.credential_refs ?? {});
+        if (ids.length > 0) {
+          rows.push({
+            key: `mcp-${server.id}`,
+            kind: 'mcp',
+            name: server.name,
+            credentialIds: ids,
+          });
+        }
+      });
+    }
+
+    if (bots.status === 'fulfilled') {
+      bots.value.forEach(bot => {
+        if (bot.credential_id) {
+          rows.push({
+            key: `bot-${bot.id}`,
+            kind: 'bot',
+            name: bot.name,
+            credentialIds: [bot.credential_id],
+          });
+        }
+      });
+    }
+
+    setConsumersInUse(rows);
+  }, []);
+
   const loadCredentials = useCallback(async () => {
     if (!canRead) {
       toast.error(t('messages.permissionDenied.read'));
@@ -119,13 +182,14 @@ export default function IntegrationCredentials() {
     try {
       setLoading(true);
       setCredentials(await listIntegrationCredentials());
+      loadConsumers();
     } catch (error) {
       console.error('Error loading integration credentials:', error);
       toast.error(t('messages.loadError'));
     } finally {
       setLoading(false);
     }
-  }, [canRead, t]);
+  }, [canRead, t, loadConsumers]);
 
   useEffect(() => {
     if (!permissionsReady) {
@@ -383,7 +447,21 @@ export default function IntegrationCredentials() {
           row here, like the AI credentials panel grew in 1.2. */}
       <section aria-label={t('inUse.title')} className="border rounded-lg p-4 space-y-2">
         <h2 className="text-sm font-medium">{t('inUse.title')}</h2>
-        <p className="text-sm text-muted-foreground">{t('inUse.empty')}</p>
+        {consumersInUse.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('inUse.empty')}</p>
+        ) : (
+          consumersInUse.map(consumer => (
+            <div key={consumer.key} className="flex items-baseline gap-2 text-sm">
+              <span className="text-muted-foreground">{t(`inUse.kinds.${consumer.kind}`)}</span>
+              <span className="font-medium">{consumer.name}</span>
+              <span className="text-xs text-muted-foreground">
+                {consumer.credentialIds
+                  .map(id => credentials.find(credential => credential.id === id)?.name ?? id)
+                  .join(', ')}
+              </span>
+            </div>
+          ))
+        )}
       </section>
 
       <section aria-label={t('sections.account')} className="space-y-3">

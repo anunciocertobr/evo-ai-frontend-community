@@ -26,12 +26,23 @@ const listIntegrationCredentials = vi.fn();
 const createIntegrationCredential = vi.fn();
 const updateIntegrationCredential = vi.fn();
 const deleteIntegrationCredential = vi.fn();
+const listCustomTools = vi.fn();
+const listCustomMcpServers = vi.fn();
+const listAgentBots = vi.fn();
 
 vi.mock('@/services/agents', () => ({
   listIntegrationCredentials: (...args: unknown[]) => listIntegrationCredentials(...args),
   createIntegrationCredential: (...args: unknown[]) => createIntegrationCredential(...args),
   updateIntegrationCredential: (...args: unknown[]) => updateIntegrationCredential(...args),
   deleteIntegrationCredential: (...args: unknown[]) => deleteIntegrationCredential(...args),
+  listCustomTools: (...args: unknown[]) => listCustomTools(...args),
+  listCustomMcpServers: (...args: unknown[]) => listCustomMcpServers(...args),
+}));
+
+vi.mock('@/services/channels/agentBotsService', () => ({
+  default: {
+    getAll: (...args: unknown[]) => listAgentBots(...args),
+  },
 }));
 
 const deleteIntegration = vi.fn();
@@ -132,6 +143,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   granted = [...ALL_PERMISSIONS];
   listIntegrationCredentials.mockResolvedValue([DIFY_CREDENTIAL, ELEVENLABS_CREDENTIAL]);
+  listCustomTools.mockResolvedValue([]);
+  listCustomMcpServers.mockResolvedValue([]);
+  listAgentBots.mockResolvedValue([]);
 });
 
 describe('IntegrationCredentials — listing (AC1, AC3)', () => {
@@ -418,15 +432,56 @@ describe('IntegrationCredentials — installation scope (2.2 AC8)', () => {
   });
 });
 
-// The panel answers "which credential is in effect" and is born empty: the
-// consumers plug in with stories 2.3/2.4 (2.2 AC9).
-describe('IntegrationCredentials — in-use panel (2.2 AC9)', () => {
+// The panel answers "which credential is in effect". Born empty in 2.2; the
+// 2.4 consumers (tools, MCPs, bots) fill it from their own listings.
+describe('IntegrationCredentials — in-use panel (2.2 AC9, 2.4 AC10)', () => {
   it('renders the panel above the lists with the empty explanation', async () => {
     render(<IntegrationCredentials />);
 
     await findAccountRow();
     const panel = screen.getByLabelText('inUse.title');
     expect(panel).toHaveTextContent('inUse.empty');
+  });
+
+  it('lists tools, MCPs and bots that reference the vault, with the credential name (2.4 AC10)', async () => {
+    listCustomTools.mockResolvedValue([
+      {
+        id: 'tool-1',
+        name: 'CRM lookup',
+        credential_refs: { Authorization: 'cred-dify' },
+      },
+      { id: 'tool-2', name: 'Sem cofre', credential_refs: {} },
+    ]);
+    listCustomMcpServers.mockResolvedValue([
+      { id: 'mcp-1', name: 'Notion MCP', credential_refs: { 'X-API-Key': 'cred-elevenlabs' } },
+    ]);
+    listAgentBots.mockResolvedValue([
+      { id: 'bot-1', name: 'Bot vendas', credential_id: 'cred-dify' },
+      { id: 'bot-2', name: 'Bot webhook' },
+    ]);
+    render(<IntegrationCredentials />);
+
+    await findAccountRow();
+    const panel = screen.getByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('CRM lookup'));
+    // The reference resolves to the credential NAME, not the raw id.
+    expect(panel).toHaveTextContent('Dify producao');
+    expect(panel).toHaveTextContent('Notion MCP');
+    expect(panel).toHaveTextContent('ElevenLabs');
+    expect(panel).toHaveTextContent('Bot vendas');
+    // Consumers without a vault reference stay out (negative proof: a panel
+    // listing every consumer would drag webhook bots and plain tools in).
+    expect(panel).not.toHaveTextContent('Sem cofre');
+    expect(panel).not.toHaveTextContent('Bot webhook');
+    expect(panel).not.toHaveTextContent('inUse.empty');
+  });
+
+  it('keeps the vault page alive when a consumer listing fails (advisory)', async () => {
+    listCustomTools.mockRejectedValue(new Error('403'));
+    render(<IntegrationCredentials />);
+
+    expect(await findAccountRow()).toBeInTheDocument();
+    expect(screen.getByLabelText('inUse.title')).toHaveTextContent('inUse.empty');
   });
 });
 
