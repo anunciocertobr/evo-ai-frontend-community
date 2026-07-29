@@ -374,14 +374,28 @@ describe('AiCredentials — in-use panel (1.2 AC9)', () => {
     await waitFor(() => expect(panel).toHaveTextContent('inUse.none'));
   });
 
-  it('lists only features already wired to the resolver (1.4 adds the rest)', async () => {
+  it('lists the five AI features of the CRM (1.4 completes the panel)', async () => {
     listApiKeys.mockResolvedValue([OPENAI_KEY]);
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
-    expect(panel).toHaveTextContent('inUse.features.aiAgents');
-    expect(panel).toHaveTextContent('inUse.features.inboxAssist');
-    expect(panel).not.toHaveTextContent('inUse.features.audioTranscription');
+    ['aiAgents', 'inboxAssist', 'audioTranscription', 'labelSuggestion', 'moderation'].forEach(
+      feature => expect(panel).toHaveTextContent(`inUse.features.${feature}`),
+    );
+  });
+
+  // 1.4 AC7: an Anthropic account credential serves Agents but none of the four
+  // OpenAI-shaped features, which fall through to the installation default.
+  it('splits agents from the OpenAI-only features when providers differ', async () => {
+    const anthropicActive = { ...ANTHROPIC_KEY, is_active: true };
+    listApiKeys.mockResolvedValue([INSTALLATION_KEY, anthropicActive]);
+    render(<AiCredentials />);
+
+    const panel = await screen.findByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('Testes'));
+    // The house key covers transcription, labels and moderation.
+    expect(panel).toHaveTextContent('Chave da casa');
+    expect(panel).toHaveTextContent('inUse.fromInstallation');
   });
 
   // 1.3 AC8 + FR18: the assist cannot speak Anthropic, so it shows the

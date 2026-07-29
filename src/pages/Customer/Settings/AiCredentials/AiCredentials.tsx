@@ -80,22 +80,20 @@ export default function AiCredentials() {
     [credentials],
   );
 
-  // Only features already wired to the resolver appear here. Story 1.4 adds the
-  // remaining three. The assist only speaks the OpenAI protocol, so it resolves
-  // with the same compatibility filter the backend applies.
-  const featuresInUse = useMemo(
-    () => [
-      {
-        key: 'aiAgents',
-        credential: resolveCredential(credentials),
-      },
-      {
-        key: 'inboxAssist',
-        credential: resolveCredential(credentials, { openAICompatibleOnly: true }),
-      },
-    ],
-    [credentials],
-  );
+  // Every AI feature of the CRM, mirroring Ai::ConsumerCompatibility. Agents
+  // reach any provider; the other four build OpenAI-shaped requests, so they
+  // resolve with the same compatibility filter the backend applies.
+  const featuresInUse = useMemo(() => {
+    const openAIOnly = resolveCredential(credentials, { openAICompatibleOnly: true });
+
+    return [
+      { key: 'aiAgents', credential: resolveCredential(credentials) },
+      { key: 'inboxAssist', credential: openAIOnly },
+      { key: 'audioTranscription', credential: openAIOnly },
+      { key: 'labelSuggestion', credential: openAIOnly },
+      { key: 'moderation', credential: openAIOnly },
+    ];
+  }, [credentials]);
 
   const loadCredentials = useCallback(async () => {
     if (!canRead) {
