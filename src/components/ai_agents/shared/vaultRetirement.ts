@@ -45,13 +45,31 @@ export function useVaultMigrationState(enabled = true): IntegrationVaultMigratio
   return state;
 }
 
-// The conservative auth-name heuristic of story 2.6: recognizable auth headers
-// and nothing else. Retiring a header that is not a secret would lock plain
-// configuration behind the vault for no reason, so unknown names stay editable.
-const AUTH_HEADER_NAMES = new Set(['authorization', 'x-api-key', 'api-key', 'apikey']);
+// Mirrors `safeHeaderNames` in the backend's secretmerge package: the headers
+// whose VALUE the API returns. Everything else is redacted server-side and
+// arrives blank.
+//
+// The classification is derived from THIS list, inverted, rather than from a
+// separate list of auth-looking names. With two lists, a secret in a custom
+// header (`X-Tenant-Auth` is the backend's own example) was redacted by the
+// server but classified as editable by the screen, so it rendered as an empty
+// box — and once an absent key started meaning deletion, tidying that box away
+// destroyed the stored secret.
+const SAFE_HEADER_NAMES = new Set([
+  'accept',
+  'accept-encoding',
+  'accept-language',
+  'cache-control',
+  'content-type',
+  'user-agent',
+  'x-request-id',
+  'x-correlation-id',
+]);
 
+// Server-managed: the value lives in the vault (or is redacted on the way out),
+// so the screen shows a pointer and never an editable value.
 export function isAuthHeaderName(name: string): boolean {
-  return AUTH_HEADER_NAMES.has(name.trim().toLowerCase());
+  return !SAFE_HEADER_NAMES.has(name.trim().toLowerCase());
 }
 
 export interface SplitHeaders {

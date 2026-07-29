@@ -43,22 +43,31 @@ describe('useVaultMigrationState — guard fails closed towards keeping the inli
   });
 });
 
-describe('splitAuthHeaders — the conservative heuristic of story 2.6', () => {
-  it('recognizes auth headers in any casing and leaves the rest editable', () => {
+describe('splitAuthHeaders — classification mirrors the backend redaction', () => {
+  it('treats recognizable auth headers as server-managed, in any casing', () => {
     const { auth, others } = splitAuthHeaders({
       Authorization: 'Bearer x',
       'X-API-KEY': 'k',
       'Content-Type': 'application/json',
-      'X-Custom': 'v',
+      Accept: 'application/json',
     });
 
     expect(Object.keys(auth).sort()).toEqual(['Authorization', 'X-API-KEY']);
-    expect(Object.keys(others).sort()).toEqual(['Content-Type', 'X-Custom']);
+    expect(Object.keys(others).sort()).toEqual(['Accept', 'Content-Type']);
   });
 
-  it('errs towards editable: an unknown name is never locked', () => {
-    expect(isAuthHeaderName('X-Signature')).toBe(false);
+  // This used to assert the opposite ("errs towards editable: an unknown name
+  // is never locked"). That premise was wrong: the BACKEND redacts by a safe
+  // allowlist, so an unknown name arrives blank. Rendering it as an editable
+  // empty box misrepresented a configured secret as unset — and once an absent
+  // key started meaning deletion, tidying the box away destroyed the secret.
+  it('errs towards server-managed: an unknown name is redacted by the backend', () => {
+    expect(isAuthHeaderName('X-Signature')).toBe(true);
+    expect(isAuthHeaderName('X-Tenant-Auth')).toBe(true);
     expect(isAuthHeaderName('Authorization')).toBe(true);
+    // Safe-listed names keep their value on the wire, so they stay editable.
+    expect(isAuthHeaderName('Content-Type')).toBe(false);
+    expect(isAuthHeaderName('Accept')).toBe(false);
   });
 });
 
@@ -83,5 +92,38 @@ describe('mergeRetiredHeaders — the round-trip guarantee (the 1.6 modal bug)',
     });
 
     expect(merged).not.toHaveProperty('Authorization');
+  });
+});
+
+// A header whose VALUE the backend redacted must never render as an unset
+// editable field.
+//
+// The backend redacts by an allowlist of safe names (secretmerge.go): anything
+// outside it is server-managed and comes back blank. The front used to classify
+// by a 4-name auth list, so `X-Tenant-Auth` — the exact example named in the
+// backend's own comment — landed in the editable half as an empty box. Once
+// `KeepMissing` learned that an absent key means deletion, tidying away that
+// empty-looking row genuinely destroyed the stored secret.
+describe('server-managed header classification', () => {
+  it('treats any non-safe header name as server-managed, not editable', () => {
+    const { auth, others } = splitAuthHeaders({
+      Authorization: '',
+      'X-Tenant-Auth': '',
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    });
+
+    expect(Object.keys(auth).sort()).toEqual(['Authorization', 'X-Tenant-Auth']);
+    expect(Object.keys(others).sort()).toEqual(['Accept', 'Content-Type']);
+  });
+
+  it('carries a server-managed header through a merge even when the editor never saw it', () => {
+    const merged = mergeRetiredHeaders(
+      { 'X-Tenant-Auth': 'tk-secreto', 'Content-Type': 'application/json' },
+      { 'Content-Type': 'application/xml' },
+    );
+
+    expect(merged['X-Tenant-Auth']).toBe('tk-secreto');
+    expect(merged['Content-Type']).toBe('application/xml');
   });
 });
