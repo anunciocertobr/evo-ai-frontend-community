@@ -74,6 +74,10 @@ export default function IntegrationCredentials() {
   const canCreate = can('ai_integration_credentials', 'create');
   const canUpdate = can('ai_integration_credentials', 'update');
   const canDelete = can('ai_integration_credentials', 'delete');
+  // Writing at the installation level is a separate privilege: an account admin
+  // sees the inherited default but cannot change it (story 2.2, same rule as
+  // the AI credentials screen).
+  const canManageInstallation = can('installation_configs', 'manage');
 
   const isEditing = Boolean(draft.id);
 
@@ -120,10 +124,15 @@ export default function IntegrationCredentials() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [permissionsReady]);
 
-  const openCreateForm = () => {
-    setDraft({ ...EMPTY_DRAFT });
+  const openCreateForm = (scope: ApiKeyScope = 'account') => {
+    setDraft({ ...EMPTY_DRAFT, scope });
     setFormOpen(true);
   };
+
+  // Editing an installation credential needs the installation privilege;
+  // account credentials only need ai_integration_credentials.update.
+  const canWriteScope = (scope: ApiKeyScope) =>
+    scope === 'installation' ? canManageInstallation : canUpdate;
 
   const openEditForm = (credential: IntegrationCredential) => {
     setDraft({
@@ -140,6 +149,11 @@ export default function IntegrationCredentials() {
     const needsValue = !isEditing;
     if (!draft.name.trim() || !draft.provider.trim() || (needsValue && !draft.value.trim())) {
       toast.error(t('messages.requiredFields'));
+      return;
+    }
+
+    if (!canWriteScope(draft.scope)) {
+      toast.error(t('messages.permissionDenied.installation'));
       return;
     }
 
@@ -235,9 +249,7 @@ export default function IntegrationCredentials() {
   }
 
   const renderCredentialsTable = (rows: IntegrationCredential[], scope: ApiKeyScope) => {
-    // Installation-level writes arrive with story 2.2 and its own privilege;
-    // until then the installation section is read-only for everyone.
-    const writable = scope === 'account' && canUpdate;
+    const writable = canWriteScope(scope);
 
     return (
       <div className="overflow-x-auto border rounded-lg">
@@ -322,12 +334,20 @@ export default function IntegrationCredentials() {
           <p className="text-muted-foreground">{t('description')}</p>
         </div>
         {canCreate && (
-          <Button onClick={openCreateForm}>
+          <Button onClick={() => openCreateForm('account')}>
             <Plus className="mr-2 h-4 w-4" />
             {t('actions.add')}
           </Button>
         )}
       </div>
+
+      {/* Answers "which credential is in effect right now". Born empty: the
+          consumers plug in with stories 2.3 and 2.4, and each one adds its
+          row here, like the AI credentials panel grew in 1.2. */}
+      <section aria-label={t('inUse.title')} className="border rounded-lg p-4 space-y-2">
+        <h2 className="text-sm font-medium">{t('inUse.title')}</h2>
+        <p className="text-sm text-muted-foreground">{t('inUse.empty')}</p>
+      </section>
 
       <section aria-label={t('sections.account')} className="space-y-3">
         <h2 className="text-sm font-medium uppercase text-muted-foreground">
@@ -345,7 +365,7 @@ export default function IntegrationCredentials() {
             description={t('empty.description')}
             action={
               canCreate
-                ? { label: t('actions.addFirst'), onClick: openCreateForm }
+                ? { label: t('actions.addFirst'), onClick: () => openCreateForm('account') }
                 : undefined
             }
           />
@@ -354,12 +374,18 @@ export default function IntegrationCredentials() {
         )}
       </section>
 
-      {/* Story 2.2 fills this section with installation-level management; the
-          markup exists from day one so 2.2 only wires it, never remounts it. */}
       <section aria-label={t('sections.installation')} className="space-y-3">
-        <h2 className="text-sm font-medium uppercase text-muted-foreground">
-          {t('sections.installation')}
-        </h2>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-sm font-medium uppercase text-muted-foreground">
+            {t('sections.installation')}
+          </h2>
+          {canManageInstallation && (
+            <Button variant="outline" size="sm" onClick={() => openCreateForm('installation')}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t('actions.add')}
+            </Button>
+          )}
+        </div>
 
         {loading ? null : installationCredentials.length === 0 ? (
           <p className="text-sm text-muted-foreground border border-dashed rounded-lg p-4">

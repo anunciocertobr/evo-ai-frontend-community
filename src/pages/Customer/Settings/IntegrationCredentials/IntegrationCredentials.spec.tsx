@@ -250,23 +250,85 @@ describe('IntegrationCredentials — oauth rows stay out of the static tables (A
   });
 });
 
-describe('IntegrationCredentials — installation section (AC1, story 2.2 slot)', () => {
-  it('renders installation credentials read-only', async () => {
+// EVO-2250 story 2.2: the installation link of the chain. Writing at that
+// level is gated on installation_configs.manage, NOT on the update grant of
+// the resource — the negative proofs below fail if the component ever swaps
+// canManageInstallation for canUpdate.
+describe('IntegrationCredentials — installation scope (2.2 AC8)', () => {
+  const findInstallationRow = () => screen.findByRole('cell', { name: 'n8n da casa' });
+
+  beforeEach(() => {
     listIntegrationCredentials.mockResolvedValue([DIFY_CREDENTIAL, INSTALLATION_CREDENTIAL]);
+  });
+
+  it('renders installation credentials read-only WITH the full resource grants (negative proof)', async () => {
+    // Every ai_integration_credentials.* grant, including update, but no
+    // installation_configs.manage: a gate wired to canUpdate would expose the
+    // installation edit controls here and fail these assertions.
+    granted = [...ALL_PERMISSIONS];
     render(<IntegrationCredentials />);
 
-    await findAccountRow();
-    expect(await screen.findByRole('cell', { name: 'n8n da casa' })).toBeInTheDocument();
+    await findInstallationRow();
     expect(screen.getByText('inheritedReadOnly')).toBeInTheDocument();
-    // Exactly one edit control: the account row's.
+    // Exactly one edit control: the account row's. The installation row has none.
     expect(screen.getAllByLabelText('actions.edit')).toHaveLength(1);
+    expect(screen.getAllByLabelText('actions.delete')).toHaveLength(1);
+  });
+
+  it('hides the installation add button without installation_configs.manage (negative proof)', async () => {
+    granted = [...ALL_PERMISSIONS];
+    render(<IntegrationCredentials />);
+
+    await findInstallationRow();
+    // Only the page-level (account) add button renders.
+    expect(screen.getAllByText('actions.add')).toHaveLength(1);
+  });
+
+  it('exposes write controls on the installation row when granted (positive control)', async () => {
+    granted = [...ALL_PERMISSIONS, 'installation_configs.manage'];
+    render(<IntegrationCredentials />);
+
+    await findInstallationRow();
+    expect(screen.queryByText('inheritedReadOnly')).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText('actions.edit')).toHaveLength(2);
+    // The section header carries its own add button.
+    expect(screen.getAllByText('actions.add')).toHaveLength(2);
+  });
+
+  it('sends the scope when updating an installation credential', async () => {
+    const user = userEvent.setup();
+    granted = [...ALL_PERMISSIONS, 'installation_configs.manage'];
+    updateIntegrationCredential.mockResolvedValue(INSTALLATION_CREDENTIAL);
+    render(<IntegrationCredentials />);
+
+    await findInstallationRow();
+    await user.click(screen.getAllByLabelText('actions.edit')[1]);
+    await user.click(await screen.findByText('actions.save'));
+
+    await waitFor(() => expect(updateIntegrationCredential).toHaveBeenCalled());
+    const [id, payload] = updateIntegrationCredential.mock.calls[0];
+    expect(id).toBe('cred-installation');
+    expect(payload.scope).toBe('installation');
   });
 
   it('shows the empty hint when the installation has nothing', async () => {
+    listIntegrationCredentials.mockResolvedValue([DIFY_CREDENTIAL]);
     render(<IntegrationCredentials />);
 
     await findAccountRow();
     expect(screen.getByText('installationEmpty')).toBeInTheDocument();
+  });
+});
+
+// The panel answers "which credential is in effect" and is born empty: the
+// consumers plug in with stories 2.3/2.4 (2.2 AC9).
+describe('IntegrationCredentials — in-use panel (2.2 AC9)', () => {
+  it('renders the panel above the lists with the empty explanation', async () => {
+    render(<IntegrationCredentials />);
+
+    await findAccountRow();
+    const panel = screen.getByLabelText('inUse.title');
+    expect(panel).toHaveTextContent('inUse.empty');
   });
 });
 
