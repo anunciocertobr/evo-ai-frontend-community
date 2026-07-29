@@ -110,6 +110,7 @@
       "labels": "Etiquetas",
       "customAttributes": "Atributos Personalizados",
       "cannedResponses": "Respostas Rápidas",
+      "aiCredentials": "Credenciais de IA",
       "messageTemplates": "Modelos de Mensagem",
       "macros": "Macros",
       "templates": "Templates",

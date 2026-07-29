@@ -130,6 +130,10 @@ export interface ApiKey {
   name: string;
   provider: string;
   base_url?: string;
+  /** Last characters of the key. The API never returns the key itself. */
+  key_hint?: string;
+  /** Providers speaking the OpenAI protocol serve every AI feature. */
+  openai_compatible?: boolean;
   created_at: string;
   updated_at: string;
   is_active: boolean;
