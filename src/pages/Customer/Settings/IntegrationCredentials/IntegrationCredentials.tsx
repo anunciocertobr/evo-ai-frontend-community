@@ -23,6 +23,7 @@ import {
   listIntegrationCredentials,
   updateIntegrationCredential,
 } from '@/services/agents';
+import agentIntegrationsService from '@/services/agents/agentIntegrationsService';
 import type {
   ApiKeyScope,
   IntegrationCredential,
@@ -69,6 +70,8 @@ export default function IntegrationCredentials() {
   const [formOpen, setFormOpen] = useState(false);
   const [draft, setDraft] = useState<CredentialDraft>(EMPTY_DRAFT);
   const [credentialToDelete, setCredentialToDelete] = useState<IntegrationCredential | null>(null);
+  const [connectionToDisconnect, setConnectionToDisconnect] =
+    useState<IntegrationCredential | null>(null);
 
   const canRead = can('ai_integration_credentials', 'read');
   const canCreate = can('ai_integration_credentials', 'create');
@@ -78,13 +81,22 @@ export default function IntegrationCredentials() {
   // sees the inherited default but cannot change it (story 2.2, same rule as
   // the AI credentials screen).
   const canManageInstallation = can('installation_configs', 'manage');
+  // Disconnecting delegates to the agent-integration flow, which the backend
+  // gates on ai_agents.update — the vault grants play no part here.
+  const canDisconnect = can('ai_agents', 'update');
 
   const isEditing = Boolean(draft.id);
 
   // Only static credentials belong to these tables: oauth rows are references
-  // and live in the (still hidden) connections section, filled by story 2.5.
+  // (no value in the vault, by database CHECK) and render in the connections
+  // section below.
   const staticCredentials = useMemo(
     () => credentials.filter(credential => credential.kind !== 'oauth'),
+    [credentials],
+  );
+
+  const oauthConnections = useMemo(
+    () => credentials.filter(credential => credential.kind === 'oauth'),
     [credentials],
   );
 
@@ -212,6 +224,31 @@ export default function IntegrationCredentials() {
     } catch (error) {
       console.error('Error toggling integration credential:', error);
       toast.error(t('messages.saveError'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Disconnecting delegates to the existing agent-integration flow: the vault
+  // row is a reference, so nothing is deleted from the vault here and no
+  // token is touched — and the provider-side grant is NOT revoked.
+  const handleDisconnectConfirm = async () => {
+    if (!connectionToDisconnect?.agent_id) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await agentIntegrationsService.deleteIntegration(
+        connectionToDisconnect.agent_id,
+        connectionToDisconnect.provider,
+      );
+      toast.success(t('oauthSection.disconnectSuccess'));
+      setConnectionToDisconnect(null);
+      loadCredentials();
+    } catch (error) {
+      console.error('Error disconnecting OAuth integration:', error);
+      toast.error(t('oauthSection.disconnectError'));
     } finally {
       setSaving(false);
     }
@@ -396,9 +433,73 @@ export default function IntegrationCredentials() {
         )}
       </section>
 
-      {/* Reserved for story 2.5 (OAuth connections by reference). Hidden until
-          then: only the markup slot exists, per the story's task. */}
-      <section hidden aria-label={t('sections.oauth')} data-story="2.5" />
+      {/* OAuth connections by reference (story 2.5): these rows hold NO
+          secret in the vault — status and expiry are read from the owner
+          store by the backend at listing time, never from a copy. */}
+      <section aria-label={t('sections.oauth')} className="space-y-3">
+        <h2 className="text-sm font-medium uppercase text-muted-foreground">
+          {t('sections.oauth')}
+        </h2>
+        <p className="text-xs text-muted-foreground">{t('oauthSection.noSecretHint')}</p>
+
+        {loading ? null : oauthConnections.length === 0 ? (
+          <p className="text-sm text-muted-foreground border border-dashed rounded-lg p-4">
+            {t('oauthSection.empty')}
+          </p>
+        ) : (
+          <div className="overflow-x-auto border rounded-lg">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left p-3">{t('columns.provider')}</th>
+                  <th className="text-left p-3">{t('oauthSection.columns.agent')}</th>
+                  <th className="text-left p-3">{t('columns.status')}</th>
+                  <th className="text-left p-3">{t('oauthSection.columns.expires')}</th>
+                  <th className="text-right p-3">{t('columns.actions')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {oauthConnections.map(connection => (
+                  <tr key={connection.id} className="border-t">
+                    <td className="p-3">
+                      <Badge variant="outline">{connection.provider}</Badge>
+                    </td>
+                    <td className="p-3">{connection.agent_name ?? connection.owner_ref}</td>
+                    <td className="p-3">
+                      <Badge
+                        variant={
+                          connection.connection_status === 'connected' ? 'default' : 'secondary'
+                        }
+                      >
+                        {t(`oauthSection.status.${connection.connection_status ?? 'connected'}`)}
+                      </Badge>
+                    </td>
+                    <td className="p-3">
+                      {connection.connection_expires_at
+                        ? new Date(connection.connection_expires_at).toLocaleString()
+                        : t('oauthSection.noExpiry')}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex justify-end gap-2">
+                        {canDisconnect && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={t('oauthSection.actions.disconnect')}
+                            onClick={() => setConnectionToDisconnect(connection)}
+                          >
+                            {t('oauthSection.actions.disconnect')}
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent>
@@ -457,6 +558,39 @@ export default function IntegrationCredentials() {
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t('actions.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(connectionToDisconnect)}
+        onOpenChange={open => !open && setConnectionToDisconnect(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('oauthSection.disconnectDialog.title')}</DialogTitle>
+            <DialogDescription>
+              {t('oauthSection.disconnectDialog.description', {
+                provider: connectionToDisconnect?.provider,
+              })}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Honest receipt: there is no remote revoke anywhere in the stack,
+              so the dialog says exactly what happens (R5). */}
+          <p role="alert" className="flex gap-2 text-sm text-amber-600">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            {t('oauthSection.disconnectDialog.noRevokeWarning')}
+          </p>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConnectionToDisconnect(null)}>
+              {t('oauthSection.disconnectDialog.cancel')}
+            </Button>
+            <Button variant="destructive" onClick={handleDisconnectConfirm} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t('oauthSection.disconnectDialog.confirm')}
             </Button>
           </DialogFooter>
         </DialogContent>

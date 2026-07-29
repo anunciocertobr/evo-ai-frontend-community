@@ -168,6 +168,10 @@ export interface ApiKeyUpdate {
  * one is a reference to the store that owns the token and never has a value. */
 export type IntegrationCredentialKind = 'static' | 'oauth';
 
+/** Display state of an OAuth connection, derived by the backend from the
+ * owner store at listing time — never from a copy kept in the vault. */
+export type OauthConnectionStatus = 'connected' | 'expiring' | 'expired' | 'refresh_failed';
+
 export interface IntegrationCredential {
   id: string;
   name: string;
@@ -182,6 +186,11 @@ export interface IntegrationCredential {
   imported_from?: string;
   /** Consumers pointing at this credential, filled as stories 2.3/2.4 land. */
   referenced_by?: string[];
+  /** OAuth rows only: mirrored metadata read live from the owner store. */
+  connection_status?: OauthConnectionStatus;
+  connection_expires_at?: string;
+  agent_id?: string;
+  agent_name?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

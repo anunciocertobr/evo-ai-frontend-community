@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import IntegrationCredentials from './IntegrationCredentials';
 import { maskKey } from '@/constants/aiProviders';
@@ -32,6 +32,14 @@ vi.mock('@/services/agents', () => ({
   createIntegrationCredential: (...args: unknown[]) => createIntegrationCredential(...args),
   updateIntegrationCredential: (...args: unknown[]) => updateIntegrationCredential(...args),
   deleteIntegrationCredential: (...args: unknown[]) => deleteIntegrationCredential(...args),
+}));
+
+const deleteIntegration = vi.fn();
+
+vi.mock('@/services/agents/agentIntegrationsService', () => ({
+  default: {
+    deleteIntegration: (...args: unknown[]) => deleteIntegration(...args),
+  },
 }));
 
 vi.mock('sonner', () => ({
@@ -85,9 +93,22 @@ const OAUTH_CREDENTIAL: IntegrationCredential = {
   scope: 'account',
   owner_store: 'agent_integration',
   owner_ref: 'integration-1',
+  connection_status: 'connected',
+  connection_expires_at: '2026-08-15T00:00:00Z',
+  agent_id: 'agent-1',
+  agent_name: 'Atendente',
   is_active: true,
   created_at: '2026-07-01T00:00:00Z',
   updated_at: '2026-07-01T00:00:00Z',
+};
+
+const OAUTH_EXPIRED: IntegrationCredential = {
+  ...OAUTH_CREDENTIAL,
+  id: 'cred-oauth-stripe',
+  provider: 'stripe',
+  agent_id: 'agent-2',
+  agent_name: 'Cobrança',
+  connection_status: 'expired',
 };
 
 const ALL_PERMISSIONS = [
@@ -238,15 +259,92 @@ describe('IntegrationCredentials — editing without resending the value (AC3)',
   });
 });
 
-describe('IntegrationCredentials — oauth rows stay out of the static tables (AC4)', () => {
-  it('keeps an oauth credential off the account and installation sections', async () => {
-    listIntegrationCredentials.mockResolvedValue([DIFY_CREDENTIAL, OAUTH_CREDENTIAL]);
+// EVO-2250 story 2.5 (front): OAuth connections render by reference. Status
+// and expiry come straight from the listing response; there is no secret in
+// the vault for these rows and therefore no value to see or edit.
+describe('IntegrationCredentials — OAuth connections section (2.5 AC1, AC2, AC7)', () => {
+  const oauthSection = () => screen.getByLabelText('sections.oauth');
+
+  beforeEach(() => {
+    granted = [...ALL_PERMISSIONS, 'ai_agents.update'];
+    listIntegrationCredentials.mockResolvedValue([
+      DIFY_CREDENTIAL,
+      OAUTH_CREDENTIAL,
+      OAUTH_EXPIRED,
+    ]);
+  });
+
+  it('keeps oauth rows out of the static tables and inside the connections section', async () => {
     render(<IntegrationCredentials />);
 
     await findAccountRow();
-    // The oauth reference is not a static credential: it belongs to the
-    // connections section, hidden until story 2.5.
-    expect(screen.queryByRole('cell', { name: 'GitHub' })).not.toBeInTheDocument();
+    const section = oauthSection();
+    expect(within(section).getByText('github')).toBeInTheDocument();
+    expect(within(section).getByText('Atendente')).toBeInTheDocument();
+    // The static (account) table never lists the oauth reference.
+    const accountSection = screen.getByLabelText('sections.account');
+    expect(within(accountSection).queryByText('github')).not.toBeInTheDocument();
+  });
+
+  it('renders the state exactly as the response reports it, per row (AC7)', async () => {
+    render(<IntegrationCredentials />);
+
+    await findAccountRow();
+    const section = oauthSection();
+    expect(within(section).getByText('oauthSection.status.connected')).toBeInTheDocument();
+    expect(within(section).getByText('oauthSection.status.expired')).toBeInTheDocument();
+    expect(within(section).getByText('oauthSection.noSecretHint')).toBeInTheDocument();
+  });
+
+  it('never offers value editing or a masked value on an oauth row (negative proof, AC2)', async () => {
+    render(<IntegrationCredentials />);
+
+    await findAccountRow();
+    const section = oauthSection();
+    // A row rendered through the static table would expose these controls:
+    // this test fails if oauth rows ever share that rendering path.
+    expect(within(section).queryByLabelText('actions.edit')).not.toBeInTheDocument();
+    expect(within(section).queryByLabelText('actions.delete')).not.toBeInTheDocument();
+    expect(within(section).queryByText(maskKey('4f2a'))).not.toBeInTheDocument();
+    // And the page-wide edit controls count only the static account row.
+    expect(screen.getAllByLabelText('actions.edit')).toHaveLength(1);
+  });
+
+  it('disconnect delegates to the agent-integration flow and warns about no revoke (AC5)', async () => {
+    const user = userEvent.setup();
+    deleteIntegration.mockResolvedValue(undefined);
+    render(<IntegrationCredentials />);
+
+    await findAccountRow();
+    await user.click(within(oauthSection()).getAllByLabelText('oauthSection.actions.disconnect')[0]);
+
+    // The dialog is explicit: local removal only, nothing revoked remotely.
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'oauthSection.disconnectDialog.noRevokeWarning',
+    );
+    await user.click(screen.getByText('oauthSection.disconnectDialog.confirm'));
+
+    await waitFor(() => expect(deleteIntegration).toHaveBeenCalledWith('agent-1', 'github'));
+    // The vault endpoint is never used for a connection: the row is a reference.
+    expect(deleteIntegrationCredential).not.toHaveBeenCalled();
+  });
+
+  it('hides the disconnect action without ai_agents.update', async () => {
+    granted = [...ALL_PERMISSIONS];
+    render(<IntegrationCredentials />);
+
+    await findAccountRow();
+    expect(
+      within(oauthSection()).queryByLabelText('oauthSection.actions.disconnect'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows the empty hint when there is no connection', async () => {
+    listIntegrationCredentials.mockResolvedValue([DIFY_CREDENTIAL]);
+    render(<IntegrationCredentials />);
+
+    await findAccountRow();
+    expect(within(oauthSection()).getByText('oauthSection.empty')).toBeInTheDocument();
   });
 });
 
