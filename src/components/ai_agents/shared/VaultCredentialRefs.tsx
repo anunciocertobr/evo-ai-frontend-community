@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Input,
@@ -82,10 +82,24 @@ export function CredentialRefsEditor({
   const { t } = useLanguage('integrationCredentials');
   const credentials = useVaultCredentials();
 
-  const rows = useMemo<RefRow[]>(
-    () => Object.entries(value).map(([key, credentialId]) => ({ key, credentialId })),
-    [value],
+  // Rows are LOCAL state seeded from `value`, not derived from it. Renaming a
+  // header passes through an empty name, which `emit` legitimately drops from
+  // the map; if the rows were derived, the row would vanish from the DOM
+  // mid-keystroke and take the credential selection with it.
+  const [rows, setRows] = useState<RefRow[]>(() =>
+    Object.entries(value).map(([key, credentialId]) => ({ key, credentialId })),
   );
+
+  // Re-seed only when the incoming map genuinely differs from what the rows
+  // already express, so a parent re-render never clobbers a half-typed name.
+  const emittedRef = useRef<string>(JSON.stringify(value));
+  useEffect(() => {
+    const incoming = JSON.stringify(value);
+    if (incoming === emittedRef.current) return;
+
+    emittedRef.current = incoming;
+    setRows(Object.entries(value).map(([key, credentialId]) => ({ key, credentialId })));
+  }, [value]);
   // Rows being typed that don't have both halves yet live locally: an entry
   // only reaches the map (and the payload) once name AND credential exist.
   const [draftRow, setDraftRow] = useState<RefRow | null>(null);
@@ -97,22 +111,28 @@ export function CredentialRefsEditor({
         refs[row.key.trim()] = row.credentialId;
       }
     });
+    emittedRef.current = JSON.stringify(refs);
     onChange(refs);
   };
 
   const updateRow = (index: number, patch: Partial<RefRow>) => {
     const next = rows.map((row, i) => (i === index ? { ...row, ...patch } : row));
+    setRows(next);
     emit(next);
   };
 
   const removeRow = (index: number) => {
-    emit(rows.filter((_, i) => i !== index));
+    const next = rows.filter((_, i) => i !== index);
+    setRows(next);
+    emit(next);
   };
 
   const commitDraft = (patch: Partial<RefRow>) => {
     const next = { ...(draftRow ?? { key: '', credentialId: '' }), ...patch };
     if (next.key.trim() && next.credentialId) {
-      emit([...rows, next]);
+      const merged = [...rows, next];
+      setRows(merged);
+      emit(merged);
       setDraftRow(null);
     } else {
       setDraftRow(next);

@@ -117,6 +117,36 @@ describe('CredentialRefsEditor — the reference is a map, never a scalar', () =
     expect(onChange).toHaveBeenCalledWith({ 'X-API-Key': 'cred-other' });
   });
 
+  // Renaming a header goes through an EMPTY intermediate state (select-all +
+  // type, or backspacing to the end). The row must survive it with its
+  // credential intact: dropping the entry mid-keystroke loses the selection and
+  // silently drops auth if the user saves without noticing.
+  it('keeps the credential while a header name is being retyped', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <CredentialRefsEditor
+        id="refs"
+        value={{ Authorization: 'cred-static' }}
+        onChange={onChange}
+      />,
+    );
+
+    const nameInput = (await screen.findAllByLabelText('refsEditor.keyLabel'))[0];
+    await user.clear(nameInput);
+
+    // Mid-rename the map may legitimately drop the half-typed entry...
+    expect(onChange).toHaveBeenCalled();
+
+    // ...but the row must still be on screen, holding its credential, so the
+    // user can finish typing the new name.
+    expect(screen.getAllByLabelText('refsEditor.keyLabel')).toHaveLength(1);
+
+    await user.type(nameInput, 'X-Api-Key');
+
+    expect(onChange).toHaveBeenLastCalledWith({ 'X-Api-Key': 'cred-static' });
+  });
+
   it('never emits an entry that lacks name or credential (draft stays local)', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
