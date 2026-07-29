@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import IntegrationCredentials from './IntegrationCredentials';
+import { parseOwnerTimestamp } from './ownerTimestamp';
 import { maskKey } from '@/constants/aiProviders';
 import type { IntegrationCredential } from '@/types/agents';
 
@@ -482,6 +483,60 @@ describe('IntegrationCredentials — in-use panel (2.2 AC9, 2.4 AC10)', () => {
 
     expect(await findAccountRow()).toBeInTheDocument();
     expect(screen.getByLabelText('inUse.title')).toHaveTextContent('inUse.empty');
+  });
+
+  // AC10 complete: the backend aggregates the consumers of each credential
+  // into referenced_by, covering external agents too — which the client-side
+  // join never could (per-agent fetches).
+  it('prefers the server-side referenced_by and skips the client-side join (negative proof)', async () => {
+    listIntegrationCredentials.mockResolvedValue([
+      { ...DIFY_CREDENTIAL, referenced_by: ['Agente Dify', 'Tool CRM lookup'] },
+      { ...ELEVENLABS_CREDENTIAL, referenced_by: [] },
+    ]);
+    render(<IntegrationCredentials />);
+
+    await findAccountRow();
+    const panel = screen.getByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('Agente Dify, Tool CRM lookup'));
+    expect(panel).toHaveTextContent('Dify producao');
+    // A credential nobody references stays out of the panel.
+    expect(panel).not.toHaveTextContent('ElevenLabs');
+    // With the server answering, the client-side join must stay OFF: double
+    // sourcing would duplicate rows and reintroduce the per-consumer fetches.
+    expect(listCustomTools).not.toHaveBeenCalled();
+    expect(listCustomMcpServers).not.toHaveBeenCalled();
+    expect(listAgentBots).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the client-side join when no row carries referenced_by (older backend)', async () => {
+    listCustomTools.mockResolvedValue([
+      { id: 'tool-1', name: 'CRM lookup', credential_refs: { Authorization: 'cred-dify' } },
+    ]);
+    render(<IntegrationCredentials />);
+
+    await findAccountRow();
+    const panel = screen.getByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('CRM lookup'));
+    expect(listCustomTools).toHaveBeenCalled();
+  });
+});
+
+// The owner store writes naive UTC timestamps; parsing them as local time
+// shifts the expiry by the viewer's offset.
+describe('parseOwnerTimestamp — naive timestamps are UTC', () => {
+  it('reads a naive timestamp as UTC, identical to its zoned form', () => {
+    expect(parseOwnerTimestamp('2026-08-15T00:00:00').getTime()).toBe(
+      new Date('2026-08-15T00:00:00Z').getTime(),
+    );
+  });
+
+  it('passes zoned values through untouched', () => {
+    expect(parseOwnerTimestamp('2026-08-15T00:00:00Z').getTime()).toBe(
+      new Date('2026-08-15T00:00:00Z').getTime(),
+    );
+    expect(parseOwnerTimestamp('2026-08-15T03:00:00-03:00').getTime()).toBe(
+      new Date('2026-08-15T06:00:00Z').getTime(),
+    );
   });
 });
 

@@ -27,6 +27,7 @@ import {
 } from '@/services/agents';
 import agentIntegrationsService from '@/services/agents/agentIntegrationsService';
 import AgentBotsService from '@/services/channels/agentBotsService';
+import { parseOwnerTimestamp } from './ownerTimestamp';
 import type {
   ApiKeyScope,
   IntegrationCredential,
@@ -66,9 +67,12 @@ const EMPTY_DRAFT: CredentialDraft = {
 interface ConsumerInUse {
   key: string;
   /** i18n suffix under inUse.kinds.* */
-  kind: 'tool' | 'mcp' | 'bot';
+  kind: 'tool' | 'mcp' | 'bot' | 'credential';
   name: string;
-  credentialIds: string[];
+  /** Client-side join mode: resolved to names against the loaded list. */
+  credentialIds?: string[];
+  /** Server mode (AC10): consumer names aggregated by the backend. */
+  consumerNames?: string[];
 }
 
 export default function IntegrationCredentials() {
@@ -181,8 +185,27 @@ export default function IntegrationCredentials() {
 
     try {
       setLoading(true);
-      setCredentials(await listIntegrationCredentials());
-      loadConsumers();
+      const list = await listIntegrationCredentials();
+      setCredentials(list);
+
+      // AC10 (2.4): the backend aggregates the consumers of each credential
+      // into `referenced_by`. When ANY row carries the field, the server is
+      // the source and the client-side join stays off; an older backend
+      // without the field keeps the join as a graceful fallback.
+      if (list.some(credential => Array.isArray(credential.referenced_by))) {
+        setConsumersInUse(
+          list
+            .filter(credential => (credential.referenced_by?.length ?? 0) > 0)
+            .map(credential => ({
+              key: `credential-${credential.id}`,
+              kind: 'credential' as const,
+              name: credential.name,
+              consumerNames: credential.referenced_by ?? [],
+            })),
+        );
+      } else {
+        loadConsumers();
+      }
     } catch (error) {
       console.error('Error loading integration credentials:', error);
       toast.error(t('messages.loadError'));
@@ -455,9 +478,11 @@ export default function IntegrationCredentials() {
               <span className="text-muted-foreground">{t(`inUse.kinds.${consumer.kind}`)}</span>
               <span className="font-medium">{consumer.name}</span>
               <span className="text-xs text-muted-foreground">
-                {consumer.credentialIds
-                  .map(id => credentials.find(credential => credential.id === id)?.name ?? id)
-                  .join(', ')}
+                {consumer.consumerNames
+                  ? consumer.consumerNames.join(', ')
+                  : (consumer.credentialIds ?? [])
+                      .map(id => credentials.find(credential => credential.id === id)?.name ?? id)
+                      .join(', ')}
               </span>
             </div>
           ))
@@ -554,7 +579,7 @@ export default function IntegrationCredentials() {
                     </td>
                     <td className="p-3">
                       {connection.connection_expires_at
-                        ? new Date(connection.connection_expires_at).toLocaleString()
+                        ? parseOwnerTimestamp(connection.connection_expires_at).toLocaleString()
                         : t('oauthSection.noExpiry')}
                     </td>
                     <td className="p-3">

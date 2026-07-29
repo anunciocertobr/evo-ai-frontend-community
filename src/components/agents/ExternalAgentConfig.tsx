@@ -10,6 +10,8 @@ import {
 import { Settings, Save, Loader2, AlertCircle } from 'lucide-react';
 import integrationService from '@/services/agents/integrationService';
 import { useLanguage } from '@/hooks/useLanguage';
+import { Label } from '@evoapi/design-system';
+import { VaultCredentialSelect, useVaultCredentials } from '@/components/ai_agents/shared';
 import { ProviderType } from './ProviderSelector';
 import {
   FlowiseConfigForm,
@@ -28,6 +30,9 @@ type AgentPageMode = 'create' | 'edit' | 'view';
 
 export interface ExternalAgentConfigData {
   provider?: ProviderType;
+  // EVO-2250 story 2.3: reference to the integration credential vault. The
+  // inline secret fields stay as the fallback until story 2.7 retires them.
+  credential_id?: string;
   // Flowise config
   flowise_apiUrl?: string;
   flowise_apiKey?: string;
@@ -67,9 +72,15 @@ const ExternalAgentConfig = ({
   onValidationChange,
 }: ExternalAgentConfigProps) => {
   const { t } = useLanguage('aiAgents');
+  const { t: tVault } = useLanguage('integrationCredentials');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Typebot authenticates with nothing at all (story 2.3 AC6): no credential,
+  // no selector, registered as a decision rather than an oversight.
+  const providerHasCredential = Boolean(data.provider) && data.provider !== 'typebot';
+  const vaultCredentials = useVaultCredentials(providerHasCredential);
 
   // Load integration config when editing
   useEffect(() => {
@@ -88,7 +99,9 @@ const ExternalAgentConfig = ({
 
       // Map config to form data based on provider
       const newData: ExternalAgentConfigData = { ...data };
-      
+
+      newData.credential_id = config.credential_id || '';
+
       if (data.provider === 'flowise') {
         newData.flowise_apiUrl = config.apiUrl || '';
         newData.flowise_apiKey = config.apiKey || '';
@@ -141,11 +154,13 @@ const ExternalAgentConfig = ({
       if (!data.dify_apiUrl?.trim()) {
         newErrors.dify_apiUrl = t('edit.configuration.sections.externalIntegration.errors.apiUrlRequired');
       }
-      if (!data.dify_apiKey?.trim()) {
+      // A vault reference satisfies the key requirement: the runtime resolves
+      // the secret by credential_id (story 2.3), so inline is optional then.
+      if (!data.dify_apiKey?.trim() && !data.credential_id?.trim()) {
         newErrors.dify_apiKey = t('edit.configuration.sections.externalIntegration.errors.apiKeyRequired');
       }
     } else if (data.provider === 'openai') {
-      if (!data.openai_apiKey?.trim()) {
+      if (!data.openai_apiKey?.trim() && !data.credential_id?.trim()) {
         newErrors.openai_apiKey = t('edit.configuration.sections.externalIntegration.errors.apiKeyRequired');
       }
       if (data.openai_botType === 'assistant' && !data.openai_assistantId?.trim()) {
@@ -304,6 +319,13 @@ const ExternalAgentConfig = ({
         config.apiVersion = data.typebot_apiVersion || 'latest';
       }
 
+      // The vault reference travels alongside the inline fields: the runtime
+      // prefers it and falls back to inline (story 2.3). Typebot never carries
+      // one — it has no credential at all.
+      if (providerHasCredential && data.credential_id?.trim()) {
+        config.credential_id = data.credential_id;
+      }
+
       await integrationService.upsertIntegration(agentId, {
         provider: data.provider,
         config,
@@ -348,55 +370,82 @@ const ExternalAgentConfig = ({
 
     const isReadOnly = mode === 'view';
 
-    switch (data.provider) {
-      case 'flowise':
-        return (
-          <FlowiseConfigForm
-            config={providerConfig as FlowiseConfig}
-            onChange={handleProviderConfigChange}
-            errors={providerErrors}
-            disabled={isReadOnly}
-          />
-        );
-      case 'n8n':
-        return (
-          <N8NConfigForm
-            config={providerConfig as N8NConfig}
-            onChange={handleProviderConfigChange}
-            errors={providerErrors}
-            disabled={isReadOnly}
-          />
-        );
-      case 'dify':
-        return (
-          <DifyConfigForm
-            config={providerConfig as DifyConfig}
-            onChange={handleProviderConfigChange}
-            errors={providerErrors}
-            disabled={isReadOnly}
-          />
-        );
-      case 'openai':
-        return (
-          <OpenAIConfigForm
-            config={providerConfig as OpenAIConfig}
-            onChange={handleProviderConfigChange}
-            errors={providerErrors}
-            disabled={isReadOnly}
-          />
-        );
-      case 'typebot':
-        return (
-          <TypebotConfigForm
-            config={providerConfig as TypebotConfig}
-            onChange={handleProviderConfigChange}
-            errors={providerErrors}
-            disabled={isReadOnly}
-          />
-        );
-      default:
-        return null;
+    const vaultSelector = providerHasCredential && (
+      <div className="space-y-2 pb-2">
+        <Label htmlFor="external-agent-credential">{tVault('refsEditor.nexusLabel')}</Label>
+        <VaultCredentialSelect
+          id="external-agent-credential"
+          value={data.credential_id?.trim() ? data.credential_id : undefined}
+          onChange={credentialId => onChange({ ...data, credential_id: credentialId ?? '' })}
+          disabled={isReadOnly}
+          credentials={vaultCredentials}
+        />
+        <p className="text-xs text-muted-foreground">{tVault('externalAgent.hint')}</p>
+      </div>
+    );
+
+    const providerForm = (() => {
+      switch (data.provider) {
+        case 'flowise':
+          return (
+            <FlowiseConfigForm
+              config={providerConfig as FlowiseConfig}
+              onChange={handleProviderConfigChange}
+              errors={providerErrors}
+              disabled={isReadOnly}
+            />
+          );
+        case 'n8n':
+          return (
+            <N8NConfigForm
+              config={providerConfig as N8NConfig}
+              onChange={handleProviderConfigChange}
+              errors={providerErrors}
+              disabled={isReadOnly}
+            />
+          );
+        case 'dify':
+          return (
+            <DifyConfigForm
+              config={providerConfig as DifyConfig}
+              onChange={handleProviderConfigChange}
+              errors={providerErrors}
+              disabled={isReadOnly}
+            />
+          );
+        case 'openai':
+          return (
+            <OpenAIConfigForm
+              config={providerConfig as OpenAIConfig}
+              onChange={handleProviderConfigChange}
+              errors={providerErrors}
+              disabled={isReadOnly}
+            />
+          );
+        case 'typebot':
+          return (
+            <TypebotConfigForm
+              config={providerConfig as TypebotConfig}
+              onChange={handleProviderConfigChange}
+              errors={providerErrors}
+              disabled={isReadOnly}
+            />
+          );
+        default:
+          return null;
+      }
+    })();
+
+    if (!providerForm) {
+      return null;
     }
+
+    return (
+      <>
+        {vaultSelector}
+        {providerForm}
+      </>
+    );
   };
 
   if (isLoading) {
