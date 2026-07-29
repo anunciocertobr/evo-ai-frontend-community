@@ -54,7 +54,10 @@ const KnowledgeNexusConfigDialog = ({
 }: KnowledgeNexusConfigDialogProps) => {
   const { t } = useLanguage('aiAgents');
   const { t: tVault } = useLanguage('integrationCredentials');
-  const vaultCredentials = useVaultCredentials();
+  // Gated on `open`: this dialog mounts closed on every agent screen, and an
+  // eager fetch would fire one vault listing (a 403, for users without the
+  // grant) per render of those screens.
+  const vaultCredentials = useVaultCredentials(open);
 
   // Backend strips `nexus_api_key` before returning the config (defense-in-depth
   // in useIntegrations.sanitizeConfig). When `connected === true` but the key

@@ -68,6 +68,20 @@ describe('useVaultCredentials — only static active credentials are selectable'
     await waitFor(() => expect(listIntegrationCredentials).toHaveBeenCalled());
     expect(result.current).toEqual([]);
   });
+
+  // A host that mounts closed (the Nexus dialog sits on every agent screen)
+  // must not fire a vault listing: for a user without the read grant that was
+  // one 403 per screen render.
+  it('does not fetch while disabled, and fetches once enabled', async () => {
+    const { result, rerender } = renderHook(({ enabled }) => useVaultCredentials(enabled), {
+      initialProps: { enabled: false },
+    });
+
+    expect(listIntegrationCredentials).not.toHaveBeenCalled();
+
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current).toHaveLength(1));
+  });
 });
 
 describe('CredentialRefsEditor — the reference is a map, never a scalar', () => {

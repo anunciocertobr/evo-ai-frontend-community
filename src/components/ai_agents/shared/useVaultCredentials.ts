@@ -5,10 +5,18 @@ import type { IntegrationCredential } from '@/types/agents';
 // EVO-2250 story 2.4: only static, active credentials are selectable — an
 // `oauth` row is a reference to the store that owns the token and has no
 // value a consumer could inject.
-export function useVaultCredentials() {
+//
+// `enabled` gates the fetch: a host that mounts closed (the Nexus dialog on
+// every agent screen) must not fire a vault listing — for a user without the
+// vault read grant that was one 403 per screen render.
+export function useVaultCredentials(enabled = true) {
   const [credentials, setCredentials] = useState<IntegrationCredential[]>([]);
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
     let cancelled = false;
 
     listIntegrationCredentials()
@@ -28,7 +36,7 @@ export function useVaultCredentials() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [enabled]);
 
   return credentials;
 }
