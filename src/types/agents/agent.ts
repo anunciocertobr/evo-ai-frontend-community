@@ -170,7 +170,11 @@ export type IntegrationCredentialKind = 'static' | 'oauth';
 
 /** Display state of an OAuth connection, derived by the backend from the
  * owner store at listing time — never from a copy kept in the vault. */
-export type OauthConnectionStatus = 'connected' | 'expiring' | 'expired' | 'refresh_failed';
+// The owner store records no refresh failure: a failed renewal only reaches
+// the log, and at least one provider returns the stale token on error. A guessed
+// 'refresh_failed' badge would send someone reconnecting a healthy integration,
+// so the backend never emits one (EVO-2250 story 2.5).
+export type OauthConnectionStatus = 'connected' | 'expiring' | 'expired';
 
 export interface IntegrationCredential {
   id: string;
