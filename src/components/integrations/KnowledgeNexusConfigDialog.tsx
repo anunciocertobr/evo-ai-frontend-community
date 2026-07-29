@@ -16,7 +16,11 @@ import {
 } from '@evoapi/design-system';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { VaultCredentialSelect, useVaultCredentials } from '@/components/ai_agents/shared';
+import {
+  VaultCredentialSelect,
+  useVaultCredentials,
+  useVaultMigrationState,
+} from '@/components/ai_agents/shared';
 import type { KnowledgeNexusConfig } from '@/hooks/useIntegrations';
 import {
   agentIntegrationsService,
@@ -58,6 +62,11 @@ const KnowledgeNexusConfigDialog = ({
   // eager fetch would fire one vault listing (a 403, for users without the
   // grant) per render of those screens.
   const vaultCredentials = useVaultCredentials(open);
+  // Story 2.7: once the guard says migrated, the inline key field retires and
+  // the vault reference is the way to register the secret. The stored key is
+  // never touched: a blank/absent nexus_api_key already means "keep it".
+  const migrationState = useVaultMigrationState(open);
+  const nexusKeyRetired = Boolean(migrationState.retired.knowledge_nexus);
 
   // Backend strips `nexus_api_key` before returning the config (defense-in-depth
   // in useIntegrations.sanitizeConfig). When `connected === true` but the key
@@ -233,6 +242,15 @@ const KnowledgeNexusConfigDialog = ({
             <p className="text-xs text-muted-foreground">{tVault('refsEditor.nexusHint')}</p>
           </div>
 
+          {nexusKeyRetired ? (
+            // Retired (story 2.7): the inline key entry is gone, the vault
+            // reference above is how the secret is registered. The stored key
+            // is untouched: the save payload simply omits nexus_api_key, which
+            // has always meant "keep whatever is stored".
+            <p className="text-xs text-muted-foreground">
+              {tVault('retirement.nexusKeyLocked')}
+            </p>
+          ) : (
           <div className="space-y-2">
             <Label htmlFor="nexus_api_key">
               {t('edit.integrations.knowledgeNexus.apiKey') || 'API Key'}
@@ -262,6 +280,7 @@ const KnowledgeNexusConfigDialog = ({
               </p>
             )}
           </div>
+          )}
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">

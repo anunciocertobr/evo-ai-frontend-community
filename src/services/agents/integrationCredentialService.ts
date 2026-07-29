@@ -43,3 +43,23 @@ export const deleteIntegrationCredential = async (
   const response = await evoaiApi.delete(`/integration-credentials/${credentialId}`);
   return extractData<IntegrationCredentialDeleteResponse>(response);
 };
+
+// EVO-2250 story 2.7: the retirement guard, per consumer. A consumer only
+// retires its inline secret entry after the 2.6 migration ran on this
+// installation (or there was never anything to migrate). While the guard says
+// no, every inline field stays exactly as it is.
+export interface IntegrationVaultMigrationState {
+  retired: {
+    custom_tools?: boolean;
+    custom_mcp_servers?: boolean;
+    knowledge_nexus?: boolean;
+    agent_bots?: boolean;
+    external_agents?: boolean;
+  };
+}
+
+export const getIntegrationVaultMigrationState =
+  async (): Promise<IntegrationVaultMigrationState> => {
+    const response = await evoaiApi.get('/integration-credentials/migration-state');
+    return extractData<IntegrationVaultMigrationState>(response);
+  };

@@ -1,5 +1,5 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CustomToolForm from './CustomToolForm';
 import type { CustomTool } from '@/types/ai';
 
@@ -11,10 +11,21 @@ vi.mock('@/services/agents/customToolsService', () => ({
   testCustomTool: vi.fn(),
 }));
 
-// The vault picker (EVO-2250 story 2.4) loads credentials on mount.
+// The vault picker (EVO-2250 story 2.4) loads credentials on mount, and the
+// retirement guard (story 2.7) decides whether inline auth headers still edit.
+const getIntegrationVaultMigrationState = vi.fn();
+
 vi.mock('@/services/agents', () => ({
   listIntegrationCredentials: vi.fn().mockResolvedValue([]),
+  getIntegrationVaultMigrationState: (...args: unknown[]) =>
+    getIntegrationVaultMigrationState(...args),
 }));
+
+beforeEach(() => {
+  // Default: the guard says NOT retired, so every pre-2.7 test keeps its
+  // original behavior.
+  getIntegrationVaultMigrationState.mockResolvedValue({ retired: {} });
+});
 
 const baseTool: CustomTool = {
   id: 'tool-1',
@@ -117,5 +128,62 @@ describe('CustomToolForm (refactored)', () => {
     fireEvent.submit(screen.getByText('form.actions.save').closest('form')!);
 
     expect(onSubmit.mock.calls[0][0].credential_refs).toEqual({});
+  });
+});
+
+// EVO-2250 story 2.7: with the consumer retired, inline auth headers become
+// read-only pointers to the vault, but the payload NEVER stops carrying what
+// the backend needs — the update replaces the stored object wholesale, so a
+// form that drops the received auth header erases the migrated secret through
+// the UI (the exact data-loss path the 1.6 retirement found in its modal).
+describe('CustomToolForm — retirement gated by the migration guard (2.7)', () => {
+  beforeEach(() => {
+    getIntegrationVaultMigrationState.mockResolvedValue({ retired: { custom_tools: true } });
+  });
+
+  it('still sends the received auth headers byte-identical after retirement (negative proof)', async () => {
+    const onSubmit = vi.fn();
+    render(<CustomToolForm tool={baseTool} mode="edit" onSubmit={onSubmit} />);
+
+    await screen.findByText('retirement.authHeadersLocked');
+    fireEvent.submit(screen.getByText('form.actions.save').closest('form')!);
+
+    const payload = onSubmit.mock.calls[0][0];
+    // This assertion is what fails if the form ever stops sending the field
+    // the backend needs on a wholesale update.
+    expect(payload.headers.Authorization).toBe('Bearer x');
+  });
+
+  it('renders the auth header read-only and keeps other headers editable', async () => {
+    const toolWithMixedHeaders: CustomTool = {
+      ...baseTool,
+      headers: { Authorization: 'Bearer x', 'Content-Type': 'application/json' },
+    };
+    render(<CustomToolForm tool={toolWithMixedHeaders} mode="edit" onSubmit={() => {}} />);
+
+    await screen.findByText('retirement.managedByVault');
+    // The masked row exists, and the secret value never renders.
+    expect(screen.getByText('Authorization')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Bearer x')).not.toBeInTheDocument();
+    // The non-auth header keeps its editable input.
+    expect(screen.getByDisplayValue('application/json')).toBeInTheDocument();
+  });
+
+  it('keeps the inline editor untouched while the guard says not migrated (AC3)', async () => {
+    getIntegrationVaultMigrationState.mockResolvedValue({ retired: {} });
+    render(<CustomToolForm tool={baseTool} mode="edit" onSubmit={() => {}} />);
+
+    await waitFor(() => expect(getIntegrationVaultMigrationState).toHaveBeenCalled());
+    expect(screen.queryByText('retirement.authHeadersLocked')).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('Bearer x')).toBeInTheDocument();
+  });
+
+  it('keeps the inline editor when the guard itself fails (fails closed)', async () => {
+    getIntegrationVaultMigrationState.mockRejectedValue(new Error('503'));
+    render(<CustomToolForm tool={baseTool} mode="edit" onSubmit={() => {}} />);
+
+    await waitFor(() => expect(getIntegrationVaultMigrationState).toHaveBeenCalled());
+    expect(screen.queryByText('retirement.authHeadersLocked')).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('Bearer x')).toBeInTheDocument();
   });
 });

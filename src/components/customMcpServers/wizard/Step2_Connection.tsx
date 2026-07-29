@@ -2,7 +2,13 @@ import { useState } from 'react';
 import { Input, Label, Button } from '@evoapi/design-system';
 import { ArrowRight, ArrowLeft, PlugZap, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { CredentialRefsEditor, KeyValueEditor } from '@/components/ai_agents/shared';
+import {
+  CredentialRefsEditor,
+  KeyValueEditor,
+  mergeRetiredHeaders,
+  splitAuthHeaders,
+  useVaultMigrationState,
+} from '@/components/ai_agents/shared';
 import { testCustomMcpServerConnection } from '@/services/agents/customMcpServerService';
 import type { McpTestResult } from '@/types/ai';
 
@@ -21,6 +27,11 @@ interface Step2Props {
 
 export default function Step2_Connection({ data, onChange, onNext, onBack }: Step2Props) {
   const { t } = useLanguage('customMcpServers');
+  const { t: tVault } = useLanguage('integrationCredentials');
+  // Story 2.7: retired inline auth headers become read-only, but ALWAYS stay
+  // in the payload — the backend replaces the stored object wholesale.
+  const migrationState = useVaultMigrationState();
+  const headersRetired = Boolean(migrationState.retired.custom_mcp_servers);
   const [error, setError] = useState('');
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<McpTestResult | null>(null);
@@ -90,13 +101,45 @@ export default function Step2_Connection({ data, onChange, onNext, onBack }: Ste
           </div>
 
           <div className="pt-2">
-            <KeyValueEditor
-              id="headers"
-              label={t('form.labels.headers')}
-              value={data.headers}
-              onChange={next => onChange({ ...data, headers: next })}
-              hint={t('form.hints.headers')}
-            />
+            {headersRetired ? (
+              <div className="space-y-2">
+                {Object.keys(splitAuthHeaders(data.headers).auth).map(name => (
+                  <div
+                    key={name}
+                    className="flex items-center gap-2 text-sm border rounded-md px-3 py-2"
+                  >
+                    <span className="font-mono">{name}</span>
+                    <span className="font-mono text-muted-foreground">••••</span>
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {tVault('retirement.managedByVault')}
+                    </span>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  {tVault('retirement.authHeadersLocked')}
+                </p>
+                <KeyValueEditor
+                  id="headers"
+                  label={t('form.labels.headers')}
+                  value={splitAuthHeaders(data.headers).others}
+                  onChange={next =>
+                    onChange({
+                      ...data,
+                      headers: mergeRetiredHeaders(data.headers, next as Record<string, unknown>),
+                    })
+                  }
+                  hint={t('form.hints.headers')}
+                />
+              </div>
+            ) : (
+              <KeyValueEditor
+                id="headers"
+                label={t('form.labels.headers')}
+                value={data.headers}
+                onChange={next => onChange({ ...data, headers: next })}
+                hint={t('form.hints.headers')}
+              />
+            )}
           </div>
 
           {/* Vault-backed auth headers (EVO-2250 story 2.4): one credential

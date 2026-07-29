@@ -26,6 +26,9 @@ import {
   AdvancedJsonCollapse,
   TestRequestButton,
   CredentialRefsEditor,
+  mergeRetiredHeaders,
+  splitAuthHeaders,
+  useVaultMigrationState,
 } from '@/components/ai_agents/shared';
 
 
@@ -83,6 +86,12 @@ export default function CustomToolForm({
   onCancel,
 }: CustomToolFormProps) {
   const { t } = useLanguage('customTools');
+  const { t: tVault } = useLanguage('integrationCredentials');
+  // Story 2.7: with the consumer retired, inline auth headers become read-only
+  // pointers to the vault. Guard failure reads as not retired: nothing is
+  // removed from a broken installation.
+  const migrationState = useVaultMigrationState();
+  const headersRetired = Boolean(migrationState.retired.custom_tools);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [valuesJson, setValuesJson] = useState('{}');
   const [errorHandlingJson, setErrorHandlingJson] = useState('{}');
@@ -382,16 +391,55 @@ export default function CustomToolForm({
             {errors.endpoint && <p className="text-sm text-destructive">{errors.endpoint}</p>}
           </div>
 
-          <KeyValueEditor
-            id="headers"
-            label={t('form.fields.headers.labelKv')}
-            value={formData.headers}
-            onChange={handleKvChange('headers')}
-            disabled={loading}
-            hint={t('form.fields.headers.hint')}
-            keyPlaceholder={t('form.fields.headers.keyPlaceholder')}
-            valuePlaceholder={t('form.fields.headers.valuePlaceholder')}
-          />
+          {headersRetired ? (
+            // Retired: the auth entries the form received stay read-only AND
+            // stay in the payload untouched — the update replaces the stored
+            // object wholesale, so dropping them here would erase the migrated
+            // secret through the UI (the 1.6 modal bug, negative-proof tested).
+            <div className="space-y-2">
+              {Object.keys(splitAuthHeaders(formData.headers).auth).map(name => (
+                <div
+                  key={name}
+                  className="flex items-center gap-2 text-sm border rounded-md px-3 py-2"
+                >
+                  <span className="font-mono">{name}</span>
+                  <span className="font-mono text-muted-foreground">••••</span>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {tVault('retirement.managedByVault')}
+                  </span>
+                </div>
+              ))}
+              <p className="text-xs text-muted-foreground">
+                {tVault('retirement.authHeadersLocked')}
+              </p>
+              <KeyValueEditor
+                id="headers"
+                label={t('form.fields.headers.labelKv')}
+                value={splitAuthHeaders(formData.headers).others}
+                onChange={next =>
+                  setFormData(prev => ({
+                    ...prev,
+                    headers: mergeRetiredHeaders(prev.headers, next as Record<string, unknown>),
+                  }))
+                }
+                disabled={loading}
+                hint={t('form.fields.headers.hint')}
+                keyPlaceholder={t('form.fields.headers.keyPlaceholder')}
+                valuePlaceholder={t('form.fields.headers.valuePlaceholder')}
+              />
+            </div>
+          ) : (
+            <KeyValueEditor
+              id="headers"
+              label={t('form.fields.headers.labelKv')}
+              value={formData.headers}
+              onChange={handleKvChange('headers')}
+              disabled={loading}
+              hint={t('form.fields.headers.hint')}
+              keyPlaceholder={t('form.fields.headers.keyPlaceholder')}
+              valuePlaceholder={t('form.fields.headers.valuePlaceholder')}
+            />
+          )}
 
           {/* Vault-backed auth headers (EVO-2250 story 2.4): each entry maps
               one header name to one vault credential — inline headers above
