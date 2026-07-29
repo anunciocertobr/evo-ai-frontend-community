@@ -134,16 +134,21 @@ export interface ApiKey {
   key_hint?: string;
   /** Providers speaking the OpenAI protocol serve every AI feature. */
   openai_compatible?: boolean;
+  /** Which link of the resolution chain the credential belongs to. */
+  scope?: ApiKeyScope;
   created_at: string;
   updated_at: string;
   is_active: boolean;
 }
+
+export type ApiKeyScope = 'installation' | 'account';
 
 export interface ApiKeyCreate {
   name: string;
   provider: string;
   key_value?: string;
   base_url?: string;
+  scope?: ApiKeyScope;
 }
 
 export interface ApiKeyUpdate {
@@ -152,6 +157,7 @@ export interface ApiKeyUpdate {
   key_value?: string;
   base_url?: string;
   is_active?: boolean;
+  scope?: ApiKeyScope;
 }
 
 // ============================================

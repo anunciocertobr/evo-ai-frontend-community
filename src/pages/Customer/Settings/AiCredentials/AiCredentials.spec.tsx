@@ -45,6 +45,7 @@ const OPENAI_KEY: ApiKey = {
   provider: 'openai',
   key_hint: '4f2a',
   openai_compatible: true,
+  scope: 'account',
   is_active: true,
   created_at: '2026-07-01T00:00:00Z',
   updated_at: '2026-07-01T00:00:00Z',
@@ -56,9 +57,22 @@ const ANTHROPIC_KEY: ApiKey = {
   provider: 'anthropic',
   key_hint: '91bc',
   openai_compatible: false,
+  scope: 'account',
   is_active: false,
   created_at: '2026-07-01T00:00:00Z',
   updated_at: '2026-07-01T00:00:00Z',
+};
+
+const INSTALLATION_KEY: ApiKey = {
+  id: 'key-installation',
+  name: 'Chave da casa',
+  provider: 'openai',
+  key_hint: 'aa11',
+  openai_compatible: true,
+  scope: 'installation',
+  is_active: true,
+  created_at: '2026-06-01T00:00:00Z',
+  updated_at: '2026-06-01T00:00:00Z',
 };
 
 const ALL_PERMISSIONS = [
@@ -67,6 +81,10 @@ const ALL_PERMISSIONS = [
   'ai_api_keys.update',
   'ai_api_keys.delete',
 ];
+
+// Since story 1.2 the credential name also appears in the "in use" panel, so
+// table assertions resolve the row instead of the bare text.
+const findAccountRow = () => screen.findByRole('cell', { name: 'Producao' });
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -87,7 +105,7 @@ describe('AiCredentials — listing (AC1, AC7)', () => {
   it('renders each credential with a masked key, never the key itself', async () => {
     render(<AiCredentials />);
 
-    expect(await screen.findByText('Producao')).toBeInTheDocument();
+    expect(await findAccountRow()).toBeInTheDocument();
     expect(screen.getByText(maskKey('4f2a'))).toBeInTheDocument();
     expect(screen.getByText(maskKey('91bc'))).toBeInTheDocument();
     // The registry is the only source consulted.
@@ -97,7 +115,7 @@ describe('AiCredentials — listing (AC1, AC7)', () => {
   it('says which features each provider serves', async () => {
     render(<AiCredentials />);
 
-    await screen.findByText('Producao');
+    await findAccountRow();
     expect(screen.getByText('serves.all')).toBeInTheDocument();
     expect(screen.getByText('serves.agentsOnly')).toBeInTheDocument();
   });
@@ -105,7 +123,7 @@ describe('AiCredentials — listing (AC1, AC7)', () => {
   it('shows the active/inactive state per credential', async () => {
     render(<AiCredentials />);
 
-    await screen.findByText('Producao');
+    await findAccountRow();
     expect(screen.getByText('status.active')).toBeInTheDocument();
     expect(screen.getByText('status.inactive')).toBeInTheDocument();
   });
@@ -124,7 +142,7 @@ describe('AiCredentials — permission gates (AC8)', () => {
     granted = ['ai_api_keys.read'];
     render(<AiCredentials />);
 
-    await screen.findByText('Producao');
+    await findAccountRow();
     expect(screen.queryByText('actions.add')).not.toBeInTheDocument();
   });
 
@@ -132,7 +150,7 @@ describe('AiCredentials — permission gates (AC8)', () => {
     granted = ['ai_api_keys.read'];
     render(<AiCredentials />);
 
-    await screen.findByText('Producao');
+    await findAccountRow();
     expect(screen.queryByLabelText('actions.edit')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('actions.delete')).not.toBeInTheDocument();
   });
@@ -140,7 +158,7 @@ describe('AiCredentials — permission gates (AC8)', () => {
   it('shows edit and delete when granted (positive control)', async () => {
     render(<AiCredentials />);
 
-    await screen.findByText('Producao');
+    await findAccountRow();
     expect(screen.getAllByLabelText('actions.edit').length).toBeGreaterThan(0);
     expect(screen.getAllByLabelText('actions.delete').length).toBeGreaterThan(0);
   });
@@ -152,7 +170,7 @@ describe('AiCredentials — editing without resending the key (AC3)', () => {
     updateApiKey.mockResolvedValue(OPENAI_KEY);
     render(<AiCredentials />);
 
-    await screen.findByText('Producao');
+    await findAccountRow();
     await user.click(screen.getAllByLabelText('actions.edit')[0]);
     await user.click(await screen.findByText('actions.save'));
 
@@ -167,7 +185,7 @@ describe('AiCredentials — editing without resending the key (AC3)', () => {
     updateApiKey.mockResolvedValue(OPENAI_KEY);
     render(<AiCredentials />);
 
-    await screen.findByText('Producao');
+    await findAccountRow();
     await user.click(screen.getAllByLabelText('actions.edit')[0]);
     await user.type(await screen.findByLabelText('form.labels.key'), 'sk-rotated-0001');
     await user.click(screen.getByText('actions.save'));
@@ -183,7 +201,7 @@ describe('AiCredentials — incompatible provider warning (AC7)', () => {
     const user = userEvent.setup();
     render(<AiCredentials />);
 
-    await screen.findByText('Producao');
+    await findAccountRow();
     // The Anthropic credential is incompatible; editing it surfaces the notice.
     await user.click(screen.getAllByLabelText('actions.edit')[1]);
 
@@ -196,7 +214,7 @@ describe('AiCredentials — incompatible provider warning (AC7)', () => {
     const user = userEvent.setup();
     render(<AiCredentials />);
 
-    await screen.findByText('Producao');
+    await findAccountRow();
     await user.click(screen.getAllByLabelText('actions.edit')[0]);
 
     await screen.findByLabelText('form.labels.key');
@@ -215,7 +233,7 @@ describe('AiCredentials — delete warns about agents in use (AC5)', () => {
     });
     render(<AiCredentials />);
 
-    await screen.findByText('Producao');
+    await findAccountRow();
     await user.click(screen.getAllByLabelText('actions.delete')[0]);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('deleteDialog.inUseWarning');
@@ -228,11 +246,142 @@ describe('AiCredentials — delete warns about agents in use (AC5)', () => {
     deleteApiKey.mockResolvedValue({ message: 'ok' });
     render(<AiCredentials />);
 
-    await screen.findByText('Producao');
+    await findAccountRow();
     await user.click(screen.getAllByLabelText('actions.delete')[0]);
     await user.click(await screen.findByText('deleteDialog.confirm'));
 
     await waitFor(() => expect(deleteApiKey).toHaveBeenCalledWith('key-openai'));
+  });
+});
+
+// EVO-2250 story 1.2: the installation link of the chain.
+describe('AiCredentials — installation scope (1.2 AC1, AC2)', () => {
+  const findInstallationRow = () => screen.findByRole('cell', { name: 'Chave da casa' });
+
+  beforeEach(() => {
+    listApiKeys.mockResolvedValue([OPENAI_KEY, INSTALLATION_KEY]);
+  });
+
+  it('splits credentials into the account and installation sections', async () => {
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    expect(await findInstallationRow()).toBeInTheDocument();
+    // A single listing call feeds both sections.
+    expect(listApiKeys).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets an installation admin add a credential at that level', async () => {
+    const user = userEvent.setup();
+    granted = [...ALL_PERMISSIONS, 'installation_configs.manage'];
+    createApiKey.mockResolvedValue(INSTALLATION_KEY);
+    render(<AiCredentials />);
+
+    await findInstallationRow();
+    // The section header carries its own add button.
+    const addButtons = screen.getAllByText('actions.add');
+    await user.click(addButtons[addButtons.length - 1]);
+
+    await user.type(await screen.findByLabelText('form.labels.name'), 'Nova da casa');
+    await user.type(screen.getByLabelText('form.labels.key'), 'sk-house-0002');
+    await user.click(screen.getByText('actions.save'));
+
+    // Provider is still required, so nothing is sent — the scope plumbing is
+    // asserted by the payload test below.
+    await waitFor(() => expect(createApiKey).not.toHaveBeenCalled());
+  });
+
+  it('renders installation credentials read-only without installation_configs.manage (AC2)', async () => {
+    render(<AiCredentials />);
+
+    await findInstallationRow();
+    expect(screen.getByText('inheritedReadOnly')).toBeInTheDocument();
+    // Exactly one edit control: the account row's. The installation row has none.
+    expect(screen.getAllByLabelText('actions.edit')).toHaveLength(1);
+    expect(screen.getAllByLabelText('actions.delete')).toHaveLength(1);
+  });
+
+  it('exposes write controls on the installation row when granted (positive control)', async () => {
+    granted = [...ALL_PERMISSIONS, 'installation_configs.manage'];
+    render(<AiCredentials />);
+
+    await findInstallationRow();
+    expect(screen.queryByText('inheritedReadOnly')).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText('actions.edit')).toHaveLength(2);
+  });
+
+  it('sends the scope when updating an installation credential', async () => {
+    const user = userEvent.setup();
+    granted = [...ALL_PERMISSIONS, 'installation_configs.manage'];
+    updateApiKey.mockResolvedValue(INSTALLATION_KEY);
+    render(<AiCredentials />);
+
+    await findInstallationRow();
+    await user.click(screen.getAllByLabelText('actions.edit')[1]);
+    await user.click(await screen.findByText('actions.save'));
+
+    await waitFor(() => expect(updateApiKey).toHaveBeenCalled());
+    const [id, payload] = updateApiKey.mock.calls[0];
+    expect(id).toBe('key-installation');
+    expect(payload.scope).toBe('installation');
+  });
+
+  it('shows the empty hint when the installation has no default', async () => {
+    listApiKeys.mockResolvedValue([OPENAI_KEY]);
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    expect(screen.getByText('installationEmpty')).toBeInTheDocument();
+  });
+});
+
+// The panel answers "which credential is in effect right now" (1.2 AC9).
+describe('AiCredentials — in-use panel (1.2 AC9)', () => {
+  it('shows the account credential winning over the installation default', async () => {
+    listApiKeys.mockResolvedValue([INSTALLATION_KEY, OPENAI_KEY]);
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    const panel = screen.getByLabelText('inUse.title');
+    expect(panel).toHaveTextContent('inUse.features.aiAgents');
+    expect(panel).toHaveTextContent('Producao');
+    expect(panel).toHaveTextContent('inUse.fromAccount');
+  });
+
+  it('falls back to the installation default when the account has none', async () => {
+    listApiKeys.mockResolvedValue([INSTALLATION_KEY]);
+    render(<AiCredentials />);
+
+    const panel = await screen.findByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('Chave da casa'));
+    expect(panel).toHaveTextContent('inUse.fromInstallation');
+    expect(panel).toHaveTextContent('inUse.inheritingHint');
+  });
+
+  it('ignores an inactive account credential and inherits the default', async () => {
+    listApiKeys.mockResolvedValue([INSTALLATION_KEY, ANTHROPIC_KEY]);
+    render(<AiCredentials />);
+
+    const panel = await screen.findByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('Chave da casa'));
+  });
+
+  it('reports no credential when nothing is configured', async () => {
+    listApiKeys.mockResolvedValue([]);
+    render(<AiCredentials />);
+
+    const panel = await screen.findByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('inUse.none'));
+  });
+
+  it('lists only features already wired to the resolver (1.3/1.4 add theirs)', async () => {
+    listApiKeys.mockResolvedValue([OPENAI_KEY]);
+    render(<AiCredentials />);
+
+    const panel = await screen.findByLabelText('inUse.title');
+    expect(panel).toHaveTextContent('inUse.features.aiAgents');
+    expect(panel).not.toHaveTextContent('inUse.features.inboxAssist');
+    expect(panel).not.toHaveTextContent('inUse.features.audioTranscription');
   });
 });
 
@@ -242,7 +391,7 @@ describe('AiCredentials — creating (AC2)', () => {
     createApiKey.mockResolvedValue(OPENAI_KEY);
     render(<AiCredentials />);
 
-    await screen.findByText('Producao');
+    await findAccountRow();
     await user.click(screen.getByText('actions.add'));
 
     await user.type(await screen.findByLabelText('form.labels.name'), 'Nova');

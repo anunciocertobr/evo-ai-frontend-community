@@ -41,3 +41,41 @@ export function isOpenAICompatible(provider: string): boolean {
 export function maskKey(hint?: string): string {
   return hint ? `••••${hint}` : '••••';
 }
+
+// Scopes ordered from the most generic to the most specific, mirroring
+// Ai::CredentialResolver::SCOPE_CHAIN in the CRM. Rails owns the resolution
+// that features rely on; this preview exists so the screen can show which
+// credential is in effect without a round trip per feature.
+export const SCOPE_CHAIN: ApiKeyScope[] = ['installation', 'account'];
+
+export type ApiKeyScope = 'installation' | 'account';
+
+interface ResolvableCredential {
+  provider: string;
+  scope?: ApiKeyScope;
+  is_active: boolean;
+  openai_compatible?: boolean;
+}
+
+// Mirrors the resolver: most specific link first, skipping credentials whose
+// provider the feature cannot speak, so it falls through to a broader link.
+export function resolveCredential<T extends ResolvableCredential>(
+  credentials: T[],
+  { openAICompatibleOnly = false }: { openAICompatibleOnly?: boolean } = {},
+): T | undefined {
+  for (const scope of [...SCOPE_CHAIN].reverse()) {
+    const match = credentials.find(
+      credential =>
+        credential.is_active &&
+        (credential.scope ?? 'account') === scope &&
+        (!openAICompatibleOnly ||
+          (credential.openai_compatible ?? isOpenAICompatible(credential.provider))),
+    );
+
+    if (match) {
+      return match;
+    }
+  }
+
+  return undefined;
+}

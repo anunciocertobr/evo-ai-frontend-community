@@ -26,9 +26,10 @@ import {
   CUSTOM_OPENAI_PROVIDER,
   isOpenAICompatible,
   maskKey,
+  resolveCredential,
 } from '@/constants/aiProviders';
 import { createApiKey, deleteApiKey, listApiKeys, listAgents, updateApiKey } from '@/services/agents';
-import type { ApiKey, ApiKeyCreate, ApiKeyUpdate } from '@/types/agents';
+import type { ApiKey, ApiKeyCreate, ApiKeyScope, ApiKeyUpdate } from '@/types/agents';
 
 interface CredentialDraft {
   id?: string;
@@ -36,6 +37,7 @@ interface CredentialDraft {
   provider: string;
   key_value: string;
   base_url: string;
+  scope: ApiKeyScope;
 }
 
 const EMPTY_DRAFT: CredentialDraft = {
@@ -43,6 +45,7 @@ const EMPTY_DRAFT: CredentialDraft = {
   provider: '',
   key_value: '',
   base_url: '',
+  scope: 'account',
 };
 
 export default function AiCredentials() {
@@ -61,8 +64,33 @@ export default function AiCredentials() {
   const canCreate = can('ai_api_keys', 'create');
   const canUpdate = can('ai_api_keys', 'update');
   const canDelete = can('ai_api_keys', 'delete');
+  // Writing at the installation level is a separate privilege: an account admin
+  // sees the inherited default but cannot change it.
+  const canManageInstallation = can('installation_configs', 'manage');
 
   const isEditing = Boolean(draft.id);
+
+  const accountCredentials = useMemo(
+    () => credentials.filter(credential => (credential.scope ?? 'account') === 'account'),
+    [credentials],
+  );
+
+  const installationCredentials = useMemo(
+    () => credentials.filter(credential => credential.scope === 'installation'),
+    [credentials],
+  );
+
+  // Only features already wired to the resolver appear here. Story 1.3 adds the
+  // inbox assist and 1.4 the remaining three.
+  const featuresInUse = useMemo(
+    () => [
+      {
+        key: 'aiAgents',
+        credential: resolveCredential(credentials),
+      },
+    ],
+    [credentials],
+  );
 
   const loadCredentials = useCallback(async () => {
     if (!canRead) {
@@ -107,8 +135,8 @@ export default function AiCredentials() {
     [draft.provider],
   );
 
-  const openCreateForm = () => {
-    setDraft(EMPTY_DRAFT);
+  const openCreateForm = (scope: ApiKeyScope = 'account') => {
+    setDraft({ ...EMPTY_DRAFT, scope });
     setFormOpen(true);
   };
 
@@ -119,14 +147,25 @@ export default function AiCredentials() {
       provider: credential.provider,
       key_value: '',
       base_url: credential.base_url ?? '',
+      scope: credential.scope ?? 'account',
     });
     setFormOpen(true);
   };
+
+  // Editing an installation credential needs the installation privilege;
+  // account credentials only need ai_api_keys.update.
+  const canWriteScope = (scope: ApiKeyScope) =>
+    scope === 'installation' ? canManageInstallation : canUpdate;
 
   const handleSave = async () => {
     const needsKey = !isEditing;
     if (!draft.name.trim() || !draft.provider || (needsKey && !draft.key_value.trim())) {
       toast.error(t('messages.requiredFields'));
+      return;
+    }
+
+    if (!canWriteScope(draft.scope)) {
+      toast.error(t('messages.permissionDenied.installation'));
       return;
     }
 
@@ -138,6 +177,7 @@ export default function AiCredentials() {
           name: draft.name,
           provider: draft.provider,
           base_url: draft.base_url || undefined,
+          scope: draft.scope,
         };
         // An empty field keeps the stored key: never send a blank key_value.
         if (draft.key_value.trim()) {
@@ -152,6 +192,7 @@ export default function AiCredentials() {
           provider: draft.provider,
           key_value: draft.key_value,
           base_url: draft.base_url || undefined,
+          scope: draft.scope,
         };
 
         await createApiKey(payload);
@@ -234,6 +275,86 @@ export default function AiCredentials() {
     );
   }
 
+  const renderCredentialsTable = (rows: ApiKey[], scope: ApiKeyScope) => {
+    const writable = canWriteScope(scope);
+
+    return (
+      <div className="overflow-x-auto border rounded-lg">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="text-left p-3">{t('columns.name')}</th>
+              <th className="text-left p-3">{t('columns.provider')}</th>
+              <th className="text-left p-3">{t('columns.key')}</th>
+              <th className="text-left p-3">{t('columns.serves')}</th>
+              <th className="text-left p-3">{t('columns.status')}</th>
+              <th className="text-right p-3">{t('columns.actions')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(credential => (
+              <tr key={credential.id} className="border-t">
+                <td className="p-3 font-medium">{credential.name}</td>
+                <td className="p-3">
+                  <Badge variant="outline">{providerLabel(credential.provider)}</Badge>
+                </td>
+                <td className="p-3 font-mono">{maskKey(credential.key_hint)}</td>
+                <td className="p-3">
+                  {servesAllFeatures(credential) ? t('serves.all') : t('serves.agentsOnly')}
+                </td>
+                <td className="p-3">
+                  <Badge variant={credential.is_active ? 'default' : 'secondary'}>
+                    {credential.is_active ? t('status.active') : t('status.inactive')}
+                  </Badge>
+                </td>
+                <td className="p-3">
+                  <div className="flex justify-end gap-2">
+                    {writable ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={t('actions.edit')}
+                          onClick={() => openEditForm(credential)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={saving}
+                          onClick={() => handleToggleActive(credential)}
+                        >
+                          {credential.is_active ? t('actions.deactivate') : t('actions.activate')}
+                        </Button>
+                      </>
+                    ) : (
+                      scope === 'installation' && (
+                        <span className="text-xs text-muted-foreground">
+                          {t('inheritedReadOnly')}
+                        </span>
+                      )
+                    )}
+                    {canDelete && writable && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={t('actions.delete')}
+                        onClick={() => openDeleteDialog(credential)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -242,12 +363,43 @@ export default function AiCredentials() {
           <p className="text-muted-foreground">{t('description')}</p>
         </div>
         {canCreate && (
-          <Button onClick={openCreateForm}>
+          <Button onClick={() => openCreateForm('account')}>
             <Plus className="mr-2 h-4 w-4" />
             {t('actions.add')}
           </Button>
         )}
       </div>
+
+      {/* Answers "which credential is in effect right now". Story 1.3 adds the
+          inbox assist row and 1.4 the remaining three. */}
+      <section
+        aria-label={t('inUse.title')}
+        className="border rounded-lg p-4 space-y-2"
+      >
+        <h2 className="text-sm font-medium">{t('inUse.title')}</h2>
+
+        {featuresInUse.map(feature => (
+          <div key={feature.key} className="flex items-baseline gap-2 text-sm">
+            <span className="text-muted-foreground">{t(`inUse.features.${feature.key}`)}</span>
+            {feature.credential ? (
+              <>
+                <span className="font-medium">{feature.credential.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {(feature.credential.scope ?? 'account') === 'installation'
+                    ? t('inUse.fromInstallation')
+                    : t('inUse.fromAccount')}
+                </span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">{t('inUse.none')}</span>
+            )}
+          </div>
+        ))}
+
+        {accountCredentials.length === 0 && installationCredentials.length > 0 && (
+          <p className="text-xs text-muted-foreground">{t('inUse.inheritingHint')}</p>
+        )}
+      </section>
 
       <section aria-label={t('sections.account')} className="space-y-3">
         <h2 className="text-sm font-medium uppercase text-muted-foreground">
@@ -258,94 +410,42 @@ export default function AiCredentials() {
           <div className="flex items-center justify-center h-40">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
-        ) : credentials.length === 0 ? (
+        ) : accountCredentials.length === 0 ? (
           <EmptyState
             icon={Key}
             title={t('empty.title')}
             description={t('empty.description')}
             action={
-              canCreate ? { label: t('actions.addFirst'), onClick: openCreateForm } : undefined
+              canCreate
+                ? { label: t('actions.addFirst'), onClick: () => openCreateForm('account') }
+                : undefined
             }
           />
         ) : (
-          <div className="overflow-x-auto border rounded-lg">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left p-3">{t('columns.name')}</th>
-                  <th className="text-left p-3">{t('columns.provider')}</th>
-                  <th className="text-left p-3">{t('columns.key')}</th>
-                  <th className="text-left p-3">{t('columns.serves')}</th>
-                  <th className="text-left p-3">{t('columns.status')}</th>
-                  <th className="text-right p-3">{t('columns.actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {credentials.map(credential => (
-                  <tr key={credential.id} className="border-t">
-                    <td className="p-3 font-medium">{credential.name}</td>
-                    <td className="p-3">
-                      <Badge variant="outline">{providerLabel(credential.provider)}</Badge>
-                    </td>
-                    <td className="p-3 font-mono">{maskKey(credential.key_hint)}</td>
-                    <td className="p-3">
-                      {servesAllFeatures(credential) ? t('serves.all') : t('serves.agentsOnly')}
-                    </td>
-                    <td className="p-3">
-                      <Badge variant={credential.is_active ? 'default' : 'secondary'}>
-                        {credential.is_active ? t('status.active') : t('status.inactive')}
-                      </Badge>
-                    </td>
-                    <td className="p-3">
-                      <div className="flex justify-end gap-2">
-                        {canUpdate && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              aria-label={t('actions.edit')}
-                              onClick={() => openEditForm(credential)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={saving}
-                              onClick={() => handleToggleActive(credential)}
-                            >
-                              {credential.is_active ? t('actions.deactivate') : t('actions.activate')}
-                            </Button>
-                          </>
-                        )}
-                        {canDelete && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label={t('actions.delete')}
-                            onClick={() => openDeleteDialog(credential)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          renderCredentialsTable(accountCredentials, 'account')
         )}
       </section>
 
-      {/* Filled by story 1.2 — the markup lands here so the table is not rebuilt. */}
       <section aria-label={t('sections.installation')} className="space-y-3">
-        <h2 className="text-sm font-medium uppercase text-muted-foreground">
-          {t('sections.installation')}
-        </h2>
-        <p className="text-sm text-muted-foreground border border-dashed rounded-lg p-4">
-          {t('installationEmpty')}
-        </p>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-sm font-medium uppercase text-muted-foreground">
+            {t('sections.installation')}
+          </h2>
+          {canManageInstallation && (
+            <Button variant="outline" size="sm" onClick={() => openCreateForm('installation')}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t('actions.add')}
+            </Button>
+          )}
+        </div>
+
+        {loading ? null : installationCredentials.length === 0 ? (
+          <p className="text-sm text-muted-foreground border border-dashed rounded-lg p-4">
+            {t('installationEmpty')}
+          </p>
+        ) : (
+          renderCredentialsTable(installationCredentials, 'installation')
+        )}
       </section>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
