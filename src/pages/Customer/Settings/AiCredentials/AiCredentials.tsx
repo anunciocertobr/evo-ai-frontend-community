@@ -80,13 +80,18 @@ export default function AiCredentials() {
     [credentials],
   );
 
-  // Only features already wired to the resolver appear here. Story 1.3 adds the
-  // inbox assist and 1.4 the remaining three.
+  // Only features already wired to the resolver appear here. Story 1.4 adds the
+  // remaining three. The assist only speaks the OpenAI protocol, so it resolves
+  // with the same compatibility filter the backend applies.
   const featuresInUse = useMemo(
     () => [
       {
         key: 'aiAgents',
         credential: resolveCredential(credentials),
+      },
+      {
+        key: 'inboxAssist',
+        credential: resolveCredential(credentials, { openAICompatibleOnly: true }),
       },
     ],
     [credentials],

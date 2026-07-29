@@ -374,14 +374,27 @@ describe('AiCredentials — in-use panel (1.2 AC9)', () => {
     await waitFor(() => expect(panel).toHaveTextContent('inUse.none'));
   });
 
-  it('lists only features already wired to the resolver (1.3/1.4 add theirs)', async () => {
+  it('lists only features already wired to the resolver (1.4 adds the rest)', async () => {
     listApiKeys.mockResolvedValue([OPENAI_KEY]);
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
     expect(panel).toHaveTextContent('inUse.features.aiAgents');
-    expect(panel).not.toHaveTextContent('inUse.features.inboxAssist');
+    expect(panel).toHaveTextContent('inUse.features.inboxAssist');
     expect(panel).not.toHaveTextContent('inUse.features.audioTranscription');
+  });
+
+  // 1.3 AC8 + FR18: the assist cannot speak Anthropic, so it shows the
+  // installation default while AI Agents keep the account credential.
+  it('shows the assist falling back when the account credential is incompatible', async () => {
+    const anthropicActive = { ...ANTHROPIC_KEY, is_active: true };
+    listApiKeys.mockResolvedValue([INSTALLATION_KEY, anthropicActive]);
+    render(<AiCredentials />);
+
+    const panel = await screen.findByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('Testes'));
+    expect(panel).toHaveTextContent('Chave da casa');
+    expect(panel).toHaveTextContent('inUse.fromInstallation');
   });
 });
 
