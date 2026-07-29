@@ -111,6 +111,7 @@
       "customAttributes": "Custom Attributes",
       "cannedResponses": "Canned Responses",
       "aiCredentials": "AI Credentials",
+      "integrationCredentials": "Integration Credentials",
       "messageTemplates": "Message Templates",
       "macros": "Macros",
       "templates": "Templates",

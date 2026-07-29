@@ -254,6 +254,13 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         action: 'read',
       },
       {
+        name: t('menu.settings.integrationCredentials'),
+        href: '/settings/integration-credentials',
+        icon: Key,
+        resource: 'ai_integration_credentials',
+        action: 'read',
+      },
+      {
         name: t('menu.settings.messageTemplates'),
         href: '/settings/message-templates',
         icon: LayoutTemplate,

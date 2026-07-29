@@ -40,6 +40,7 @@ import ptBRDocumentation from './locales/pt-BR/documentation.json';
 import ptBRAiAgents from './locales/pt-BR/aiAgents.json';
 import ptBRApiKeys from './locales/pt-BR/apiKeys.json';
 import ptBRAiCredentials from './locales/pt-BR/aiCredentials.json';
+import ptBRIntegrationCredentials from './locales/pt-BR/integrationCredentials.json';
 import ptBRAccessTokens from './locales/pt-BR/accessTokens.json';
 import ptBRIntegrations from './locales/pt-BR/integrations.json';
 import ptBRAttachments from './locales/pt-BR/attachments.json';
@@ -94,6 +95,7 @@ import ptDocumentation from './locales/pt/documentation.json';
 import ptAiAgents from './locales/pt/aiAgents.json';
 import ptApiKeys from './locales/pt/apiKeys.json';
 import ptAiCredentials from './locales/pt/aiCredentials.json';
+import ptIntegrationCredentials from './locales/pt/integrationCredentials.json';
 import ptAccessTokens from './locales/pt/accessTokens.json';
 import ptIntegrations from './locales/pt/integrations.json';
 import ptAttachments from './locales/pt/attachments.json';
@@ -148,6 +150,7 @@ import enDocumentation from './locales/en/documentation.json';
 import enAiAgents from './locales/en/aiAgents.json';
 import enApiKeys from './locales/en/apiKeys.json';
 import enAiCredentials from './locales/en/aiCredentials.json';
+import enIntegrationCredentials from './locales/en/integrationCredentials.json';
 import enAccessTokens from './locales/en/accessTokens.json';
 import enIntegrations from './locales/en/integrations.json';
 import enAttachments from './locales/en/attachments.json';
@@ -202,6 +205,7 @@ import esDocumentation from './locales/es/documentation.json';
 import esAiAgents from './locales/es/aiAgents.json';
 import esApiKeys from './locales/es/apiKeys.json';
 import esAiCredentials from './locales/es/aiCredentials.json';
+import esIntegrationCredentials from './locales/es/integrationCredentials.json';
 import esAccessTokens from './locales/es/accessTokens.json';
 import esIntegrations from './locales/es/integrations.json';
 import esAttachments from './locales/es/attachments.json';
@@ -256,6 +260,7 @@ import frDocumentation from './locales/fr/documentation.json';
 import frAiAgents from './locales/fr/aiAgents.json';
 import frApiKeys from './locales/fr/apiKeys.json';
 import frAiCredentials from './locales/fr/aiCredentials.json';
+import frIntegrationCredentials from './locales/fr/integrationCredentials.json';
 import frAccessTokens from './locales/fr/accessTokens.json';
 import frIntegrations from './locales/fr/integrations.json';
 import frAttachments from './locales/fr/attachments.json';
@@ -310,6 +315,7 @@ import itDocumentation from './locales/it/documentation.json';
 import itAiAgents from './locales/it/aiAgents.json';
 import itApiKeys from './locales/it/apiKeys.json';
 import itAiCredentials from './locales/it/aiCredentials.json';
+import itIntegrationCredentials from './locales/it/integrationCredentials.json';
 import itAccessTokens from './locales/it/accessTokens.json';
 import itIntegrations from './locales/it/integrations.json';
 import itAttachments from './locales/it/attachments.json';
@@ -432,6 +438,7 @@ const resources = {
     aiAgents: ptBRAiAgents,
     apiKeys: ptBRApiKeys,
     aiCredentials: ptBRAiCredentials,
+    integrationCredentials: ptBRIntegrationCredentials,
     accessTokens: ptBRAccessTokens,
     integrations: ptBRIntegrations,
     attachments: ptBRAttachments,
@@ -493,6 +500,7 @@ const resources = {
     aiAgents: ptAiAgents,
     apiKeys: ptApiKeys,
     aiCredentials: ptAiCredentials,
+    integrationCredentials: ptIntegrationCredentials,
     accessTokens: ptAccessTokens,
     integrations: ptIntegrations,
     attachments: ptAttachments,
@@ -554,6 +562,7 @@ const resources = {
     aiAgents: enAiAgents,
     apiKeys: enApiKeys,
     aiCredentials: enAiCredentials,
+    integrationCredentials: enIntegrationCredentials,
     accessTokens: enAccessTokens,
     integrations: enIntegrations,
     attachments: enAttachments,
@@ -615,6 +624,7 @@ const resources = {
     aiAgents: esAiAgents,
     apiKeys: esApiKeys,
     aiCredentials: esAiCredentials,
+    integrationCredentials: esIntegrationCredentials,
     accessTokens: esAccessTokens,
     integrations: esIntegrations,
     attachments: esAttachments,
@@ -676,6 +686,7 @@ const resources = {
     aiAgents: frAiAgents,
     apiKeys: frApiKeys,
     aiCredentials: frAiCredentials,
+    integrationCredentials: frIntegrationCredentials,
     accessTokens: frAccessTokens,
     integrations: frIntegrations,
     attachments: frAttachments,
@@ -737,6 +748,7 @@ const resources = {
     aiAgents: itAiAgents,
     apiKeys: itApiKeys,
     aiCredentials: itAiCredentials,
+    integrationCredentials: itIntegrationCredentials,
     accessTokens: itAccessTokens,
     integrations: itIntegrations,
     attachments: itAttachments,

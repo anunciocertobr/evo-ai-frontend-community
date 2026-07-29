@@ -161,6 +161,54 @@ export interface ApiKeyUpdate {
 }
 
 // ============================================
+// Integration Credentials (vault)
+// ============================================
+
+/** A `static` credential holds its (encrypted) value in the vault; an `oauth`
+ * one is a reference to the store that owns the token and never has a value. */
+export type IntegrationCredentialKind = 'static' | 'oauth';
+
+export interface IntegrationCredential {
+  id: string;
+  name: string;
+  provider: string;
+  kind: IntegrationCredentialKind;
+  /** Last characters of the value. The API never returns the value itself. */
+  value_hint?: string;
+  value_format?: 'scalar' | 'composite';
+  scope?: ApiKeyScope;
+  owner_store?: string;
+  owner_ref?: string;
+  imported_from?: string;
+  /** Consumers pointing at this credential, filled as stories 2.3/2.4 land. */
+  referenced_by?: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IntegrationCredentialCreate {
+  name: string;
+  provider: string;
+  value: string;
+  kind: IntegrationCredentialKind;
+  scope?: ApiKeyScope;
+}
+
+export interface IntegrationCredentialUpdate {
+  name?: string;
+  provider?: string;
+  /** Omitted to keep the stored value: never send it blank. */
+  value?: string;
+  is_active?: boolean;
+  scope?: ApiKeyScope;
+}
+
+export interface IntegrationCredentialDeleteResponse {
+  message: string;
+}
+
+// ============================================
 // Chat & Sessions
 // ============================================
 

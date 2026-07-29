@@ -4,3 +4,4 @@ export * from './toolsService';
 export * from './customToolsService';
 export * from './mcpServerService';
 export * from './customMcpServerService';
+export * from './integrationCredentialService';
