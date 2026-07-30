@@ -1,6 +1,5 @@
 import { useLanguage } from '@/hooks/useLanguage';
 import {
-  Switch,
   Label,
   Button,
   Select,
@@ -20,6 +19,7 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import { BehaviorSettings } from './types';
+import AgentToggle from './AgentToggle';
 
 interface BehaviorPanelProps {
   behaviorSettings: BehaviorSettings;
@@ -41,7 +41,7 @@ export const BehaviorPanel = ({
   return (
     <div className="space-y-4">
       {/* Transferir para humano */}
-      <div className="flex items-center justify-between py-3 border-b last:border-0">
+      <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
         <div className="flex items-start gap-3 flex-1">
           <UserRound className="h-5 w-5 text-blue-500 mt-0.5" />
           <div className="flex-1">
@@ -68,7 +68,7 @@ export const BehaviorPanel = ({
             </p>
           </div>
         </div>
-        <Switch
+        <AgentToggle
           id="transfer-to-human"
           checked={behaviorSettings.transferToHuman}
           onCheckedChange={checked =>
@@ -78,7 +78,7 @@ export const BehaviorPanel = ({
       </div>
 
       {/* Permitir registrar lembretes */}
-      <div className="flex items-center justify-between py-3 border-b last:border-0">
+      <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
         <div className="flex items-start gap-3 flex-1">
           <Bell className="h-5 w-5 text-orange-500 mt-0.5" />
           <div className="flex-1">
@@ -91,7 +91,7 @@ export const BehaviorPanel = ({
             </p>
           </div>
         </div>
-        <Switch
+        <AgentToggle
           id="allow-reminders"
           checked={behaviorSettings.allowReminders}
           onCheckedChange={checked =>
@@ -101,7 +101,7 @@ export const BehaviorPanel = ({
       </div>
 
       {/* Permitir editar contatos */}
-      <div className="flex items-center justify-between py-3 border-b last:border-0">
+      <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
         <div className="flex items-start gap-3 flex-1">
           <Edit3 className="h-5 w-5 text-green-500 mt-0.5" />
           <div className="flex-1">
@@ -128,7 +128,7 @@ export const BehaviorPanel = ({
             </p>
           </div>
         </div>
-        <Switch
+        <AgentToggle
           id="allow-contact-edit"
           checked={behaviorSettings.allowContactEdit}
           onCheckedChange={checked =>
@@ -138,7 +138,7 @@ export const BehaviorPanel = ({
       </div>
 
       {/* Permitir manipular pipelines */}
-      <div className="flex items-center justify-between py-3 border-b last:border-0">
+      <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
         <div className="flex items-start gap-3 flex-1">
           <GitBranch className="h-5 w-5 text-purple-500 mt-0.5" />
           <div className="flex-1">
@@ -166,7 +166,7 @@ export const BehaviorPanel = ({
             </p>
           </div>
         </div>
-        <Switch
+        <AgentToggle
           id="allow-pipeline-manipulation"
           checked={behaviorSettings.allowPipelineManipulation}
           onCheckedChange={checked =>
@@ -179,7 +179,7 @@ export const BehaviorPanel = ({
       </div>
 
       {/* Permitir gerenciar labels */}
-      <div className="flex items-center justify-between py-3 border-b last:border-0">
+      <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
         <div className="flex items-start gap-3 flex-1">
           <Tag className="h-5 w-5 text-amber-500 mt-0.5" />
           <div className="flex-1">
@@ -192,7 +192,7 @@ export const BehaviorPanel = ({
             </p>
           </div>
         </div>
-        <Switch
+        <AgentToggle
           id="allow-manage-labels"
           checked={behaviorSettings.allowManageLabels}
           onCheckedChange={checked =>
@@ -205,7 +205,7 @@ export const BehaviorPanel = ({
       </div>
 
       {/* Permitir registrar venda no pipeline */}
-      <div className="flex items-center justify-between py-3 border-b last:border-0">
+      <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
         <div className="flex items-start gap-3 flex-1">
           <ShoppingCart className="h-5 w-5 text-emerald-500 mt-0.5" />
           <div className="flex-1">
@@ -219,7 +219,7 @@ export const BehaviorPanel = ({
             </p>
           </div>
         </div>
-        <Switch
+        <AgentToggle
           id="allow-product-sales"
           checked={behaviorSettings.allowProductSales}
           onCheckedChange={checked =>

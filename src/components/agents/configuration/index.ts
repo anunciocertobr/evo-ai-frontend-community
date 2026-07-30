@@ -2,6 +2,7 @@
  * Agent Configuration Components
  */
 
+export { default as AgentToggle } from './AgentToggle';
 export { BehaviorPanel } from './BehaviorPanel';
 export { default as ContactEditModal } from './ContactEditModal';
 export { InactivityActionsTab } from './InactivityActionsTab';

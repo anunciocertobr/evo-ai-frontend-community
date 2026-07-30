@@ -1,12 +1,13 @@
 import { useCallback } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { LLMConfigData } from '@/components/ai_agents/Forms/LLMConfigForm';
-import { Switch, Label, Input, Textarea } from '@evoapi/design-system';
+import { Label, Input, Textarea } from '@evoapi/design-system';
 import { Agent } from '@/types/agents';
 import { Smile, Clock, Reply, Zap } from 'lucide-react';
 import { AdvancedBotConfigData } from '@/components/ai_agents/Forms/AdvancedBotConfig';
 import { supportsMessageHandling, isExternalAgent } from '@/utils/agents';
 import { AdvancedMessageConfig, BehaviorSettings, ExternalConfigData } from './types';
+import AgentToggle from './AgentToggle';
 
 interface MessageHandlingPanelProps {
   agent: Agent;
@@ -219,7 +220,7 @@ export const MessageHandlingPanel = ({
                 )}
               </div>
             </div>
-            <Switch
+            <AgentToggle
               id="enable-text-segmentation"
               checked={llmConfigData.advanced_config.enable_text_segmentation}
               onCheckedChange={value =>
@@ -232,7 +233,7 @@ export const MessageHandlingPanel = ({
           </div>
 
           {/* Usar Emojis */}
-          <div className="flex items-center justify-between py-3 border-b">
+          <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
             <div className="flex items-start gap-3 flex-1">
               <Smile className="h-5 w-5 text-yellow-500 mt-0.5" />
               <div className="flex-1">
@@ -245,7 +246,7 @@ export const MessageHandlingPanel = ({
                 </p>
               </div>
             </div>
-            <Switch
+            <AgentToggle
               id="use-emojis-messages"
               checked={behaviorSettings.useEmojis}
               onCheckedChange={checked =>
@@ -255,7 +256,7 @@ export const MessageHandlingPanel = ({
           </div>
 
           {/* Enviar mensagem como resposta na conversa */}
-          <div className="flex items-center justify-between py-3">
+          <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
             <div className="flex items-start gap-3 flex-1">
               <Reply className="h-5 w-5 text-blue-500 mt-0.5" />
               <div className="flex-1">
@@ -269,7 +270,7 @@ export const MessageHandlingPanel = ({
                 </p>
               </div>
             </div>
-            <Switch
+            <AgentToggle
               id="send-as-reply"
               checked={behaviorSettings.sendAsReply}
               onCheckedChange={checked =>
@@ -283,7 +284,7 @@ export const MessageHandlingPanel = ({
       {isA2ATaskVariant && (
         <>
           {/* Usar Emojis */}
-          <div className="flex items-center justify-between py-3 border-b last:border-0">
+          <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
             <div className="flex items-start gap-3 flex-1">
               <Smile className="h-5 w-5 text-yellow-500 mt-0.5" />
               <div className="flex-1">
@@ -296,7 +297,7 @@ export const MessageHandlingPanel = ({
                 </p>
               </div>
             </div>
-            <Switch
+            <AgentToggle
               id="use-emojis-a2a-task"
               checked={behaviorSettings.useEmojis}
               onCheckedChange={checked =>
@@ -306,7 +307,7 @@ export const MessageHandlingPanel = ({
           </div>
 
           {/* Enviar mensagem como resposta na conversa */}
-          <div className="flex items-center justify-between py-3">
+          <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
             <div className="flex items-start gap-3 flex-1">
               <Reply className="h-5 w-5 text-blue-500 mt-0.5" />
               <div className="flex-1">
@@ -320,7 +321,7 @@ export const MessageHandlingPanel = ({
                 </p>
               </div>
             </div>
-            <Switch
+            <AgentToggle
               id="send-as-reply-a2a-task"
               checked={behaviorSettings.sendAsReply}
               onCheckedChange={checked =>
@@ -494,7 +495,7 @@ export const MessageHandlingPanel = ({
                 )}
               </div>
             </div>
-            <Switch
+            <AgentToggle
               id="external-enable-text-segmentation"
               checked={externalConfigData.advanced_config.enable_text_segmentation}
               onCheckedChange={value =>
@@ -507,7 +508,7 @@ export const MessageHandlingPanel = ({
           </div>
 
           {/* Enviar mensagem como resposta na conversa */}
-          <div className="flex items-center justify-between py-3">
+          <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
             <div className="flex items-start gap-3 flex-1">
               <Reply className="h-5 w-5 text-blue-500 mt-0.5" />
               <div className="flex-1">
@@ -521,7 +522,7 @@ export const MessageHandlingPanel = ({
                 </p>
               </div>
             </div>
-            <Switch
+            <AgentToggle
               id="external-send-as-reply"
               checked={behaviorSettings.sendAsReply}
               onCheckedChange={checked =>
