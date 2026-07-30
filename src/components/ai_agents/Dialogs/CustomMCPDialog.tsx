@@ -120,8 +120,11 @@ const CustomMCPDialog = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+        {/* `sm:text-center` e não `text-center`: a base do DialogHeader traz
+            `sm:text-left`, e variante responsiva não colide com utilitário simples
+            no tailwind-merge — o `sm:` do pacote venceria acima de 640px. */}
+        <DialogHeader className="sm:text-center">
+          <DialogTitle className="flex items-center justify-center gap-2">
             <Server className="h-5 w-5 text-emerald-500" />
             {t('dialogs.customMcp.title')}
           </DialogTitle>
@@ -131,13 +134,16 @@ const CustomMCPDialog = ({
         <div className="flex-1 overflow-hidden flex flex-col">
           {/* Search */}
           <div className="p-4 border-b">
+            {/* Padrão de busca do ecossistema: Input do design-system SEM override de
+                borda/fundo/altura — a borda verde ao focar vem do token `--ring`
+                (`focus-visible:border-ring`), que um `border-[#...]` fixo mascara. */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder={t('dialogs.customMcp.searchPlaceholder')}
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-9"
               />
             </div>
           </div>
@@ -265,12 +271,15 @@ const CustomMCPDialog = ({
           )}
         </div>
 
-        <DialogFooter className="border-t p-4">
+        {/* Botões ocupam a largura do rodapé: Cancelar no tamanho do conteúdo e os
+            de ação dividindo o resto, em vez de todos empilhados à direita. */}
+        <DialogFooter className="gap-2 border-t p-4 sm:justify-start">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('actions.cancel')}
           </Button>
           {customMCPServers.length > 0 && !hideCreateNew && (
             <Button
+              className="flex-1"
               onClick={() => {
                 onOpenChange(false);
                 navigate('/custom-mcp-servers');
@@ -280,7 +289,11 @@ const CustomMCPDialog = ({
               {t('tools.mcpServers.add')}
             </Button>
           )}
-          <Button onClick={handleSave} disabled={selectedServerIds.length === 0}>
+          <Button
+            className="flex-1"
+            onClick={handleSave}
+            disabled={selectedServerIds.length === 0}
+          >
             {selectedServerIds.length === 0
               ? t('dialogs.customMcp.selectServers')
               : t('dialogs.customMcp.addSelected', { count: selectedServerIds.length })}
