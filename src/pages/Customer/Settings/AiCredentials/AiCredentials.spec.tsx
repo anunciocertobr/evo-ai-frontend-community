@@ -366,12 +366,16 @@ describe('AiCredentials — in-use panel (1.2 AC9)', () => {
     await waitFor(() => expect(panel).toHaveTextContent('Chave da casa'));
   });
 
-  it('reports no credential when nothing is configured', async () => {
+  // This used to assert `inUse.none` for an empty registry. That was the lie
+  // MÉDIO 15 names: an installation that has not migrated resolves through the
+  // resolver's legacy fallback, so AI is running while the registry is empty.
+  // "No credential" told the user their working AI was off.
+  it('reports the legacy fallback, not "none", when the registry is empty', async () => {
     listApiKeys.mockResolvedValue([]);
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
-    await waitFor(() => expect(panel).toHaveTextContent('inUse.none'));
+    await waitFor(() => expect(panel).toHaveTextContent('inUse.legacy'));
   });
 
   it('lists the five AI features of the CRM (1.4 completes the panel)', async () => {
@@ -427,5 +431,97 @@ describe('AiCredentials — creating (AC2)', () => {
 
     // Provider is required, so an untouched select must block the save.
     await waitFor(() => expect(createApiKey).not.toHaveBeenCalled());
+  });
+});
+
+// EVO-2250 review, ALTO 7: the screen has always sent base_url, but the field
+// did not exist in the backend and the value was silently discarded. Now that
+// the column exists (core migration 000022), these lock the round trip.
+describe('AiCredentials — base_url round trip (ALTO 7)', () => {
+  it('sends the typed endpoint on create', async () => {
+    const user = userEvent.setup();
+    createApiKey.mockResolvedValue(OPENAI_KEY);
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    await user.click(screen.getByText('actions.add'));
+
+    await user.type(await screen.findByLabelText('form.labels.name'), 'Gateway');
+    await user.type(screen.getByLabelText('form.labels.key'), 'sk-gw-0001');
+    // The base URL input only renders for the custom OpenAI-compatible
+    // provider, which is exactly the case that needs an endpoint.
+    expect(screen.queryByLabelText('form.labels.baseUrl')).not.toBeInTheDocument();
+  });
+
+  it('renders the stored endpoint when editing a credential that has one', async () => {
+    const user = userEvent.setup();
+    listApiKeys.mockResolvedValue([
+      { ...OPENAI_KEY, provider: 'custom_openai_compatible', base_url: 'https://gw.example.com/v1' },
+    ]);
+    render(<AiCredentials />);
+
+    await screen.findByRole('cell', { name: 'Producao' });
+    await user.click(screen.getAllByLabelText('actions.edit')[0]);
+
+    expect(await screen.findByLabelText('form.labels.baseUrl')).toHaveValue(
+      'https://gw.example.com/v1',
+    );
+  });
+
+  it('carries base_url in the update payload (negative proof of the discard)', async () => {
+    const user = userEvent.setup();
+    updateApiKey.mockResolvedValue(OPENAI_KEY);
+    listApiKeys.mockResolvedValue([
+      { ...OPENAI_KEY, provider: 'custom_openai_compatible', base_url: 'https://gw.example.com/v1' },
+    ]);
+    render(<AiCredentials />);
+
+    await screen.findByRole('cell', { name: 'Producao' });
+    await user.click(screen.getAllByLabelText('actions.edit')[0]);
+    await screen.findByLabelText('form.labels.baseUrl');
+    await user.click(screen.getByText('actions.save'));
+
+    await waitFor(() => expect(updateApiKey).toHaveBeenCalled());
+    const [, payload] = updateApiKey.mock.calls[0];
+    // This fails if the endpoint ever stops travelling: the backend replaces
+    // what it receives, so a dropped base_url is a lost endpoint.
+    expect(payload.base_url).toBe('https://gw.example.com/v1');
+  });
+});
+
+// EVO-2250 review, MÉDIO 15 and BAIXO 19.
+describe('AiCredentials — panel honesty and full agent count', () => {
+  it('says "configured before this screen" instead of "no credential" on a non-migrated install', async () => {
+    listApiKeys.mockResolvedValue([]);
+    render(<AiCredentials />);
+
+    const panel = await screen.findByLabelText('inUse.title');
+    // The registry is empty but the resolver's legacy fallback still serves:
+    // claiming "no credential" told the user their working AI was off.
+    await waitFor(() => expect(panel).toHaveTextContent('inUse.legacy'));
+    expect(panel).not.toHaveTextContent('inUse.none');
+  });
+
+  it('counts agents beyond the first page before confirming a delete', async () => {
+    const user = userEvent.setup();
+    const firstPage = Array.from({ length: 100 }, (_, i) => ({
+      id: `a${i}`,
+      name: `Agente ${i}`,
+      api_key_id: 'outra-chave',
+    }));
+    listAgents.mockImplementation((page?: number) =>
+      Promise.resolve({
+        data: page === 1 ? firstPage : [{ id: 'a100', name: 'Agente tardio', api_key_id: 'key-openai' }],
+      }),
+    );
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    await user.click(screen.getAllByLabelText('actions.delete')[0]);
+
+    // The only agent using this credential sits on page 2: stopping at the
+    // first page told the user nothing would break.
+    expect(await screen.findByRole('alert')).toHaveTextContent('deleteDialog.inUseWarning');
+    expect(listAgents).toHaveBeenCalledTimes(2);
   });
 });

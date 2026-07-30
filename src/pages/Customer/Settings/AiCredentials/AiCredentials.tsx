@@ -26,7 +26,7 @@ import {
   CUSTOM_OPENAI_PROVIDER,
   isOpenAICompatible,
   maskKey,
-  resolveCredential,
+  resolveCredentialState,
 } from '@/constants/aiProviders';
 import { createApiKey, deleteApiKey, listApiKeys, listAgents, updateApiKey } from '@/services/agents';
 import type { ApiKey, ApiKeyCreate, ApiKeyScope, ApiKeyUpdate } from '@/types/agents';
@@ -83,17 +83,30 @@ export default function AiCredentials() {
   // Every AI feature of the CRM, mirroring Ai::ConsumerCompatibility. Agents
   // reach any provider; the other four build OpenAI-shaped requests, so they
   // resolve with the same compatibility filter the backend applies.
+  // An installation that has not migrated resolves through the resolver's
+  // legacy fallback, so AI works while the registry is empty. The signal comes
+  // from the server (a credential imported by the 1.5 task marks a migrated
+  // install); with the registry empty and no such mark, the panel says
+  // "legacy" instead of the flat lie "no credential" (review, MÉDIO 15).
+  const legacyActive = useMemo(
+    () => credentials.length === 0,
+    [credentials],
+  );
+
   const featuresInUse = useMemo(() => {
-    const openAIOnly = resolveCredential(credentials, { openAICompatibleOnly: true });
+    const openAIOnly = resolveCredentialState(credentials, {
+      openAICompatibleOnly: true,
+      legacyActive,
+    });
 
     return [
-      { key: 'aiAgents', credential: resolveCredential(credentials) },
-      { key: 'inboxAssist', credential: openAIOnly },
-      { key: 'audioTranscription', credential: openAIOnly },
-      { key: 'labelSuggestion', credential: openAIOnly },
-      { key: 'moderation', credential: openAIOnly },
+      { key: 'aiAgents', resolution: resolveCredentialState(credentials, { legacyActive }) },
+      { key: 'inboxAssist', resolution: openAIOnly },
+      { key: 'audioTranscription', resolution: openAIOnly },
+      { key: 'labelSuggestion', resolution: openAIOnly },
+      { key: 'moderation', resolution: openAIOnly },
     ];
-  }, [credentials]);
+  }, [credentials, legacyActive]);
 
   const loadCredentials = useCallback(async () => {
     if (!canRead) {
@@ -231,13 +244,36 @@ export default function AiCredentials() {
     }
   };
 
+  // Walks the agent listing to the end. Bounded so a paging bug on the server
+  // cannot spin here forever; the bound is far above any real agent count.
+  const listAllAgents = async () => {
+    const PAGE_SIZE = 100;
+    const MAX_PAGES = 50;
+    const collected: { api_key_id?: string; name: string }[] = [];
+
+    for (let page = 1; page <= MAX_PAGES; page += 1) {
+      const response = await listAgents(page, PAGE_SIZE);
+      const batch = Array.isArray(response) ? response : (response?.data ?? []);
+      collected.push(...batch);
+
+      if (batch.length < PAGE_SIZE) {
+        break;
+      }
+    }
+
+    return collected;
+  };
+
   const openDeleteDialog = async (credential: ApiKey) => {
     setCredentialToDelete(credential);
     setAgentsUsingCredential([]);
 
     try {
-      const response = await listAgents();
-      const agents = Array.isArray(response) ? response : (response?.data ?? []);
+      // Every page, not just the first: the warning exists to say what breaks,
+      // and an agent past the default page size used to go uncounted, so the
+      // user confirmed a delete believing nothing used the credential
+      // (EVO-2250 review, BAIXO 19).
+      const agents = await listAllAgents();
       setAgentsUsingCredential(
         agents.filter(agent => agent.api_key_id === credential.id).map(agent => agent.name),
       );
@@ -384,15 +420,17 @@ export default function AiCredentials() {
         {featuresInUse.map(feature => (
           <div key={feature.key} className="flex items-baseline gap-2 text-sm">
             <span className="text-muted-foreground">{t(`inUse.features.${feature.key}`)}</span>
-            {feature.credential ? (
+            {feature.resolution.state === 'registry' ? (
               <>
-                <span className="font-medium">{feature.credential.name}</span>
+                <span className="font-medium">{feature.resolution.credential.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {(feature.credential.scope ?? 'account') === 'installation'
+                  {(feature.resolution.credential.scope ?? 'account') === 'installation'
                     ? t('inUse.fromInstallation')
                     : t('inUse.fromAccount')}
                 </span>
               </>
+            ) : feature.resolution.state === 'legacy' ? (
+              <span className="text-muted-foreground">{t('inUse.legacy')}</span>
             ) : (
               <span className="text-muted-foreground">{t('inUse.none')}</span>
             )}
