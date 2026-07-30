@@ -544,6 +544,20 @@
     "agentType": "{{type}}",
     "testAI": "Prueba tu IA",
     "profile": {
+      "summary": {
+        "title": "Resumen del Agente",
+        "status": "Estado",
+        "active": "Activo",
+        "type": "Tipo",
+        "native": "Nativo",
+        "external": "Externo",
+        "model": "Modelo",
+        "createdAt": "Creado el",
+        "subAgents": "Subagentes",
+        "products": "Productos",
+        "tipTitle": "Consejo de configuración",
+        "tipBody": "Completa el Papel y el Objetivo para que el agente entienda mejor su contexto y responda con más precisión."
+      },
       "title": "Información personal",
       "subtitle": "Configura la información básica de tu agente",
       "name": "Nombre del agente",
@@ -747,7 +761,7 @@
         "selectTeamPlaceholder": "Seleccione un equipo",
         "returnOnFinish": "Devolver al finalizar",
         "instructions": "Instrucciones:",
-        "instructionsPlaceholder": "Cuando el cliente quiera hablar sobre tal asunto...",
+        "instructionsPlaceholder": "Describa las condiciones para transferir la atención (ej: cuando el cliente pida hablar con un humano)...",
         "addRule": "+ Agregar regla de transferencia",
         "modalTitle": "Reglas de Transferencia",
         "modalDescription": "Configure cuándo y cómo el agente debe transferir conversaciones a humanos, otros agentes o equipos."
@@ -1207,6 +1221,7 @@
   },
   "actions": {
     "save": "Guardar",
+    "close": "Cerrar",
     "cancel": "Cancelar",
     "delete": "Eliminar",
     "edit": "Editar",
@@ -1465,6 +1480,7 @@
   "chat": {
     "newConversation": "Nueva Conversación",
     "searchConversations": "Buscar conversaciones...",
+    "conversations": "Conversaciones",
     "noConversations": "Ninguna conversación",
     "loading": "Cargando conversación...",
     "chatWithAgent": "Chat con {{name}}",
@@ -1472,7 +1488,7 @@
     "selectConversation": "Seleccione una conversación",
     "chooseOrStart": "Elija una conversación existente o inicie una nueva.",
     "selectOrCreateSession": "Seleccione una conversación o cree una nueva",
-    "selectSessionMessage": "Elija una conversación existente de la lista al lado o haga clic en \"Nueva Conversación\" para comenzar.",
+    "selectSessionMessage": "Abre el ícono de conversaciones para elegir una existente o haz clic en \"+\" para comenzar una nueva.",
     "typeMessage": "Escriba su mensaje...",
     "deleteSession": "Eliminar Sesión",
     "deleteSessionConfirm": "¿Está seguro de que desea eliminar esta sesión? Esta acción no se puede deshacer.",
