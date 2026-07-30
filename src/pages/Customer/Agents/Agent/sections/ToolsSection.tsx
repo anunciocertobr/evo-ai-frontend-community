@@ -29,59 +29,57 @@ const ToolsSection = ({
   const { t } = useLanguage('aiAgents');
 
   return (
-    <div className="space-y-8">
+    // Duas colunas, mesma estrutura do bloco Sub Agentes: tile + título +
+    // descrição + conteúdo, para as linhas de base das duas baterem.
+    <div className="grid gap-6 md:grid-cols-2">
       {/* Seção: Agentes como Ferramentas */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3 pb-2 border-b">
-          <div className="p-2 rounded-lg bg-blue-500/10">
-            <Users className="h-5 w-5 text-blue-500" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold">
+      <div className="space-y-3">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-blue-500/10">
+            <Users className="h-[18px] w-[18px] text-blue-500" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-[#1A211E]">
               {t('tools.agentTools.title') || 'Agentes como Ferramentas'}
             </h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="mt-[3px] text-[13px] leading-[1.5] text-[#8A928F]">
               {t('tools.agentTools.subtitle') || 'Use outros agentes como ferramentas para expandir as capacidades deste agente'}
             </p>
           </div>
         </div>
 
-        <div className="pl-11">
-          <AgentToolsSection
-            agentTools={agentTools}
-            agentToolsData={agentToolsData}
-            onAgentToolsChange={onAgentToolsChange}
-            clientId="default"
-            folderId={folderId}
-            editingAgentId={editingAgentId}
-            isReadOnly={false}
-          />
-        </div>
+        <AgentToolsSection
+          agentTools={agentTools}
+          agentToolsData={agentToolsData}
+          onAgentToolsChange={onAgentToolsChange}
+          clientId="default"
+          folderId={folderId}
+          editingAgentId={editingAgentId}
+          isReadOnly={false}
+        />
       </div>
 
       {/* Seção: Ferramentas Customizadas */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3 pb-2 border-b">
-          <div className="p-2 rounded-lg bg-purple-500/10">
-            <Code className="h-5 w-5 text-purple-500" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold">
+      <div className="space-y-3">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-purple-500/10">
+            <Code className="h-[18px] w-[18px] text-purple-500" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-[#1A211E]">
               {t('tools.customTools.title') || 'Ferramentas Customizadas'}
             </h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="mt-[3px] text-[13px] leading-[1.5] text-[#8A928F]">
               {t('tools.customTools.subtitle') || 'Configure ferramentas HTTP personalizadas para integrar com APIs externas'}
             </p>
           </div>
         </div>
 
-        <div className="pl-11">
-          <CustomToolsSection
-            customTools={customTools}
-            onCustomToolsChange={onCustomToolsChange}
-            isReadOnly={false}
-          />
-        </div>
+        <CustomToolsSection
+          customTools={customTools}
+          onCustomToolsChange={onCustomToolsChange}
+          isReadOnly={false}
+        />
       </div>
     </div>
   );

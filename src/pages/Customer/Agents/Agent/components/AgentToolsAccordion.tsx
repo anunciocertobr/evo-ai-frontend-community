@@ -53,17 +53,19 @@ const AgentToolsAccordion = ({
   const showSubAgents = supportsSubAgents(agentType);
   const showToolBlocks = supportsToolBlocks(agentType);
 
-  const itemClass =
-    'rounded-[14px] border border-[#ECEEF2] bg-white shadow-[0_1px_3px_rgba(20,30,45,0.05)]';
-  const triggerClass = 'px-5 py-4 text-[15px] font-bold text-[#1A211E] hover:no-underline';
-  const iconClass = 'mr-3 h-5 w-5 text-[#359558]';
+  // A borda fica no TRIGGER e no CONTENT (não no item): na raiz ela desenhava uma
+  // linha extra entre cabeçalho e corpo abertos — a "emenda" da spec §5.4.
+  const itemClass = 'mb-[14px] border-0';
+  const triggerClass =
+    'items-center gap-3 rounded-[14px] border border-[#ECEEF2] bg-white px-[17px] py-[15px] text-[14.5px] font-bold text-[#1A211E] shadow-[0_1px_2px_rgba(16,24,40,0.04)] hover:no-underline data-[state=open]:rounded-b-none data-[state=open]:border-b-0 [&>svg]:h-[18px] [&>svg]:w-[18px] [&>svg]:text-[#9AA3A0]';
+  // `pt-5`: sem ele o conteúdo encosta no cabeçalho do accordion (o `pt-0` que
+  // estava aqui era herança do layout antigo, que tinha uma borda separando os dois).
+  const contentClass =
+    'rounded-b-[14px] border border-t-0 border-[#ECEEF2] bg-white px-5 pb-5 pt-5';
+  const iconClass = 'mr-3 h-[18px] w-[18px] text-[#359558]';
 
   return (
-    <Accordion
-      type="multiple"
-      defaultValue={showSubAgents ? ['subAgents'] : ['tools']}
-      className="space-y-4"
-    >
+    <Accordion type="multiple" defaultValue={showSubAgents ? ['subAgents'] : ['tools']}>
       {showSubAgents && (
         <AccordionItem value="subAgents" className={itemClass}>
           <AccordionTrigger className={triggerClass}>
@@ -72,9 +74,10 @@ const AgentToolsAccordion = ({
               {t('edit.menu.subAgents') || 'Sub Agentes'}
             </span>
           </AccordionTrigger>
-          <AccordionContent className="border-t border-[#ECEEF2] p-5">
+          <AccordionContent className={contentClass}>
             <SubAgentsForm
               mode="edit"
+              embedded
               data={subAgentsData}
               onChange={onSubAgentsChange}
               onValidationChange={() => {}}
@@ -94,7 +97,7 @@ const AgentToolsAccordion = ({
                 {t('edit.menu.tools') || 'Ferramentas'}
               </span>
             </AccordionTrigger>
-            <AccordionContent className="border-t border-[#ECEEF2] p-5">
+            <AccordionContent className={contentClass}>
               <ToolsSection
                 agentTools={agentTools}
                 agentToolsData={agentToolsData}
@@ -114,7 +117,7 @@ const AgentToolsAccordion = ({
                 {t('edit.menu.integrations') || 'Integrações'}
               </span>
             </AccordionTrigger>
-            <AccordionContent className="border-t border-[#ECEEF2] p-5">
+            <AccordionContent className={contentClass}>
               <IntegrationsSection
                 integrations={integrations}
                 agentId={agentId}
@@ -130,7 +133,7 @@ const AgentToolsAccordion = ({
                 {t('edit.menu.mcpServers') || 'Servidores MCP'}
               </span>
             </AccordionTrigger>
-            <AccordionContent className="border-t border-[#ECEEF2] p-5">
+            <AccordionContent className={contentClass}>
               <MCPServersSection
                 mcpServers={mcpServers}
                 customMCPServerIds={customMCPServerIds}

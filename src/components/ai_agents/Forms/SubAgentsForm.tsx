@@ -36,6 +36,13 @@ interface SubAgentsFormProps {
   onValidationChange: (isValid: boolean, errors: string[]) => void;
   editingAgentId?: string;
   folderId?: string;
+  /**
+   * Dentro do accordion de Ferramentas o form já vive num card — os <Card> daqui
+   * virariam "card dentro do card". Com `embedded` o chrome sai e os dois blocos
+   * (selecionados / disponíveis) ficam lado a lado. O wizard e o AgentTabs seguem
+   * no layout antigo, empilhado, por não terem esse card em volta.
+   */
+  embedded?: boolean;
 }
 
 const SubAgentsForm = ({
@@ -45,6 +52,7 @@ const SubAgentsForm = ({
   onValidationChange,
   editingAgentId,
   folderId,
+  embedded = false,
 }: SubAgentsFormProps) => {
   const { t } = useLanguage('aiAgents');
   const [availableAgents, setAvailableAgents] = useState<Agent[]>([]);
@@ -121,6 +129,217 @@ const SubAgentsForm = ({
   );
 
   const isReadOnly = mode === 'view';
+
+  const selectedCountBadge = (
+    <Badge variant="outline" className="flex-shrink-0 text-xs">
+      {t('subAgents.selectedCount', { count: data.sub_agents.length })}
+    </Badge>
+  );
+
+  const selectedChips =
+    data.sub_agents.length > 0 ? (
+      <div className="flex flex-wrap gap-2">
+        {data.sub_agents.map(agentId => (
+          <div
+            key={agentId}
+            className="flex items-center gap-2 rounded-[9px] border border-[#ECEEF2] bg-white px-3 py-2"
+          >
+            <span className="text-sm font-medium">{getAgentNameById(agentId)}</span>
+            <Badge variant="outline" className="text-xs">
+              {getAgentTypeById(agentId)}
+            </Badge>
+            {!isReadOnly && (
+              <button
+                onClick={() => handleRemoveSubAgent(agentId)}
+                className="text-muted-foreground transition-colors hover:text-destructive"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div className="rounded-[10px] border border-dashed border-[#E3E6EA] px-4 py-8 text-center text-sm text-[#9AA3A0]">
+        {t('subAgents.noSubAgentsSelected')}
+      </div>
+    );
+
+  const howItWorksBullets = (
+    <div className="space-y-1 text-xs text-[#8A928F]">
+      <p>
+        • <strong>{t('subAgents.howItWorks.composition.title')}:</strong>{' '}
+        {t('subAgents.howItWorks.composition.description')}
+      </p>
+      <p>
+        • <strong>{t('subAgents.howItWorks.execution.title')}:</strong>{' '}
+        {t('subAgents.howItWorks.execution.description')}
+      </p>
+      <p>
+        • <strong>{t('subAgents.howItWorks.context.title')}:</strong>{' '}
+        {t('subAgents.howItWorks.context.description')}
+      </p>
+      <p>
+        • <strong>{t('subAgents.howItWorks.flexibility.title')}:</strong>{' '}
+        {t('subAgents.howItWorks.flexibility.description')}
+      </p>
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <div className="space-y-6">
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Selecionados. O título "Sub-Agentes" saiu: o cabeçalho do accordion já
+              diz isso, e a descrição dele cobria o mesmo que `complexCompositions`.
+              As duas colunas agora têm o MESMO número de níveis (título +
+              descrição + conteúdo), que é o que faz as linhas de base baterem. */}
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-bold text-[#1A211E]">
+                  {t('subAgents.selectedSubAgents')}
+                </p>
+                {selectedCountBadge}
+              </div>
+              <p className="mt-[3px] text-[13px] text-[#8A928F]">
+                {t('subAgents.complexCompositions')}
+              </p>
+            </div>
+
+            {selectedChips}
+          </div>
+
+          {/* Agentes Disponíveis */}
+          {!isReadOnly && (
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-bold text-[#1A211E]">{t('subAgents.availableAgents')}</p>
+                <p className="mt-[3px] text-[13px] text-[#8A928F]">{t('subAgents.selectToAdd')}</p>
+              </div>
+
+              {/* Busca no padrão do ecossistema — sem override de borda/fundo/altura,
+                  para o foco verde do token `--ring` aparecer. */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="search-agents"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  placeholder={t('subAgents.searchPlaceholder')}
+                  className="pl-9 pr-9"
+                  disabled={isLoading}
+                  aria-label={t('subAgents.searchAgents')}
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {isLoading && (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">
+                    {t('subAgents.loadingAgents')}
+                  </span>
+                </div>
+              )}
+
+              {error && (
+                <div className="py-6 text-center text-destructive">
+                  <p className="text-sm font-medium">{error}</p>
+                  <Button variant="outline" size="sm" onClick={loadAvailableAgents} className="mt-2">
+                    {t('actions.tryAgain')}
+                  </Button>
+                </div>
+              )}
+
+              {!isLoading && !error && filteredAgents.length > 0 && (
+                <ScrollArea className="h-[220px]">
+                  <div className="space-y-1.5 pr-4">
+                    {filteredAgents.map(agent => {
+                      const isSelected = data.sub_agents.includes(agent.id);
+                      return (
+                        <div
+                          key={agent.id}
+                          className="flex items-center justify-between rounded-[9px] border border-[#ECEEF2] p-2 transition-colors hover:bg-[#F4F6F8]"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-0.5 flex items-center gap-2">
+                              <span className="text-sm font-medium">{agent.name}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {agent.type}
+                              </Badge>
+                            </div>
+                            {agent.description && (
+                              <p className="truncate text-xs text-muted-foreground">
+                                {agent.description}
+                              </p>
+                            )}
+                          </div>
+                          <Button
+                            variant={isSelected ? 'secondary' : 'outline'}
+                            size="sm"
+                            onClick={() =>
+                              isSelected
+                                ? handleRemoveSubAgent(agent.id)
+                                : handleAddSubAgent(agent.id)
+                            }
+                            className="ml-2 h-7 text-xs"
+                          >
+                            {isSelected ? (
+                              <>
+                                <Check className="mr-1 h-3 w-3" />
+                                {t('actions.added')}
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="mr-1 h-3 w-3" />
+                                {t('actions.add')}
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+
+              {!isLoading && !error && filteredAgents.length === 0 && (
+                <div className="py-6 text-center text-[#9AA3A0]">
+                  <p className="text-sm font-medium">
+                    {searchTerm ? t('subAgents.noAgentsFound') : t('subAgents.noAvailableAgents')}
+                  </p>
+                  <p className="text-xs">
+                    {searchTerm
+                      ? t('subAgents.adjustSearch')
+                      : folderId
+                        ? t('subAgents.noOtherAgentsInFolder')
+                        : t('subAgents.createOtherAgentsFirst')}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {mode !== 'create' && (
+          <div className="space-y-2 border-t border-[#F4F6F8] pt-4">
+            <p className="text-[13.5px] font-bold text-[#1A211E]">
+              {t('subAgents.howItWorks.title')}
+            </p>
+            {howItWorksBullets}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col space-y-3">

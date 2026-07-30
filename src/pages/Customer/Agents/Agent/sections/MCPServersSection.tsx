@@ -1,6 +1,6 @@
 import { useLanguage } from '@/hooks/useLanguage';
 import { Button } from '@evoapi/design-system';
-import { Server, Network, Plus, Loader2 } from 'lucide-react';
+import { Network, Plus, Loader2 } from 'lucide-react';
 import { MCPServerConfig } from '@/types/ai';
 import { useState } from 'react';
 import CustomMCPServersSection from '@/components/ai_agents/CustomMCPServersSection';
@@ -121,15 +121,41 @@ const MCPServersSection = ({
   };
 
   return (
-    <div className="space-y-8">
-      {/* Seção: MCPs Disponíveis */}
+    <div className="space-y-6">
+      {/* MCPs Personalizados vêm PRIMEIRO: é o bloco acionável do agente. O
+          catálogo de servidores prontos entra depois, como vitrine. */}
       <div className="space-y-4">
-        <div className="flex items-center gap-3 pb-2 border-b">
-          <div className="p-2 rounded-lg bg-green-500/10">
-            <Server className="h-5 w-5 text-green-500" />
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            className="h-auto gap-2 rounded-[9px] border-[#E3E6EA] bg-white px-4 py-[9px] text-[13px] font-semibold text-[#1A211E]"
+            onClick={() => setShowCustomMcpPicker(true)}
+          >
+            <Plus className="h-4 w-4" />
+            {t('customMCPServers.add') || 'Adicionar Custom MCP'}
+          </Button>
+        </div>
+
+        <CustomMCPServersSection
+          customMCPServerIds={customMCPServerIds}
+          onCustomMCPServersChange={onCustomMCPServersChange}
+          isReadOnly={false}
+          showAddButton={false}
+          onAdd={() => setShowCustomMcpPicker(true)}
+        />
+      </div>
+
+      {/* Seção: Servidores MCP prontos */}
+      <div className="space-y-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-blue-500/10">
+            <Network className="h-[18px] w-[18px] text-blue-500" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-[#1A211E]">
+              {t('edit.menu.mcpServers') || 'Servidores MCP'}
+            </h3>
+            <p className="mt-[3px] text-[13px] leading-[1.5] text-[#8A928F]">
               {t('mcpServers.subtitle') ||
                 'Conecte o agente a serviços externos através do Model Context Protocol'}
             </p>
@@ -171,40 +197,6 @@ const MCPServersSection = ({
             </div>
           )}
         </div>
-      </div>
-
-      {/* Seção: MCPs Personalizados */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3 pb-2 border-b">
-          <div className="p-2 rounded-lg bg-orange-500/10">
-            <Network className="h-5 w-5 text-orange-500" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold">
-              {t('customMCPServers.title') || 'MCPs Personalizados'}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {t('customMCPServers.subtitle') ||
-                'Adicione servidores MCP personalizados criados por você'}
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => setShowCustomMcpPicker(true)}
-          >
-            <Plus className="h-4 w-4" />
-            {t('customMCPServers.add') || 'Adicionar Custom MCP'}
-          </Button>
-        </div>
-
-        <CustomMCPServersSection
-          customMCPServerIds={customMCPServerIds}
-          onCustomMCPServersChange={onCustomMCPServersChange}
-          isReadOnly={false}
-          showAddButton={false}
-        />
       </div>
 
       {/* Picker de MCPs personalizados já cadastrados. `hideCreateNew` porque criar um

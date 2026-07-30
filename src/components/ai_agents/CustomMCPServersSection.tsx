@@ -6,6 +6,7 @@ import {
 import {
   ExternalLink,
   Plus,
+  Server,
   X,
 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -15,9 +16,11 @@ interface CustomMCPServersSectionProps {
   customMCPServerIds: string[];
   onCustomMCPServersChange: (serverIds: string[]) => void;
   isReadOnly?: boolean;
-  /** Quando o caller já expõe o próprio botão "Adicionar Custom MCP". */
+  /** Quando o caller já expõe o próprio botão "Adicionar Custom MCP" para a LISTA. */
   showAddButton?: boolean;
   hideCreateNew?: boolean;
+  /** Deixa o CTA do estado vazio abrir o picker do caller em vez do diálogo local. */
+  onAdd?: () => void;
 }
 
 const CustomMCPServersSection = ({
@@ -26,6 +29,7 @@ const CustomMCPServersSection = ({
   isReadOnly = false,
   showAddButton = true,
   hideCreateNew = false,
+  onAdd,
 }: CustomMCPServersSectionProps) => {
   const { t } = useLanguage('aiAgents');
   const [showCustomMCPDialog, setShowCustomMCPDialog] = useState(false);
@@ -92,22 +96,27 @@ const CustomMCPServersSection = ({
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-dashed">
-              <div>
-                <p className="font-medium">{t('tools.mcpServers.noCustomConfigured')}</p>
-                <p className="text-sm text-muted-foreground">
-                  {t('tools.mcpServers.connectFromManagement')}
-                </p>
-              </div>
-              {!isReadOnly && showAddButton && (
+            <div className="flex flex-col items-center rounded-[12px] border border-dashed border-[#E3E6EA] px-6 py-12 text-center">
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#F0FAF4]">
+                <Server className="h-6 w-6 text-[#359558]" />
+              </span>
+              <p className="text-[15px] font-bold text-[#1A211E]">
+                {t('tools.mcpServers.noCustomConfigured')}
+              </p>
+              <p className="mt-1 max-w-md text-[13px] leading-[1.5] text-[#8A928F]">
+                {t('tools.mcpServers.connectFromManagement')}
+              </p>
+              {/* O CTA do estado vazio NÃO depende de `showAddButton`: esse prop existe
+                  para o caller esconder o botão da LISTA quando já tem o seu próprio.
+                  Vazio sem ação é beco sem saída. */}
+              {!isReadOnly && (
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowCustomMCPDialog(true)}
+                  onClick={() => (onAdd ? onAdd() : setShowCustomMCPDialog(true))}
+                  className="mt-5 h-auto gap-2 rounded-[9px] bg-[#359558] px-5 py-[10px] text-sm font-semibold text-white hover:bg-[#2C834E]"
                 >
-                  <Plus className="h-4 w-4 mr-1" />
-                  {t('tools.mcpServers.add')}
+                  <Plus className="h-4 w-4" />
+                  {t('customMCPServers.add') || 'Adicionar Custom MCP'}
                 </Button>
               )}
             </div>

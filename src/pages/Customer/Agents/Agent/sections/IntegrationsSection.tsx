@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { Button } from '@evoapi/design-system';
-import { ExternalLink, Plug, Check, Loader2, AlertCircle } from 'lucide-react';
+import { ExternalLink, Check, Loader2, AlertCircle } from 'lucide-react';
 import { CompactIntegrationCard } from '@/components/integrations/CompactIntegrationCard';
 import ElevenLabsConfigDialog from '@/components/integrations/ElevenLabsConfigDialog';
 import GoogleCalendarConfigDialog from '@/components/integrations/GoogleCalendarConfigDialog';
@@ -148,17 +148,11 @@ const IntegrationsSection = ({
     <div className="space-y-8">
       {/* Cabeçalho da Seção */}
       <div className="space-y-4">
-        <div className="flex items-center gap-3 pb-2 border-b">
-          <div className="p-2 rounded-lg bg-indigo-500/10">
-            <Plug className="h-5 w-5 text-indigo-500" />
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">
-              {t('edit.integrations.subtitle') ||
-                'Conecte o seu agente a outros aplicativos, isso permite que ele obtenha informações mais precisas ou agende reuniões para você.'}
-            </p>
-          </div>
-        </div>
+        {/* O título do bloco já vem do cabeçalho do accordion — aqui só a descrição. */}
+        <p className="pb-[18px] pt-[18px] text-[13px] leading-[1.5] text-[#8A928F]">
+          {t('edit.integrations.subtitle') ||
+            'Conecte o seu agente a outros aplicativos, isso permite que ele obtenha informações mais precisas ou agende reuniões para você.'}
+        </p>
 
         <div>
           {isCheckingIntegrations ? (
