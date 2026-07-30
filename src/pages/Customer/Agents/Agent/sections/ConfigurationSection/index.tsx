@@ -3,7 +3,17 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { LLMConfigData } from '@/components/ai_agents/Forms/LLMConfigForm';
 import { A2AConfigData } from '@/components/ai_agents/Forms/A2AConfigForm';
 import { Agent, ApiKey } from '@/types/agents';
-import { Key, MessageSquare, Clock, Timer } from 'lucide-react';
+import { Key, MessageSquare, Clock, Settings } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@evoapi/design-system';
+
+/**
+ * Controle segmentado: ao contrário dos chips da barra principal, aqui os dois
+ * itens DIVIDEM a largura (grid de 2 colunas), então o `flex-1` da base do
+ * TabsTrigger é bem-vindo — só o `h-[calc(100%-1px)]` precisa cair via `h-auto`.
+ * `size-[18px]` no ícone porque a base aplica `[&_svg:not([class*='size-'])]:size-4`.
+ */
+const SEGMENT_CLASS =
+  'inline-flex h-auto w-full items-center justify-center gap-2 rounded-[9px] border border-transparent bg-transparent px-4 py-[9px] text-[13.5px] font-medium text-[#5B6470] shadow-none hover:text-[#1A211E] data-[state=active]:bg-[#F0FAF4] data-[state=active]:font-semibold data-[state=active]:text-[#359558] data-[state=active]:shadow-none';
 import { InactivityAction } from '../InactivityActions';
 import { TransferRule } from '../TransferRules';
 import { PipelineRule } from '../PipelineRules';
@@ -98,94 +108,104 @@ const ConfigurationSection = ({
   const showBehaviorCard = supportsBehaviorSettings(agent.type);
   const showMessageCard = hasMessageHandlingContent(agent, llmConfigData, externalConfigData);
 
+  const cards = (
+    <div className="space-y-4">
+      {showModelCard && (
+        <CollapsibleCard
+          title={t('edit.configuration.sections.modelAndApi.title') || 'Modelo e API'}
+          subtitle={
+            t('edit.configuration.sections.modelAndApi.subtitle') ||
+            'Configure o modelo de linguagem e a chave de API'
+          }
+          icon={<Key className="h-5 w-5" />}
+        >
+          <ModelApiPanel
+            agent={agent}
+            llmConfigData={llmConfigData}
+            a2aConfigData={a2aConfigData}
+            externalConfigData={externalConfigData}
+            apiKeys={apiKeys}
+            onLLMConfigChange={onLLMConfigChange}
+            onA2AConfigChange={onA2AConfigChange}
+            onExternalConfigChange={onExternalConfigChange}
+            onInstructionSync={onInstructionSync}
+            onApiKeysReload={onApiKeysReload}
+          />
+        </CollapsibleCard>
+      )}
+
+      {showBehaviorCard && (
+        <CollapsibleCard
+          title={t('edit.configuration.sections.behavior.title') || 'Comportamento na Conversa'}
+          subtitle={
+            t('edit.configuration.sections.behavior.subtitle') ||
+            'Configure como o agente interage com os usuários'
+          }
+          icon={<MessageSquare className="h-5 w-5" />}
+        >
+          <BehaviorPanel
+            behaviorSettings={behaviorSettings}
+            onBehaviorSettingsChange={onBehaviorSettingsChange}
+            onShowTransferRulesModal={() => setShowTransferRulesModal(true)}
+            onShowPipelineRulesModal={() => setShowPipelineRulesModal(true)}
+            onShowContactEditModal={() => setShowContactEditModal(true)}
+          />
+        </CollapsibleCard>
+      )}
+
+      {showMessageCard && (
+        <CollapsibleCard
+          title={
+            t('edit.configuration.sections.messageHandling.title') || 'Tratamento de Mensagens'
+          }
+          subtitle={
+            t('edit.configuration.sections.messageHandling.subtitle') ||
+            'Configure como as mensagens são processadas e enviadas'
+          }
+          icon={<Clock className="h-5 w-5" />}
+        >
+          <MessageHandlingPanel
+            agent={agent}
+            llmConfigData={llmConfigData}
+            externalConfigData={externalConfigData}
+            behaviorSettings={behaviorSettings}
+            onLLMConfigChange={onLLMConfigChange}
+            onExternalConfigChange={onExternalConfigChange}
+            onBehaviorSettingsChange={onBehaviorSettingsChange}
+          />
+        </CollapsibleCard>
+      )}
+    </div>
+  );
+
   return (
     <>
-      <div className="space-y-4">
-        {showModelCard && (
-          <CollapsibleCard
-            title={t('edit.configuration.sections.modelAndApi.title') || 'Modelo e API'}
-            subtitle={
-              t('edit.configuration.sections.modelAndApi.subtitle') ||
-              'Configure o modelo de linguagem e a chave de API'
-            }
-            icon={<Key className="h-5 w-5" />}
-          >
-            <ModelApiPanel
-              agent={agent}
-              llmConfigData={llmConfigData}
-              a2aConfigData={a2aConfigData}
-              externalConfigData={externalConfigData}
-              apiKeys={apiKeys}
-              onLLMConfigChange={onLLMConfigChange}
-              onA2AConfigChange={onA2AConfigChange}
-              onExternalConfigChange={onExternalConfigChange}
-              onInstructionSync={onInstructionSync}
-              onApiKeysReload={onApiKeysReload}
+      {supportsInactivityActions(agent.type) ? (
+        <Tabs defaultValue="general">
+          <TabsList className="mb-4 grid h-auto w-full grid-cols-2 gap-2 rounded-[12px] border border-[#ECEEF2] bg-white p-[6px] shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+            <TabsTrigger value="general" className={SEGMENT_CLASS}>
+              <Settings className="size-[18px]" />
+              {t('edit.configuration.tabs.general') || 'Geral'}
+            </TabsTrigger>
+            <TabsTrigger value="inactivity" className={SEGMENT_CLASS}>
+              <Clock className="size-[18px]" />
+              {t('edit.configuration.tabs.inactivityActions') || 'Ações de inatividade'}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="general" className="mt-0">
+            {cards}
+          </TabsContent>
+          <TabsContent value="inactivity" className="mt-0">
+            <InactivityActionsTab
+              actions={inactivityActions}
+              onChange={onInactivityActionsChange}
             />
-          </CollapsibleCard>
-        )}
-
-        {showBehaviorCard && (
-          <CollapsibleCard
-            title={t('edit.configuration.sections.behavior.title') || 'Comportamento na Conversa'}
-            subtitle={
-              t('edit.configuration.sections.behavior.subtitle') ||
-              'Configure como o agente interage com os usuários'
-            }
-            icon={<MessageSquare className="h-5 w-5" />}
-          >
-            <div className="space-y-8">
-              <BehaviorPanel
-                behaviorSettings={behaviorSettings}
-                onBehaviorSettingsChange={onBehaviorSettingsChange}
-                onShowTransferRulesModal={() => setShowTransferRulesModal(true)}
-                onShowPipelineRulesModal={() => setShowPipelineRulesModal(true)}
-                onShowContactEditModal={() => setShowContactEditModal(true)}
-              />
-
-              {supportsInactivityActions(agent.type) && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 border-b pb-2">
-                    <div className="rounded-lg bg-amber-500/10 p-2">
-                      <Timer className="h-5 w-5 text-amber-500" />
-                    </div>
-                    <h3 className="text-base font-semibold">
-                      {t('edit.configuration.tabs.inactivityActions') || 'Ações de inatividade'}
-                    </h3>
-                  </div>
-                  <InactivityActionsTab
-                    actions={inactivityActions}
-                    onChange={onInactivityActionsChange}
-                  />
-                </div>
-              )}
-            </div>
-          </CollapsibleCard>
-        )}
-
-        {showMessageCard && (
-          <CollapsibleCard
-            title={
-              t('edit.configuration.sections.messageHandling.title') || 'Tratamento de Mensagens'
-            }
-            subtitle={
-              t('edit.configuration.sections.messageHandling.subtitle') ||
-              'Configure como as mensagens são processadas e enviadas'
-            }
-            icon={<Clock className="h-5 w-5" />}
-          >
-            <MessageHandlingPanel
-              agent={agent}
-              llmConfigData={llmConfigData}
-              externalConfigData={externalConfigData}
-              behaviorSettings={behaviorSettings}
-              onLLMConfigChange={onLLMConfigChange}
-              onExternalConfigChange={onExternalConfigChange}
-              onBehaviorSettingsChange={onBehaviorSettingsChange}
-            />
-          </CollapsibleCard>
-        )}
-      </div>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        cards
+      )}
 
       {/* Modal de Regras de Transferência */}
       <TransferRulesModal

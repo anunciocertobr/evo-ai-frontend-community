@@ -120,12 +120,29 @@ describe('ConfigurationSection', () => {
     expect(screen.queryByTestId('message-handling-panel')).toBeNull();
   });
 
-  it('reveals base behavior and inactivity actions together inside the behavior card', async () => {
+  it('keeps inactivity actions out of the behavior card', async () => {
     renderSection('llm');
     await userEvent.click(screen.getByText(CARD_TITLES.behavior));
 
     expect(screen.getByTestId('behavior-panel')).toBeTruthy();
+    expect(screen.queryByTestId('inactivity-actions')).toBeNull();
+  });
+
+  it('serves inactivity actions from its own secondary tab', async () => {
+    renderSection('llm');
+    expect(screen.queryByTestId('inactivity-actions')).toBeNull();
+
+    await userEvent.click(screen.getByRole('tab', { name: /inactivityActions/ }));
+
     expect(screen.getByTestId('inactivity-actions')).toBeTruthy();
+    // Trocar de aba não pode arrastar os cards junto.
+    expect(screen.queryByText(CARD_TITLES.modelAndApi)).toBeNull();
+  });
+
+  // Só o LLM tem ações de inatividade — nos demais a barra secundária não faz sentido.
+  it('omits the secondary tab bar for agent types without inactivity actions', () => {
+    renderSection('task');
+    expect(screen.queryAllByRole('tab')).toHaveLength(0);
   });
 
   it('hides the model and behavior cards for agent types that do not support them', () => {
