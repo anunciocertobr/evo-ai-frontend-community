@@ -2,7 +2,13 @@ import { ReactNode } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@evoapi/design-system';
 import { User, Wrench, Package, Settings, Radio } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { AgentDetailTab, getVisibleAgentTabs } from './agentTabs';
+import {
+  AGENT_TAB_ICON_CLASS,
+  AGENT_TAB_LIST_CLASS,
+  AGENT_TAB_TRIGGER_CLASS,
+  AgentDetailTab,
+  getVisibleAgentTabs,
+} from './agentTabs';
 
 interface AgentDetailTabsProps {
   agentType?: string;
@@ -27,25 +33,24 @@ const AgentDetailTabs = ({ agentType, value, onValueChange, children }: AgentDet
     <Tabs
       value={value}
       onValueChange={tab => onValueChange(tab as AgentDetailTab)}
-      className="w-full"
+      className="flex h-full min-h-0 w-full flex-col"
     >
-      <TabsList className="sticky top-0 z-10 h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b border-[#ECEEF2] bg-background p-0">
-        {visibleTabs.map(tab => {
-          const Icon = tabConfig[tab].icon;
-          return (
-            <TabsTrigger
-              key={tab}
-              value={tab}
-              className="flex flex-shrink-0 items-center gap-2 rounded-none border-b-2 border-transparent bg-transparent px-4 py-3 text-sm font-medium text-[#5B6470] shadow-none data-[state=active]:border-[#359558] data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-[#359558] data-[state=active]:shadow-none"
-            >
-              <Icon className="h-4 w-4" />
-              {tabConfig[tab].label}
-            </TabsTrigger>
-          );
-        })}
-      </TabsList>
+      <div className="flex-shrink-0 border-b border-[#ECEEF2] bg-white px-9 pt-[22px]">
+        <TabsList className={`${AGENT_TAB_LIST_CLASS} pb-[14px]`}>
+          {visibleTabs.map(tab => {
+            const Icon = tabConfig[tab].icon;
+            return (
+              <TabsTrigger key={tab} value={tab} className={AGENT_TAB_TRIGGER_CLASS}>
+                <Icon className={AGENT_TAB_ICON_CLASS} />
+                {tabConfig[tab].label}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+      </div>
 
-      {children}
+      {/* Gutters da área de conteúdo (spec §3): 26px topo, 36px laterais, 60px de rodapé. */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-9 pb-[60px] pt-[26px]">{children}</div>
     </Tabs>
   );
 };

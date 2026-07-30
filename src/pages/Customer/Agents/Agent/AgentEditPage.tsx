@@ -77,7 +77,6 @@ const AgentEditPage = () => {
   const [activeTab, setActiveTab] = useState<AgentDetailTab>('profile');
   const [isTestChatOpen, setIsTestChatOpen] = useState(false);
 
-
   const [agent, setAgent] = useState<Agent | null>(null);
   const [formData, setFormData] = useState<AgentFormData>({
     name: '',
@@ -428,7 +427,7 @@ const AgentEditPage = () => {
                 max_characters_per_segment: agentData.config?.max_characters_per_segment ?? 300,
                 min_segment_size: agentData.config?.min_segment_size ?? 50,
                 character_delay_ms: agentData.config?.character_delay_ms ?? 0.05,
-              }
+              },
             };
           }
 
@@ -740,8 +739,10 @@ const AgentEditPage = () => {
           sub_agents: subAgentsData.sub_agents,
           message_wait_time: externalConfigData.advanced_config?.message_wait_time ?? 5,
           message_signature: externalConfigData.advanced_config?.message_signature ?? '',
-          enable_text_segmentation: externalConfigData.advanced_config?.enable_text_segmentation ?? false,
-          max_characters_per_segment: externalConfigData.advanced_config?.max_characters_per_segment ?? 300,
+          enable_text_segmentation:
+            externalConfigData.advanced_config?.enable_text_segmentation ?? false,
+          max_characters_per_segment:
+            externalConfigData.advanced_config?.max_characters_per_segment ?? 300,
           min_segment_size: externalConfigData.advanced_config?.min_segment_size ?? 50,
           character_delay_ms: externalConfigData.advanced_config?.character_delay_ms ?? 0.05,
           send_as_reply: behaviorSettings.sendAsReply,
@@ -815,143 +816,151 @@ const AgentEditPage = () => {
   const visibleTabs = getVisibleAgentTabs(agent.type);
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      {/* Header */}
-      <AgentEditHeader
-        onBack={() => navigate('/agents/list')}
-        onSave={handleSave}
-        onTestAgent={() => setIsTestChatOpen(true)}
-        isDirty={isDirty}
-        isSaving={isSaving}
-        agentName={formData.name || agent.name}
-        agentType={agent.type}
-      />
+    // Row: conteúdo + painel de teste lado a lado. Com o painel aberto o conteúdo
+    // encolhe (`min-w-0` deixa o flex realmente reduzir) e segue editável.
+    <div className="flex h-full bg-background">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Header */}
+        <AgentEditHeader
+          onBack={() => navigate('/agents/list')}
+          onSave={handleSave}
+          onTestAgent={() => setIsTestChatOpen(true)}
+          isDirty={isDirty}
+          isSaving={isSaving}
+          agentName={formData.name || agent.name}
+          agentType={agent.type}
+        />
 
-      {/* Abas horizontais + conteudo */}
-      <div className="flex-1 overflow-y-auto">
-        <AgentDetailTabs agentType={agent.type} value={activeTab} onValueChange={setActiveTab}>
-          <TabsContent value="profile" className="mt-0 p-6">
-            <ProfileSection
-              formData={formData}
-              onFormDataChange={handleFormDataChange}
-              agentType={agent.type}
-              taskConfigData={taskConfigData}
-              onTaskConfigChange={data => {
-                setTaskConfigData(data);
-                setIsDirty(true);
-              }}
-              editingAgentId={id}
-            />
-          </TabsContent>
-
-          {visibleTabs.includes('tools') && (
-            <TabsContent value="tools" className="mt-0 p-6">
-              <AgentToolsAccordion
-                agentId={id || ''}
+        {/* Abas horizontais + conteudo. O scroll e os gutters vivem dentro do
+          AgentDetailTabs — a barra de chips fica fixa e só o conteúdo rola. */}
+        <div className="min-h-0 flex-1">
+          <AgentDetailTabs agentType={agent.type} value={activeTab} onValueChange={setActiveTab}>
+            <TabsContent value="profile" className="mt-0">
+              <ProfileSection
+                formData={formData}
+                onFormDataChange={handleFormDataChange}
                 agentType={agent.type}
-                subAgentsData={subAgentsData}
-                onSubAgentsChange={data => {
-                  setSubAgentsData(data);
+                taskConfigData={taskConfigData}
+                onTaskConfigChange={data => {
+                  setTaskConfigData(data);
                   setIsDirty(true);
                 }}
-                agentTools={agentTools}
-                agentToolsData={agentToolsData}
-                customTools={customTools}
-                onAgentToolsChange={(newAgentTools, newAgentToolsData) => {
-                  setAgentTools(newAgentTools);
-                  setAgentToolsData(newAgentToolsData || []);
-                  setIsDirty(true);
-                }}
-                onCustomToolsChange={newCustomTools => {
-                  setCustomTools(newCustomTools);
-                  setIsDirty(true);
-                }}
-                integrations={integrations}
-                onIntegrationsChange={newIntegrations => {
-                  setIntegrations(newIntegrations);
-                  setIsDirty(true);
-                }}
-                mcpServers={mcpServers}
-                customMCPServerIds={customMCPServerIds}
-                onMCPServersChange={newMcpServers => {
-                  setMcpServers(newMcpServers);
-                  setIsDirty(true);
-                }}
-                onCustomMCPServersChange={newCustomMCPServerIds => {
-                  setCustomMCPServerIds(newCustomMCPServerIds);
-                  setIsDirty(true);
-                }}
+                editingAgentId={id}
+                agent={agent}
+                model={llmConfigData?.model}
+                subAgentsCount={subAgentsData.sub_agents.length}
               />
             </TabsContent>
-          )}
 
-          {visibleTabs.includes('products') && (
-            <TabsContent value="products" className="mt-0 p-6">
-              <ProductsSection agent={agent} />
+            {visibleTabs.includes('tools') && (
+              <TabsContent value="tools" className="mt-0">
+                <AgentToolsAccordion
+                  agentId={id || ''}
+                  agentType={agent.type}
+                  subAgentsData={subAgentsData}
+                  onSubAgentsChange={data => {
+                    setSubAgentsData(data);
+                    setIsDirty(true);
+                  }}
+                  agentTools={agentTools}
+                  agentToolsData={agentToolsData}
+                  customTools={customTools}
+                  onAgentToolsChange={(newAgentTools, newAgentToolsData) => {
+                    setAgentTools(newAgentTools);
+                    setAgentToolsData(newAgentToolsData || []);
+                    setIsDirty(true);
+                  }}
+                  onCustomToolsChange={newCustomTools => {
+                    setCustomTools(newCustomTools);
+                    setIsDirty(true);
+                  }}
+                  integrations={integrations}
+                  onIntegrationsChange={newIntegrations => {
+                    setIntegrations(newIntegrations);
+                    setIsDirty(true);
+                  }}
+                  mcpServers={mcpServers}
+                  customMCPServerIds={customMCPServerIds}
+                  onMCPServersChange={newMcpServers => {
+                    setMcpServers(newMcpServers);
+                    setIsDirty(true);
+                  }}
+                  onCustomMCPServersChange={newCustomMCPServerIds => {
+                    setCustomMCPServerIds(newCustomMCPServerIds);
+                    setIsDirty(true);
+                  }}
+                />
+              </TabsContent>
+            )}
+
+            {visibleTabs.includes('products') && (
+              <TabsContent value="products" className="mt-0">
+                <ProductsSection agent={agent} />
+              </TabsContent>
+            )}
+
+            <TabsContent value="configuration" className="mt-0">
+              <ConfigurationSection
+                agent={agent}
+                llmConfigData={llmConfigData}
+                a2aConfigData={a2aConfigData}
+                externalConfigData={externalConfigData}
+                apiKeys={apiKeys}
+                behaviorSettings={behaviorSettings}
+                inactivityActions={inactivityActions}
+                transferRules={transferRules}
+                pipelineRules={pipelineRules}
+                contactEditConfig={contactEditConfig}
+                availablePipelines={availablePipelines}
+                availableUsers={availableUsers}
+                availableTeams={availableTeams}
+                onLLMConfigChange={data => {
+                  setLLMConfigData(data);
+                  setIsDirty(true);
+                }}
+                onA2AConfigChange={data => {
+                  setA2AConfigData(data);
+                  setIsDirty(true);
+                }}
+                onExternalConfigChange={data => {
+                  setExternalConfigData(data);
+                  setIsDirty(true);
+                }}
+                onBehaviorSettingsChange={settings => {
+                  setBehaviorSettings(settings);
+                  setIsDirty(true);
+                }}
+                onInactivityActionsChange={actions => {
+                  setInactivityActions(actions);
+                  setIsDirty(true);
+                }}
+                onTransferRulesChange={rules => {
+                  setTransferRules(rules);
+                  setIsDirty(true);
+                }}
+                onPipelineRulesChange={rules => {
+                  setPipelineRules(rules);
+                  setIsDirty(true);
+                }}
+                onContactEditConfigChange={config => {
+                  setContactEditConfig(config);
+                  setIsDirty(true);
+                }}
+                onInstructionSync={instruction => {
+                  setFormData(prev => ({ ...prev, instruction }));
+                }}
+                onApiKeysReload={loadApiKeys}
+              />
             </TabsContent>
-          )}
 
-          <TabsContent value="configuration" className="mt-0 p-6">
-            <ConfigurationSection
-              agent={agent}
-              llmConfigData={llmConfigData}
-              a2aConfigData={a2aConfigData}
-              externalConfigData={externalConfigData}
-              apiKeys={apiKeys}
-              behaviorSettings={behaviorSettings}
-              inactivityActions={inactivityActions}
-              transferRules={transferRules}
-              pipelineRules={pipelineRules}
-              contactEditConfig={contactEditConfig}
-              availablePipelines={availablePipelines}
-              availableUsers={availableUsers}
-              availableTeams={availableTeams}
-              onLLMConfigChange={data => {
-                setLLMConfigData(data);
-                setIsDirty(true);
-              }}
-              onA2AConfigChange={data => {
-                setA2AConfigData(data);
-                setIsDirty(true);
-              }}
-              onExternalConfigChange={data => {
-                setExternalConfigData(data);
-                setIsDirty(true);
-              }}
-              onBehaviorSettingsChange={settings => {
-                setBehaviorSettings(settings);
-                setIsDirty(true);
-              }}
-              onInactivityActionsChange={actions => {
-                setInactivityActions(actions);
-                setIsDirty(true);
-              }}
-              onTransferRulesChange={rules => {
-                setTransferRules(rules);
-                setIsDirty(true);
-              }}
-              onPipelineRulesChange={rules => {
-                setPipelineRules(rules);
-                setIsDirty(true);
-              }}
-              onContactEditConfigChange={config => {
-                setContactEditConfig(config);
-                setIsDirty(true);
-              }}
-              onInstructionSync={instruction => {
-                setFormData(prev => ({ ...prev, instruction }));
-              }}
-              onApiKeysReload={loadApiKeys}
-            />
-          </TabsContent>
-
-          <TabsContent value="channels" className="mt-0 p-6">
-            <AgentChannelsShell />
-          </TabsContent>
-        </AgentDetailTabs>
+            <TabsContent value="channels" className="mt-0">
+              <AgentChannelsShell />
+            </TabsContent>
+          </AgentDetailTabs>
+        </div>
       </div>
 
-      {/* Chat de Teste */}
+      {/* Chat de Teste — painel lateral, irmão do conteúdo (não cobre a tela) */}
       <AgentTestChat open={isTestChatOpen} onOpenChange={setIsTestChatOpen} agent={agent} />
     </div>
   );

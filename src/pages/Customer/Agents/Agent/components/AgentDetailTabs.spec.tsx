@@ -83,4 +83,15 @@ describe('AgentDetailTabs', () => {
     await userEvent.click(screen.getByText(TAB_LABELS.configuration));
     expect(onValueChange).toHaveBeenCalledWith('configuration');
   });
+
+  // O TabsTrigger do design-system traz `flex-1` na base e tailwind-merge NÃO o
+  // resolve contra `inline-flex` (grupos distintos) — sem um `flex-none` explícito
+  // os chips esticam e ocupam a largura toda da barra. Regressão já vista uma vez.
+  it('sizes each chip by its content instead of stretching it across the bar', () => {
+    renderTabs('llm');
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab.className).toContain('flex-none');
+      expect(tab.className).not.toContain('flex-1');
+    }
+  });
 });
