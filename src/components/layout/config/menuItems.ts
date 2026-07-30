@@ -15,6 +15,7 @@ import {
   MessageCircle,
   LayoutTemplate,
   Key,
+  KeyRound,
   Tags,
   TestTube,
   Wand,
@@ -243,6 +244,20 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         href: '/settings/canned-responses',
         icon: MessageCircle,
         resource: 'canned_responses',
+        action: 'read',
+      },
+      {
+        name: t('menu.settings.aiCredentials'),
+        href: '/settings/ai-credentials',
+        icon: KeyRound,
+        resource: 'ai_api_keys',
+        action: 'read',
+      },
+      {
+        name: t('menu.settings.integrationCredentials'),
+        href: '/settings/integration-credentials',
+        icon: Key,
+        resource: 'ai_integration_credentials',
         action: 'read',
       },
       {

@@ -12,6 +12,9 @@ export interface WizardData {
   // Step 2 — Connection
   url: string;
   headers: Record<string, unknown>;
+  /** EVO-2250 story 2.4: header name -> vault credential id. A MAP because one
+   * credential is one secret, so two auth headers are two credentials. */
+  credential_refs: Record<string, string>;
   // Step 3 — Advanced
   timeout: number;
   retry_count: number;
@@ -23,6 +26,7 @@ export const initialWizardData: WizardData = {
   tags: [],
   url: '',
   headers: {},
+  credential_refs: {},
   timeout: 30,
   retry_count: 3,
 };
@@ -33,6 +37,7 @@ export const serverToWizardData = (server: CustomMcpServer): WizardData => ({
   tags: server.tags || [],
   url: server.url || '',
   headers: (server.headers as Record<string, unknown>) || {},
+  credential_refs: server.credential_refs || {},
   timeout: server.timeout ?? 30,
   retry_count: server.retry_count ?? 3,
 });
@@ -108,6 +113,25 @@ export const parseWizardConfig = (
       issues.push(t('wizard.advanced.errors.headerValueType', { keys: badKeys.join(', ') }));
     } else {
       next.headers = parsed.headers;
+    }
+  }
+
+  // credential_refs — a map of header name to vault credential id. Same string
+  // discipline as headers: a non-string id would reach the API as a 400, and
+  // silently dropping the map would strip the vault reference off a server that
+  // has one (EVO-2250 story 2.4).
+  if (parsed.credential_refs === undefined) {
+    next.credential_refs = {};
+  } else if (!isPlainObject(parsed.credential_refs)) {
+    issues.push(t('wizard.advanced.errors.headersType'));
+  } else {
+    const badRefs = Object.entries(parsed.credential_refs)
+      .filter(([, v]) => typeof v !== 'string')
+      .map(([k]) => k);
+    if (badRefs.length > 0) {
+      issues.push(t('wizard.advanced.errors.headerValueType', { keys: badRefs.join(', ') }));
+    } else {
+      next.credential_refs = parsed.credential_refs as Record<string, string>;
     }
   }
 

@@ -37,6 +37,11 @@ const validConfig = {
   description: 'original description',
   url: 'https://mcp.example/mcp',
   headers: { Authorization: 'Bearer sk' },
+  // EVO-2250 story 2.4: the vault reference is part of the config the advanced
+  // mode round-trips. Leaving it out of the expected shape would let a parser
+  // that DROPS the field pass, and dropping it strips the vault reference off a
+  // server that has one.
+  credential_refs: {},
   timeout: 30,
   retry_count: 3,
   tags: ['search'],
@@ -194,6 +199,10 @@ describe('CustomMCPServerWizardModal — advanced JSON mode', () => {
       description: '',
       url: 'https://other.example/mcp',
       headers: { 'X-Key': 'v' },
+      // Absent from the edited JSON means "no vault reference", and it still
+      // travels: the API replaces the record, so omitting the key from the
+      // payload would leave a stale reference behind (EVO-2250 story 2.4).
+      credential_refs: {},
       timeout: 120,
       retry_count: 5,
       tags: ['a', 'b'],
