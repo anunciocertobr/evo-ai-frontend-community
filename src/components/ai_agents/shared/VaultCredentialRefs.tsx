@@ -60,8 +60,10 @@ export function VaultCredentialSelect({
 interface CredentialRefsEditorProps {
   id: string;
   /** Map of header/env-var name -> vault credential id. Always a MAP: one
-   * credential per secret, so two auth headers mean two entries. */
-  value: Record<string, string>;
+   * credential per secret, so two auth headers mean two entries. Optional: a
+   * host that has not adopted the field yet renders an empty editor instead of
+   * crashing. */
+  value?: Record<string, string>;
   onChange: (refs: Record<string, string>) => void;
   disabled?: boolean;
   keyPlaceholder?: string;
@@ -70,6 +72,10 @@ interface CredentialRefsEditorProps {
 interface RefRow {
   key: string;
   credentialId: string;
+}
+
+function toRows(value?: Record<string, string>): RefRow[] {
+  return Object.entries(value ?? {}).map(([key, credentialId]) => ({ key, credentialId }));
 }
 
 export function CredentialRefsEditor({
@@ -86,19 +92,20 @@ export function CredentialRefsEditor({
   // header passes through an empty name, which `emit` legitimately drops from
   // the map; if the rows were derived, the row would vanish from the DOM
   // mid-keystroke and take the credential selection with it.
-  const [rows, setRows] = useState<RefRow[]>(() =>
-    Object.entries(value).map(([key, credentialId]) => ({ key, credentialId })),
-  );
+  // `value ?? {}` on every read: a host that has not adopted credential_refs yet
+  // (or an older stored record) passes undefined, and Object.entries would throw
+  // and take the whole step down with it.
+  const [rows, setRows] = useState<RefRow[]>(() => toRows(value));
 
   // Re-seed only when the incoming map genuinely differs from what the rows
   // already express, so a parent re-render never clobbers a half-typed name.
-  const emittedRef = useRef<string>(JSON.stringify(value));
+  const emittedRef = useRef<string>(JSON.stringify(value ?? {}));
   useEffect(() => {
-    const incoming = JSON.stringify(value);
+    const incoming = JSON.stringify(value ?? {});
     if (incoming === emittedRef.current) return;
 
     emittedRef.current = incoming;
-    setRows(Object.entries(value).map(([key, credentialId]) => ({ key, credentialId })));
+    setRows(toRows(value));
   }, [value]);
   // Rows being typed that don't have both halves yet live locally: an entry
   // only reaches the map (and the payload) once name AND credential exist.
