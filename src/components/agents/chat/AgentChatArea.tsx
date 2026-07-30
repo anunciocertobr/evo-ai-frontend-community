@@ -1,5 +1,4 @@
 import { useRef, useEffect } from 'react';
-import { Badge } from '@evoapi/design-system';
 import { MessageSquare, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAgentChat } from '@/contexts/agents/AgentChatContext';
@@ -11,10 +10,13 @@ interface AgentChatAreaProps {
   agent: Agent;
 }
 
+/**
+ * Só o corpo da conversa. O cabeçalho (título da sessão + ações) é do painel que
+ * hospeda isto — aqui ele disputava espaço com os botões e estourava a largura.
+ */
 export function AgentChatArea({ agent }: AgentChatAreaProps) {
   const { t } = useLanguage('aiAgents');
-  const { messages, selectedSessionId, isLoading, isSending, sendMessage, sessions } =
-    useAgentChat();
+  const { messages, selectedSessionId, isLoading, isSending, sendMessage } = useAgentChat();
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -35,43 +37,8 @@ export function AgentChatArea({ agent }: AgentChatAreaProps) {
     }
   }, [messages, isSending]);
 
-  const getSessionInfo = () => {
-    if (!selectedSessionId) return null;
-    // Session ID is now a UUID from backend, use it directly
-    // Try to find session in sessions list to get metadata
-    const session = sessions.find(s => s.id === selectedSessionId);
-    if (session) {
-      const updateDate = new Date(session.update_time);
-      return {
-        externalId: session.id.substring(0, 8), // Show first 8 chars of UUID
-        displayDate: updateDate.toLocaleDateString('pt-BR'),
-      };
-    }
-    return {
-      externalId: selectedSessionId.substring(0, 8),
-      displayDate: 'Session',
-    };
-  };
-
-  const sessionInfo = getSessionInfo();
-
   return (
-    <div className="flex-1 flex flex-col overflow-hidden h-full">
-      {/* Header - Fixed at top */}
-      <div className="flex-shrink-0 p-4 pr-12 border-b bg-card">
-        <div className="flex justify-between items-center gap-3">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <div className="p-1 rounded-full bg-primary/20">
-              <MessageSquare className="h-5 w-5 text-primary" />
-            </div>
-            {selectedSessionId
-              ? `${t('chat.session') || 'Sessão'} ${sessionInfo?.externalId || selectedSessionId}`
-              : t('chat.newConversation') || 'Nova Conversa'}
-          </h2>
-          <Badge variant="outline">{agent.name}</Badge>
-        </div>
-      </div>
-
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {/* Messages - Scrollable area */}
       <div
         ref={messagesContainerRef}
