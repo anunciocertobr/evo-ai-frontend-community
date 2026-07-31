@@ -10,10 +10,8 @@ interface AgentTestChatProps {
 }
 
 /**
- * Painel LATERAL, não modal: renderiza como irmão do conteúdo do agente num flex
- * row, então a área de edição encolhe em vez de ser coberta — o formulário segue
- * visível e editável com o chat aberto. Um Dialog/Sheet bloquearia a interação
- * por trás do overlay, que é justamente o que não se quer aqui.
+ * Painel lateral, não modal: é irmão do conteúdo num flex row, então a área de edição
+ * encolhe em vez de ser coberta e o formulário segue editável com o chat aberto.
  */
 export default function AgentTestChat({ open, onOpenChange, agent }: AgentTestChatProps) {
   if (!open) return null;

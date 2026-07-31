@@ -10,11 +10,7 @@ interface AgentChatPanelHeaderProps {
   onClose: () => void;
 }
 
-/**
- * Cabeçalho do painel de teste: título da sessão + nome do agente à esquerda,
- * ações à direita. Precisa viver DENTRO do AgentChatProvider — é de lá que saem
- * as sessões.
- */
+/** Precisa viver DENTRO do AgentChatProvider — é de lá que saem as sessões. */
 export function AgentChatPanelHeader({ agent, onClose }: AgentChatPanelHeaderProps) {
   const { t } = useLanguage('aiAgents');
   const { sessions, selectedSessionId, selectSession, createNewSession, deleteSession } =
@@ -49,9 +45,7 @@ export function AgentChatPanelHeader({ agent, onClose }: AgentChatPanelHeaderPro
               aria-label={t('chat.conversations') || 'Conversas'}
             >
               <MessageSquare className="h-4 w-4" />
-              {/* Contador neutro, não badge de notificação: o número é a quantidade de
-                  conversas salvas (estado permanente), não algo novo para ler. Em verde
-                  sólido ele prometia novidade que nunca chega. */}
+              {/* Contador neutro, não badge de notificação: é quantidade salva, não novidade. */}
               {sessions.length > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-[#E3E6EA] bg-[#F4F6F8] px-1 text-[10px] font-semibold leading-none text-[#5B6470]">
                   {sessions.length}

@@ -31,10 +31,8 @@ export const PipelineRulesModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* `sm:max-w-*`/`sm:text-*`: a base do DialogContent traz `sm:max-w-lg` e a do
-          DialogHeader `sm:text-left`. Variantes responsivas não colidem com os
-          utilitários simples no tailwind-merge — o `sm:` do pacote vencia acima de
-          640px, e era daí que vinha o modal estreito com rolagem. */}
+      {/* `sm:max-w-*`/`sm:text-*` e não os utilitários simples: variante responsiva
+          do pacote não é cancelada por utilitário simples no tailwind-merge. */}
       <DialogContent className="max-h-[90vh] gap-3 overflow-y-auto p-5 sm:max-w-[820px]">
         <DialogHeader className="sm:text-center">
           <DialogTitle className="text-xl font-bold text-[#131917]">

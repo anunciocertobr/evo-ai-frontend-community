@@ -28,7 +28,6 @@ export function AgentChatArea({ agent }: AgentChatAreaProps) {
 
   useEffect(() => {
     if (messages.length > 0) {
-      // Use requestAnimationFrame and setTimeout for reliable scrolling
       requestAnimationFrame(() => {
         setTimeout(() => {
           scrollToBottom();
@@ -39,7 +38,6 @@ export function AgentChatArea({ agent }: AgentChatAreaProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      {/* Messages - Scrollable area */}
       <div
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
@@ -82,7 +80,6 @@ export function AgentChatArea({ agent }: AgentChatAreaProps) {
         )}
       </div>
 
-      {/* Input - Fixed at bottom */}
       {selectedSessionId && (
         <div className="flex-shrink-0 px-4 pt-4 pb-6 border-t bg-card">
           <AgentMessageInput

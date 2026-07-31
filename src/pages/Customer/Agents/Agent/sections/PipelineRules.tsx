@@ -110,7 +110,6 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
 
   return (
     <div className="space-y-4">
-      {/* Info Banner */}
       <div className="flex items-start gap-3 rounded-[10px] border border-[#DCF0E4] bg-[#F0FAF4] p-3">
         <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#359558]" />
         <p className="text-sm leading-[1.5] text-[#2C834E]">
@@ -119,7 +118,6 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
         </p>
       </div>
 
-      {/* Pipeline Rules List */}
       <div className="space-y-4">
         {safeRules.map(rule => {
           const selectedPipeline = getSelectedPipeline(rule.pipelineId);
@@ -132,7 +130,6 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
             >
               <CardContent className="p-4">
                 <div className="space-y-3">
-                  {/* Pipeline Selection Header */}
                   <div className="flex items-center gap-3">
                     <GitBranch className="h-5 w-5 flex-shrink-0 text-[#359558]" />
                     <div className="flex-1">
@@ -174,11 +171,9 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
                     </Button>
                   </div>
 
-                  {/* Configurações de Permissões e Instruções Gerais */}
                   {rule.pipelineId && selectedPipeline && (
                     // Sem caixa aninhada: o conteúdo corre direto no card da regra.
                     <div className="space-y-2">
-                      {/* Checkboxes de permissões */}
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
                           <Checkbox
@@ -215,7 +210,6 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
                         </div>
                       </div>
 
-                      {/* Campo de instruções gerais */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-4">
                           <Label className="text-[13.5px] font-bold text-[#1A211E]">
@@ -244,7 +238,6 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
                     </div>
                   )}
 
-                  {/* Stages List (only if pipeline is selected) */}
                   {rule.pipelineId && selectedPipeline && (
                     <div className="space-y-2">
                       {rule.stages.map(stage => (
@@ -252,7 +245,6 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
                           key={stage.id}
                           className="space-y-2 rounded-[10px] border border-[#ECEEF2] p-3"
                         >
-                          {/* Stage Selection */}
                           <div className="flex items-center gap-3">
                             <div className="flex-1">
                               <Select
@@ -294,7 +286,6 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
                             </Button>
                           </div>
 
-                          {/* Stage Instructions */}
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
                               <label className="text-sm font-medium">
@@ -323,7 +314,6 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
                         </div>
                       ))}
 
-                      {/* Add Stage Button */}
                       <Button
                         type="button"
                         variant="outline"
@@ -337,7 +327,6 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
                     </div>
                   )}
 
-                  {/* No Pipeline Selected Message */}
                   {!rule.pipelineId && (
                     <div className="p-4 text-center text-sm text-muted-foreground">
                       {t('edit.configuration.pipelineRules.selectPipelineFirst') ||
@@ -351,7 +340,6 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
         })}
       </div>
 
-      {/* Add Pipeline Button */}
       <Button
         type="button"
         variant="outline"

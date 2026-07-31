@@ -7,10 +7,8 @@ import { Key, MessageSquare, Clock, Settings } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@evoapi/design-system';
 
 /**
- * Controle segmentado: ao contrário dos chips da barra principal, aqui os dois
- * itens DIVIDEM a largura (grid de 2 colunas), então o `flex-1` da base do
- * TabsTrigger é bem-vindo — só o `h-[calc(100%-1px)]` precisa cair via `h-auto`.
- * `size-[18px]` no ícone porque a base aplica `[&_svg:not([class*='size-'])]:size-4`.
+ * Controle segmentado: aqui os dois itens DIVIDEM a largura, então o `flex-1` da base
+ * do TabsTrigger serve — só o `h-[calc(100%-1px)]` precisa cair via `h-auto`.
  */
 const SEGMENT_CLASS =
   'inline-flex h-auto w-full items-center justify-center gap-2 rounded-[9px] border border-transparent bg-transparent px-4 py-[9px] text-[13.5px] font-medium text-[#5B6470] shadow-none hover:text-[#1A211E] data-[state=active]:bg-[#F0FAF4] data-[state=active]:font-semibold data-[state=active]:text-[#359558] data-[state=active]:shadow-none';
@@ -99,8 +97,8 @@ const ConfigurationSection = ({
   const [showPipelineRulesModal, setShowPipelineRulesModal] = useState(false);
   const [showContactEditModal, setShowContactEditModal] = useState(false);
 
-  // Card "Modelo e API" cobre a config de modelo/provider de cada tipo: chave+modelo
-  // (llm), agent card (a2a) e provider externo (external).
+  // "Modelo e API" cobre o que cada tipo tem de provider: chave+modelo (llm),
+  // agent card (a2a), provider externo (external).
   const showModelCard =
     (supportsModelConfig(agent.type) && Boolean(llmConfigData)) ||
     (isA2AAgent(agent.type) && Boolean(a2aConfigData)) ||
@@ -207,7 +205,6 @@ const ConfigurationSection = ({
         cards
       )}
 
-      {/* Modal de Regras de Transferência */}
       <TransferRulesModal
         open={showTransferRulesModal}
         onOpenChange={setShowTransferRulesModal}
@@ -217,7 +214,6 @@ const ConfigurationSection = ({
         availableTeams={availableTeams}
       />
 
-      {/* Modal de Regras de Pipeline */}
       <PipelineRulesModal
         open={showPipelineRulesModal}
         onOpenChange={setShowPipelineRulesModal}
@@ -226,7 +222,6 @@ const ConfigurationSection = ({
         availablePipelines={availablePipelines}
       />
 
-      {/* Modal de Edição de Contatos */}
       <ContactEditModal
         open={showContactEditModal}
         onOpenChange={setShowContactEditModal}

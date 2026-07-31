@@ -28,7 +28,6 @@ const AgentToolsSection = ({
 
   const handleAddAgentTools = useCallback(
     (selectedAgents: Agent[]) => {
-      // Evitar duplicatas
       const existingIds = agentTools;
       const newAgentIds = selectedAgents
         .map(agent => agent.id)
@@ -155,7 +154,6 @@ const AgentToolsSection = ({
         </div>
       )}
 
-      {/* Modal de Agentes */}
       <AgentToolsDialog
         open={showAgentToolsDialog}
         onOpenChange={setShowAgentToolsDialog}

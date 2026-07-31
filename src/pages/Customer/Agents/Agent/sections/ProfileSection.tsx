@@ -49,11 +49,11 @@ const ProfileSection = ({
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
 
-  // Orchestrator types and external don't have role, goal, or instruction
+  // Orquestradores e external não têm papel, objetivo nem comportamento.
   const isOrchestratorType = ['sequential', 'parallel', 'loop', 'task', 'external'].includes(agentType || '');
 
-  // AI actions call the CRM integrations processor, so they demand both the
-  // configured provider and the integrations.execute grant.
+  // As ações de IA chamam o processador de integrações do CRM: exigem provider
+  // configurado E a permissão integrations.execute.
   const showAIActions = config.openaiConfigured === true && isReady && can('integrations', 'execute');
 
   const handleReview = async () => {
@@ -83,10 +83,9 @@ const ProfileSection = ({
     }
   };
 
-  // Classes da spec §4.3 — o input/textarea ocupa 100% da coluna (nunca largura fixa).
   const labelClass = 'mb-2 flex items-center gap-[5px] text-[13.5px] font-bold text-[#1A211E]';
-  // `bg-white` explícito: a base do Input é `bg-transparent`, então sem isso o campo
-  // deixa passar o fundo da página em vez de ficar branco como os cards do Resumo.
+  // `bg-white` explícito: a base do Input é `bg-transparent` e o campo deixava passar
+  // o fundo da página.
   const inputClass =
     'h-auto w-full rounded-[9px] border-[#E3E6EA] bg-white px-[13px] py-[11px] text-sm text-[#1A211E] placeholder:text-[#AEB6BC] focus-visible:border-[#359558] focus-visible:ring-[3px] focus-visible:ring-[#359558]/[.12]';
   const hintClass = 'mt-[7px] text-[12.5px] text-[#9AA3A0]';
@@ -103,11 +102,8 @@ const ProfileSection = ({
           </p>
         </div>
 
-        {/* Duas colunas (spec §4.2): formulário à esquerda, Resumo do Agente à
-            direita. Os campos ocupam 100% da coluna — nunca largura fixa em px. */}
         <div className="grid items-start gap-11 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
           <div className="flex flex-col gap-[22px]">
-          {/* Nome do agente */}
           <div>
             <Label className={labelClass}>
               {t('edit.profile.name') || 'Nome do agente'} <span className="text-[#DC4B4B]">*</span>
@@ -120,7 +116,6 @@ const ProfileSection = ({
             />
           </div>
 
-          {/* Papel - Only for non-orchestrator types */}
           {!isOrchestratorType && (
             <div>
               <Label className={labelClass}>{t('edit.profile.role') || 'Papel'}</Label>
@@ -138,7 +133,6 @@ const ProfileSection = ({
             </div>
           )}
 
-          {/* Objetivo - Only for non-orchestrator types */}
           {!isOrchestratorType && (
             <div>
               <Label className={labelClass}>{t('edit.profile.goal') || 'Objetivo'}</Label>
@@ -156,7 +150,6 @@ const ProfileSection = ({
             </div>
           )}
 
-          {/* Instruções - Only for non-orchestrator types */}
           {!isOrchestratorType && (
             <div>
               <div className="flex items-center justify-between">
@@ -219,7 +212,6 @@ const ProfileSection = ({
             </div>
           )}
 
-            {/* Configuração de Tarefa — exclusiva de agentes do tipo `task` */}
             {isTaskAgent(agentType) && onTaskConfigChange && (
               <div className="mt-[22px] border-t border-[#F4F6F8] pt-[22px]">
                 <TaskSection
@@ -242,7 +234,6 @@ const ProfileSection = ({
         </div>
       </div>
 
-      {/* Prompt Generator Modal */}
       <PromptGeneratorModal
         open={showPromptModal}
         onOpenChange={setShowPromptModal}

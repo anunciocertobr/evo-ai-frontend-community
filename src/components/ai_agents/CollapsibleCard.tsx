@@ -11,10 +11,8 @@ interface CollapsibleCardProps {
 }
 
 /**
- * A borda vive no CABEÇALHO e no CORPO, não na raiz: com ela na raiz o corpo
- * aberto ganhava uma linha extra dividindo os dois (a "emenda" da spec §7.4).
- * Aberto, o cabeçalho perde a borda de baixo e arredonda só o topo; o corpo
- * perde a de cima e arredonda só a base — os dois viram um card contínuo.
+ * A borda vive no cabeçalho e no corpo, não na raiz: na raiz ela desenhava uma
+ * linha extra entre os dois quando aberto.
  */
 const CollapsibleCard = ({
   title,

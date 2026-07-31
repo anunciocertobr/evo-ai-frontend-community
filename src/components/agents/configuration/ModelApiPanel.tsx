@@ -65,7 +65,6 @@ export const ModelApiPanel = ({
       <div className="space-y-6">
         {supportsModelConfig(agent.type) && llmConfigData && (
           <>
-            {/* Chave API */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="apiKey" className="text-sm font-medium">
@@ -112,7 +111,6 @@ export const ModelApiPanel = ({
               <p className="text-xs text-muted-foreground">{t('llmConfig.apiKeyDescription')}</p>
             </div>
 
-            {/* Modelo */}
             <ModelSelector
               value={llmConfigData.model || ''}
               onChange={model =>
@@ -128,7 +126,6 @@ export const ModelApiPanel = ({
           </>
         )}
 
-        {/* A2A: configuração do agent card */}
         {isA2AAgent(agent.type) && a2aConfigData && (
           <A2AConfigForm
             mode="edit"
@@ -138,7 +135,6 @@ export const ModelApiPanel = ({
           />
         )}
 
-        {/* External: configuração do provider */}
         {isExternalAgent(agent.type) && externalConfigData && onExternalConfigChange && (
           <div className="space-y-4">
             <div className="flex items-center gap-3 pb-2 border-b">
@@ -177,7 +173,6 @@ export const ModelApiPanel = ({
         )}
       </div>
 
-      {/* Modal de Gerenciamento de Chaves API */}
       {supportsModelConfig(agent.type) && (
         <ApiKeysModal
           open={showApiKeysModal}

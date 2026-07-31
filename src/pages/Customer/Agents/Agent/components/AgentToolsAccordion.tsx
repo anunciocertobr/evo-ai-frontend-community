@@ -53,13 +53,12 @@ const AgentToolsAccordion = ({
   const showSubAgents = supportsSubAgents(agentType);
   const showToolBlocks = supportsToolBlocks(agentType);
 
-  // A borda fica no TRIGGER e no CONTENT (não no item): na raiz ela desenhava uma
-  // linha extra entre cabeçalho e corpo abertos — a "emenda" da spec §5.4.
+  // Borda no trigger e no content, não no item: na raiz ela virava uma linha extra
+  // entre cabeçalho e corpo abertos.
   const itemClass = 'mb-[14px] border-0';
   const triggerClass =
     'items-center gap-3 rounded-[14px] border border-[#ECEEF2] bg-white px-[17px] py-[15px] text-[14.5px] font-bold text-[#1A211E] shadow-[0_1px_2px_rgba(16,24,40,0.04)] hover:no-underline data-[state=open]:rounded-b-none data-[state=open]:border-b-0 [&>svg]:h-[18px] [&>svg]:w-[18px] [&>svg]:text-[#9AA3A0]';
-  // `pt-5`: sem ele o conteúdo encosta no cabeçalho do accordion (o `pt-0` que
-  // estava aqui era herança do layout antigo, que tinha uma borda separando os dois).
+  // `pt-5` porque não há mais borda separando cabeçalho e corpo.
   const contentClass =
     'rounded-b-[14px] border border-t-0 border-[#ECEEF2] bg-white px-5 pb-5 pt-5';
   const iconClass = 'mr-3 h-[18px] w-[18px] text-[#359558]';

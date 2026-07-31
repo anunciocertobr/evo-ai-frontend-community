@@ -20,7 +20,6 @@ interface ContactEditRulesProps {
   onChange: (config: ContactEditConfig) => void;
 }
 
-// Campos disponíveis para edição
 const CONTACT_FIELDS = [
   { id: 'name', label: 'Nome', category: 'basic' },
   { id: 'email', label: 'Email', category: 'basic' },
@@ -36,8 +35,7 @@ const CONTACT_FIELDS = [
   { id: 'social_profiles', label: 'Redes Sociais', category: 'additional' },
 ];
 
-// `py-0` cancela o `py-6` da base do Card: sem ele os 24px do pacote SOMAM com o
-// padding do CardContent e cada card ganha 40px de respiro em cima e embaixo.
+// `py-0` cancela o `py-6` da base do Card, que somaria com o CardContent.
 const CARD_CLASS =
   'rounded-[14px] border-[#ECEEF2] bg-white py-0 shadow-[0_1px_2px_rgba(16,24,40,0.04)]';
 const LINK_CLASS = 'text-[13px] font-semibold text-[#359558] hover:underline';
@@ -92,7 +90,6 @@ const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
 
   return (
     <div className="space-y-3">
-      {/* Info Banner */}
       <div className="flex items-start gap-3 rounded-[10px] border border-[#DCF0E4] bg-[#F0FAF4] p-3">
         <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#359558]" />
         <div className="flex-1">
@@ -103,7 +100,6 @@ const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
         </div>
       </div>
 
-      {/* Enable/Disable */}
       <Card className={CARD_CLASS}>
         <CardContent className="p-4">
           <div className="flex items-center justify-between gap-4">
@@ -121,7 +117,6 @@ const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
         </CardContent>
       </Card>
 
-      {/* Fields Selection */}
       {config.enabled && (
         <>
           <Card className={CARD_CLASS}>
@@ -141,7 +136,6 @@ const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
                 </div>
               </div>
 
-              {/* Campos Básicos */}
               <div className="space-y-2">
                 <p className={SECTION_LABEL_CLASS}>
                   {t('edit.configuration.contactEditRules.basicFields') || 'Campos Básicos'}
@@ -162,7 +156,6 @@ const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
                 </div>
               </div>
 
-              {/* Campos Adicionais */}
               <div className="space-y-2 pt-1">
                 <p className={SECTION_LABEL_CLASS}>
                   {t('edit.configuration.contactEditRules.additionalFields') || 'Campos Adicionais'}
@@ -190,7 +183,6 @@ const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
             </CardContent>
           </Card>
 
-          {/* Instructions */}
           <Card className={CARD_CLASS}>
             <CardContent className="space-y-2 p-4">
               <Label className="text-sm font-bold text-[#1A211E]">

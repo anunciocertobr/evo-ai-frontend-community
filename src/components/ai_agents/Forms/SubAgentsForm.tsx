@@ -17,7 +17,6 @@ import { useLanguage } from '@/hooks/useLanguage';
 
 type AgentPageMode = 'create' | 'edit' | 'view';
 
-// Definindo apenas as propriedades necessárias do Agent
 interface Agent {
   id: string;
   name: string;
@@ -37,10 +36,8 @@ interface SubAgentsFormProps {
   editingAgentId?: string;
   folderId?: string;
   /**
-   * Dentro do accordion de Ferramentas o form já vive num card — os <Card> daqui
-   * virariam "card dentro do card". Com `embedded` o chrome sai e os dois blocos
-   * (selecionados / disponíveis) ficam lado a lado. O wizard e o AgentTabs seguem
-   * no layout antigo, empilhado, por não terem esse card em volta.
+   * Dentro do accordion de Ferramentas o form já vive num card, e os <Card> daqui
+   * virariam card dentro de card. O wizard segue no layout antigo, empilhado.
    */
   embedded?: boolean;
 }
@@ -60,12 +57,10 @@ const SubAgentsForm = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Validação sempre verdadeira pois sub-agentes são opcionais
   useEffect(() => {
     onValidationChange(true, []);
   }, [onValidationChange]);
 
-  // Carregar agentes disponíveis
   useEffect(() => {
     loadAvailableAgents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -78,7 +73,7 @@ const SubAgentsForm = ({
     try {
       const response = await listAgents(0, 100, folderId);
 
-      // Filtrar o agente atual para evitar auto-referência
+      // Sem o agente atual: evita auto-referência.
       const filteredAgents = response.data.filter((agent: any) => agent.id !== editingAgentId);
       setAvailableAgents(filteredAgents);
     } catch (err) {
@@ -89,18 +84,15 @@ const SubAgentsForm = ({
     }
   };
 
-  // Filtrar agentes baseado na busca
   const filteredAgents = availableAgents.filter(agent =>
     agent.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  // Obter nome do agente por ID
   const getAgentNameById = (agentId: string): string => {
     const agent = availableAgents.find(a => a.id === agentId);
     return agent ? agent.name : agentId;
   };
 
-  // Obter tipo do agente por ID
   const getAgentTypeById = (agentId: string): string => {
     const agent = availableAgents.find(a => a.id === agentId);
     return agent ? agent.type : 'unknown';
@@ -190,10 +182,8 @@ const SubAgentsForm = ({
     return (
       <div className="space-y-6">
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Selecionados. O título "Sub-Agentes" saiu: o cabeçalho do accordion já
-              diz isso, e a descrição dele cobria o mesmo que `complexCompositions`.
-              As duas colunas agora têm o MESMO número de níveis (título +
-              descrição + conteúdo), que é o que faz as linhas de base baterem. */}
+          {/* Sem título próprio: o cabeçalho do accordion já diz "Sub Agentes", e as
+              duas colunas precisam do mesmo número de níveis para as linhas baterem. */}
           <div className="space-y-3">
             <div>
               <div className="flex items-center justify-between gap-3">
@@ -210,7 +200,6 @@ const SubAgentsForm = ({
             {selectedChips}
           </div>
 
-          {/* Agentes Disponíveis */}
           {!isReadOnly && (
             <div className="space-y-3">
               <div>
@@ -218,8 +207,7 @@ const SubAgentsForm = ({
                 <p className="mt-[3px] text-[13px] text-[#8A928F]">{t('subAgents.selectToAdd')}</p>
               </div>
 
-              {/* Busca no padrão do ecossistema — sem override de borda/fundo/altura,
-                  para o foco verde do token `--ring` aparecer. */}
+              {/* Sem override de borda/fundo/altura: é o que deixa o foco verde do `--ring` aparecer. */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -343,7 +331,6 @@ const SubAgentsForm = ({
 
   return (
     <div className="flex flex-col space-y-3">
-      {/* Card de Sub-Agentes Selecionados */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center gap-2">
@@ -364,7 +351,6 @@ const SubAgentsForm = ({
             </Badge>
           </div>
 
-          {/* Lista de Sub-Agentes Selecionados */}
           {data.sub_agents.length > 0 ? (
             <div className="space-y-2">
               <Label className="text-sm font-medium">{t('subAgents.selectedSubAgents')}</Label>
@@ -402,7 +388,6 @@ const SubAgentsForm = ({
         </CardContent>
       </Card>
 
-      {/* Card de Agentes Disponíveis */}
       {!isReadOnly && (
         <Card>
           <CardHeader className="pb-2">
@@ -410,7 +395,6 @@ const SubAgentsForm = ({
             <CardDescription className="text-xs">{t('subAgents.selectToAdd')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
-            {/* Campo de busca */}
             <div className="space-y-1.5">
               <Label htmlFor="search-agents" className="text-sm">
                 {t('subAgents.searchAgents')}
@@ -436,7 +420,6 @@ const SubAgentsForm = ({
               </div>
             </div>
 
-            {/* Estados de carregamento e erro */}
             {isLoading && (
               <div className="flex items-center justify-center py-6">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -455,7 +438,6 @@ const SubAgentsForm = ({
               </div>
             )}
 
-            {/* Lista de agentes */}
             {!isLoading && !error && (
               <ScrollArea className="h-[250px]">
                 <div className="space-y-1.5 pr-4">
@@ -529,7 +511,6 @@ const SubAgentsForm = ({
         </Card>
       )}
 
-      {/* Informações gerais - Compacto - Apenas em modo edit/view */}
       {mode !== 'create' && (
         <Card>
           <CardHeader className="pb-1.5">

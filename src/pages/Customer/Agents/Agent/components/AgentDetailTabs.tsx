@@ -49,7 +49,6 @@ const AgentDetailTabs = ({ agentType, value, onValueChange, children }: AgentDet
         </TabsList>
       </div>
 
-      {/* Gutters da área de conteúdo (spec §3): 26px topo, 36px laterais, 60px de rodapé. */}
       <div className="min-h-0 flex-1 overflow-y-auto px-9 pb-[60px] pt-[26px]">{children}</div>
     </Tabs>
   );

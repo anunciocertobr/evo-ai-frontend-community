@@ -36,17 +36,14 @@ const IntegrationsSection = ({
   const [showGoogleSheetsConfig, setShowGoogleSheetsConfig] = useState(false);
   const [showKnowledgeNexusConfig, setShowKnowledgeNexusConfig] = useState(false);
 
-  // Use custom hook for integrations status.
-  // `available` is the DISPONIBILIDADE signal (CRM :3000 endpoint) used to gate
-  // "Em breve"/ATIVAR-disabled; `isConnected` is the per-agent "connected" state.
+  // `available` = a integração existe no tenant (endpoint do CRM); `isConnected` =
+  // este agente já a ativou. Coisas diferentes.
   const { available, isCheckingIntegrations, isConnected, reloadConfigs } =
     useIntegrations(agentId);
 
-  // Persist an integration immediately via the backend Upsert endpoint, then
-  // update local state. This is necessary because `agent.config.integrations`
-  // is ignored by the backend's persistence layer for OAuth/native integrations
-  // — the canonical store is the `agent_integrations` table behind
-  // POST /agents/:id/integrations.
+  // Grava direto no backend em vez de esperar o "Salvar": o `agent.config.integrations`
+  // é ignorado na persistência de integrações OAuth/nativas — a fonte da verdade é a
+  // tabela `agent_integrations`, atrás de POST /agents/:id/integrations.
   const persistIntegration = async (
     provider: string,
     config: Record<string, unknown>
@@ -92,15 +89,9 @@ const IntegrationsSection = ({
     }
   };
 
-  // Integrações que sempre estão disponíveis porque o usuário fornece sua
-  // própria credencial (API key). Não dependem de OAuth global configurado
-  // pelo administrador. Google Calendar / Sheets usam OAuth global e portanto
-  // só ficam disponíveis quando o mapa `available` (endpoint de disponibilidade
-  // do CRM) indica que o admin configurou as chaves correspondentes.
-  // Google Calendar / Sheets connect via per-agent OAuth (their own config
-  // dialogs), not a globally-configured client credential — so they are always
-  // available, like ElevenLabs (API key). Keeping them out of this list left them
-  // stuck on "NÃO DISPONÍVEL" despite the render logic already wiring their dialogs.
+  // Não dependem de credencial global do admin: a credencial é do próprio usuário.
+  // Como toda a lista de baixo está aqui, "Em breve" hoje só aparece nos cards de MCP —
+  // o ramo continua valendo para as integrações ainda comentadas.
   const ALWAYS_AVAILABLE_INTEGRATIONS = ['elevenlabs', 'knowledge-nexus', 'google-calendar', 'google-sheets'];
 
   const availableIntegrations: Integration[] = [
@@ -146,7 +137,6 @@ const IntegrationsSection = ({
 
   return (
     <div className="space-y-8">
-      {/* Cabeçalho da Seção */}
       <div className="space-y-4">
         {/* O título do bloco já vem do cabeçalho do accordion — aqui só a descrição. */}
         <p className="pb-[18px] pt-[18px] text-[13px] leading-[1.5] text-[#8A928F]">
@@ -165,7 +155,6 @@ const IntegrationsSection = ({
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {availableIntegrations.map(integration => {
-                // Integrações que sempre estão disponíveis (ElevenLabs usa API Key, Google Calendar configurado localmente)
                 const isAlwaysAvailable = ALWAYS_AVAILABLE_INTEGRATIONS.includes(integration.id);
                 const hasCredentials =
                   isAlwaysAvailable || (available[integration.id] ?? false);
@@ -183,9 +172,8 @@ const IntegrationsSection = ({
                   }
                 };
 
-                // Estados do botão: Em breve (sem credencial global) → Ativar → ✓ Ativado.
-                // "Ativado" continua clicável porque é também a porta de entrada para
-                // reconfigurar/desativar a integração pelo dialog.
+                // Em breve (sem credencial global) → Ativar → ✓ Ativado. "Ativado" segue
+                // clicável: é por ele que se reconfigura ou desativa.
                 const action = connected ? (
                   <Button
                     variant="outline"
@@ -231,7 +219,6 @@ const IntegrationsSection = ({
         </div>
       </div>
 
-      {/* Dialog de configuração ElevenLabs */}
       <ElevenLabsConfigDialog
         open={showElevenLabsConfig}
         onOpenChange={setShowElevenLabsConfig}
@@ -258,7 +245,6 @@ const IntegrationsSection = ({
         }
       />
 
-      {/* Dialog de configuração Google Calendar */}
       <GoogleCalendarConfigDialog
         open={showGoogleCalendarConfig}
         onOpenChange={setShowGoogleCalendarConfig}
@@ -275,7 +261,6 @@ const IntegrationsSection = ({
               'google-calendar': config,
             });
           }
-          // Reload configs to update status
           reloadConfigs();
         }}
         onDisconnect={
@@ -286,14 +271,12 @@ const IntegrationsSection = ({
                   delete newIntegrations['google-calendar'];
                   onIntegrationsChange(newIntegrations);
                 }
-                // Reload configs to update status
-                reloadConfigs();
+                      reloadConfigs();
               }
             : undefined
         }
       />
 
-      {/* Dialog de configuração Google Sheets */}
       <GoogleSheetsConfigDialog
         open={showGoogleSheetsConfig}
         onOpenChange={setShowGoogleSheetsConfig}
@@ -310,7 +293,6 @@ const IntegrationsSection = ({
               'google-sheets': config,
             });
           }
-          // Reload configs to update status
           reloadConfigs();
         }}
         onDisconnect={
@@ -321,14 +303,12 @@ const IntegrationsSection = ({
                   delete newIntegrations['google-sheets'];
                   onIntegrationsChange(newIntegrations);
                 }
-                // Reload configs to update status
-                reloadConfigs();
+                      reloadConfigs();
               }
             : undefined
         }
       />
 
-      {/* Dialog de configuração Knowledge Nexus */}
       <KnowledgeNexusConfigDialog
         open={showKnowledgeNexusConfig}
         onOpenChange={setShowKnowledgeNexusConfig}

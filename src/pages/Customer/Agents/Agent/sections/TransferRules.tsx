@@ -56,7 +56,6 @@ const TransferRules = ({ rules, onChange, availableUsers = [], availableTeams = 
 
   return (
     <div className="space-y-6">
-      {/* Info Banner */}
       <div className="flex items-start gap-3 rounded-[10px] border border-[#DCF0E4] bg-[#F0FAF4] p-4">
         <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#359558]" />
         <p className="text-sm text-[#2C834E]">
@@ -65,18 +64,15 @@ const TransferRules = ({ rules, onChange, availableUsers = [], availableTeams = 
         </p>
       </div>
 
-      {/* Rules List */}
       <div className="space-y-4">
         {rules.map(rule => (
           <Card
             key={rule.id}
-            // `py-0` cancela o `py-6` da base do Card — sem ele soma com o padding
-            // do CardContent e sobram 40px de respiro em cima e embaixo.
+            // `py-0` cancela o `py-6` da base do Card, que somaria com o CardContent.
             className="rounded-[14px] border-[#ECEEF2] bg-white py-0 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
           >
             <CardContent className="p-5">
               <div className="space-y-4">
-                {/* Transfer To */}
                 <div className="flex items-center gap-4">
                   <div className="flex-1 space-y-2">
                     <label className="text-[13.5px] font-bold text-[#1A211E]">
@@ -102,7 +98,6 @@ const TransferRules = ({ rules, onChange, availableUsers = [], availableTeams = 
                     </Select>
                   </div>
 
-                  {/* User Selection (if transferTo is human) */}
                   {rule.transferTo === 'human' && (
                     <div className="flex-1 space-y-2">
                       <label className="text-[13.5px] font-bold text-[#1A211E]">
@@ -137,7 +132,6 @@ const TransferRules = ({ rules, onChange, availableUsers = [], availableTeams = 
                     </div>
                   )}
 
-                  {/* Team Selection (if transferTo is team) */}
                   {rule.transferTo === 'team' && (
                     <div className="flex-1 space-y-2">
                       <label className="text-[13.5px] font-bold text-[#1A211E]">
@@ -173,7 +167,6 @@ const TransferRules = ({ rules, onChange, availableUsers = [], availableTeams = 
                   )}
                 </div>
 
-                {/* Return on Finish */}
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id={`return-${rule.id}`}
@@ -190,7 +183,6 @@ const TransferRules = ({ rules, onChange, availableUsers = [], availableTeams = 
                   </label>
                 </div>
 
-                {/* Instructions */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-[13.5px] font-bold text-[#1A211E]">
@@ -200,8 +192,7 @@ const TransferRules = ({ rules, onChange, availableUsers = [], availableTeams = 
                       <span className="text-xs text-[#9AA3A0]">
                         {(rule.instructions?.length || 0)}/255
                       </span>
-                      {/* A última regra não oferece excluir: sem ela o modal fica vazio
-                          e sem caminho de volta a não ser fechar e reabrir. */}
+                      {/* A última regra não oferece excluir: sem ela o modal fica vazio. */}
                       {rules.length > 1 && (
                         <Button
                           type="button"
@@ -230,7 +221,6 @@ const TransferRules = ({ rules, onChange, availableUsers = [], availableTeams = 
         ))}
       </div>
 
-      {/* Add Rule Button */}
       <Button
         type="button"
         variant="outline"

@@ -13,7 +13,6 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { CustomTool } from '@/types/ai';
 import CustomToolsSelectionDialog from './Dialogs/CustomToolsSelectionDialog';
 
-// Using CustomTool type from @/types/customTool
 
 interface CustomToolsSectionProps {
   customTools: {
@@ -138,7 +137,6 @@ const CustomToolsSection = ({
             </div>
           )}
 
-      {/* Modal de Seleção de Custom Tools */}
       <CustomToolsSelectionDialog
         open={showCustomToolsDialog}
         onOpenChange={setShowCustomToolsDialog}

@@ -9,10 +9,7 @@ interface CompactIntegrationCardProps {
   action: ReactNode;
 }
 
-/**
- * Card compacto horizontal (logo · nome/descrição · botão de estado) usado pelos
- * blocos de Integrações e Servidores MCP dentro do detalhe do agente.
- */
+/** Card compacto horizontal compartilhado pelos blocos de Integrações e de MCP. */
 export function CompactIntegrationCard({
   id,
   name,

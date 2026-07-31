@@ -32,7 +32,6 @@ const ToolsSection = ({
     // Duas colunas, mesma estrutura do bloco Sub Agentes: tile + título +
     // descrição + conteúdo, para as linhas de base das duas baterem.
     <div className="grid gap-6 md:grid-cols-2">
-      {/* Seção: Agentes como Ferramentas */}
       <div className="space-y-3">
         <div className="flex items-start gap-3">
           <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-blue-500/10">
@@ -59,7 +58,6 @@ const ToolsSection = ({
         />
       </div>
 
-      {/* Seção: Ferramentas Customizadas */}
       <div className="space-y-3">
         <div className="flex items-start gap-3">
           <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-purple-500/10">

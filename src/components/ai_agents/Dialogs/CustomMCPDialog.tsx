@@ -23,9 +23,8 @@ interface CustomMCPDialogProps {
   onSave: (selectedServerIds: string[]) => void;
   initialSelectedIds?: string[];
   /**
-   * Esconde os atalhos "criar novo MCP". Eles navegam para /custom-mcp-servers e
-   * descartariam o formulário não salvo de quem abriu o picker (ex.: detalhe do
-   * agente). Nesses contextos o dialog serve só para SELECIONAR MCPs já criados.
+   * Esconde os atalhos "criar novo MCP": eles navegam para /custom-mcp-servers e
+   * descartariam o formulário não salvo de quem abriu o picker.
    */
   hideCreateNew?: boolean;
 }
@@ -47,7 +46,6 @@ const CustomMCPDialog = ({
   const hasLoadedRef = useRef(false);
   const initialSelectionSetRef = useRef(false);
 
-  // Initialize selected servers when dialog opens - very simple and stable
   useEffect(() => {
     if (open && !initialSelectionSetRef.current) {
       setSelectedServerIds([...initialSelectedIds]);
@@ -55,7 +53,6 @@ const CustomMCPDialog = ({
     }
   }, [open, initialSelectedIds]);
 
-  // Cleanup when dialog closes - separate effect for clarity
   useEffect(() => {
     if (!open) {
       setCustomMCPServers([]);
@@ -67,14 +64,11 @@ const CustomMCPDialog = ({
     }
   }, [open]);
 
-  // Load all servers when dialog opens (we'll filter locally)
   useEffect(() => {
-    // Only load if dialog is open and we haven't loaded yet
     if (!open || hasLoadedRef.current) {
       return;
     }
 
-    // Load custom MCP servers
     const loadServers = async () => {
       try {
         setLoading(true);
@@ -85,7 +79,7 @@ const CustomMCPDialog = ({
       } catch (error) {
         console.error('Error loading custom MCP servers:', error);
         setCustomMCPServers([]);
-        hasLoadedRef.current = false; // Allow retry on error
+        hasLoadedRef.current = false;
       } finally {
         setLoading(false);
       }
@@ -120,9 +114,8 @@ const CustomMCPDialog = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden flex flex-col">
-        {/* `sm:text-center` e não `text-center`: a base do DialogHeader traz
-            `sm:text-left`, e variante responsiva não colide com utilitário simples
-            no tailwind-merge — o `sm:` do pacote venceria acima de 640px. */}
+        {/* `sm:text-center` e não `text-center`: variante responsiva do pacote não é
+            cancelada por utilitário simples no tailwind-merge. */}
         <DialogHeader className="sm:text-center">
           <DialogTitle className="flex items-center justify-center gap-2">
             <Server className="h-5 w-5 text-emerald-500" />
@@ -132,11 +125,9 @@ const CustomMCPDialog = ({
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col">
-          {/* Search */}
           <div className="p-4 border-b">
-            {/* Padrão de busca do ecossistema: Input do design-system SEM override de
-                borda/fundo/altura — a borda verde ao focar vem do token `--ring`
-                (`focus-visible:border-ring`), que um `border-[#...]` fixo mascara. */}
+            {/* Sem override de borda/fundo/altura no Input: é o que deixa o foco verde
+                do token `--ring` aparecer. */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -148,7 +139,6 @@ const CustomMCPDialog = ({
             </div>
           </div>
 
-          {/* Servers List */}
           <div className="flex-1 overflow-auto p-4">
             {loading ? (
               <div className="flex items-center justify-center h-32">
@@ -261,7 +251,6 @@ const CustomMCPDialog = ({
             )}
           </div>
 
-          {/* Selected Count */}
           {selectedServerIds.length > 0 && (
             <div className="border-t p-4">
               <p className="text-sm text-muted-foreground">
@@ -271,8 +260,6 @@ const CustomMCPDialog = ({
           )}
         </div>
 
-        {/* Botões ocupam a largura do rodapé: Cancelar no tamanho do conteúdo e os
-            de ação dividindo o resto, em vez de todos empilhados à direita. */}
         <DialogFooter className="gap-2 border-t p-4 sm:justify-start">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('actions.cancel')}
