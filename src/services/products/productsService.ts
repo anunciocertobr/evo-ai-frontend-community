@@ -1,5 +1,6 @@
 import api from '@/services/core/api';
 import { extractData, extractResponse } from '@/utils/apiHelpers';
+import { appendField } from '@/utils/products/formData';
 import {
   Product,
   ProductFormData,
@@ -14,6 +15,9 @@ import {
   ProductBulkPayload,
   ProductBulkRealResponse,
   ProductBulkDryRunResponse,
+  ProductImportSource,
+  ProductImportCredentials,
+  ProductImportFetchResponse,
 } from '@/types/products';
 
 class ProductsService {
@@ -77,6 +81,19 @@ class ProductsService {
       params: dry_run ? { dry_run: true } : undefined,
     });
     return response.data;
+  }
+
+  /**
+   * Fetches a remote store's catalog, already mapped into the bulk-import item shape:
+   * the caller runs it through the same dry-run + `bulkProducts` path the CSV import
+   * uses. Credentials are one-time.
+   */
+  async importFetch(
+    source: ProductImportSource,
+    credentials: ProductImportCredentials,
+  ): Promise<ProductImportFetchResponse> {
+    const response = await api.post(`${this.baseUrl}/import_fetch`, { source, credentials });
+    return response.data as ProductImportFetchResponse;
   }
 
   async deleteProduct(id: string): Promise<ProductDeleteResponse> {
@@ -163,22 +180,7 @@ class ProductsService {
 
   private buildFormData(payload: Partial<ProductFormData>, files: File[]): FormData {
     const formData = new FormData();
-    Object.entries(payload).forEach(([key, value]) => {
-      if (value === undefined || value === null) return;
-      if (key === 'variants_attributes' && Array.isArray(value)) {
-        formData.append(`product[${key}]`, JSON.stringify(value));
-        return;
-      }
-      if (key === 'labels' && Array.isArray(value)) {
-        value.forEach((label) => formData.append('product[labels][]', String(label)));
-        return;
-      }
-      if (key === 'metadata' && typeof value === 'object') {
-        formData.append('product[metadata]', JSON.stringify(value));
-        return;
-      }
-      formData.append(`product[${key}]`, String(value));
-    });
+    Object.entries(payload).forEach(([key, value]) => appendField(formData, `product[${key}]`, value));
 
     files.forEach((file) => {
       formData.append('product[images][]', file, file.name);

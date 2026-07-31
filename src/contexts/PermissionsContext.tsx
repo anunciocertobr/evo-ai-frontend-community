@@ -176,6 +176,11 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
     [resourceActions],
   );
 
+  // Data-driven by design: the answer comes only from the granted permission
+  // list. Do NOT add a role short-circuit (e.g. "super_admin sees everything") —
+  // the backend has no such bypass either (its resource gate and /permissions
+  // are row-based), so a UI shortcut would render controls the API then 403s.
+  // Guarded by PermissionsContext.spec.tsx.
   const can = useCallback(
     (resource: string, action: string, type: 'account' | 'user' = 'account'): boolean => {
       const permission = createPermission(resource, action);

@@ -1,0 +1,54 @@
+# EVO-2062 — Run the Vitest suite on every PR.
+#
+# Why this exists: the repository shipped 170+ spec files but no workflow ever
+# executed them, so a guard like "can() must stay data-driven, no role
+# short-circuit" was documentation, not enforcement — the very regression it
+# was written to catch could be merged green. The suite runs here so it bites.
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+jobs:
+  vitest:
+    name: Vitest
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc -b
+
+      # Scoped, opt-in list: a spec earns a line here when it guards a behaviour
+      # we do not want silently reverted, is fully mocked, and runs fast.
+      #   - PermissionsContext / RoleDetail (EVO-2062): can() stays data-driven,
+      #     system roles stay read-only, and duplicating one keeps its permissions.
+      #   - RolesList: the row icon keeps matching what the detail screen allows.
+      #   - campaignsService (EVO-1838): the campaign endpoints keep their
+      #     bare-body fallback when the backend skips the response envelope.
+      # The whole list runs in ~10s and is deterministic.
+      #
+      # Running the whole suite here was tried and reverted: 160 jsdom files in
+      # forked workers take ~30min on the runner and flake on worker OOM (the
+      # per-file test time is only ~50s — the rest is fork+jsdom churn and
+      # unmocked-network timeouts). Booting real CI for the full suite needs
+      # that perf/mocking debt fixed first; tracked as an EVO-2062 follow-up.
+      # Enforcing this card's guard does not have to wait on it.
+      - name: Vitest
+        run: |
+          npx vitest run --reporter=basic \
+            src/contexts/PermissionsContext.spec.tsx \
+            src/pages/Admin/Roles/RoleDetail.spec.tsx \
+            src/pages/Admin/Roles/RolesList.spec.tsx \
+            src/services/campaigns/campaignsService.spec.ts

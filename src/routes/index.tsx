@@ -61,6 +61,8 @@ import JourneyFlowEditor from '@/pages/Customer/Journey/JourneyFlowEditor';
 import Campaigns from '@/pages/Customer/Campaigns/Campaigns';
 import NewCampaign from '@/pages/Customer/Campaigns/NewCampaign/NewCampaign';
 import CannedResponses from '@/pages/Customer/Settings/CannedResponses';
+import AiCredentials from '@/pages/Customer/Settings/AiCredentials';
+import IntegrationCredentials from '@/pages/Customer/Settings/IntegrationCredentials';
 import MessageTemplates from '@/pages/Customer/Settings/MessageTemplates';
 import { Macros } from '@/pages/Customer/Settings/Macros';
 import Products, { ProductsImport } from '@/pages/Customer/Settings/Products';
@@ -769,6 +771,36 @@ const AppRouter = () => {
                   <MainLayout>
                     <PermissionRoute resource="canned_responses" action="read">
                       <CannedResponses />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/settings/ai-credentials"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="ai_api_keys" action="read">
+                      <AiCredentials />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/settings/integration-credentials"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="ai_integration_credentials" action="read">
+                      <IntegrationCredentials />
                     </PermissionRoute>
                   </MainLayout>
                 </CustomerRoute>
