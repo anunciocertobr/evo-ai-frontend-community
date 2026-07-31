@@ -30,7 +30,9 @@ const ToolsSection = ({
 
   return (
     // Same structure as the Sub Agents block so both columns share a baseline.
-    <div className="grid gap-6 md:grid-cols-2">
+    // `lg`, not `md`: at 768-1024 each column is too narrow for the empty-state row,
+    // and it matches the Integrations/MCP grids on the same tab.
+    <div className="grid gap-6 lg:grid-cols-2">
       <div className="space-y-3">
         <div className="flex items-start gap-3">
           <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-blue-500/10">

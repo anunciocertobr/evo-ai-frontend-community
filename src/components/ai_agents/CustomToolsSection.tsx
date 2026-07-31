@@ -114,7 +114,9 @@ const CustomToolsSection = ({
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-4 rounded-[10px] border border-border bg-card p-4">
+            <div className="flex flex-col items-start justify-between gap-3 rounded-[10px] border border-border bg-card p-4 sm:flex-row sm:items-center sm:gap-4">
+              {/* Stacks below `sm`: side by side the button does not shrink and
+                  squeezes the text to one word per line. */}
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-foreground">
                   {t('tools.customTools.noTools')}
@@ -128,6 +130,7 @@ const CustomToolsSection = ({
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="flex-shrink-0"
                   onClick={() => setShowCustomToolsDialog(true)}
                 >
                   <Plus className="h-4 w-4 mr-1" />

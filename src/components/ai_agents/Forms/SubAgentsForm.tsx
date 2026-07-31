@@ -263,7 +263,7 @@ const SubAgentsForm = ({
   if (embedded) {
     return (
       <div className="space-y-6">
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2">
           {/* No title of its own: the accordion header already names the block, and the
               duas colunas precisam do mesmo número de níveis para as linhas baterem. */}
           <div className="space-y-3">
