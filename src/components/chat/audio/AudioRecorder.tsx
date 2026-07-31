@@ -123,8 +123,10 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       </div>
 
       {/* Reactive waveform — fills the row on mobile (EVO-2234); on desktop stays a
-          fixed w-40 hugged to the right with the other controls, WhatsApp-style. */}
-      <div className="flex-1 min-w-0 md:flex-none md:w-40 flex items-center justify-between md:justify-normal gap-[3px] h-8">
+          fixed w-40 hugged to the right with the other controls, WhatsApp-style.
+          overflow-hidden: the bars are flex-shrink-0 (32 * 2px + 31 * 3px = 157px min),
+          so under ~333px of viewport they would spill over the send button. */}
+      <div className="flex-1 min-w-0 md:flex-none md:w-40 flex items-center justify-between md:justify-normal gap-[3px] h-8 overflow-hidden">
         {levels.map((level, i) => (
           <div
             key={i}

@@ -318,6 +318,7 @@
     },
     "openConversation": "Open Conversation",
     "closeConversation": "Close conversation",
+    "backToConversations": "Back to conversations",
     "phoneNumber": "Phone number",
     "openContactPanel": "Open contact details",
     "closeContactPanel": "Close contact details"
