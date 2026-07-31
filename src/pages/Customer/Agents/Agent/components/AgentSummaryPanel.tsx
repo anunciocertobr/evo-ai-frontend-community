@@ -70,10 +70,10 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-[14px] border border-[#ECEEF2] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-        <div className="flex items-center gap-[9px] border-b border-[#F2F4F7] px-5 py-4">
-          <Globe className="h-[17px] w-[17px] text-[#359558]" />
-          <span className="text-[12.5px] font-bold uppercase tracking-[0.5px] text-[#359558]">
+      <div className="rounded-[14px] border border-border bg-card shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+        <div className="flex items-center gap-[9px] border-b border-border px-5 py-4">
+          <Globe className="h-[17px] w-[17px] text-primary" />
+          <span className="text-[12.5px] font-bold uppercase tracking-[0.5px] text-primary">
             {t('edit.profile.summary.title') || 'Resumo do Agente'}
           </span>
         </div>
@@ -84,11 +84,11 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
             <div
               key={row.label}
               className={`flex items-center justify-between gap-4 py-[13px] ${
-                index < rows.length - 1 ? 'border-b border-[#F4F6F8]' : ''
+                index < rows.length - 1 ? 'border-b border-border' : ''
               }`}
             >
-              <span className="text-[13.5px] text-[#8A928F]">{row.label}</span>
-              <span className="truncate text-[13.5px] font-semibold text-[#1A211E]">
+              <span className="text-[13.5px] text-muted-foreground">{row.label}</span>
+              <span className="truncate text-[13.5px] font-semibold text-foreground">
                 {row.value}
               </span>
             </div>
@@ -100,21 +100,21 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
         {counters.map(counter => (
           <div
             key={counter.label}
-            className="rounded-[14px] border border-[#ECEEF2] bg-white px-[18px] py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
+            className="rounded-[14px] border border-border bg-card px-[18px] py-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
           >
-            <p className="text-2xl font-extrabold text-[#131917]">{counter.value}</p>
-            <p className="mt-0.5 text-[12.5px] text-[#8A928F]">{counter.label}</p>
+            <p className="text-2xl font-extrabold text-foreground">{counter.value}</p>
+            <p className="mt-0.5 text-[12.5px] text-muted-foreground">{counter.label}</p>
           </div>
         ))}
       </div>
 
-      <div className="flex gap-[11px] rounded-[14px] border border-[#D5ECDF] bg-[#F0FAF4] px-[18px] py-4">
-        <Info className="mt-0.5 h-[17px] w-[17px] flex-shrink-0 text-[#2C834E]" />
+      <div className="flex gap-[11px] rounded-[14px] border border-primary/30 bg-primary/10 px-[18px] py-4">
+        <Info className="mt-0.5 h-[17px] w-[17px] flex-shrink-0 text-primary" />
         <div>
-          <p className="text-[13px] font-bold text-[#2C834E]">
+          <p className="text-[13px] font-bold text-primary">
             {t('edit.profile.summary.tipTitle') || 'Dica de configuração'}
           </p>
-          <p className="mt-0.5 text-[12.5px] leading-[1.55] text-[#4A7A5C]">
+          <p className="mt-0.5 text-[12.5px] leading-[1.55] text-primary">
             {t('edit.profile.summary.tipBody') ||
               'Preencha o Papel e o Objetivo para que o agente entenda melhor seu contexto e responda com mais precisão.'}
           </p>

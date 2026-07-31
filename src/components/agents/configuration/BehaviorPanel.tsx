@@ -40,7 +40,7 @@ export const BehaviorPanel = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
+      <div className="flex items-center justify-between gap-4 border-t border-border py-[18px] first:border-t-0">
         <div className="flex items-start gap-3 flex-1">
           <UserRound className="h-5 w-5 text-blue-500 mt-0.5" />
           <div className="flex-1">
@@ -76,7 +76,7 @@ export const BehaviorPanel = ({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
+      <div className="flex items-center justify-between gap-4 border-t border-border py-[18px] first:border-t-0">
         <div className="flex items-start gap-3 flex-1">
           <Bell className="h-5 w-5 text-orange-500 mt-0.5" />
           <div className="flex-1">
@@ -98,7 +98,7 @@ export const BehaviorPanel = ({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
+      <div className="flex items-center justify-between gap-4 border-t border-border py-[18px] first:border-t-0">
         <div className="flex items-start gap-3 flex-1">
           <Edit3 className="h-5 w-5 text-green-500 mt-0.5" />
           <div className="flex-1">
@@ -134,7 +134,7 @@ export const BehaviorPanel = ({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
+      <div className="flex items-center justify-between gap-4 border-t border-border py-[18px] first:border-t-0">
         <div className="flex items-start gap-3 flex-1">
           <GitBranch className="h-5 w-5 text-purple-500 mt-0.5" />
           <div className="flex-1">
@@ -174,7 +174,7 @@ export const BehaviorPanel = ({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
+      <div className="flex items-center justify-between gap-4 border-t border-border py-[18px] first:border-t-0">
         <div className="flex items-start gap-3 flex-1">
           <Tag className="h-5 w-5 text-amber-500 mt-0.5" />
           <div className="flex-1">
@@ -199,7 +199,7 @@ export const BehaviorPanel = ({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
+      <div className="flex items-center justify-between gap-4 border-t border-border py-[18px] first:border-t-0">
         <div className="flex items-start gap-3 flex-1">
           <ShoppingCart className="h-5 w-5 text-emerald-500 mt-0.5" />
           <div className="flex-1">

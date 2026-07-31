@@ -52,9 +52,9 @@ describe('AgentToggle', () => {
 
   it('swaps the rail colour between off and on', () => {
     const { rerender } = render(<AgentToggle checked={false} onCheckedChange={vi.fn()} />);
-    expect(rail().className).toContain('bg-[#D4D9DF]');
+    expect(rail().className).toContain('bg-muted-foreground/40');
     rerender(<AgentToggle checked onCheckedChange={vi.fn()} />);
-    expect(rail().className).toContain('bg-[#359558]');
+    expect(rail().className).toContain('bg-primary');
   });
 
   it('toggles when the rail is clicked, not just the knob', async () => {

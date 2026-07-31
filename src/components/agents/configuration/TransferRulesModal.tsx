@@ -33,10 +33,10 @@ export const TransferRulesModal = ({
           a responsive variant with another responsive variant. */}
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[640px]">
         <DialogHeader className="sm:text-center">
-          <DialogTitle className="text-xl font-bold text-[#131917]">
+          <DialogTitle className="text-xl font-bold text-foreground">
             {t('edit.configuration.transferRules.modalTitle') || 'Regras de Transferência'}
           </DialogTitle>
-          <DialogDescription className="text-[#8A928F]">
+          <DialogDescription className="text-muted-foreground">
             {t('edit.configuration.transferRules.modalDescription') ||
               'Configure quando e como o agente deve transferir conversas para humanos ou times.'}
           </DialogDescription>

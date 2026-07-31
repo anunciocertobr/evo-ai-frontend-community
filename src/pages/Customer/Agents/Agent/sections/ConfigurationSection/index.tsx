@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@evoapi/design-system'
 
 /** Segmented control: both items share the width, so only the base height is dropped. */
 const SEGMENT_CLASS =
-  'inline-flex h-auto w-full items-center justify-center gap-2 rounded-[9px] border border-transparent bg-transparent px-4 py-[9px] text-[13.5px] font-medium text-[#5B6470] shadow-none hover:text-[#1A211E] data-[state=active]:bg-[#F0FAF4] data-[state=active]:font-semibold data-[state=active]:text-[#359558] data-[state=active]:shadow-none';
+  'inline-flex h-auto w-full items-center justify-center gap-2 rounded-[9px] border border-transparent bg-transparent px-4 py-[9px] text-[13.5px] font-medium text-muted-foreground shadow-none hover:text-foreground data-[state=active]:bg-primary/10 data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none';
 import { InactivityAction } from '../InactivityActions';
 import { TransferRule } from '../TransferRules';
 import { PipelineRule } from '../PipelineRules';
@@ -177,7 +177,7 @@ const ConfigurationSection = ({
     <>
       {supportsInactivityActions(agent.type) ? (
         <Tabs defaultValue="general">
-          <TabsList className="mb-4 grid h-auto w-full grid-cols-2 gap-2 rounded-[12px] border border-[#ECEEF2] bg-white p-[6px] shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+          <TabsList className="mb-4 grid h-auto w-full grid-cols-2 gap-2 rounded-[12px] border border-border bg-card p-[6px] shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <TabsTrigger value="general" className={SEGMENT_CLASS}>
               <Settings className="size-[18px]" />
               {t('edit.configuration.tabs.general') || 'Geral'}

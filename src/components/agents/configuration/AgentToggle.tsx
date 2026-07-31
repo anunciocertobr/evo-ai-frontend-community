@@ -19,8 +19,8 @@ const AgentToggle = ({
   'aria-label': ariaLabel,
 }: AgentToggleProps) => (
   <label
-    className={`relative block h-[24px] w-[42px] flex-[0_0_42px] rounded-full transition-colors duration-[160ms] focus-within:ring-[3px] focus-within:ring-[#359558]/[.35] ${
-      checked ? 'bg-[#359558]' : 'bg-[#D4D9DF]'
+    className={`relative block h-[24px] w-[42px] flex-[0_0_42px] rounded-full transition-colors duration-[160ms] focus-within:ring-[3px] focus-within:ring-ring/35 ${
+      checked ? 'bg-primary' : 'bg-muted-foreground/40'
     } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
   >
     <input

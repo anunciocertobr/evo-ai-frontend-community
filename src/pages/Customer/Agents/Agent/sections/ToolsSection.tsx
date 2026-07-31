@@ -37,10 +37,10 @@ const ToolsSection = ({
             <Users className="h-[18px] w-[18px] text-blue-500" />
           </span>
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-[#1A211E]">
+            <h3 className="text-sm font-bold text-foreground">
               {t('tools.agentTools.title') || 'Agentes como Ferramentas'}
             </h3>
-            <p className="mt-[3px] text-[13px] leading-[1.5] text-[#8A928F]">
+            <p className="mt-[3px] text-[13px] leading-[1.5] text-muted-foreground">
               {t('tools.agentTools.subtitle') || 'Use outros agentes como ferramentas para expandir as capacidades deste agente'}
             </p>
           </div>
@@ -63,10 +63,10 @@ const ToolsSection = ({
             <Code className="h-[18px] w-[18px] text-purple-500" />
           </span>
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-[#1A211E]">
+            <h3 className="text-sm font-bold text-foreground">
               {t('tools.customTools.title') || 'Ferramentas Customizadas'}
             </h3>
-            <p className="mt-[3px] text-[13px] leading-[1.5] text-[#8A928F]">
+            <p className="mt-[3px] text-[13px] leading-[1.5] text-muted-foreground">
               {t('tools.customTools.subtitle') || 'Configure ferramentas HTTP personalizadas para integrar com APIs externas'}
             </p>
           </div>

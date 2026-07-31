@@ -8,7 +8,7 @@ export const AGENT_TAB_LIST_CLASS =
 
 /** `flex-none`/`h-auto` cancel the TabsTrigger base, which tailwind-merge leaves in place. */
 export const AGENT_TAB_TRIGGER_CLASS =
-  'inline-flex h-auto flex-none items-center gap-2 rounded-[9px] border border-transparent bg-transparent px-4 py-[9px] text-[13.5px] font-medium text-[#5B6470] shadow-none hover:bg-[#F4F6F8] hover:text-[#1A211E] data-[state=active]:border-[#B9E3CA] data-[state=active]:bg-[#F0FAF4] data-[state=active]:font-semibold data-[state=active]:text-[#359558] data-[state=active]:shadow-none data-[state=active]:hover:bg-[#E7F5ED]';
+  'inline-flex h-auto flex-none items-center gap-2 rounded-[9px] border border-transparent bg-transparent px-4 py-[9px] text-[13.5px] font-medium text-muted-foreground shadow-none hover:bg-muted hover:text-foreground data-[state=active]:border-primary/30 data-[state=active]:bg-primary/10 data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none data-[state=active]:hover:bg-primary/20';
 
 /** `size-*` and not `h-/w-`: the base applies `[&_svg:not([class*='size-'])]:size-4`. */
 export const AGENT_TAB_ICON_CLASS = 'size-[18px]';

@@ -83,20 +83,20 @@ const ProfileSection = ({
     }
   };
 
-  const labelClass = 'mb-2 flex items-center gap-[5px] text-[13.5px] font-bold text-[#1A211E]';
-  // Explicit `bg-white`: the Input base is `bg-transparent` and leaks the page background.
+  const labelClass = 'mb-2 flex items-center gap-[5px] text-[13.5px] font-bold text-foreground';
+  // Explicit `bg-card`: the Input base is `bg-transparent` and leaks the page background.
   const inputClass =
-    'h-auto w-full rounded-[9px] border-[#E3E6EA] bg-white px-[13px] py-[11px] text-sm text-[#1A211E] placeholder:text-[#AEB6BC] focus-visible:border-[#359558] focus-visible:ring-[3px] focus-visible:ring-[#359558]/[.12]';
-  const hintClass = 'mt-[7px] text-[12.5px] text-[#9AA3A0]';
+    'h-auto w-full rounded-[9px] border-border bg-card px-[13px] py-[11px] text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-ring/12';
+  const hintClass = 'mt-[7px] text-[12.5px] text-muted-foreground';
 
   return (
     <>
       <div>
         <div>
-          <h2 className="text-[22px] font-extrabold tracking-[-0.3px] text-[#131917]">
+          <h2 className="text-[22px] font-extrabold tracking-[-0.3px] text-foreground">
             {t('edit.profile.title') || 'Informações pessoais'}
           </h2>
-          <p className="mb-[26px] mt-1 text-sm font-normal text-[#8A928F]">
+          <p className="mb-[26px] mt-1 text-sm font-normal text-muted-foreground">
             {t('edit.profile.subtitle') || 'Configure as informações básicas do seu agente'}
           </p>
         </div>
@@ -105,7 +105,7 @@ const ProfileSection = ({
           <div className="flex flex-col gap-[22px]">
           <div>
             <Label className={labelClass}>
-              {t('edit.profile.name') || 'Nome do agente'} <span className="text-[#DC4B4B]">*</span>
+              {t('edit.profile.name') || 'Nome do agente'} <span className="text-destructive">*</span>
             </Label>
             <Input
               value={formData.name}
@@ -212,7 +212,7 @@ const ProfileSection = ({
           )}
 
             {isTaskAgent(agentType) && onTaskConfigChange && (
-              <div className="mt-[22px] border-t border-[#F4F6F8] pt-[22px]">
+              <div className="mt-[22px] border-t border-border pt-[22px]">
                 <TaskSection
                   data={taskConfigData || { tasks: [] }}
                   onChange={onTaskConfigChange}

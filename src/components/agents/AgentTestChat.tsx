@@ -18,7 +18,7 @@ export default function AgentTestChat({ open, onOpenChange, agent }: AgentTestCh
   if (!open) return null;
 
   return (
-    <aside className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background md:static md:z-auto md:w-[460px] md:min-w-[360px] md:flex-shrink-0 md:border-l md:border-[#ECEEF2]">
+    <aside className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background md:static md:z-auto md:w-[460px] md:min-w-[360px] md:flex-shrink-0 md:border-l md:border-border">
       <AgentChatProvider agentId={agent.id}>
         <AgentChatPanelHeader agent={agent} onClose={() => onOpenChange(false)} />
         <AgentChatArea agent={agent} />

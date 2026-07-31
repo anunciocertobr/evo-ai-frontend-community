@@ -229,18 +229,18 @@ const SubAgentsForm = ({
         {data.sub_agents.map(agentId =>
           renderSelectedChip(
             agentId,
-            'flex items-center gap-2 rounded-[9px] border border-[#ECEEF2] bg-white px-3 py-2'
+            'flex items-center gap-2 rounded-[9px] border border-border bg-card px-3 py-2'
           )
         )}
       </div>
     ) : (
-      <div className="rounded-[10px] border border-dashed border-[#E3E6EA] px-4 py-8 text-center text-sm text-[#9AA3A0]">
+      <div className="rounded-[10px] border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
         {t('subAgents.noSubAgentsSelected')}
       </div>
     );
 
   const howItWorksBullets = (
-    <div className="space-y-1 text-xs text-[#8A928F]">
+    <div className="space-y-1 text-xs text-muted-foreground">
       <p>
         • <strong>{t('subAgents.howItWorks.composition.title')}:</strong>{' '}
         {t('subAgents.howItWorks.composition.description')}
@@ -269,12 +269,12 @@ const SubAgentsForm = ({
           <div className="space-y-3">
             <div>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-bold text-[#1A211E]">
+                <p className="text-sm font-bold text-foreground">
                   {t('subAgents.selectedSubAgents')}
                 </p>
                 {selectedCountBadge}
               </div>
-              <p className="mt-[3px] text-[13px] text-[#8A928F]">
+              <p className="mt-[3px] text-[13px] text-muted-foreground">
                 {t('subAgents.complexCompositions')}
               </p>
             </div>
@@ -285,8 +285,8 @@ const SubAgentsForm = ({
           {!isReadOnly && (
             <div className="space-y-3">
               <div>
-                <p className="text-sm font-bold text-[#1A211E]">{t('subAgents.availableAgents')}</p>
-                <p className="mt-[3px] text-[13px] text-[#8A928F]">{t('subAgents.selectToAdd')}</p>
+                <p className="text-sm font-bold text-foreground">{t('subAgents.availableAgents')}</p>
+                <p className="mt-[3px] text-[13px] text-muted-foreground">{t('subAgents.selectToAdd')}</p>
               </div>
 
               {/* No border/background/height override, so the `--ring` focus token shows. */}
@@ -302,7 +302,7 @@ const SubAgentsForm = ({
                     {filteredAgents.map(agent =>
                       renderAgentRow(
                         agent,
-                        'flex items-center justify-between rounded-[9px] border border-[#ECEEF2] p-2 transition-colors hover:bg-[#F4F6F8]'
+                        'flex items-center justify-between rounded-[9px] border border-border p-2 transition-colors hover:bg-muted'
                       )
                     )}
                   </div>
@@ -310,7 +310,7 @@ const SubAgentsForm = ({
               )}
 
               {!isLoading && !error && filteredAgents.length === 0 && (
-                <div className="py-6 text-center text-[#9AA3A0]">
+                <div className="py-6 text-center text-muted-foreground">
                   <p className="text-sm font-medium">
                     {searchTerm ? t('subAgents.noAgentsFound') : t('subAgents.noAvailableAgents')}
                   </p>
@@ -328,8 +328,8 @@ const SubAgentsForm = ({
         </div>
 
         {mode !== 'create' && (
-          <div className="space-y-2 border-t border-[#F4F6F8] pt-4">
-            <p className="text-[13.5px] font-bold text-[#1A211E]">
+          <div className="space-y-2 border-t border-border pt-4">
+            <p className="text-[13.5px] font-bold text-foreground">
               {t('subAgents.howItWorks.title')}
             </p>
             {howItWorksBullets}

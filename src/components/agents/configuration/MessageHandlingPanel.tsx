@@ -202,7 +202,7 @@ interface ToggleRowProps {
 }
 
 const ToggleRow = ({ id, icon, title, description, checked, onCheckedChange }: ToggleRowProps) => (
-  <div className="flex items-center justify-between gap-4 border-t border-[#F4F6F8] py-[18px] first:border-t-0">
+  <div className="flex items-center justify-between gap-4 border-t border-border py-[18px] first:border-t-0">
     <div className="flex items-start gap-3 flex-1">
       {icon}
       <div className="flex-1">

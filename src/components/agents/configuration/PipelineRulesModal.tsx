@@ -35,10 +35,10 @@ export const PipelineRulesModal = ({
           a responsive variant with another responsive variant. */}
       <DialogContent className="max-h-[90vh] gap-3 overflow-y-auto p-5 sm:max-w-[820px]">
         <DialogHeader className="sm:text-center">
-          <DialogTitle className="text-xl font-bold text-[#131917]">
+          <DialogTitle className="text-xl font-bold text-foreground">
             {t('edit.configuration.pipelineRules.modalTitle') || 'Regras de Pipeline'}
           </DialogTitle>
-          <DialogDescription className="text-[#8A928F]">
+          <DialogDescription className="text-muted-foreground">
             {t('edit.configuration.pipelineRules.modalDescription') ||
               'Configure quando e como o agente deve mover conversas entre pipelines e estágios.'}
           </DialogDescription>

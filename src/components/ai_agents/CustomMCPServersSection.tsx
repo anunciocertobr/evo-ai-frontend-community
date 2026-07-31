@@ -98,14 +98,14 @@ const CustomMCPServersSection = ({
               )}
             </div>
           ) : (
-            <div className="flex flex-col items-center rounded-[12px] border border-dashed border-[#E3E6EA] px-6 py-12 text-center">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#F0FAF4]">
-                <Server className="h-6 w-6 text-[#359558]" />
+            <div className="flex flex-col items-center rounded-[12px] border border-dashed border-border px-6 py-12 text-center">
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-[12px] bg-primary/10">
+                <Server className="h-6 w-6 text-primary" />
               </span>
-              <p className="text-[15px] font-bold text-[#1A211E]">
+              <p className="text-[15px] font-bold text-foreground">
                 {t('tools.mcpServers.noCustomConfigured')}
               </p>
-              <p className="mt-1 max-w-md text-[13px] leading-[1.5] text-[#8A928F]">
+              <p className="mt-1 max-w-md text-[13px] leading-[1.5] text-muted-foreground">
                 {t('tools.mcpServers.connectFromManagement')}
               </p>
               {/* Same: an empty state with no action would be a dead end. */}
@@ -113,7 +113,7 @@ const CustomMCPServersSection = ({
                 <Button
                   type="button"
                   onClick={() => (onAdd ? onAdd() : setShowCustomMCPDialog(true))}
-                  className="mt-5 h-auto gap-2 rounded-[9px] bg-[#359558] px-5 py-[10px] text-sm font-semibold text-white hover:bg-[#2C834E]"
+                  className="mt-5 h-auto gap-2 rounded-[9px] bg-primary px-5 py-[10px] text-sm font-semibold text-primary-foreground hover:bg-primary/85"
                 >
                   <Plus className="h-4 w-4" />
                   {t('customMCPServers.add') || 'Adicionar Custom MCP'}

@@ -122,10 +122,10 @@ const MCPServersSection = ({
               <Network className="h-[18px] w-[18px] text-orange-500" />
             </span>
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-[#1A211E]">
+              <h3 className="text-sm font-bold text-foreground">
                 {t('customMCPServers.title') || 'MCPs Personalizados'}
               </h3>
-              <p className="mt-[3px] text-[13px] leading-[1.5] text-[#8A928F]">
+              <p className="mt-[3px] text-[13px] leading-[1.5] text-muted-foreground">
                 {t('customMCPServers.subtitle') ||
                   'Adicione servidores MCP personalizados criados por você'}
               </p>
@@ -134,7 +134,7 @@ const MCPServersSection = ({
 
           <Button
             variant="outline"
-            className="h-auto flex-shrink-0 gap-2 rounded-[9px] border-[#E3E6EA] bg-white px-4 py-[9px] text-[13px] font-semibold text-[#1A211E]"
+            className="h-auto flex-shrink-0 gap-2 rounded-[9px] border-border bg-card px-4 py-[9px] text-[13px] font-semibold text-foreground"
             onClick={() => setShowCustomMcpPicker(true)}
           >
             <Plus className="h-4 w-4" />
@@ -158,10 +158,10 @@ const MCPServersSection = ({
             <Network className="h-[18px] w-[18px] text-blue-500" />
           </span>
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-[#1A211E]">
+            <h3 className="text-sm font-bold text-foreground">
               {t('edit.menu.mcpServers') || 'Servidores MCP'}
             </h3>
-            <p className="mt-[3px] text-[13px] leading-[1.5] text-[#8A928F]">
+            <p className="mt-[3px] text-[13px] leading-[1.5] text-muted-foreground">
               {t('mcpServers.subtitle') ||
                 'Conecte o agente a serviços externos através do Model Context Protocol'}
             </p>

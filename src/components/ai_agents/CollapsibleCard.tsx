@@ -23,28 +23,28 @@ const CollapsibleCard = ({
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger
-        className={`flex w-full items-center gap-[13px] border border-[#ECEEF2] bg-white px-[22px] py-[18px] text-left shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${
+        className={`flex w-full items-center gap-[13px] border border-border bg-card px-[22px] py-[18px] text-left shadow-[0_1px_2px_rgba(16,24,40,0.04)] ${
           open ? 'rounded-t-[14px] border-b-0' : 'rounded-[14px]'
         }`}
         aria-expanded={open}
       >
         {icon && (
-          <span className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-[10px] bg-[#F0FAF4] text-[#359558]">
+          <span className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
             {icon}
           </span>
         )}
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-bold text-[#1A211E]">{title}</span>
+          <span className="block text-[15px] font-bold text-foreground">{title}</span>
           {subtitle && (
-            <span className="mt-[3px] block text-[13px] text-[#8A928F]">{subtitle}</span>
+            <span className="mt-[3px] block text-[13px] text-muted-foreground">{subtitle}</span>
           )}
         </span>
         <ChevronDown
-          className={`h-[18px] w-[18px] flex-shrink-0 text-[#9AA3A0] transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`h-[18px] w-[18px] flex-shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
         />
       </CollapsibleTrigger>
 
-      <CollapsibleContent className="rounded-b-[14px] border border-t-0 border-[#ECEEF2] bg-white px-[22px] pb-[18px] pt-1">
+      <CollapsibleContent className="rounded-b-[14px] border border-t-0 border-border bg-card px-[22px] pb-[18px] pt-1">
         {children}
       </CollapsibleContent>
     </Collapsible>

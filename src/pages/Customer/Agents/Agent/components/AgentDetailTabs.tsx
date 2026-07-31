@@ -35,7 +35,7 @@ const AgentDetailTabs = ({ agentType, value, onValueChange, children }: AgentDet
       onValueChange={tab => onValueChange(tab as AgentDetailTab)}
       className="flex h-full min-h-0 w-full flex-col"
     >
-      <div className="flex-shrink-0 border-b border-[#ECEEF2] bg-white px-9 pt-[22px]">
+      <div className="flex-shrink-0 border-b border-border bg-card px-9 pt-[22px]">
         <TabsList className={`${AGENT_TAB_LIST_CLASS} pb-[14px]`}>
           {visibleTabs.map(tab => {
             const Icon = tabConfig[tab].icon;

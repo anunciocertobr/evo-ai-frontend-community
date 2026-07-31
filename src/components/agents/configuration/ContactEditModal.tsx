@@ -15,7 +15,7 @@ const ContactEditModal = ({ open, onOpenChange, config, onChange }: ContactEditM
           a responsive variant with another responsive variant. */}
       <DialogContent className="max-h-[90vh] gap-3 overflow-y-auto p-5 sm:max-w-[820px]">
         <DialogHeader className="sm:text-center">
-          <DialogTitle className="text-xl font-bold text-[#131917]">
+          <DialogTitle className="text-xl font-bold text-foreground">
             Edição de Contatos
           </DialogTitle>
         </DialogHeader>

@@ -114,12 +114,12 @@ const CustomToolsSection = ({
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-4 rounded-[10px] border border-[#ECEEF2] bg-white p-4">
+            <div className="flex items-center justify-between gap-4 rounded-[10px] border border-border bg-card p-4">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-[#1A211E]">
+                <p className="text-sm font-semibold text-foreground">
                   {t('tools.customTools.noTools')}
                 </p>
-                <p className="mt-[3px] text-[13px] text-[#8A928F]">
+                <p className="mt-[3px] text-[13px] text-muted-foreground">
                   {t('tools.customTools.createDescription')}
                 </p>
               </div>

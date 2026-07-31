@@ -37,11 +37,11 @@ const CONTACT_FIELDS = [
 
 // `py-0` cancels the Card base `py-6`, which would stack with the CardContent.
 const CARD_CLASS =
-  'rounded-[14px] border-[#ECEEF2] bg-white py-0 shadow-[0_1px_2px_rgba(16,24,40,0.04)]';
-const LINK_CLASS = 'text-[13px] font-semibold text-[#359558] hover:underline';
+  'rounded-[14px] border-border bg-card py-0 shadow-[0_1px_2px_rgba(16,24,40,0.04)]';
+const LINK_CLASS = 'text-[13px] font-semibold text-primary hover:underline';
 const SECTION_LABEL_CLASS =
-  'text-[11.5px] font-semibold uppercase tracking-[0.5px] text-[#9AA3A0]';
-const FIELD_LABEL_CLASS = 'flex-1 cursor-pointer text-[13.5px] text-[#1A211E]';
+  'text-[11.5px] font-semibold uppercase tracking-[0.5px] text-muted-foreground';
+const FIELD_LABEL_CLASS = 'flex-1 cursor-pointer text-[13.5px] text-foreground';
 
 const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
   const { t } = useLanguage('aiAgents');
@@ -90,10 +90,10 @@ const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-3 rounded-[10px] border border-[#DCF0E4] bg-[#F0FAF4] p-3">
-        <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#359558]" />
+      <div className="flex items-start gap-3 rounded-[10px] border border-primary/30 bg-primary/10 p-3">
+        <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
         <div className="flex-1">
-          <p className="text-sm leading-[1.5] text-[#2C834E]">
+          <p className="text-sm leading-[1.5] text-primary">
             {t('edit.configuration.contactEditRules.description') ||
               'Permite que o agente edite informações do contato durante a conversa. Configure quais campos podem ser alterados e quando isso deve acontecer.'}
           </p>
@@ -104,10 +104,10 @@ const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
         <CardContent className="p-4">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <Label className="text-sm font-bold text-[#1A211E]">
+              <Label className="text-sm font-bold text-foreground">
                 {t('edit.configuration.contactEditRules.enableEditing') || 'Permitir edição de contatos'}
               </Label>
-              <p className="mt-[3px] text-[13px] text-[#8A928F]">
+              <p className="mt-[3px] text-[13px] text-muted-foreground">
                 {t('edit.configuration.contactEditRules.enableEditingDescription') ||
                   'Habilita o agente a modificar informações de contato'}
               </p>
@@ -122,14 +122,14 @@ const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
           <Card className={CARD_CLASS}>
             <CardContent className="space-y-2 p-4">
               <div className="flex items-center justify-between gap-4">
-                <Label className="text-sm font-bold text-[#1A211E]">
+                <Label className="text-sm font-bold text-foreground">
                   {t('edit.configuration.contactEditRules.editableFields') || 'Campos editáveis'}
                 </Label>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={handleSelectAll} className={LINK_CLASS}>
                     {t('edit.configuration.contactEditRules.selectAll') || 'Selecionar todos'}
                   </button>
-                  <span className="text-[13px] text-[#DCE1E6]">|</span>
+                  <span className="text-[13px] text-muted-foreground/70">|</span>
                   <button type="button" onClick={handleDeselectAll} className={LINK_CLASS}>
                     {t('edit.configuration.contactEditRules.deselectAll') || 'Desmarcar todos'}
                   </button>
@@ -176,7 +176,7 @@ const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
                 </div>
               </div>
 
-              <p className="text-xs text-[#9AA3A0]">
+              <p className="text-xs text-muted-foreground">
                 {config.editableFields.length}{' '}
                 {t('edit.configuration.contactEditRules.fieldsSelected') || 'campos selecionados'}
               </p>
@@ -185,10 +185,10 @@ const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
 
           <Card className={CARD_CLASS}>
             <CardContent className="space-y-2 p-4">
-              <Label className="text-sm font-bold text-[#1A211E]">
+              <Label className="text-sm font-bold text-foreground">
                 {t('edit.configuration.contactEditRules.instructions') || 'Instruções'}
               </Label>
-              <p className="text-[13px] text-[#8A928F]">
+              <p className="text-[13px] text-muted-foreground">
                 {t('edit.configuration.contactEditRules.instructionsDescription') ||
                   'Defina quando e como o agente deve editar as informações do contato'}
               </p>
@@ -200,9 +200,9 @@ const ContactEditRules = ({ config, onChange }: ContactEditRulesProps) => {
                   'Ex: Atualize o nome do contato quando ele se apresentar. Adicione o email quando o cliente fornecer. Atualize a cidade quando o cliente mencionar sua localização...'
                 }
                 maxLength={500}
-                className="min-h-[80px] rounded-[9px] border-[#E3E6EA] bg-white text-sm placeholder:text-[#AEB6BC]"
+                className="min-h-[80px] rounded-[9px] border-border bg-card text-sm placeholder:text-muted-foreground/70"
               />
-              <div className="flex items-center justify-between gap-4 text-xs text-[#9AA3A0]">
+              <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
                 <span>
                   {t('edit.configuration.contactEditRules.tip') || 'Dica:'}{' '}
                   {t('edit.configuration.contactEditRules.tipContent') ||

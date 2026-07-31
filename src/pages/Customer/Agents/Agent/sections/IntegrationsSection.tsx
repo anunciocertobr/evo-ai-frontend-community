@@ -137,7 +137,7 @@ const IntegrationsSection = ({
     <div className="space-y-8">
       <div className="space-y-4">
         {/* The block title comes from the accordion header; only the description here. */}
-        <p className="pb-[18px] pt-[18px] text-[13px] leading-[1.5] text-[#8A928F]">
+        <p className="pb-[18px] pt-[18px] text-[13px] leading-[1.5] text-muted-foreground">
           {t('edit.integrations.subtitle') ||
             'Conecte o seu agente a outros aplicativos, isso permite que ele obtenha informações mais precisas ou agende reuniões para você.'}
         </p>
@@ -194,7 +194,7 @@ const IntegrationsSection = ({
                 ) : (
                   <Button
                     variant="outline"
-                    className="w-full cursor-not-allowed gap-2 border-gray-300 text-gray-500 md:w-auto"
+                    className="w-full cursor-not-allowed gap-2 border-border text-muted-foreground md:w-auto"
                     disabled
                   >
                     <AlertCircle className="h-4 w-4" />
