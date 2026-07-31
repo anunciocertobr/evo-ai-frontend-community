@@ -2,10 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-// EVO-1947: the Users list sends `q` and `filters[]` to a server that now
-// honors them. The traps this covers are all "the reload forgot something":
-// paginating or applying a filter used to drop the search term, and every
-// keystroke used to fire its own request with no ordering between answers.
+import type { BaseFilter, FilterType } from '@/types/core';
+
+// EVO-1947: the Users list sends `q`, `filters[]` and `sort`/`order` to a server
+// that now honors all three. The traps this covers are all "the reload forgot
+// something": paginating or applying a filter used to drop the search term and
+// the chosen sort, and every keystroke used to fire its own request with no
+// ordering between answers.
 
 const getUsersMock = vi.fn();
 const listRolesMock = vi.fn();
@@ -33,21 +36,28 @@ vi.mock('@/services/roles/rolesService', () => ({
 vi.mock('@/tours', () => ({ SettingsAgentsTour: () => null }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+type HeaderStubProps = { onSearchChange: (value: string) => void; onFilter: () => void };
+type PaginationStubProps = { onPageChange: (page: number) => void };
+type FilterStubProps = { filterTypes: FilterType[]; onApplyFilters: (filters: BaseFilter[]) => void };
+type TableStubProps = { onSort: (column: string) => void };
+
 // Stubs expose only the callbacks under test; the real components drag in the
 // whole design system and none of their markup matters here.
 vi.mock('@/components/users', () => ({
-  UsersHeader: ({ onSearchChange, onFilter }: any) => (
+  UsersHeader: ({ onSearchChange, onFilter }: HeaderStubProps) => (
     <div>
       <input aria-label="search" onChange={event => onSearchChange(event.target.value)} />
       <button onClick={onFilter}>open-filter</button>
     </div>
   ),
-  UsersPagination: ({ onPageChange }: any) => <button onClick={() => onPageChange(2)}>next-page</button>,
-  UsersFilter: ({ filterTypes, onApplyFilters }: any) => (
+  UsersPagination: ({ onPageChange }: PaginationStubProps) => (
+    <button onClick={() => onPageChange(2)}>next-page</button>
+  ),
+  UsersFilter: ({ filterTypes, onApplyFilters }: FilterStubProps) => (
     <div>
       <span data-testid="role-options">
-        {(filterTypes.find((type: any) => type.attributeKey === 'role')?.options ?? [])
-          .map((option: any) => option.value)
+        {(filterTypes.find(type => type.attributeKey === 'role')?.options ?? [])
+          .map(option => option.value)
           .join(',')}
       </span>
       <button
@@ -68,7 +78,7 @@ vi.mock('@/components/users', () => ({
     </div>
   ),
   UserCard: () => null,
-  UsersTable: () => null,
+  UsersTable: ({ onSort }: TableStubProps) => <button onClick={() => onSort('role')}>sort-role</button>,
   UserFormModal: () => null,
   BulkInviteModal: () => null,
   UserDetails: () => null,
@@ -159,5 +169,86 @@ describe('Users list — search and filter wiring (EVO-1947)', () => {
 
     await waitFor(() => expect(listRolesMock).toHaveBeenCalled());
     expect(screen.getByTestId('role-options')).toHaveTextContent('administrator,agent');
+  });
+});
+
+// The list only renders the table (and its sortable headers) in table view; the
+// toggle buttons carry icons only, so they are the page's only button nodes with
+// an empty accessible name.
+const switchToTableView = async (user: ReturnType<typeof userEvent.setup>) => {
+  const iconButtons = screen.getAllByRole('button').filter(button => button.textContent === '');
+  await user.click(iconButtons[1]);
+};
+
+const sortByRole = async (user: ReturnType<typeof userEvent.setup>) => {
+  await switchToTableView(user);
+  await user.click(screen.getByText('sort-role'));
+  await waitFor(() => expect(lastCall()).toMatchObject({ sort: 'role', order: 'asc' }));
+};
+
+describe('Users list — the chosen sort survives every reload (EVO-1947)', () => {
+  beforeEach(() => {
+    getUsersMock.mockReset().mockResolvedValue(usersPage);
+    listRolesMock.mockReset().mockResolvedValue([]);
+  });
+
+  it('sends the column and direction when a sortable header is clicked', async () => {
+    const user = userEvent.setup();
+    render(<Users />);
+    await waitFor(() => expect(getUsersMock).toHaveBeenCalled());
+
+    await sortByRole(user);
+  });
+
+  // Page 2 of a different ordering repeats and skips rows, and the header keeps
+  // pointing at the column the user picked — so the list lies twice.
+  it('keeps the sort when the user paginates', async () => {
+    const user = userEvent.setup();
+    render(<Users />);
+    await waitFor(() => expect(getUsersMock).toHaveBeenCalled());
+
+    await sortByRole(user);
+    await user.click(screen.getByText('next-page'));
+
+    await waitFor(() => expect(lastCall()).toMatchObject({ page: 2 }));
+    expect(lastCall()).toMatchObject({ page: 2, sort: 'role', order: 'asc' });
+  });
+
+  it('keeps the sort when a filter is applied', async () => {
+    const user = userEvent.setup();
+    render(<Users />);
+    await waitFor(() => expect(getUsersMock).toHaveBeenCalled());
+
+    await sortByRole(user);
+    await user.click(screen.getByText('apply-filter'));
+
+    await waitFor(() => expect(lastCall()).toMatchObject({ 'filters[0][attribute_key]': 'role' }));
+    expect(lastCall()).toMatchObject({ sort: 'role', order: 'asc' });
+  });
+
+  it('keeps the sort when the user searches', async () => {
+    const user = userEvent.setup();
+    render(<Users />);
+    await waitFor(() => expect(getUsersMock).toHaveBeenCalled());
+
+    await sortByRole(user);
+    await user.type(screen.getByLabelText('search'), 'silva');
+
+    await waitFor(() => expect(lastCall()).toMatchObject({ q: 'silva' }));
+    expect(lastCall()).toMatchObject({ q: 'silva', sort: 'role', order: 'asc' });
+  });
+
+  it('toggles to desc on a second click of the same column and keeps it', async () => {
+    const user = userEvent.setup();
+    render(<Users />);
+    await waitFor(() => expect(getUsersMock).toHaveBeenCalled());
+
+    await sortByRole(user);
+    await user.click(screen.getByText('sort-role'));
+    await waitFor(() => expect(lastCall()).toMatchObject({ sort: 'role', order: 'desc' }));
+
+    await user.click(screen.getByText('next-page'));
+    await waitFor(() => expect(lastCall()).toMatchObject({ page: 2 }));
+    expect(lastCall()).toMatchObject({ page: 2, sort: 'role', order: 'desc' });
   });
 });

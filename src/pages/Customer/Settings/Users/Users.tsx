@@ -111,11 +111,17 @@ export default function Users() {
       const seq = ++requestSeqRef.current;
 
       try {
+        // EVO-1947: the server honors sort/order now, so a reload that hardcoded
+        // name/asc silently reverted the list while the column header still
+        // showed the chosen one — and page 2 of a different ordering repeats and
+        // skips rows. Same trap as `q` below. The sort click passes them
+        // explicitly (its setState has not committed yet); every other reload
+        // reads the committed state.
         const requestParams: UsersListParams = {
           page: 1,
           per_page: DEFAULT_PAGE_SIZE,
-          sort: 'name',
-          order: 'asc',
+          sort: state.sortBy,
+          order: state.sortOrder,
           ...params,
         };
 
@@ -170,7 +176,7 @@ export default function Users() {
         setState(prev => ({ ...prev, loading: { ...prev.loading, list: false } }));
       }
     },
-    [activeFilters, can, t],
+    [activeFilters, can, t, state.sortBy, state.sortOrder],
   );
 
   // Initial load
@@ -532,10 +538,13 @@ export default function Users() {
             sortBy={state.sortBy}
             sortOrder={state.sortOrder}
             onSort={column => {
+              // BaseTable hands back a plain column key; only the sortable
+              // columns reach here and they match the backend whitelist.
+              const newSort = column as NonNullable<UsersListParams['sort']>;
               const newOrder =
-                state.sortBy === column && state.sortOrder === 'asc' ? 'desc' : 'asc';
-              setState(prev => ({ ...prev, sortBy: column, sortOrder: newOrder }));
-              loadUsers({ sort: column as UsersListParams['sort'], order: newOrder });
+                state.sortBy === newSort && state.sortOrder === 'asc' ? 'desc' : 'asc';
+              setState(prev => ({ ...prev, sortBy: newSort, sortOrder: newOrder }));
+              loadUsers({ page: 1, sort: newSort, order: newOrder });
             }}
             getRowKey={(user: User) => user.id.toString()}
             canDeleteUser={canDeleteUser}
