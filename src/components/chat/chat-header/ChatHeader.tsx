@@ -436,7 +436,7 @@ const ChatHeader = ({
   return (
     <div className="relative z-20 flex-shrink-0 p-3 md:p-4 border-b bg-background/95 backdrop-blur-sm">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           {/* Back button for mobile */}
           <Button variant="ghost" size="sm" className="md:hidden" onClick={onBackClick}>
             <ArrowLeft className="h-4 w-4" />
@@ -447,10 +447,10 @@ const ChatHeader = ({
           >
             <ContactAvatar contact={conversation.contact} />
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
               <h3
-                className="font-semibold cursor-pointer hover:text-primary transition-colors"
+                className="font-semibold cursor-pointer hover:text-primary transition-colors truncate max-w-full"
                 onClick={onContactSidebarOpen}
               >
                 {conversation.contact?.name || t('chatHeader.contactNoName')}
@@ -479,6 +479,7 @@ const ChatHeader = ({
                 );
                 return (
                   <span
+                    className="hidden md:inline"
                     style={{
                       background: meta.bg,
                       border: `1px solid ${meta.border}`,
@@ -511,12 +512,12 @@ const ChatHeader = ({
           {/* Dropdown de ações da conversa */}
           {renderConversationStatusDropdown()}
 
-          {/* Botão fechar conversa */}
+          {/* Botão fechar conversa — hidden on mobile: the back arrow already leaves the conversation */}
           <Button
             variant="ghost"
             size="sm"
             onClick={onCloseConversation}
-            className="text-muted-foreground hover:text-foreground"
+            className="hidden md:inline-flex text-muted-foreground hover:text-foreground"
           >
             <X className="h-4 w-4" />
             <span className="sr-only">{t('chatHeader.closeConversation')}</span>
