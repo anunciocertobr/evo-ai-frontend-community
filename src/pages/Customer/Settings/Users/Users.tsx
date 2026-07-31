@@ -114,7 +114,7 @@ export default function Users() {
         const requestParams: UsersListParams = {
           page: 1,
           per_page: DEFAULT_PAGE_SIZE,
-          sort: 'name' as any,
+          sort: 'name',
           order: 'asc',
           ...params,
         };
@@ -144,7 +144,7 @@ export default function Users() {
               acc[`${prefix}[query_operator]`] = filter.queryOperator;
             }
             return acc;
-          }, {} as Record<string, any>);
+          }, {} as Record<string, string>);
 
           Object.assign(requestParams, filterParams);
         }
@@ -535,7 +535,7 @@ export default function Users() {
               const newOrder =
                 state.sortBy === column && state.sortOrder === 'asc' ? 'desc' : 'asc';
               setState(prev => ({ ...prev, sortBy: column, sortOrder: newOrder }));
-              loadUsers({ sort: column as any, order: newOrder });
+              loadUsers({ sort: column as UsersListParams['sort'], order: newOrder });
             }}
             getRowKey={(user: User) => user.id.toString()}
             canDeleteUser={canDeleteUser}
