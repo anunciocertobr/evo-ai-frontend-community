@@ -37,6 +37,9 @@ jobs:
       #   - RolesList: the row icon keeps matching what the detail screen allows.
       #   - campaignsService (EVO-1838): the campaign endpoints keep their
       #     bare-body fallback when the backend skips the response envelope.
+      #   - Users (EVO-1947): every list reload keeps carrying the search term
+      #     and the chosen sort — dropping either silently serves a differently
+      #     ordered or unsearched page under the same header.
       # The whole list runs in ~10s and is deterministic.
       #
       # Running the whole suite here was tried and reverted: 160 jsdom files in
@@ -51,4 +54,5 @@ jobs:
             src/contexts/PermissionsContext.spec.tsx \
             src/pages/Admin/Roles/RoleDetail.spec.tsx \
             src/pages/Admin/Roles/RolesList.spec.tsx \
-            src/services/campaigns/campaignsService.spec.ts
+            src/services/campaigns/campaignsService.spec.ts \
+            src/pages/Customer/Settings/Users/Users.spec.tsx
