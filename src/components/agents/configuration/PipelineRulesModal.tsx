@@ -31,17 +31,19 @@ export const PipelineRulesModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
+      {/* `sm:max-w-*`/`sm:text-*` and not the plain utilities: tailwind-merge only cancels
+          a responsive variant with another responsive variant. */}
+      <DialogContent className="max-h-[90vh] gap-3 overflow-y-auto p-5 sm:max-w-[820px]">
+        <DialogHeader className="sm:text-center">
+          <DialogTitle className="text-xl font-bold text-foreground">
             {t('edit.configuration.pipelineRules.modalTitle') || 'Regras de Pipeline'}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-muted-foreground">
             {t('edit.configuration.pipelineRules.modalDescription') ||
               'Configure quando e como o agente deve mover conversas entre pipelines e estágios.'}
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4">
+        <div className="py-1">
           <PipelineRules
             rules={rules}
             onChange={onChange}

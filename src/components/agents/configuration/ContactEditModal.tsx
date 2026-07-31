@@ -11,9 +11,13 @@ interface ContactEditModalProps {
 const ContactEditModal = ({ open, onOpenChange, config, onChange }: ContactEditModalProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edição de Contatos</DialogTitle>
+      {/* `sm:max-w-*`/`sm:text-*` and not the plain utilities: tailwind-merge only cancels
+          a responsive variant with another responsive variant. */}
+      <DialogContent className="max-h-[90vh] gap-3 overflow-y-auto p-5 sm:max-w-[820px]">
+        <DialogHeader className="sm:text-center">
+          <DialogTitle className="text-xl font-bold text-foreground">
+            Edição de Contatos
+          </DialogTitle>
         </DialogHeader>
         <ContactEditRules config={config} onChange={onChange} />
       </DialogContent>
