@@ -192,17 +192,15 @@ const TransferRules = ({ rules, onChange, availableUsers = [], availableTeams = 
                       <span className="text-xs text-[#9AA3A0]">
                         {(rule.instructions?.length || 0)}/255
                       </span>
-                      {/* A última regra não oferece excluir: sem ela o modal fica vazio. */}
-                      {rules.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveRule(rule.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveRule(rule.id)}
+                        aria-label={t('actions.remove') || 'Remover'}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   </div>
                   <Textarea

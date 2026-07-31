@@ -101,4 +101,14 @@ describe('AgentDetailTabs', () => {
       expect(tab.className).not.toContain('flex-1');
     }
   });
+
+  // A AC pede rolagem horizontal em telas estreitas — com `flex-wrap` os 5 chips
+  // caíam para uma segunda linha.
+  it('scrolls the tab bar instead of wrapping it', () => {
+    renderTabs('llm');
+    const list = screen.getAllByRole('tab')[0].parentElement!;
+    expect(list.className).toContain('flex-nowrap');
+    expect(list.className).toContain('overflow-x-auto');
+    expect(list.className).not.toContain('flex-wrap');
+  });
 });

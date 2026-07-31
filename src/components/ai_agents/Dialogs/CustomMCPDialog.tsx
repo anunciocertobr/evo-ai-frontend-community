@@ -276,14 +276,10 @@ const CustomMCPDialog = ({
               {t('tools.mcpServers.add')}
             </Button>
           )}
-          <Button
-            className="flex-1"
-            onClick={handleSave}
-            disabled={selectedServerIds.length === 0}
-          >
-            {selectedServerIds.length === 0
-              ? t('dialogs.customMcp.selectServers')
-              : t('dialogs.customMcp.addSelected', { count: selectedServerIds.length })}
+          {/* `onSave` substitui a seleção inteira, então confirmar com zero marcados
+              é o caminho para desvincular todos — não pode ficar desabilitado. */}
+          <Button className="flex-1" onClick={handleSave}>
+            {t('dialogs.customMcp.saveSelection', { count: selectedServerIds.length })}
           </Button>
         </DialogFooter>
       </DialogContent>

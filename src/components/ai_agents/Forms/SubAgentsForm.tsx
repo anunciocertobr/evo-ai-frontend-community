@@ -128,28 +128,113 @@ const SubAgentsForm = ({
     </Badge>
   );
 
+  // Os dois layouts (accordion e wizard) diferem só no invólucro — busca, linha de
+  // agente, loading e erro são os mesmos e ficam aqui para não viverem em duas cópias.
+  const renderSelectedChip = (agentId: string, chipClass: string) => (
+    <div key={agentId} className={chipClass}>
+      <span className="text-sm font-medium">{getAgentNameById(agentId)}</span>
+      <Badge variant="outline" className="text-xs">
+        {getAgentTypeById(agentId)}
+      </Badge>
+      {!isReadOnly && (
+        <button
+          onClick={() => handleRemoveSubAgent(agentId)}
+          aria-label={t('actions.remove')}
+          className="text-muted-foreground transition-colors hover:text-destructive"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
+
+  const renderSearchField = (inputClass: string) => (
+    <div className="relative">
+      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        id="search-agents"
+        value={searchTerm}
+        onChange={e => setSearchTerm(e.target.value)}
+        placeholder={t('subAgents.searchPlaceholder')}
+        className={inputClass}
+        disabled={isLoading}
+        aria-label={t('subAgents.searchAgents')}
+      />
+      {searchTerm && (
+        <button
+          onClick={() => setSearchTerm('')}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+
+  const renderAgentRow = (agent: Agent, rowClass: string) => {
+    const isSelected = data.sub_agents.includes(agent.id);
+    return (
+      <div key={agent.id} className={rowClass}>
+        <div className="min-w-0 flex-1">
+          <div className="mb-0.5 flex items-center gap-2">
+            <span className="text-sm font-medium">{agent.name}</span>
+            <Badge variant="outline" className="text-xs">
+              {agent.type}
+            </Badge>
+          </div>
+          {agent.description && (
+            <p className="truncate text-xs text-muted-foreground">{agent.description}</p>
+          )}
+        </div>
+        <Button
+          variant={isSelected ? 'secondary' : 'outline'}
+          size="sm"
+          onClick={() =>
+            isSelected ? handleRemoveSubAgent(agent.id) : handleAddSubAgent(agent.id)
+          }
+          className="ml-2 h-7 text-xs"
+        >
+          {isSelected ? (
+            <>
+              <Check className="mr-1 h-3 w-3" />
+              {t('actions.added')}
+            </>
+          ) : (
+            <>
+              <Plus className="mr-1 h-3 w-3" />
+              {t('actions.add')}
+            </>
+          )}
+        </Button>
+      </div>
+    );
+  };
+
+  const loadingBlock = (
+    <div className="flex items-center justify-center py-6">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <span className="ml-2 text-sm text-muted-foreground">{t('subAgents.loadingAgents')}</span>
+    </div>
+  );
+
+  const errorBlock = (
+    <div className="py-6 text-center text-destructive">
+      <p className="text-sm font-medium">{error}</p>
+      <Button variant="outline" size="sm" onClick={loadAvailableAgents} className="mt-2">
+        {t('actions.tryAgain')}
+      </Button>
+    </div>
+  );
+
   const selectedChips =
     data.sub_agents.length > 0 ? (
       <div className="flex flex-wrap gap-2">
-        {data.sub_agents.map(agentId => (
-          <div
-            key={agentId}
-            className="flex items-center gap-2 rounded-[9px] border border-[#ECEEF2] bg-white px-3 py-2"
-          >
-            <span className="text-sm font-medium">{getAgentNameById(agentId)}</span>
-            <Badge variant="outline" className="text-xs">
-              {getAgentTypeById(agentId)}
-            </Badge>
-            {!isReadOnly && (
-              <button
-                onClick={() => handleRemoveSubAgent(agentId)}
-                className="text-muted-foreground transition-colors hover:text-destructive"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        ))}
+        {data.sub_agents.map(agentId =>
+          renderSelectedChip(
+            agentId,
+            'flex items-center gap-2 rounded-[9px] border border-[#ECEEF2] bg-white px-3 py-2'
+          )
+        )}
       </div>
     ) : (
       <div className="rounded-[10px] border border-dashed border-[#E3E6EA] px-4 py-8 text-center text-sm text-[#9AA3A0]">
@@ -208,93 +293,21 @@ const SubAgentsForm = ({
               </div>
 
               {/* Sem override de borda/fundo/altura: é o que deixa o foco verde do `--ring` aparecer. */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="search-agents"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  placeholder={t('subAgents.searchPlaceholder')}
-                  className="pl-9 pr-9"
-                  disabled={isLoading}
-                  aria-label={t('subAgents.searchAgents')}
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
+              {renderSearchField('pl-9 pr-9')}
 
-              {isLoading && (
-                <div className="flex items-center justify-center py-6">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-sm text-muted-foreground">
-                    {t('subAgents.loadingAgents')}
-                  </span>
-                </div>
-              )}
+              {isLoading && loadingBlock}
 
-              {error && (
-                <div className="py-6 text-center text-destructive">
-                  <p className="text-sm font-medium">{error}</p>
-                  <Button variant="outline" size="sm" onClick={loadAvailableAgents} className="mt-2">
-                    {t('actions.tryAgain')}
-                  </Button>
-                </div>
-              )}
+              {error && errorBlock}
 
               {!isLoading && !error && filteredAgents.length > 0 && (
                 <ScrollArea className="h-[220px]">
                   <div className="space-y-1.5 pr-4">
-                    {filteredAgents.map(agent => {
-                      const isSelected = data.sub_agents.includes(agent.id);
-                      return (
-                        <div
-                          key={agent.id}
-                          className="flex items-center justify-between rounded-[9px] border border-[#ECEEF2] p-2 transition-colors hover:bg-[#F4F6F8]"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="mb-0.5 flex items-center gap-2">
-                              <span className="text-sm font-medium">{agent.name}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {agent.type}
-                              </Badge>
-                            </div>
-                            {agent.description && (
-                              <p className="truncate text-xs text-muted-foreground">
-                                {agent.description}
-                              </p>
-                            )}
-                          </div>
-                          <Button
-                            variant={isSelected ? 'secondary' : 'outline'}
-                            size="sm"
-                            onClick={() =>
-                              isSelected
-                                ? handleRemoveSubAgent(agent.id)
-                                : handleAddSubAgent(agent.id)
-                            }
-                            className="ml-2 h-7 text-xs"
-                          >
-                            {isSelected ? (
-                              <>
-                                <Check className="mr-1 h-3 w-3" />
-                                {t('actions.added')}
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="mr-1 h-3 w-3" />
-                                {t('actions.add')}
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      );
-                    })}
+                    {filteredAgents.map(agent =>
+                      renderAgentRow(
+                        agent,
+                        'flex items-center justify-between rounded-[9px] border border-[#ECEEF2] p-2 transition-colors hover:bg-[#F4F6F8]'
+                      )
+                    )}
                   </div>
                 </ScrollArea>
               )}
@@ -355,25 +368,12 @@ const SubAgentsForm = ({
             <div className="space-y-2">
               <Label className="text-sm font-medium">{t('subAgents.selectedSubAgents')}</Label>
               <div className="flex flex-wrap gap-2">
-                {data.sub_agents.map(agentId => (
-                  <div
-                    key={agentId}
-                    className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg border"
-                  >
-                    <span className="font-medium text-sm">{getAgentNameById(agentId)}</span>
-                    <Badge variant="outline" className="text-xs">
-                      {getAgentTypeById(agentId)}
-                    </Badge>
-                    {!isReadOnly && (
-                      <button
-                        onClick={() => handleRemoveSubAgent(agentId)}
-                        className="text-muted-foreground hover:text-destructive transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {data.sub_agents.map(agentId =>
+                  renderSelectedChip(
+                    agentId,
+                    'flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg border'
+                  )
+                )}
               </div>
             </div>
           ) : (
@@ -399,94 +399,23 @@ const SubAgentsForm = ({
               <Label htmlFor="search-agents" className="text-sm">
                 {t('subAgents.searchAgents')}
               </Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  id="search-agents"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  placeholder={t('subAgents.searchPlaceholder')}
-                  className="pl-9 h-9 text-sm"
-                  disabled={isLoading}
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
+              {renderSearchField('pl-9 pr-9 h-9 text-sm')}
             </div>
 
-            {isLoading && (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-sm text-muted-foreground">
-                  {t('subAgents.loadingAgents')}
-                </span>
-              </div>
-            )}
+            {isLoading && loadingBlock}
 
-            {error && (
-              <div className="text-center py-6 text-destructive">
-                <p className="font-medium text-sm">{error}</p>
-                <Button variant="outline" size="sm" onClick={loadAvailableAgents} className="mt-2">
-                  {t('actions.tryAgain')}
-                </Button>
-              </div>
-            )}
+            {error && errorBlock}
 
             {!isLoading && !error && (
               <ScrollArea className="h-[250px]">
                 <div className="space-y-1.5 pr-4">
                   {filteredAgents.length > 0 ? (
-                    filteredAgents.map(agent => {
-                      const isSelected = data.sub_agents.includes(agent.id);
-                      return (
-                        <div
-                          key={agent.id}
-                          className="flex items-center justify-between p-2 border rounded-lg hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className="font-medium text-sm">{agent.name}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {agent.type}
-                              </Badge>
-                            </div>
-                            {agent.description && (
-                              <p className="text-xs text-muted-foreground truncate">
-                                {agent.description}
-                              </p>
-                            )}
-                          </div>
-                          <Button
-                            variant={isSelected ? 'secondary' : 'outline'}
-                            size="sm"
-                            onClick={() =>
-                              isSelected
-                                ? handleRemoveSubAgent(agent.id)
-                                : handleAddSubAgent(agent.id)
-                            }
-                            className="ml-2 h-7 text-xs"
-                          >
-                            {isSelected ? (
-                              <>
-                                <Check className="h-3 w-3 mr-1" />
-                                {t('actions.added')}
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="h-3 w-3 mr-1" />
-                                {t('actions.add')}
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      );
-                    })
+                    filteredAgents.map(agent =>
+                      renderAgentRow(
+                        agent,
+                        'flex items-center justify-between p-2 border rounded-lg hover:bg-muted/50 transition-colors'
+                      )
+                    )
                   ) : searchTerm ? (
                     <div className="text-center py-6 text-muted-foreground">
                       <Search className="h-8 w-8 mx-auto mb-3 opacity-50" />

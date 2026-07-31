@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Globe, Info } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { productsService } from '@/services/products/productsService';
-import { getAgentTypeLabel, isExternalAgent } from '@/utils/agents';
+import { getAgentTypeLabel, isExternalAgent, isOrchestratorAgent } from '@/utils/agents';
 import type { Agent } from '@/types/agents';
 
 interface AgentSummaryPanelProps {
@@ -16,9 +16,12 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
   const { t, currentLanguage } = useLanguage('aiAgents');
   const [productsCount, setProductsCount] = useState<number | null>(null);
 
+  // Mesmo gate da aba Produtos: orquestrador não vende, então nem busca nem conta.
+  const showProducts = !isOrchestratorAgent(agent.type);
+
   useEffect(() => {
     let active = true;
-    if (!agent?.id) return;
+    if (!agent?.id || !showProducts) return;
 
     productsService
       .listAgentProducts(agent.id)
@@ -33,7 +36,7 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
     return () => {
       active = false;
     };
-  }, [agent?.id]);
+  }, [agent?.id, showProducts]);
 
   const typeLabel = getAgentTypeLabel(agent.type, t);
   const origin = isExternalAgent(agent.type)
@@ -50,16 +53,20 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
     { label: t('edit.profile.summary.createdAt') || 'Criado em', value: createdAt },
   ];
 
-  const counters = [
+  const counters: Array<{ value: number | string; label: string }> = [
     {
       value: subAgentsCount,
       label: t('edit.profile.summary.subAgents') || 'Sub-agentes',
     },
-    {
-      value: productsCount ?? 0,
-      label: t('edit.profile.summary.products') || 'Produtos',
-    },
   ];
+
+  if (showProducts) {
+    counters.push({
+      // `—` e não 0: o fetch pode ter falhado, e "nenhum produto" é outra coisa.
+      value: productsCount ?? '—',
+      label: t('edit.profile.summary.products') || 'Produtos',
+    });
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -71,17 +78,9 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
           </span>
         </div>
 
+        {/* Sem linha "Status": `Agent` não tem esse campo, e o badge fixo afirmava
+            ao usuário um estado que o front não conhece. */}
         <div className="px-5 pb-2 pt-1">
-          <div className="flex items-center justify-between border-b border-[#F4F6F8] py-[13px]">
-            <span className="text-[13.5px] text-[#8A928F]">
-              {t('edit.profile.summary.status') || 'Status'}
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#BFE8D1] bg-[#F0FAF4] px-[11px] py-[3px] text-[12.5px] font-semibold text-[#2C834E]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#359558]" />
-              {t('edit.profile.summary.active') || 'Ativo'}
-            </span>
-          </div>
-
           {rows.map((row, index) => (
             <div
               key={row.label}
@@ -98,7 +97,7 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className={`grid gap-4 ${counters.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
         {counters.map(counter => (
           <div
             key={counter.label}

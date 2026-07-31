@@ -418,8 +418,7 @@
       "more": "plus",
       "createFirst": "Créez votre premier serveur MCP personnalisé",
       "serversSelected": "{{count}} serveur(s) sélectionné(s)",
-      "selectServers": "Sélectionner des Serveurs",
-      "addSelected": "Ajouter les Sélectionnés ({{count}})",
+      "saveSelection": "Enregistrer la sélection ({{count}})",
       "save": "Ajouter",
       "cancel": "Annuler"
     },
@@ -546,8 +545,6 @@
     "profile": {
       "summary": {
         "title": "Résumé de l'agent",
-        "status": "Statut",
-        "active": "Actif",
         "type": "Type",
         "native": "Natif",
         "external": "Externe",
