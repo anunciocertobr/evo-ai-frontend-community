@@ -16,7 +16,6 @@ interface MCPCardProps {
   isConnected: boolean;
   onToggle?: () => void;
   onConfigure?: () => void;
-  showComingSoon?: boolean;
 }
 
 export function MCPCard({
@@ -29,8 +28,8 @@ export function MCPCard({
 }: MCPCardProps) {
   const { t } = useLanguage('aiAgents');
 
-  // Estados do botão: Em breve (credenciais globais ausentes) → Ativar → ✓ Ativado.
-  // "Ativado" segue clicável quando há dialog de configuração, para reconfigurar.
+  // Em breve (sem credencial global) → Ativar → ✓ Ativado. "Ativado" segue clicável
+  // quando há dialog, para reconfigurar.
   const renderAction = () => {
     if (!isConfigured) {
       return (

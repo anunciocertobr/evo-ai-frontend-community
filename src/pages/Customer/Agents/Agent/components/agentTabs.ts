@@ -3,12 +3,9 @@ import { isExternalAgent, isOrchestratorAgent } from '@/utils/agents';
 export type AgentDetailTab = 'profile' | 'tools' | 'products' | 'configuration' | 'channels';
 
 /**
- * Chips das barras de abas do detalhe do agente (a principal e a secundária de
- * Configuração). Ficam aqui para as duas não divergirem.
- *
- * `flex-none` e `h-auto` cancelam o `flex-1 h-[calc(100%-1px)]` que o TabsTrigger
- * do design-system traz na base — tailwind-merge não resolve `flex-1` contra
- * `inline-flex` (grupos distintos), e sem isso os chips esticam pela largura toda.
+ * Compartilhado pelas duas barras de abas do detalhe (a principal e a de Configuração).
+ * `flex-none`/`h-auto` cancelam o `flex-1 h-[calc(100%-1px)]` da base do TabsTrigger:
+ * tailwind-merge não resolve `flex-1` contra `inline-flex`, e os chips esticavam.
  */
 export const AGENT_TAB_LIST_CLASS =
   'h-auto w-full flex-wrap justify-start gap-2 rounded-none bg-transparent p-0';
@@ -27,6 +24,10 @@ export const supportsSubAgents = (agentType?: string): boolean =>
 export const supportsToolBlocks = (agentType?: string): boolean =>
   !isOrchestratorAgent(agentType) && !isExternalAgent(agentType);
 
+/** Espelha os gates dos 3 cards do ConfigurationSection: fora desta lista a aba abria vazia. */
+export const supportsConfiguration = (agentType?: string): boolean =>
+  ['llm', 'a2a', 'task', 'external'].includes(agentType || '');
+
 export const getVisibleAgentTabs = (agentType?: string): AgentDetailTab[] => {
   const tabs: AgentDetailTab[] = ['profile'];
 
@@ -36,7 +37,10 @@ export const getVisibleAgentTabs = (agentType?: string): AgentDetailTab[] => {
   if (!isOrchestratorAgent(agentType)) {
     tabs.push('products');
   }
+  if (supportsConfiguration(agentType)) {
+    tabs.push('configuration');
+  }
 
-  tabs.push('configuration', 'channels');
+  tabs.push('channels');
   return tabs;
 };

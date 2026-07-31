@@ -7,17 +7,13 @@ interface AgentToggleProps {
 }
 
 /**
- * Toggle do detalhe do agente: trilho 42×24 + knob 18px deslocado por `left`
- * (3px → 21px), conforme o protótipo.
+ * Não usa o `Switch` do design-system: ele é 32×18.4 e o `Thumb` tem className
+ * hardcoded, então o tamanho do knob seria inalcançável por fora. Aqui é checkbox
+ * nativo oculto (mantém estado de form e teclado) com o estilo todo no <label>.
  *
- * NÃO usa o `Switch` do design-system: ele é 32×18.4 com o root em `rem`, e o
- * `Thumb` tem className HARDCODED (não aceita override), então knob e
- * deslocamento seriam inalcançáveis por fora. O caminho é o sancionado pela
- * spec — checkbox nativo oculto (mantém estado de form e teclado) com todo o
- * estilo no <label> que o envolve, sem `appearance` no checkbox.
- *
- * Medidas em px arbitrário de propósito: as escalas do Tailwind (h-6) compilam
- * para rem, e o toggle não deve escalar com a tipografia.
+ * Medidas em px arbitrário: as escalas do Tailwind compilam para rem e o toggle
+ * escalaria com a tipografia. O anel de foco fica no <label> via `focus-within`
+ * porque o checkbox é invisível.
  */
 const AgentToggle = ({
   id,
@@ -27,7 +23,7 @@ const AgentToggle = ({
   'aria-label': ariaLabel,
 }: AgentToggleProps) => (
   <label
-    className={`relative block h-[24px] w-[42px] flex-[0_0_42px] rounded-full transition-colors duration-[160ms] ${
+    className={`relative block h-[24px] w-[42px] flex-[0_0_42px] rounded-full transition-colors duration-[160ms] focus-within:ring-[3px] focus-within:ring-[#359558]/[.35] ${
       checked ? 'bg-[#359558]' : 'bg-[#D4D9DF]'
     } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
   >

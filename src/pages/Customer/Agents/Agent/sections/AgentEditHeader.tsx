@@ -1,6 +1,7 @@
 import { Button } from '@evoapi/design-system';
 import { ArrowLeft, Save, Loader2, MessageSquare } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { getAgentTypeLabel } from '@/utils/agents';
 
 interface AgentEditHeaderProps {
   onBack: () => void;
@@ -11,20 +12,6 @@ interface AgentEditHeaderProps {
   agentName?: string;
   agentType?: string;
 }
-
-const getAgentTypeLabel = (type: string, t: (key: string) => string): string => {
-  const typeLabels: Record<string, string> = {
-    llm: t('basicInfo.types.llm') || 'LLM',
-    a2a: t('basicInfo.types.a2a') || 'A2A',
-    sequential: t('basicInfo.types.sequential') || 'Sequencial',
-    parallel: t('basicInfo.types.parallel') || 'Paralelo',
-    loop: t('basicInfo.types.loop') || 'Loop',
-    workflow: t('basicInfo.types.workflow') || 'Workflow',
-    task: t('basicInfo.types.task') || 'Task',
-    external: t('basicInfo.types.external') || 'Integração Externa',
-  };
-  return typeLabels[type] || type;
-};
 
 const AgentEditHeader = ({
   onBack,

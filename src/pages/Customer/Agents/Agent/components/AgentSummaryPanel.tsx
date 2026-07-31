@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Globe, Info } from 'lucide-react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { productsService } from '@/services/products/productsService';
-import { isExternalAgent } from '@/utils/agents';
+import { getAgentTypeLabel, isExternalAgent } from '@/utils/agents';
 import type { Agent } from '@/types/agents';
 
 interface AgentSummaryPanelProps {
@@ -12,19 +12,8 @@ interface AgentSummaryPanelProps {
   subAgentsCount: number;
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  llm: 'LLM',
-  a2a: 'A2A',
-  sequential: 'Sequencial',
-  parallel: 'Paralelo',
-  loop: 'Loop',
-  workflow: 'Workflow',
-  task: 'Task',
-  external: 'Integração Externa',
-};
-
 const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelProps) => {
-  const { t } = useLanguage('aiAgents');
+  const { t, currentLanguage } = useLanguage('aiAgents');
   const [productsCount, setProductsCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -46,13 +35,13 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
     };
   }, [agent?.id]);
 
-  const typeLabel = TYPE_LABELS[agent.type] || agent.type;
+  const typeLabel = getAgentTypeLabel(agent.type, t);
   const origin = isExternalAgent(agent.type)
     ? t('edit.profile.summary.external') || 'Externo'
     : t('edit.profile.summary.native') || 'Nativo';
 
   const createdAt = agent.created_at
-    ? new Date(agent.created_at).toLocaleDateString('pt-BR')
+    ? new Date(agent.created_at).toLocaleDateString(currentLanguage)
     : '—';
 
   const rows = [

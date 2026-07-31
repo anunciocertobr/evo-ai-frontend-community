@@ -75,6 +75,16 @@ describe('AgentToggle', () => {
     expect(input.className).toContain('pointer-events-none');
   });
 
+  // O checkbox é invisível, então o anel tem que vir do label — senão o teclado
+  // atravessa os 14 toggles da tela sem nada aparecer.
+  it('shows a focus ring on the rail when the hidden input takes focus', async () => {
+    render(<AgentToggle checked={false} onCheckedChange={vi.fn()} />);
+    expect(rail().className).toContain('focus-within:ring-[3px]');
+
+    await userEvent.tab();
+    expect(document.activeElement).toBe(screen.getByRole('switch'));
+  });
+
   it('does not report changes while disabled', async () => {
     const onCheckedChange = vi.fn();
     render(<AgentToggle checked={false} disabled onCheckedChange={onCheckedChange} />);

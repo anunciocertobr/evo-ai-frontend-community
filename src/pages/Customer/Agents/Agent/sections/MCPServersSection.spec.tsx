@@ -38,16 +38,18 @@ vi.mock('@/components/ai_agents/Dialogs/CustomMCPDialog', () => ({
   },
 }));
 
-const renderSection = (customMCPServerIds: string[] = []) =>
+const renderSection = (customMCPServerIds: string[] = [], onCustomMCPServersChange = vi.fn()) => {
   render(
     <MCPServersSection
       mcpServers={[]}
       customMCPServerIds={customMCPServerIds}
       onMCPServersChange={vi.fn()}
-      onCustomMCPServersChange={vi.fn()}
+      onCustomMCPServersChange={onCustomMCPServersChange}
       agentId="agent-1"
     />
   );
+  return onCustomMCPServersChange;
+};
 
 describe('MCPServersSection', () => {
   it('always renders the referenced custom MCP list (no visibility toggle)', () => {
@@ -68,5 +70,16 @@ describe('MCPServersSection', () => {
   it('hides the "create new MCP" shortcut so the unsaved agent form is not discarded', () => {
     renderSection();
     expect(dialogSpy).toHaveBeenCalledWith(expect.objectContaining({ hideCreateNew: true }));
+  });
+
+  // O picker abre com a seleção atual marcada, então o que ele devolve É a seleção.
+  // Unir com a anterior fazia desmarcar não ter efeito nenhum.
+  it('applies the picker selection as-is, so unchecking a server removes it', () => {
+    const onCustomMCPServersChange = renderSection(['mcp-a', 'mcp-b']);
+
+    const { onSave } = dialogSpy.mock.calls.at(-1)![0];
+    onSave(['mcp-a']);
+
+    expect(onCustomMCPServersChange).toHaveBeenCalledWith(['mcp-a']);
   });
 });

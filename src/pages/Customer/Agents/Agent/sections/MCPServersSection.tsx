@@ -28,12 +28,12 @@ const MCPServersSection = ({
   const { t } = useLanguage('aiAgents');
   const [showCustomMcpPicker, setShowCustomMcpPicker] = useState(false);
 
-  const addCustomMCPServers = (serverIds: string[]) => {
-    const newIds = serverIds.filter(id => !customMCPServerIds.includes(id));
-    onCustomMCPServersChange([...customMCPServerIds, ...newIds]);
+  // O picker abre com `customMCPServerIds` já marcados, então o que ele devolve É a
+  // seleção — unir com a anterior faria desmarcar não ter efeito nenhum.
+  const applyCustomMCPSelection = (serverIds: string[]) => {
+    onCustomMCPServersChange(serverIds);
   };
 
-  // Dialog states
   const [showGitHubConfig, setShowGitHubConfig] = useState(false);
   const [showNotionConfig, setShowNotionConfig] = useState(false);
   const [showStripeConfig, setShowStripeConfig] = useState(false);
@@ -46,7 +46,6 @@ const MCPServersSection = ({
   const [showCanvaConfig, setShowCanvaConfig] = useState(false);
   const [showSupabaseConfig, setShowSupabaseConfig] = useState(false);
 
-  // Use custom hook for integrations
   const {
     githubConfig,
     notionConfig,
@@ -122,8 +121,7 @@ const MCPServersSection = ({
 
   return (
     <div className="space-y-6">
-      {/* MCPs Personalizados vêm PRIMEIRO: é o bloco acionável do agente. O
-          catálogo de servidores prontos entra depois, como vitrine. */}
+      {/* MCPs personalizados primeiro: é o bloco acionável. O catálogo pronto é vitrine. */}
       <div className="space-y-4">
         <div className="flex justify-end">
           <Button
@@ -145,7 +143,6 @@ const MCPServersSection = ({
         />
       </div>
 
-      {/* Seção: Servidores MCP prontos */}
       <div className="space-y-4">
         <div className="flex items-start gap-3">
           <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-blue-500/10">
@@ -174,8 +171,7 @@ const MCPServersSection = ({
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {availableMCPs.map(mcp => {
                 const isEnabled = isMCPEnabled(mcp.id);
-                // DISPONIBILIDADE (CRM :3000 endpoint) — gates ATIVAR-disabled +
-                // "Em breve"; distinct from per-agent "connected" (isConnected).
+                // Disponível no tenant (endpoint do CRM) não é o mesmo que conectado neste agente.
                 const isConfigured = available[mcp.id] ?? false;
                 const connected = isConnected(mcp.id);
                 const onConfigure = getDialogSetter(mcp.id);
@@ -190,7 +186,6 @@ const MCPServersSection = ({
                     isConnected={connected}
                     onToggle={!isIntegrationMCP ? () => toggleMCP(mcp.id) : undefined}
                     onConfigure={onConfigure}
-                    showComingSoon={!isConfigured}
                   />
                 );
               })}
@@ -199,17 +194,16 @@ const MCPServersSection = ({
         </div>
       </div>
 
-      {/* Picker de MCPs personalizados já cadastrados. `hideCreateNew` porque criar um
-          novo MCP navega para fora de /agents/:id/edit e descartaria o form não salvo. */}
+      {/* `hideCreateNew`: criar um MCP navega para fora de /agents/:id/edit e
+          descartaria o formulário não salvo. */}
       <CustomMCPDialog
         open={showCustomMcpPicker}
         onOpenChange={setShowCustomMcpPicker}
-        onSave={addCustomMCPServers}
+        onSave={applyCustomMCPSelection}
         initialSelectedIds={customMCPServerIds}
         hideCreateNew
       />
 
-      {/* Integration Dialogs */}
       <IntegrationDialogs
         agentId={agentId}
         mcpServers={mcpServers}

@@ -35,11 +35,7 @@ import AgentTestChat from '@/components/agents/AgentTestChat';
 import { TabsContent } from '@evoapi/design-system';
 import { Team, Tool } from '@/types';
 
-/**
- * Deep-links legados: o rail vertical expunha 10 valores de `?tab=`. Cada um é
- * remapeado para a aba nova que hoje hospeda aquele conteúdo, em vez de cair no
- * default 'profile' (esses links circulam em e-mails, onboarding e outras telas).
- */
+/** Os 10 `?tab=` do rail antigo circulam em e-mails e onboarding — cada um cai na aba que hoje hospeda aquele conteúdo, não no default. */
 const LEGACY_TAB_MAP: Record<string, AgentDetailTab> = {
   profile: 'profile',
   task: 'profile',
@@ -86,7 +82,6 @@ const AgentEditPage = () => {
     instruction: '',
   });
 
-  // Estados de configuração
   const [llmConfigData, setLLMConfigData] = useState<LLMConfigData | null>(null);
   const [a2aConfigData, setA2AConfigData] = useState<A2AConfigData | null>(null);
   const [taskConfigData, setTaskConfigData] = useState<TaskConfigData | null>(null);
@@ -104,7 +99,6 @@ const AgentEditPage = () => {
   const [subAgentsData, setSubAgentsData] = useState<SubAgentsData>({ sub_agents: [] });
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
 
-  // Estados de configurações avançadas (aplicáveis a todos os tipos)
   const [outputSchema, setOutputSchema] = useState<
     Record<string, { type?: string; description?: string }>
   >({});
@@ -122,7 +116,6 @@ const AgentEditPage = () => {
     knowledge_max_results: 5,
   });
 
-  // Estados de comportamento
   const [behaviorSettings, setBehaviorSettings] = useState({
     transferToHuman: false,
     useEmojis: false,
@@ -135,7 +128,6 @@ const AgentEditPage = () => {
     sendAsReply: false,
   });
 
-  // Estados de ações de inatividade e regras de transferência
   const [inactivityActions, setInactivityActions] = useState<
     Array<{
       id: string;
@@ -182,7 +174,6 @@ const AgentEditPage = () => {
     instructions: '',
   });
 
-  // Estados de ferramentas e MCP
   const [tools, setTools] = useState<Tool[]>([]);
   const [agentTools, setAgentTools] = useState<string[]>([]);
   const [agentToolsData, setAgentToolsData] = useState<Agent[]>([]);
@@ -191,7 +182,6 @@ const AgentEditPage = () => {
   const [customMCPServerIds, setCustomMCPServerIds] = useState<string[]>([]);
   const [integrations, setIntegrations] = useState<Record<string, any>>({});
 
-  // Estado de pipelines, usuários e times disponíveis
   const [availablePipelines, setAvailablePipelines] = useState<
     Array<{
       id: string;
@@ -202,7 +192,6 @@ const AgentEditPage = () => {
   const [availableUsers, setAvailableUsers] = useState<Array<{ id: string; name: string }>>([]);
   const [availableTeams, setAvailableTeams] = useState<Array<{ id: string; name: string }>>([]);
 
-  // Read tab query parameter and set active tab
   useEffect(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam) {
@@ -210,13 +199,12 @@ const AgentEditPage = () => {
       if (tab) {
         setActiveTab(tab);
       }
-      // Remove the tab param from URL after resolving it
       searchParams.delete('tab');
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
 
-  // Open test chat drawer when ?test=1 is present (wizard "test agent" card)
+  // `?test=1` vem do card "testar agente" do wizard.
   useEffect(() => {
     if (searchParams.get('test') === '1') {
       setIsTestChatOpen(true);
@@ -234,7 +222,6 @@ const AgentEditPage = () => {
     }
   }, [agent, activeTab]);
 
-  // Carregar API Keys
   const loadApiKeys = useCallback(async () => {
     try {
       const apiKeysData = await listApiKeys();
@@ -248,13 +235,11 @@ const AgentEditPage = () => {
     loadApiKeys();
   }, [loadApiKeys]);
 
-  // Carregar Pipelines
   const loadPipelines = useCallback(async () => {
     try {
       const response = await pipelinesService.getPipelines();
       const pipelines = response.data || [];
 
-      // Transform to the format expected by the components
       const transformedPipelines = pipelines.map(pipeline => ({
         id: pipeline.id,
         name: pipeline.name,
@@ -267,8 +252,7 @@ const AgentEditPage = () => {
       setAvailablePipelines(transformedPipelines);
     } catch (error) {
       console.error('Error loading pipelines:', error);
-      // Não mostra toast de erro para não incomodar o usuário
-      // Os pipelines são opcionais na configuração do agente
+      // Sem toast: pipelines são opcionais na configuração do agente.
     }
   }, []);
 
@@ -276,13 +260,11 @@ const AgentEditPage = () => {
     loadPipelines();
   }, [loadPipelines]);
 
-  // Carregar Usuários
   const loadUsers = useCallback(async () => {
     try {
       const response = await usersService.getUsers();
       const users = response.data || [];
 
-      // Transform to the format expected by the components
       const transformedUsers = users.map(user => ({
         id: user.id,
         name: user.name || user.email,
@@ -291,7 +273,7 @@ const AgentEditPage = () => {
       setAvailableUsers(transformedUsers);
     } catch (error) {
       console.error('Error loading users:', error);
-      // Não mostra toast de erro para não incomodar o usuário
+      // Sem toast: só alimenta as regras de transferência, que são opcionais.
     }
   }, []);
 
@@ -299,14 +281,12 @@ const AgentEditPage = () => {
     loadUsers();
   }, [loadUsers]);
 
-  // Carregar Times
   const loadTeams = useCallback(async () => {
     try {
       const response = await teamsService.getTeams();
-      // Response can be array directly or paginated
+      // O endpoint devolve ora array cru, ora paginado.
       const teams = Array.isArray(response) ? response : response.data || response.data || [];
 
-      // Transform to the format expected by the components
       const transformedTeams = teams.map((team: Team) => ({
         id: team.id,
         name: team.name,
@@ -315,7 +295,7 @@ const AgentEditPage = () => {
       setAvailableTeams(transformedTeams);
     } catch (error) {
       console.error('Error loading teams:', error);
-      // Não mostra toast de erro para não incomodar o usuário
+      // Sem toast: só alimenta as regras de transferência, que são opcionais.
     }
   }, []);
 
@@ -323,14 +303,11 @@ const AgentEditPage = () => {
     loadTeams();
   }, [loadTeams]);
 
-  // Função auxiliar para carregar dados completos dos agentes pelos IDs
+  // Não há endpoint de busca por lote de IDs: puxa os acessíveis e filtra em memória.
   const loadAgentToolsData = useCallback(async (agentIds: string[]) => {
     if (agentIds.length === 0) return [];
     try {
-      // Buscar todos os agentes acessíveis
       const { data: allAgents } = await getAccessibleAgents(0, 1000);
-
-      // Filtrar apenas os agentes que estão nos IDs fornecidos
       const agentToolsData = allAgents.filter((agent: any) => agentIds.includes(agent.id));
 
       return agentToolsData;
@@ -340,7 +317,6 @@ const AgentEditPage = () => {
     }
   }, []);
 
-  // Carregar agente
   useEffect(() => {
     const loadAgent = async () => {
       if (!id) return;
@@ -357,7 +333,6 @@ const AgentEditPage = () => {
           instruction: agentData.instruction || '',
         });
 
-        // Carregar dados de configuração baseado no tipo
         if (agentData.type === 'llm') {
           const instruction = agentData.instruction || '';
           setLLMConfigData({
@@ -374,7 +349,6 @@ const AgentEditPage = () => {
               character_delay_ms: agentData.config?.character_delay_ms ?? 0.05,
             },
           });
-          // Sincronizar instrução com formData
           setFormData(prev => ({ ...prev, instruction }));
         } else if (agentData.type === 'a2a') {
           setA2AConfigData({
@@ -397,7 +371,6 @@ const AgentEditPage = () => {
             }>,
           });
         } else if (agentData.type === 'external') {
-          // Carregar configuração de integração externa
           const provider = agentData.config?.provider as string;
           let config = {
             provider: undefined,
@@ -434,12 +407,10 @@ const AgentEditPage = () => {
           setExternalConfigData(config);
         }
 
-        // Carregar sub-agentes (aplicável a todos os tipos)
         setSubAgentsData({
           sub_agents: agentData.config?.sub_agents || [],
         });
 
-        // Carregar configurações avançadas (aplicável a todos os tipos)
         setOutputSchema(
           (agentData.config?.output_schema || {}) as Record<
             string,
@@ -461,7 +432,6 @@ const AgentEditPage = () => {
           knowledge_max_results: agentData.config?.knowledge_max_results || 5,
         });
 
-        // Carregar configurações de comportamento
         const config = agentData.config as Record<string, unknown>;
         setBehaviorSettings({
           transferToHuman: (config?.transfer_to_human as boolean) || false,
@@ -475,7 +445,6 @@ const AgentEditPage = () => {
           sendAsReply: (config?.send_as_reply as boolean) || false,
         });
 
-        // Carregar ações de inatividade, regras de transferência e pipeline
         setInactivityActions(
           (config?.inactivity_actions as Array<{
             id: string;
@@ -527,7 +496,6 @@ const AgentEditPage = () => {
           },
         );
 
-        // Carregar ferramentas (aplicável a todos os tipos)
         setTools((agentData.config?.tools || []) as unknown as Tool[]);
         const agentToolsIds = agentData.config?.agent_tools || [];
         setAgentTools(agentToolsIds);
@@ -539,31 +507,27 @@ const AgentEditPage = () => {
         setMcpServers((agentData.config?.mcp_servers || []) as unknown as MCPServerConfig[]);
         setCustomMCPServerIds(agentData.config?.custom_mcp_server_ids || []);
 
-        // Load integrations from agent config
         const configIntegrations = agentData.config?.integrations || {};
 
-        // Load integrations from backend API
         try {
           const backendIntegrations = await getAgentIntegrations(id);
           const mergedIntegrations: Record<string, any> = { ...configIntegrations };
 
-          // Map backend integrations to frontend format
-          // Backend uses provider names like "google_calendar", frontend uses "google-calendar"
+          // O backend nomeia o provider com underscore ("google_calendar"), o front com hífen.
           backendIntegrations.forEach((integration: any) => {
             const frontendKey = integration.provider.replace(/_/g, '-');
-            // Merge backend config with any existing frontend config
             mergedIntegrations[frontendKey] = {
               ...mergedIntegrations[frontendKey],
               ...integration.config,
               provider: integration.provider,
-              connected: true, // Mark as connected since it exists in backend
+              // Existir no backend É o sinal de conectada.
+              connected: true,
             };
           });
 
           setIntegrations(mergedIntegrations);
         } catch (error) {
           console.error('Error loading backend integrations:', error);
-          // Fall back to config integrations only
           setIntegrations(configIntegrations);
         }
       } catch (error) {
@@ -584,7 +548,7 @@ const AgentEditPage = () => {
         ...prev,
         [field]: value,
       }));
-      // Sincronizar instrução com llmConfigData se for tipo LLM
+      // `instruction` vive em dois lugares no LLM: no form e no llmConfigData.
       if (field === 'instruction' && agent?.type === 'llm' && llmConfigData) {
         setLLMConfigData(prev => (prev ? { ...prev, instruction: value } : null));
       }
@@ -600,7 +564,6 @@ const AgentEditPage = () => {
       setIsSaving(true);
       const toastId = toast.loading(t('messages.saving') || 'Saving...');
 
-      // Montar dados do agente baseado no tipo
       const agentUpdateData: Partial<AgentCreate> = {
         name: formData.name,
         description: formData.description,
@@ -610,7 +573,6 @@ const AgentEditPage = () => {
         instruction: formData.instruction,
       };
 
-      // Adicionar configurações específicas do tipo
       if (agent.type === 'llm' && llmConfigData) {
         agentUpdateData.model = llmConfigData.model;
         agentUpdateData.api_key_id = llmConfigData.api_key_id;
@@ -748,7 +710,6 @@ const AgentEditPage = () => {
           send_as_reply: behaviorSettings.sendAsReply,
         } as Record<string, unknown>;
       } else {
-        // Para outros tipos, adicionar configurações avançadas
         agentUpdateData.config = {
           sub_agents: subAgentsData.sub_agents,
           output_schema: outputSchema,
@@ -816,11 +777,10 @@ const AgentEditPage = () => {
   const visibleTabs = getVisibleAgentTabs(agent.type);
 
   return (
-    // Row: conteúdo + painel de teste lado a lado. Com o painel aberto o conteúdo
-    // encolhe (`min-w-0` deixa o flex realmente reduzir) e segue editável.
+    // `min-w-0` é o que deixa o conteúdo encolher quando o painel de teste abre —
+    // sem ele o flex não reduz e o painel empurra a página.
     <div className="flex h-full bg-background">
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Header */}
         <AgentEditHeader
           onBack={() => navigate('/agents/list')}
           onSave={handleSave}
@@ -831,8 +791,6 @@ const AgentEditPage = () => {
           agentType={agent.type}
         />
 
-        {/* Abas horizontais + conteudo. O scroll e os gutters vivem dentro do
-          AgentDetailTabs — a barra de chips fica fixa e só o conteúdo rola. */}
         <div className="min-h-0 flex-1">
           <AgentDetailTabs agentType={agent.type} value={activeTab} onValueChange={setActiveTab}>
             <TabsContent value="profile" className="mt-0">
@@ -899,59 +857,61 @@ const AgentEditPage = () => {
               </TabsContent>
             )}
 
-            <TabsContent value="configuration" className="mt-0">
-              <ConfigurationSection
-                agent={agent}
-                llmConfigData={llmConfigData}
-                a2aConfigData={a2aConfigData}
-                externalConfigData={externalConfigData}
-                apiKeys={apiKeys}
-                behaviorSettings={behaviorSettings}
-                inactivityActions={inactivityActions}
-                transferRules={transferRules}
-                pipelineRules={pipelineRules}
-                contactEditConfig={contactEditConfig}
-                availablePipelines={availablePipelines}
-                availableUsers={availableUsers}
-                availableTeams={availableTeams}
-                onLLMConfigChange={data => {
-                  setLLMConfigData(data);
-                  setIsDirty(true);
-                }}
-                onA2AConfigChange={data => {
-                  setA2AConfigData(data);
-                  setIsDirty(true);
-                }}
-                onExternalConfigChange={data => {
-                  setExternalConfigData(data);
-                  setIsDirty(true);
-                }}
-                onBehaviorSettingsChange={settings => {
-                  setBehaviorSettings(settings);
-                  setIsDirty(true);
-                }}
-                onInactivityActionsChange={actions => {
-                  setInactivityActions(actions);
-                  setIsDirty(true);
-                }}
-                onTransferRulesChange={rules => {
-                  setTransferRules(rules);
-                  setIsDirty(true);
-                }}
-                onPipelineRulesChange={rules => {
-                  setPipelineRules(rules);
-                  setIsDirty(true);
-                }}
-                onContactEditConfigChange={config => {
-                  setContactEditConfig(config);
-                  setIsDirty(true);
-                }}
-                onInstructionSync={instruction => {
-                  setFormData(prev => ({ ...prev, instruction }));
-                }}
-                onApiKeysReload={loadApiKeys}
-              />
-            </TabsContent>
+            {visibleTabs.includes('configuration') && (
+              <TabsContent value="configuration" className="mt-0">
+                <ConfigurationSection
+                  agent={agent}
+                  llmConfigData={llmConfigData}
+                  a2aConfigData={a2aConfigData}
+                  externalConfigData={externalConfigData}
+                  apiKeys={apiKeys}
+                  behaviorSettings={behaviorSettings}
+                  inactivityActions={inactivityActions}
+                  transferRules={transferRules}
+                  pipelineRules={pipelineRules}
+                  contactEditConfig={contactEditConfig}
+                  availablePipelines={availablePipelines}
+                  availableUsers={availableUsers}
+                  availableTeams={availableTeams}
+                  onLLMConfigChange={data => {
+                    setLLMConfigData(data);
+                    setIsDirty(true);
+                  }}
+                  onA2AConfigChange={data => {
+                    setA2AConfigData(data);
+                    setIsDirty(true);
+                  }}
+                  onExternalConfigChange={data => {
+                    setExternalConfigData(data);
+                    setIsDirty(true);
+                  }}
+                  onBehaviorSettingsChange={settings => {
+                    setBehaviorSettings(settings);
+                    setIsDirty(true);
+                  }}
+                  onInactivityActionsChange={actions => {
+                    setInactivityActions(actions);
+                    setIsDirty(true);
+                  }}
+                  onTransferRulesChange={rules => {
+                    setTransferRules(rules);
+                    setIsDirty(true);
+                  }}
+                  onPipelineRulesChange={rules => {
+                    setPipelineRules(rules);
+                    setIsDirty(true);
+                  }}
+                  onContactEditConfigChange={config => {
+                    setContactEditConfig(config);
+                    setIsDirty(true);
+                  }}
+                  onInstructionSync={instruction => {
+                    setFormData(prev => ({ ...prev, instruction }));
+                  }}
+                  onApiKeysReload={loadApiKeys}
+                />
+              </TabsContent>
+            )}
 
             <TabsContent value="channels" className="mt-0">
               <AgentChannelsShell />
@@ -960,7 +920,6 @@ const AgentEditPage = () => {
         </div>
       </div>
 
-      {/* Chat de Teste — painel lateral, irmão do conteúdo (não cobre a tela) */}
       <AgentTestChat open={isTestChatOpen} onOpenChange={setIsTestChatOpen} agent={agent} />
     </div>
   );

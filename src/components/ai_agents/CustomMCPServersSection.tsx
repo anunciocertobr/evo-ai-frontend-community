@@ -34,10 +34,10 @@ const CustomMCPServersSection = ({
   const { t } = useLanguage('aiAgents');
   const [showCustomMCPDialog, setShowCustomMCPDialog] = useState(false);
 
+  // O picker abre com a seleção atual já marcada, então o que ele devolve É a
+  // seleção — unir com a anterior faria desmarcar não ter efeito nenhum.
   const handleAddCustomMCPServers = (serverIds: string[]) => {
-    const existingIds = customMCPServerIds;
-    const newIds = serverIds.filter(id => !existingIds.includes(id));
-    onCustomMCPServersChange([...customMCPServerIds, ...newIds]);
+    onCustomMCPServersChange(serverIds);
   };
 
   const handleRemoveCustomMCPServer = (serverId: string) => {
@@ -69,11 +69,13 @@ const CustomMCPServersSection = ({
                       {t('tools.mcpServers.externallyManaged')}
                     </p>
                   </div>
-                  {!isReadOnly && showAddButton && (
+                  {/* Remover não depende de `showAddButton`: ele esconde só os CTAs de adicionar. */}
+                  {!isReadOnly && (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleRemoveCustomMCPServer(serverId)}
+                      aria-label={t('actions.remove') || 'Remover'}
                       className="text-destructive hover:text-destructive/80"
                     >
                       <X className="h-4 w-4" />
@@ -106,9 +108,7 @@ const CustomMCPServersSection = ({
               <p className="mt-1 max-w-md text-[13px] leading-[1.5] text-[#8A928F]">
                 {t('tools.mcpServers.connectFromManagement')}
               </p>
-              {/* O CTA do estado vazio NÃO depende de `showAddButton`: esse prop existe
-                  para o caller esconder o botão da LISTA quando já tem o seu próprio.
-                  Vazio sem ação é beco sem saída. */}
+              {/* Idem: um estado vazio sem ação seria beco sem saída. */}
               {!isReadOnly && (
                 <Button
                   type="button"
@@ -122,7 +122,6 @@ const CustomMCPServersSection = ({
             </div>
           )}
 
-      {/* Modal de Seleção de MCPs Personalizados */}
       <CustomMCPDialog
         open={showCustomMCPDialog}
         onOpenChange={setShowCustomMCPDialog}

@@ -50,12 +50,20 @@ describe('getVisibleAgentTabs', () => {
   });
 
   it('keeps Ferramentas for flow orchestrators (they still have sub agents)', () => {
-    expect(getVisibleAgentTabs('sequential')).toEqual([
-      'profile',
-      'tools',
-      'configuration',
-      'channels',
-    ]);
+    expect(getVisibleAgentTabs('sequential')).toContain('tools');
+  });
+
+  // O ConfigurationSection não tem um único card para esses tipos: sem esse gate a
+  // aba abria em branco.
+  it.each(['sequential', 'parallel', 'loop', 'workflow'])(
+    'omits Configuração for %s, which has no configuration card',
+    agentType => {
+      expect(getVisibleAgentTabs(agentType)).not.toContain('configuration');
+    }
+  );
+
+  it.each(['llm', 'a2a', 'task', 'external'])('keeps Configuração for %s', agentType => {
+    expect(getVisibleAgentTabs(agentType)).toContain('configuration');
   });
 });
 
@@ -84,9 +92,8 @@ describe('AgentDetailTabs', () => {
     expect(onValueChange).toHaveBeenCalledWith('configuration');
   });
 
-  // O TabsTrigger do design-system traz `flex-1` na base e tailwind-merge NÃO o
-  // resolve contra `inline-flex` (grupos distintos) — sem um `flex-none` explícito
-  // os chips esticam e ocupam a largura toda da barra. Regressão já vista uma vez.
+  // Sem `flex-none` explícito o `flex-1` da base do TabsTrigger vence e os chips
+  // esticam pela barra toda. Regressão já vista uma vez.
   it('sizes each chip by its content instead of stretching it across the bar', () => {
     renderTabs('llm');
     for (const tab of screen.getAllByRole('tab')) {
