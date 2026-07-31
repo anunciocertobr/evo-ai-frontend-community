@@ -175,7 +175,7 @@ const IntegrationsSection = ({
                 const action = connected ? (
                   <Button
                     variant="outline"
-                    className="w-full gap-2 border-green-600/40 text-green-600 hover:text-green-700 md:w-auto"
+                    className="w-full gap-2 border-primary/40 text-primary hover:bg-primary/10 md:w-auto"
                     onClick={openConfigDialog}
                     title={t('edit.integrations.configure') || 'Configurar'}
                   >

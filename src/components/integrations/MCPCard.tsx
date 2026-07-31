@@ -35,7 +35,7 @@ export function MCPCard({
       return (
         <Button
           variant="outline"
-          className="w-full cursor-not-allowed gap-2 border-gray-300 text-gray-500 md:w-auto"
+          className="w-full cursor-not-allowed gap-2 border-border text-muted-foreground md:w-auto"
           disabled
         >
           <AlertCircle className="h-4 w-4" />
@@ -48,7 +48,7 @@ export function MCPCard({
       return (
         <Button
           variant="outline"
-          className="w-full gap-2 border-green-600/40 text-green-600 hover:text-green-700 md:w-auto"
+          className="w-full gap-2 border-primary/40 text-primary hover:bg-primary/10 md:w-auto"
           onClick={onConfigure}
           disabled={!onConfigure}
           title={t('edit.integrations.configure') || 'Configurar'}
@@ -72,7 +72,7 @@ export function MCPCard({
       return (
         <Button
           variant="outline"
-          className={`w-full gap-2 md:w-auto ${isEnabled ? 'border-green-600/40 text-green-600 hover:text-green-700' : ''}`}
+          className={`w-full gap-2 md:w-auto ${isEnabled ? 'border-primary/40 text-primary hover:bg-primary/10' : ''}`}
           onClick={onToggle}
         >
           {isEnabled ? (

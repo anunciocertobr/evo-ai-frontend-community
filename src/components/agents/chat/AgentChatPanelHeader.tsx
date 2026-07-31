@@ -73,7 +73,7 @@ export function AgentChatPanelHeader({ agent, onClose }: AgentChatPanelHeaderPro
                         if (event.key === 'Enter' || event.key === ' ') selectSession(session.id);
                       }}
                       className={`group flex cursor-pointer items-start justify-between gap-2 rounded-[9px] px-3 py-2 transition-colors ${
-                        isSelected ? 'bg-primary/10' : 'hover:bg-muted'
+                        isSelected ? 'bg-primary/10' : 'hover:bg-accent'
                       }`}
                     >
                       <div className="min-w-0">

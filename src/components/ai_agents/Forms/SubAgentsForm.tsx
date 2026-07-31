@@ -302,7 +302,7 @@ const SubAgentsForm = ({
                     {filteredAgents.map(agent =>
                       renderAgentRow(
                         agent,
-                        'flex items-center justify-between rounded-[9px] border border-border p-2 transition-colors hover:bg-muted'
+                        'flex items-center justify-between rounded-[9px] border border-border p-2 transition-colors hover:bg-accent'
                       )
                     )}
                   </div>

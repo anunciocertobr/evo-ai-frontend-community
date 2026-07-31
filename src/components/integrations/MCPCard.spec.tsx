@@ -27,6 +27,23 @@ describe('MCPCard', () => {
     expect(button.hasAttribute('disabled')).toBe(true);
   });
 
+  // Fixed palette colours ignore the `.dark` class exactly like the hex literals the
+  // token migration removed; a hex grep does not catch them.
+  it('styles every button state with theme tokens instead of palette colours', () => {
+    for (const props of [
+      { isConfigured: false },
+      { isConfigured: true, onConfigure: vi.fn() },
+      { isConfigured: true, isConnected: true, onConfigure: vi.fn() },
+      { isConfigured: true, isEnabled: true, onToggle: vi.fn() },
+    ]) {
+      const { unmount } = renderCard(props);
+      expect(screen.getByRole('button').className).not.toMatch(
+        /\b(?:border|text|bg)-(?:gray|green)-\d{2,3}\b/
+      );
+      unmount();
+    }
+  });
+
   it('shows "Ativar" when configured but not yet connected', () => {
     renderCard({ isConfigured: true, onConfigure: vi.fn() });
     const button = screen.getByRole('button');

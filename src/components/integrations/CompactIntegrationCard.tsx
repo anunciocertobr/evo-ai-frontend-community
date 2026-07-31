@@ -20,8 +20,17 @@ export function CompactIntegrationCard({
 
   return (
     <Card className="flex flex-col items-start gap-4 p-4 transition-colors hover:border-primary/50 md:flex-row md:items-center">
-      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-muted/50 p-2">
-        {hasBrandIcon ? <BrandIcon id={id} size={32} className="h-8 w-8" /> : null}
+      {/* `bg-accent`, not `bg-muted`: embedded in the shell `--muted` equals `--card`,
+          so a muted tile is invisible on the card it sits on. */}
+      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-accent p-2">
+        {hasBrandIcon ? (
+          <BrandIcon id={id} size={32} className="h-8 w-8" />
+        ) : (
+          /* Not every catalog entry has a brand icon (e.g. monday, canva). */
+          <span className="text-sm font-semibold uppercase text-muted-foreground">
+            {name.slice(0, 2)}
+          </span>
+        )}
       </div>
 
       <div className="min-w-0 flex-1">

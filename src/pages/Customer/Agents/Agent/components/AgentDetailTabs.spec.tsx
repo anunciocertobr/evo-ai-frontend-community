@@ -100,6 +100,17 @@ describe('AgentDetailTabs', () => {
     }
   });
 
+  // Embedded in the shell, `--muted` resolves to the same value as `--card`, so a
+  // `hover:bg-muted` chip on the `bg-card` bar highlights to the colour already there.
+  // Only the text hover survived, which reads as "hover works" at a glance.
+  it('highlights an inactive chip with a token that differs from the bar surface', () => {
+    renderTabs('llm');
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab.className).toContain('hover:bg-accent');
+      expect(tab.className).not.toContain('hover:bg-muted');
+    }
+  });
+
   // On narrow screens the bar must scroll; `flex-wrap` pushed the chips to a second row.
   it('scrolls the tab bar instead of wrapping it', () => {
     renderTabs('llm');
