@@ -4,11 +4,8 @@ import userEvent from '@testing-library/user-event';
 
 import type { BaseFilter, FilterType } from '@/types/core';
 
-// EVO-1947: the Users list sends `q`, `filters[]` and `sort`/`order` to a server
-// that now honors all three. The traps this covers are all "the reload forgot
-// something": paginating or applying a filter used to drop the search term and
-// the chosen sort, and every keystroke used to fire its own request with no
-// ordering between answers.
+// The server honors `q`, `filters[]` and `sort`/`order`, so every reload has to
+// carry them — these cover the reloads that used to forget.
 
 const getUsersMock = vi.fn();
 const listRolesMock = vi.fn();
@@ -172,9 +169,8 @@ describe('Users list — search and filter wiring (EVO-1947)', () => {
   });
 });
 
-// The list only renders the table (and its sortable headers) in table view; the
-// toggle buttons carry icons only, so they are the page's only button nodes with
-// an empty accessible name.
+// The view toggles carry icons only, so they are the page's only buttons with an
+// empty accessible name.
 const switchToTableView = async (user: ReturnType<typeof userEvent.setup>) => {
   const iconButtons = screen.getAllByRole('button').filter(button => button.textContent === '');
   await user.click(iconButtons[1]);
@@ -200,8 +196,6 @@ describe('Users list — the chosen sort survives every reload (EVO-1947)', () =
     await sortByRole(user);
   });
 
-  // Page 2 of a different ordering repeats and skips rows, and the header keeps
-  // pointing at the column the user picked — so the list lies twice.
   it('keeps the sort when the user paginates', async () => {
     const user = userEvent.setup();
     render(<Users />);

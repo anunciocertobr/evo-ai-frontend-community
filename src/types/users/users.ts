@@ -82,9 +82,8 @@ export interface UsersState {
   };
   filters: BaseFilter[]; // UserFilter type from users-filters
   searchQuery: string;
-  // Every reload sends this to the server, so it is restricted to the columns
-  // the backend can actually sort by — a free string would let a dead column
-  // through and the list would silently come back in the default order.
+  // Restricted to what the backend sorts by: a dead column would come back
+  // silently in the default order.
   sortBy: NonNullable<UsersListParams['sort']>;
   sortOrder: 'asc' | 'desc';
 }

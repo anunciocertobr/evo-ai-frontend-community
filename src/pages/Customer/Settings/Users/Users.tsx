@@ -111,12 +111,8 @@ export default function Users() {
       const seq = ++requestSeqRef.current;
 
       try {
-        // EVO-1947: the server honors sort/order now, so a reload that hardcoded
-        // name/asc silently reverted the list while the column header still
-        // showed the chosen one — and page 2 of a different ordering repeats and
-        // skips rows. Same trap as `q` below. The sort click passes them
-        // explicitly (its setState has not committed yet); every other reload
-        // reads the committed state.
+        // The header click passes sort/order explicitly because its setState has
+        // not committed yet; every other reload reads the committed value.
         const requestParams: UsersListParams = {
           page: 1,
           per_page: DEFAULT_PAGE_SIZE,
@@ -538,8 +534,7 @@ export default function Users() {
             sortBy={state.sortBy}
             sortOrder={state.sortOrder}
             onSort={column => {
-              // BaseTable hands back a plain column key; only the sortable
-              // columns reach here and they match the backend whitelist.
+              // Only sortable columns reach here, and they match the whitelist.
               const newSort = column as NonNullable<UsersListParams['sort']>;
               const newOrder =
                 state.sortBy === newSort && state.sortOrder === 'asc' ? 'desc' : 'asc';
