@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { Button } from '@evoapi/design-system';
-import { ExternalLink, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Check, Loader2, AlertCircle } from 'lucide-react';
 import { CompactIntegrationCard } from '@/components/integrations/CompactIntegrationCard';
 import ElevenLabsConfigDialog from '@/components/integrations/ElevenLabsConfigDialog';
 import GoogleCalendarConfigDialog from '@/components/integrations/GoogleCalendarConfigDialog';
@@ -190,7 +190,7 @@ const IntegrationsSection = ({
                     className="w-full gap-2 md:w-auto"
                     onClick={openConfigDialog}
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <Plus className="h-4 w-4" />
                     {t('edit.integrations.activate') || 'Ativar'}
                   </Button>
                 ) : (
@@ -271,7 +271,7 @@ const IntegrationsSection = ({
                   delete newIntegrations['google-calendar'];
                   onIntegrationsChange(newIntegrations);
                 }
-                      reloadConfigs();
+                reloadConfigs();
               }
             : undefined
         }
@@ -303,7 +303,7 @@ const IntegrationsSection = ({
                   delete newIntegrations['google-sheets'];
                   onIntegrationsChange(newIntegrations);
                 }
-                      reloadConfigs();
+                reloadConfigs();
               }
             : undefined
         }

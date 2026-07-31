@@ -26,9 +26,6 @@ vi.mock('@/components/agents/configuration/TransferRulesModal', () => ({
 vi.mock('@/components/agents/configuration/PipelineRulesModal', () => ({
   PipelineRulesModal: () => null,
 }));
-vi.mock('@/components/agents/configuration/PipelineAutomationModal', () => ({
-  default: () => null,
-}));
 vi.mock('@/components/agents/configuration/ContactEditModal', () => ({
   default: () => null,
 }));

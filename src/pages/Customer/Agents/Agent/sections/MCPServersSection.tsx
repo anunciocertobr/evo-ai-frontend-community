@@ -28,12 +28,6 @@ const MCPServersSection = ({
   const { t } = useLanguage('aiAgents');
   const [showCustomMcpPicker, setShowCustomMcpPicker] = useState(false);
 
-  // O picker abre com `customMCPServerIds` já marcados, então o que ele devolve É a
-  // seleção — unir com a anterior faria desmarcar não ter efeito nenhum.
-  const applyCustomMCPSelection = (serverIds: string[]) => {
-    onCustomMCPServersChange(serverIds);
-  };
-
   const [showGitHubConfig, setShowGitHubConfig] = useState(false);
   const [showNotionConfig, setShowNotionConfig] = useState(false);
   const [showStripeConfig, setShowStripeConfig] = useState(false);
@@ -63,7 +57,6 @@ const MCPServersSection = ({
     reloadAllConfigs,
     isConnected,
   } = useMCPIntegrations(agentId);
-
 
   const availableMCPs = getAvailableMCPs(t);
 
@@ -123,10 +116,25 @@ const MCPServersSection = ({
     <div className="space-y-6">
       {/* MCPs personalizados primeiro: é o bloco acionável. O catálogo pronto é vitrine. */}
       <div className="space-y-4">
-        <div className="flex justify-end">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-orange-500/10">
+              <Network className="h-[18px] w-[18px] text-orange-500" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-[#1A211E]">
+                {t('customMCPServers.title') || 'MCPs Personalizados'}
+              </h3>
+              <p className="mt-[3px] text-[13px] leading-[1.5] text-[#8A928F]">
+                {t('customMCPServers.subtitle') ||
+                  'Adicione servidores MCP personalizados criados por você'}
+              </p>
+            </div>
+          </div>
+
           <Button
             variant="outline"
-            className="h-auto gap-2 rounded-[9px] border-[#E3E6EA] bg-white px-4 py-[9px] text-[13px] font-semibold text-[#1A211E]"
+            className="h-auto flex-shrink-0 gap-2 rounded-[9px] border-[#E3E6EA] bg-white px-4 py-[9px] text-[13px] font-semibold text-[#1A211E]"
             onClick={() => setShowCustomMcpPicker(true)}
           >
             <Plus className="h-4 w-4" />
@@ -139,6 +147,7 @@ const MCPServersSection = ({
           onCustomMCPServersChange={onCustomMCPServersChange}
           isReadOnly={false}
           showAddButton={false}
+          hideCreateNew
           onAdd={() => setShowCustomMcpPicker(true)}
         />
       </div>
@@ -199,7 +208,7 @@ const MCPServersSection = ({
       <CustomMCPDialog
         open={showCustomMcpPicker}
         onOpenChange={setShowCustomMcpPicker}
-        onSave={applyCustomMCPSelection}
+        onSave={onCustomMCPServersChange}
         initialSelectedIds={customMCPServerIds}
         hideCreateNew
       />
