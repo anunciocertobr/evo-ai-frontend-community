@@ -35,7 +35,7 @@ import AgentTestChat from '@/components/agents/AgentTestChat';
 import { TabsContent } from '@evoapi/design-system';
 import { Team, Tool } from '@/types';
 
-/** Os 10 `?tab=` do rail antigo circulam em e-mails e onboarding — cada um cai na aba que hoje hospeda aquele conteúdo, não no default. */
+/** Legacy `?tab=` values still circulate in emails and onboarding links. */
 const LEGACY_TAB_MAP: Record<string, AgentDetailTab> = {
   profile: 'profile',
   task: 'profile',
@@ -204,7 +204,7 @@ const AgentEditPage = () => {
     }
   }, [searchParams, setSearchParams]);
 
-  // `?test=1` vem do card "testar agente" do wizard.
+  // `?test=1` comes from the wizard's "test agent" card.
   useEffect(() => {
     if (searchParams.get('test') === '1') {
       setIsTestChatOpen(true);
@@ -213,8 +213,7 @@ const AgentEditPage = () => {
     }
   }, [searchParams, setSearchParams]);
 
-  // Um deep-link (ou uma troca de tipo) pode apontar para uma aba que este tipo de
-  // agente não expõe — cai de volta em Perfil.
+  // A deep link may point at a tab this agent type does not expose.
   useEffect(() => {
     if (!agent) return;
     if (!getVisibleAgentTabs(agent.type).includes(activeTab)) {
@@ -252,7 +251,7 @@ const AgentEditPage = () => {
       setAvailablePipelines(transformedPipelines);
     } catch (error) {
       console.error('Error loading pipelines:', error);
-      // Sem toast: pipelines são opcionais na configuração do agente.
+      // No toast: pipelines are optional in the agent configuration.
     }
   }, []);
 
@@ -273,7 +272,7 @@ const AgentEditPage = () => {
       setAvailableUsers(transformedUsers);
     } catch (error) {
       console.error('Error loading users:', error);
-      // Sem toast: só alimenta as regras de transferência, que são opcionais.
+      // No toast: only feeds transfer rules, which are optional.
     }
   }, []);
 
@@ -284,7 +283,7 @@ const AgentEditPage = () => {
   const loadTeams = useCallback(async () => {
     try {
       const response = await teamsService.getTeams();
-      // O endpoint devolve ora array cru, ora paginado.
+      // The endpoint returns either a raw array or a paginated envelope.
       const teams = Array.isArray(response) ? response : response.data || response.data || [];
 
       const transformedTeams = teams.map((team: Team) => ({
@@ -295,7 +294,7 @@ const AgentEditPage = () => {
       setAvailableTeams(transformedTeams);
     } catch (error) {
       console.error('Error loading teams:', error);
-      // Sem toast: só alimenta as regras de transferência, que são opcionais.
+      // No toast: only feeds transfer rules, which are optional.
     }
   }, []);
 
@@ -303,7 +302,7 @@ const AgentEditPage = () => {
     loadTeams();
   }, [loadTeams]);
 
-  // Não há endpoint de busca por lote de IDs: puxa os acessíveis e filtra em memória.
+  // No batch-by-ids endpoint: fetch the accessible ones and filter in memory.
   const loadAgentToolsData = useCallback(async (agentIds: string[]) => {
     if (agentIds.length === 0) return [];
     try {
@@ -513,14 +512,14 @@ const AgentEditPage = () => {
           const backendIntegrations = await getAgentIntegrations(id);
           const mergedIntegrations: Record<string, any> = { ...configIntegrations };
 
-          // O backend nomeia o provider com underscore ("google_calendar"), o front com hífen.
+          // The backend names providers with underscores, the frontend with hyphens.
           backendIntegrations.forEach((integration: any) => {
             const frontendKey = integration.provider.replace(/_/g, '-');
             mergedIntegrations[frontendKey] = {
               ...mergedIntegrations[frontendKey],
               ...integration.config,
               provider: integration.provider,
-              // Existir no backend É o sinal de conectada.
+              // Existing in the backend is what marks it connected.
               connected: true,
             };
           });
@@ -548,7 +547,7 @@ const AgentEditPage = () => {
         ...prev,
         [field]: value,
       }));
-      // `instruction` vive em dois lugares no LLM: no form e no llmConfigData.
+      // For LLM agents `instruction` lives both in the form and in llmConfigData.
       if (field === 'instruction' && agent?.type === 'llm' && llmConfigData) {
         setLLMConfigData(prev => (prev ? { ...prev, instruction: value } : null));
       }
@@ -777,8 +776,7 @@ const AgentEditPage = () => {
   const visibleTabs = getVisibleAgentTabs(agent.type);
 
   return (
-    // `min-w-0` é o que deixa o conteúdo encolher quando o painel de teste abre —
-    // sem ele o flex não reduz e o painel empurra a página.
+    // `min-w-0` lets the content shrink when the test panel opens.
     <div className="flex h-full bg-background">
       <div className="flex min-w-0 flex-1 flex-col">
         <AgentEditHeader

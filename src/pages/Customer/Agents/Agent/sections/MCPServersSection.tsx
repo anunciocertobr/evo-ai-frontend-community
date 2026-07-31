@@ -114,7 +114,7 @@ const MCPServersSection = ({
 
   return (
     <div className="space-y-6">
-      {/* MCPs personalizados primeiro: é o bloco acionável. O catálogo pronto é vitrine. */}
+      {/* Custom MCPs first: they are the actionable block, the catalog is a showcase. */}
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
@@ -180,7 +180,7 @@ const MCPServersSection = ({
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {availableMCPs.map(mcp => {
                 const isEnabled = isMCPEnabled(mcp.id);
-                // Disponível no tenant (endpoint do CRM) não é o mesmo que conectado neste agente.
+                // Available in the tenant is not the same as connected to this agent.
                 const isConfigured = available[mcp.id] ?? false;
                 const connected = isConnected(mcp.id);
                 const onConfigure = getDialogSetter(mcp.id);
@@ -203,8 +203,7 @@ const MCPServersSection = ({
         </div>
       </div>
 
-      {/* `hideCreateNew`: criar um MCP navega para fora de /agents/:id/edit e
-          descartaria o formulário não salvo. */}
+      {/* `hideCreateNew`: creating an MCP navigates away and drops the unsaved form. */}
       <CustomMCPDialog
         open={showCustomMcpPicker}
         onOpenChange={setShowCustomMcpPicker}

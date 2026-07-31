@@ -36,14 +36,13 @@ const IntegrationsSection = ({
   const [showGoogleSheetsConfig, setShowGoogleSheetsConfig] = useState(false);
   const [showKnowledgeNexusConfig, setShowKnowledgeNexusConfig] = useState(false);
 
-  // `available` = a integração existe no tenant (endpoint do CRM); `isConnected` =
-  // este agente já a ativou. Coisas diferentes.
+  // `available` = the integration exists in the tenant; `isConnected` = this agent
+  // has already enabled it.
   const { available, isCheckingIntegrations, isConnected, reloadConfigs } =
     useIntegrations(agentId);
 
-  // Grava direto no backend em vez de esperar o "Salvar": o `agent.config.integrations`
-  // é ignorado na persistência de integrações OAuth/nativas — a fonte da verdade é a
-  // tabela `agent_integrations`, atrás de POST /agents/:id/integrations.
+  // Writes straight to the backend instead of waiting for "Save": the source of truth
+  // is the `agent_integrations` table, not `agent.config.integrations`.
   const persistIntegration = async (
     provider: string,
     config: Record<string, unknown>
@@ -89,9 +88,8 @@ const IntegrationsSection = ({
     }
   };
 
-  // Não dependem de credencial global do admin: a credencial é do próprio usuário.
-  // Como toda a lista de baixo está aqui, "Em breve" hoje só aparece nos cards de MCP —
-  // o ramo continua valendo para as integrações ainda comentadas.
+  // These carry the user's own credential, so they never depend on an admin-wide one.
+  // The "coming soon" branch only applies to the commented-out integrations below.
   const ALWAYS_AVAILABLE_INTEGRATIONS = ['elevenlabs', 'knowledge-nexus', 'google-calendar', 'google-sheets'];
 
   const availableIntegrations: Integration[] = [
@@ -138,7 +136,7 @@ const IntegrationsSection = ({
   return (
     <div className="space-y-8">
       <div className="space-y-4">
-        {/* O título do bloco já vem do cabeçalho do accordion — aqui só a descrição. */}
+        {/* The block title comes from the accordion header; only the description here. */}
         <p className="pb-[18px] pt-[18px] text-[13px] leading-[1.5] text-[#8A928F]">
           {t('edit.integrations.subtitle') ||
             'Conecte o seu agente a outros aplicativos, isso permite que ele obtenha informações mais precisas ou agende reuniões para você.'}
@@ -172,8 +170,8 @@ const IntegrationsSection = ({
                   }
                 };
 
-                // Em breve (sem credencial global) → Ativar → ✓ Ativado. "Ativado" segue
-                // clicável: é por ele que se reconfigura ou desativa.
+                // Coming soon -> Activate -> Activated. "Activated" stays clickable: it is
+                // how the integration is reconfigured or turned off.
                 const action = connected ? (
                   <Button
                     variant="outline"

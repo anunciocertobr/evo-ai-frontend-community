@@ -26,7 +26,7 @@ interface ProfileSectionProps {
   taskConfigData?: TaskConfigData | null;
   onTaskConfigChange?: (data: TaskConfigData) => void;
   editingAgentId?: string;
-  /** Alimentam o Resumo do Agente da coluna direita. */
+  /** Feed the Agent Summary panel on the right column. */
   agent?: Agent;
   model?: string;
   subAgentsCount?: number;
@@ -49,11 +49,11 @@ const ProfileSection = ({
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
 
-  // Orquestradores e external não têm papel, objetivo nem comportamento.
+  // Orchestrators and external agents have no role, goal or behavior.
   const isOrchestratorType = ['sequential', 'parallel', 'loop', 'task', 'external'].includes(agentType || '');
 
-  // As ações de IA chamam o processador de integrações do CRM: exigem provider
-  // configurado E a permissão integrations.execute.
+  // AI actions hit the CRM integrations processor: they need a configured provider
+  // and the integrations.execute grant.
   const showAIActions = config.openaiConfigured === true && isReady && can('integrations', 'execute');
 
   const handleReview = async () => {
@@ -84,8 +84,7 @@ const ProfileSection = ({
   };
 
   const labelClass = 'mb-2 flex items-center gap-[5px] text-[13.5px] font-bold text-[#1A211E]';
-  // `bg-white` explícito: a base do Input é `bg-transparent` e o campo deixava passar
-  // o fundo da página.
+  // Explicit `bg-white`: the Input base is `bg-transparent` and leaks the page background.
   const inputClass =
     'h-auto w-full rounded-[9px] border-[#E3E6EA] bg-white px-[13px] py-[11px] text-sm text-[#1A211E] placeholder:text-[#AEB6BC] focus-visible:border-[#359558] focus-visible:ring-[3px] focus-visible:ring-[#359558]/[.12]';
   const hintClass = 'mt-[7px] text-[12.5px] text-[#9AA3A0]';

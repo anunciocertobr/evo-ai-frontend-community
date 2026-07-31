@@ -10,10 +10,7 @@ interface AgentChatAreaProps {
   agent: Agent;
 }
 
-/**
- * Só o corpo da conversa. O cabeçalho (título da sessão + ações) é do painel que
- * hospeda isto — aqui ele disputava espaço com os botões e estourava a largura.
- */
+/** Conversation body only; the session header belongs to the hosting panel. */
 export function AgentChatArea({ agent }: AgentChatAreaProps) {
   const { t } = useLanguage('aiAgents');
   const { messages, selectedSessionId, isLoading, isSending, sendMessage } = useAgentChat();

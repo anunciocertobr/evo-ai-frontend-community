@@ -35,10 +35,7 @@ interface SubAgentsFormProps {
   onValidationChange: (isValid: boolean, errors: string[]) => void;
   editingAgentId?: string;
   folderId?: string;
-  /**
-   * Dentro do accordion de Ferramentas o form já vive num card, e os <Card> daqui
-   * virariam card dentro de card. O wizard segue no layout antigo, empilhado.
-   */
+  /** Inside the Tools accordion the form already sits in a card, so it drops its own. */
   embedded?: boolean;
 }
 
@@ -73,7 +70,7 @@ const SubAgentsForm = ({
     try {
       const response = await listAgents(0, 100, folderId);
 
-      // Sem o agente atual: evita auto-referência.
+      // Drops the current agent to avoid self-reference.
       const filteredAgents = response.data.filter((agent: any) => agent.id !== editingAgentId);
       setAvailableAgents(filteredAgents);
     } catch (err) {
@@ -128,8 +125,8 @@ const SubAgentsForm = ({
     </Badge>
   );
 
-  // Os dois layouts (accordion e wizard) diferem só no invólucro — busca, linha de
-  // agente, loading e erro são os mesmos e ficam aqui para não viverem em duas cópias.
+  // Both layouts share the search, agent row, loading and error states; only the
+  // surrounding wrapper differs.
   const renderSelectedChip = (agentId: string, chipClass: string) => (
     <div key={agentId} className={chipClass}>
       <span className="text-sm font-medium">{getAgentNameById(agentId)}</span>
@@ -267,7 +264,7 @@ const SubAgentsForm = ({
     return (
       <div className="space-y-6">
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Sem título próprio: o cabeçalho do accordion já diz "Sub Agentes", e as
+          {/* No title of its own: the accordion header already names the block, and the
               duas colunas precisam do mesmo número de níveis para as linhas baterem. */}
           <div className="space-y-3">
             <div>
@@ -292,7 +289,7 @@ const SubAgentsForm = ({
                 <p className="mt-[3px] text-[13px] text-[#8A928F]">{t('subAgents.selectToAdd')}</p>
               </div>
 
-              {/* Sem override de borda/fundo/altura: é o que deixa o foco verde do `--ring` aparecer. */}
+              {/* No border/background/height override, so the `--ring` focus token shows. */}
               {renderSearchField('pl-9 pr-9')}
 
               {isLoading && loadingBlock}

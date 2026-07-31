@@ -13,12 +13,11 @@ describe('AgentToggle', () => {
     expect(cls).toContain('w-[42px]');
     expect(cls).toContain('h-[24px]');
     expect(cls).toContain('rounded-full');
-    // `flex: 0 0 42px` — sem isso o toggle vira um oval achatado ao lado de texto longo.
+    // `flex: 0 0 42px`, otherwise the toggle squashes next to long text.
     expect(cls).toContain('flex-[0_0_42px]');
   });
 
-  // Medidas em px arbitrário: as escalas do Tailwind (h-6/w-10) compilam para rem e
-  // o toggle passaria a escalar com a tipografia.
+  // Raw px: Tailwind's scales compile to rem and the toggle would scale with typography.
   it('never sizes the rail in rem or em', () => {
     render(<AgentToggle checked={false} onCheckedChange={vi.fn()} />);
     expect(rail().className).not.toMatch(/\b[hw]-\d/);
@@ -39,7 +38,7 @@ describe('AgentToggle', () => {
     expect(knob().className).not.toContain('left-[3px]');
   });
 
-  // A spec proíbe misturar translateX com left.
+  // The knob moves by `left` only, never mixed with translateX.
   it('moves the knob by left only, never by transform', () => {
     render(<AgentToggle checked onCheckedChange={vi.fn()} />);
     expect(knob().className).not.toMatch(/translate/);
@@ -75,8 +74,7 @@ describe('AgentToggle', () => {
     expect(input.className).toContain('pointer-events-none');
   });
 
-  // O checkbox é invisível, então o anel tem que vir do label — senão o teclado
-  // atravessa os 14 toggles da tela sem nada aparecer.
+  // The checkbox is invisible, so the focus ring has to come from the label.
   it('shows a focus ring on the rail when the hidden input takes focus', async () => {
     render(<AgentToggle checked={false} onCheckedChange={vi.fn()} />);
     expect(rail().className).toContain('focus-within:ring-[3px]');

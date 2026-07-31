@@ -22,10 +22,7 @@ interface CustomMCPDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (selectedServerIds: string[]) => void;
   initialSelectedIds?: string[];
-  /**
-   * Esconde os atalhos "criar novo MCP": eles navegam para /custom-mcp-servers e
-   * descartariam o formulário não salvo de quem abriu o picker.
-   */
+  /** Hides the "create new MCP" shortcuts: they navigate away and drop the unsaved form. */
   hideCreateNew?: boolean;
 }
 
@@ -114,8 +111,8 @@ const CustomMCPDialog = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden flex flex-col">
-        {/* `sm:text-center` e não `text-center`: variante responsiva do pacote não é
-            cancelada por utilitário simples no tailwind-merge. */}
+        {/* `sm:text-center` and not `text-center`: tailwind-merge only cancels a
+            responsive variant with another responsive variant. */}
         <DialogHeader className="sm:text-center">
           <DialogTitle className="flex items-center justify-center gap-2">
             <Server className="h-5 w-5 text-emerald-500" />
@@ -126,8 +123,8 @@ const CustomMCPDialog = ({
 
         <div className="flex-1 overflow-hidden flex flex-col">
           <div className="p-4 border-b">
-            {/* Sem override de borda/fundo/altura no Input: é o que deixa o foco verde
-                do token `--ring` aparecer. */}
+            {/* No border/background/height override on the Input, so the `--ring` focus
+                token shows. */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -276,8 +273,8 @@ const CustomMCPDialog = ({
               {t('tools.mcpServers.add')}
             </Button>
           )}
-          {/* `onSave` substitui a seleção inteira, então confirmar com zero marcados
-              é o caminho para desvincular todos — não pode ficar desabilitado. */}
+          {/* `onSave` replaces the whole selection, so confirming with none checked is
+              how every server gets unlinked. */}
           <Button className="flex-1" onClick={handleSave}>
             {t('dialogs.customMcp.saveSelection', { count: selectedServerIds.length })}
           </Button>

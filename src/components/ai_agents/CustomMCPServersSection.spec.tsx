@@ -12,8 +12,7 @@ vi.mock('./Dialogs/CustomMCPDialog', () => ({
 }));
 
 describe('CustomMCPServersSection', () => {
-  // O caller do detalhe do agente passa showAddButton={false} porque tem o próprio
-  // botão de adicionar. Isso não pode levar embora o único caminho de remoção.
+  // `showAddButton={false}` must not take away the only path to remove a server.
   it('keeps the remove button when the caller hides the add button', async () => {
     const onCustomMCPServersChange = vi.fn();
     render(

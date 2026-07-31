@@ -11,8 +11,8 @@ interface ContactEditModalProps {
 const ContactEditModal = ({ open, onOpenChange, config, onChange }: ContactEditModalProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* `sm:max-w-*`/`sm:text-*` e não os utilitários simples: variante responsiva
-          do pacote não é cancelada por utilitário simples no tailwind-merge. */}
+      {/* `sm:max-w-*`/`sm:text-*` and not the plain utilities: tailwind-merge only cancels
+          a responsive variant with another responsive variant. */}
       <DialogContent className="max-h-[90vh] gap-3 overflow-y-auto p-5 sm:max-w-[820px]">
         <DialogHeader className="sm:text-center">
           <DialogTitle className="text-xl font-bold text-[#131917]">

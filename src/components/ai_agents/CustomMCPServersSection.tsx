@@ -16,10 +16,10 @@ interface CustomMCPServersSectionProps {
   customMCPServerIds: string[];
   onCustomMCPServersChange: (serverIds: string[]) => void;
   isReadOnly?: boolean;
-  /** Quando o caller já expõe o próprio botão "Adicionar Custom MCP" para a LISTA. */
+  /** Set when the caller already exposes its own "add custom MCP" button for the list. */
   showAddButton?: boolean;
   hideCreateNew?: boolean;
-  /** Deixa o CTA do estado vazio abrir o picker do caller em vez do diálogo local. */
+  /** Points the empty-state CTA at the caller's picker instead of the local dialog. */
   onAdd?: () => void;
 }
 
@@ -34,8 +34,8 @@ const CustomMCPServersSection = ({
   const { t } = useLanguage('aiAgents');
   const [showCustomMCPDialog, setShowCustomMCPDialog] = useState(false);
 
-  // O picker abre com a seleção atual já marcada, então o que ele devolve É a
-  // seleção — unir com a anterior faria desmarcar não ter efeito nenhum.
+  // The picker opens with the current selection checked, so what it returns is the
+  // whole selection; merging would make unchecking a no-op.
   const handleAddCustomMCPServers = (serverIds: string[]) => {
     onCustomMCPServersChange(serverIds);
   };
@@ -69,7 +69,7 @@ const CustomMCPServersSection = ({
                       {t('tools.mcpServers.externallyManaged')}
                     </p>
                   </div>
-                  {/* Remover não depende de `showAddButton`: ele esconde só os CTAs de adicionar. */}
+                  {/* Removing does not depend on `showAddButton`, which only hides add CTAs. */}
                   {!isReadOnly && (
                     <Button
                       variant="ghost"
@@ -108,7 +108,7 @@ const CustomMCPServersSection = ({
               <p className="mt-1 max-w-md text-[13px] leading-[1.5] text-[#8A928F]">
                 {t('tools.mcpServers.connectFromManagement')}
               </p>
-              {/* Idem: um estado vazio sem ação seria beco sem saída. */}
+              {/* Same: an empty state with no action would be a dead end. */}
               {!isReadOnly && (
                 <Button
                   type="button"

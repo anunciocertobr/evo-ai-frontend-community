@@ -53,8 +53,7 @@ describe('getVisibleAgentTabs', () => {
     expect(getVisibleAgentTabs('sequential')).toContain('tools');
   });
 
-  // O ConfigurationSection não tem um único card para esses tipos: sem esse gate a
-  // aba abria em branco.
+  // ConfigurationSection has no card at all for these types.
   it.each(['sequential', 'parallel', 'loop', 'workflow'])(
     'omits Configuração for %s, which has no configuration card',
     agentType => {
@@ -92,8 +91,7 @@ describe('AgentDetailTabs', () => {
     expect(onValueChange).toHaveBeenCalledWith('configuration');
   });
 
-  // Sem `flex-none` explícito o `flex-1` da base do TabsTrigger vence e os chips
-  // esticam pela barra toda. Regressão já vista uma vez.
+  // Without an explicit `flex-none` the TabsTrigger base wins and the chips stretch.
   it('sizes each chip by its content instead of stretching it across the bar', () => {
     renderTabs('llm');
     for (const tab of screen.getAllByRole('tab')) {
@@ -102,8 +100,7 @@ describe('AgentDetailTabs', () => {
     }
   });
 
-  // A AC pede rolagem horizontal em telas estreitas — com `flex-wrap` os 5 chips
-  // caíam para uma segunda linha.
+  // On narrow screens the bar must scroll; `flex-wrap` pushed the chips to a second row.
   it('scrolls the tab bar instead of wrapping it', () => {
     renderTabs('llm');
     const list = screen.getAllByRole('tab')[0].parentElement!;

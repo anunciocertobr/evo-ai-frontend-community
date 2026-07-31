@@ -1,4 +1,4 @@
-/** Tipos compartilhados pelos componentes de configuração do agente. */
+/** Shared types for the agent configuration components. */
 
 export interface AdvancedMessageConfig {
   message_wait_time: number;

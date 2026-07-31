@@ -29,8 +29,7 @@ const ToolsSection = ({
   const { t } = useLanguage('aiAgents');
 
   return (
-    // Duas colunas, mesma estrutura do bloco Sub Agentes: tile + título +
-    // descrição + conteúdo, para as linhas de base das duas baterem.
+    // Same structure as the Sub Agents block so both columns share a baseline.
     <div className="grid gap-6 md:grid-cols-2">
       <div className="space-y-3">
         <div className="flex items-start gap-3">

@@ -68,7 +68,7 @@ const TransferRules = ({ rules, onChange, availableUsers = [], availableTeams = 
         {rules.map(rule => (
           <Card
             key={rule.id}
-            // `py-0` cancela o `py-6` da base do Card, que somaria com o CardContent.
+            // `py-0` cancels the Card base `py-6`, which would stack with the CardContent.
             className="rounded-[14px] border-[#ECEEF2] bg-white py-0 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
           >
             <CardContent className="p-5">

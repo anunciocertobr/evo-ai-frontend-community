@@ -25,7 +25,7 @@ const renderPanel = (type: string) =>
   );
 
 describe('AgentSummaryPanel', () => {
-  // Não existe campo de status em `Agent`: o badge fixo afirmava um estado inventado.
+  // `Agent` carries no status field.
   it('does not claim a status the agent does not carry', async () => {
     renderPanel('llm');
     await waitFor(() => expect(screen.getByText('2')).toBeTruthy());
@@ -39,7 +39,7 @@ describe('AgentSummaryPanel', () => {
     expect(screen.getByText('edit.profile.summary.products')).toBeTruthy();
   });
 
-  // Mesmo gate da aba Produtos — orquestrador não a expõe, então não conta nem busca.
+  // Same gate as the Products tab, which orchestrators do not expose.
   it('drops the products counter for orchestrators', () => {
     listAgentProducts.mockClear();
     renderPanel('sequential');

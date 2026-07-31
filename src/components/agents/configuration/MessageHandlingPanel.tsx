@@ -20,13 +20,13 @@ interface MessageHandlingPanelProps {
 }
 
 interface MessageDeliveryFieldsProps {
-  /** Prefixo dos `id`/`htmlFor`, para LLM e external coexistirem no mesmo DOM. */
+  /** Prefix for `id`/`htmlFor`, so LLM and external can coexist in the same DOM. */
   idPrefix?: string;
   config: AdvancedMessageConfig;
   onChange: (config: AdvancedMessageConfig) => void;
 }
 
-/** LLM e external têm exatamente estes campos, mudando só de onde vem o `advanced_config`. */
+/** LLM and external share these fields; only the `advanced_config` source differs. */
 const MessageDeliveryFields = ({
   idPrefix = '',
   config,

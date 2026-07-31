@@ -29,8 +29,8 @@ export const TransferRulesModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* `sm:max-w-*`/`sm:text-*` e não os utilitários simples: variante responsiva
-          do pacote não é cancelada por utilitário simples no tailwind-merge. */}
+      {/* `sm:max-w-*`/`sm:text-*` and not the plain utilities: tailwind-merge only cancels
+          a responsive variant with another responsive variant. */}
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[640px]">
         <DialogHeader className="sm:text-center">
           <DialogTitle className="text-xl font-bold text-[#131917]">

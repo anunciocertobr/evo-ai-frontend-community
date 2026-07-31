@@ -40,8 +40,7 @@ const renderDialog = (initialSelectedIds: string[], onSave = vi.fn()) => {
 };
 
 describe('CustomMCPDialog', () => {
-  // `onSave` substitui a seleção inteira, então desmarcar tudo é como se desvincula
-  // todos — travar o botão em zero deixava essa intenção inexprimível.
+  // `onSave` replaces the whole selection, so unchecking everything unlinks everything.
   it('confirms an empty selection so every server can be unlinked', async () => {
     const onSave = renderDialog(['mcp-a']);
     await waitFor(() => expect(screen.getByText('MCP A')).toBeTruthy());

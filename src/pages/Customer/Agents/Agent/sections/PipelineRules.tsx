@@ -123,7 +123,7 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
           const selectedPipeline = getSelectedPipeline(rule.pipelineId);
 
           return (
-            // `py-0` cancela o `py-6` da base do Card, que somaria com o CardContent.
+            // `py-0` cancels the Card base `py-6`, which would stack with the CardContent.
             <Card
               key={rule.id}
               className="rounded-[14px] border-[#ECEEF2] bg-white py-0 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
@@ -172,7 +172,7 @@ const PipelineRules = ({ rules = [], onChange, availablePipelines = [] }: Pipeli
                   </div>
 
                   {rule.pipelineId && selectedPipeline && (
-                    // Sem caixa aninhada: o conteúdo corre direto no card da regra.
+                    // No nested box: the content runs straight in the rule card.
                     <div className="space-y-2">
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2">

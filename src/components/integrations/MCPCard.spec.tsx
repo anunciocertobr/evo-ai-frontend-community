@@ -46,7 +46,7 @@ describe('MCPCard', () => {
 
   it('renders name and description alongside the action', () => {
     renderCard({ isConfigured: true, onConfigure: vi.fn() });
-    // O BrandIcon também expõe o nome (title do SVG), daí o getAllByText.
+    // BrandIcon also exposes the name through the SVG title, hence getAllByText.
     expect(screen.getAllByText(mcp.name).length).toBeGreaterThan(0);
     expect(screen.getByText(mcp.description)).toBeTruthy();
   });

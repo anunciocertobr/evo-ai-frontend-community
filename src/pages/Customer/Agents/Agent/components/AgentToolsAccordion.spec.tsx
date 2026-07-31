@@ -62,7 +62,7 @@ describe('AgentToolsAccordion', () => {
 
   it('toggles a block without collapsing the others', async () => {
     renderAccordion('llm');
-    // Sub Agentes abre por padrão para a aba não nascer visualmente vazia.
+    // Sub Agents opens by default so the tab does not start visually empty.
     expect(screen.getByTestId('sub-agents-form')).toBeTruthy();
     expect(screen.queryByTestId('integrations-section')).toBeNull();
 

@@ -7,7 +7,7 @@ import type { Agent } from '@/types/agents';
 
 interface AgentSummaryPanelProps {
   agent: Agent;
-  /** Modelo em edição; cai para o do agente salvo quando o form ainda não tocou nele. */
+  /** Model being edited; falls back to the saved one while the form is untouched. */
   model?: string;
   subAgentsCount: number;
 }
@@ -16,7 +16,7 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
   const { t, currentLanguage } = useLanguage('aiAgents');
   const [productsCount, setProductsCount] = useState<number | null>(null);
 
-  // Mesmo gate da aba Produtos: orquestrador não vende, então nem busca nem conta.
+  // Same gate as the Products tab: orchestrators do not sell, so nothing is fetched.
   const showProducts = !isOrchestratorAgent(agent.type);
 
   useEffect(() => {
@@ -28,7 +28,7 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
       .then(products => {
         if (active) setProductsCount((products ?? []).length);
       })
-      // A contagem é informativa: falhar aqui não pode quebrar a aba Perfil.
+      // The count is informational: failing here must not break the Profile tab.
       .catch(() => {
         if (active) setProductsCount(null);
       });
@@ -62,7 +62,7 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
 
   if (showProducts) {
     counters.push({
-      // `—` e não 0: o fetch pode ter falhado, e "nenhum produto" é outra coisa.
+      // A dash and not 0: the fetch may have failed, which is not "no products".
       value: productsCount ?? '—',
       label: t('edit.profile.summary.products') || 'Produtos',
     });
@@ -78,8 +78,7 @@ const AgentSummaryPanel = ({ agent, model, subAgentsCount }: AgentSummaryPanelPr
           </span>
         </div>
 
-        {/* Sem linha "Status": `Agent` não tem esse campo, e o badge fixo afirmava
-            ao usuário um estado que o front não conhece. */}
+        {/* No "Status" row: `Agent` carries no such field. */}
         <div className="px-5 pb-2 pt-1">
           {rows.map((row, index) => (
             <div

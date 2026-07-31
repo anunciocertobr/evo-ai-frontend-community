@@ -104,7 +104,7 @@ export default function ProductsSection({ agent }: Props) {
       </div>
 
       <div className="flex items-center gap-[10px]">
-        {/* Sem override de borda/fundo/altura: é o que deixa o foco verde do `--ring` aparecer. */}
+        {/* No border/background/height override, so the `--ring` focus token shows. */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input

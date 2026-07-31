@@ -72,8 +72,7 @@ describe('MCPServersSection', () => {
     expect(dialogSpy).toHaveBeenCalledWith(expect.objectContaining({ hideCreateNew: true }));
   });
 
-  // O picker abre com a seleção atual marcada, então o que ele devolve É a seleção.
-  // Unir com a anterior fazia desmarcar não ter efeito nenhum.
+  // The picker returns the whole selection; merging would make unchecking a no-op.
   it('applies the picker selection as-is, so unchecking a server removes it', () => {
     const onCustomMCPServersChange = renderSection(['mcp-a', 'mcp-b']);
 

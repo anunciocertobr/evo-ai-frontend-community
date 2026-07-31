@@ -10,11 +10,9 @@ interface AgentTestChatProps {
 }
 
 /**
- * Painel lateral, não modal: é irmão do conteúdo num flex row, então a área de edição
- * encolhe em vez de ser coberta e o formulário segue editável com o chat aberto.
- *
- * Abaixo de 768px os 360px mínimos não sobram: ali ele sai do fluxo e cobre a tela,
- * senão empurraria o conteúdo e estouraria a página na horizontal.
+ * Side panel, not a modal: a flex sibling of the content, so the edit area shrinks and
+ * stays editable while the chat is open. Below 768px its 360px minimum does not fit,
+ * so it leaves the flow and covers the screen instead of overflowing the page.
  */
 export default function AgentTestChat({ open, onOpenChange, agent }: AgentTestChatProps) {
   if (!open) return null;

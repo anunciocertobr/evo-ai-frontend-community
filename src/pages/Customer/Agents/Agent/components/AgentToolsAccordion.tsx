@@ -53,12 +53,11 @@ const AgentToolsAccordion = ({
   const showSubAgents = supportsSubAgents(agentType);
   const showToolBlocks = supportsToolBlocks(agentType);
 
-  // Borda no trigger e no content, não no item: na raiz ela virava uma linha extra
-  // entre cabeçalho e corpo abertos.
+  // Border on the trigger and the content, not the item: on the item it draws a seam.
   const itemClass = 'mb-[14px] border-0';
   const triggerClass =
     'items-center gap-3 rounded-[14px] border border-[#ECEEF2] bg-white px-[17px] py-[15px] text-[14.5px] font-bold text-[#1A211E] shadow-[0_1px_2px_rgba(16,24,40,0.04)] hover:no-underline data-[state=open]:rounded-b-none data-[state=open]:border-b-0 [&>svg]:h-[18px] [&>svg]:w-[18px] [&>svg]:text-[#9AA3A0]';
-  // `pt-5` porque não há mais borda separando cabeçalho e corpo.
+  // `pt-5` because no border separates the header from the body anymore.
   const contentClass =
     'rounded-b-[14px] border border-t-0 border-[#ECEEF2] bg-white px-5 pb-5 pt-5';
   const iconClass = 'mr-3 h-[18px] w-[18px] text-[#359558]';

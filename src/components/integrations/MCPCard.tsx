@@ -28,8 +28,8 @@ export function MCPCard({
 }: MCPCardProps) {
   const { t } = useLanguage('aiAgents');
 
-  // Em breve (sem credencial global) → Ativar → ✓ Ativado. "Ativado" segue clicável
-  // quando há dialog, para reconfigurar.
+  // Coming soon -> Activate -> Activated. "Activated" stays clickable when a dialog
+  // exists, to reconfigure.
   const renderAction = () => {
     if (!isConfigured) {
       return (

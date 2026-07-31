@@ -20,8 +20,7 @@ const renderRules = (rules: TransferRule[], onChange = vi.fn()) => {
 };
 
 describe('TransferRules', () => {
-  // Gatear o excluir por `rules.length > 1` tornava a primeira regra permanente:
-  // `transfer_rules` nunca mais voltava a [] pela UI.
+  // Gating remove by `rules.length > 1` made the first rule permanent.
   it('lets the user remove the only rule there is', async () => {
     const onChange = renderRules([rule('rule_1')]);
 

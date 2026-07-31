@@ -1,6 +1,6 @@
 import { useLanguage } from '@/hooks/useLanguage';
 
-/** Shell da aba Canais — o conteúdo funcional (vincular/desvincular) entra na S4. */
+/** Shell for the Channels tab; linking and unlinking land here later. */
 const AgentChannelsShell = () => {
   const { t } = useLanguage('aiAgents');
 

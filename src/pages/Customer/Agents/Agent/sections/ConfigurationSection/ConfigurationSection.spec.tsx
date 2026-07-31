@@ -132,11 +132,11 @@ describe('ConfigurationSection', () => {
     await userEvent.click(screen.getByRole('tab', { name: /inactivityActions/ }));
 
     expect(screen.getByTestId('inactivity-actions')).toBeTruthy();
-    // Trocar de aba não pode arrastar os cards junto.
+    // Switching tabs must not drag the cards along.
     expect(screen.queryByText(CARD_TITLES.modelAndApi)).toBeNull();
   });
 
-  // Só o LLM tem ações de inatividade — nos demais a barra secundária não faz sentido.
+  // Only LLM agents have inactivity actions, so the other types get no secondary bar.
   it('omits the secondary tab bar for agent types without inactivity actions', () => {
     renderSection('task');
     expect(screen.queryAllByRole('tab')).toHaveLength(0);

@@ -10,10 +10,7 @@ interface CollapsibleCardProps {
   children: ReactNode;
 }
 
-/**
- * A borda vive no cabeçalho e no corpo, não na raiz: na raiz ela desenhava uma
- * linha extra entre os dois quando aberto.
- */
+/** The border lives on the header and the body: on the root it draws an extra seam. */
 const CollapsibleCard = ({
   title,
   subtitle,

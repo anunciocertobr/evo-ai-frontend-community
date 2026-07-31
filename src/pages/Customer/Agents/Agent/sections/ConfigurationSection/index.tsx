@@ -6,10 +6,7 @@ import { Agent, ApiKey } from '@/types/agents';
 import { Key, MessageSquare, Clock, Settings } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@evoapi/design-system';
 
-/**
- * Controle segmentado: aqui os dois itens DIVIDEM a largura, então o `flex-1` da base
- * do TabsTrigger serve — só o `h-[calc(100%-1px)]` precisa cair via `h-auto`.
- */
+/** Segmented control: both items share the width, so only the base height is dropped. */
 const SEGMENT_CLASS =
   'inline-flex h-auto w-full items-center justify-center gap-2 rounded-[9px] border border-transparent bg-transparent px-4 py-[9px] text-[13.5px] font-medium text-[#5B6470] shadow-none hover:text-[#1A211E] data-[state=active]:bg-[#F0FAF4] data-[state=active]:font-semibold data-[state=active]:text-[#359558] data-[state=active]:shadow-none';
 import { InactivityAction } from '../InactivityActions';
@@ -97,8 +94,8 @@ const ConfigurationSection = ({
   const [showPipelineRulesModal, setShowPipelineRulesModal] = useState(false);
   const [showContactEditModal, setShowContactEditModal] = useState(false);
 
-  // "Modelo e API" cobre o que cada tipo tem de provider: chave+modelo (llm),
-  // agent card (a2a), provider externo (external).
+  // "Model and API" covers whatever provider the type has: key plus model (llm),
+  // agent card (a2a), external provider (external).
   const showModelCard =
     (supportsModelConfig(agent.type) && Boolean(llmConfigData)) ||
     (isA2AAgent(agent.type) && Boolean(a2aConfigData)) ||

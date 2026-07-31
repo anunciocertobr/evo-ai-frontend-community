@@ -9,7 +9,7 @@ interface CompactIntegrationCardProps {
   action: ReactNode;
 }
 
-/** Card compacto horizontal compartilhado pelos blocos de Integrações e de MCP. */
+/** Compact horizontal card shared by the Integrations and MCP blocks. */
 export function CompactIntegrationCard({
   id,
   name,

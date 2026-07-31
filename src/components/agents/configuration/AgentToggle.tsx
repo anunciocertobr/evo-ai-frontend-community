@@ -7,13 +7,9 @@ interface AgentToggleProps {
 }
 
 /**
- * Não usa o `Switch` do design-system: ele é 32×18.4 e o `Thumb` tem className
- * hardcoded, então o tamanho do knob seria inalcançável por fora. Aqui é checkbox
- * nativo oculto (mantém estado de form e teclado) com o estilo todo no <label>.
- *
- * Medidas em px arbitrário: as escalas do Tailwind compilam para rem e o toggle
- * escalaria com a tipografia. O anel de foco fica no <label> via `focus-within`
- * porque o checkbox é invisível.
+ * Not the design-system `Switch`: its `Thumb` className is hardcoded, so the knob size is
+ * unreachable. Sizes are raw px because Tailwind's scales compile to rem and would scale
+ * with the surrounding typography.
  */
 const AgentToggle = ({
   id,
