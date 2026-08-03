@@ -31,37 +31,42 @@ export default function AgentsTable({
 }: AgentsTableProps) {
   const { t } = useLanguage('agents');
 
+  /** PADRAO-DE-DESIGN §3.4: chip = cor a 10% de fundo + a mesma cor no texto, 11.5/700,
+   *  radius 7, sem borda. Alpha sobre a superfície funciona nos dois temas. */
+  const CHIP_CLASS =
+    'rounded-[7px] border-transparent px-2 py-0.5 text-[11.5px] font-bold leading-4';
+
   const getAgentTypeInfo = (type: string) => {
     const types: Record<string, { label: string; color: string }> = {
       llm: {
         label: 'Nativo',
-        color: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-500 dark:border-green-900',
+        color: 'bg-primary/10 text-primary',
       },
       external: {
         label: 'Externo',
-        color: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700',
+        color: 'bg-blue-500/10 text-blue-700 dark:text-blue-400',
       },
       a2a: {
         label: 'A2A',
-        color: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700',
+        color: 'bg-blue-500/10 text-blue-700 dark:text-blue-400',
       },
       sequential: {
         label: 'Agente Sequencial',
-        color: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900 dark:text-amber-200 dark:border-amber-700',
+        color: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
       },
       parallel: {
         label: 'Agente Paralelo',
-        color: 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-900 dark:text-violet-200 dark:border-violet-700',
+        color: 'bg-violet-500/10 text-violet-700 dark:text-violet-400',
       },
       loop: {
         label: 'Agente Loop',
-        color: 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-200 dark:border-indigo-700',
+        color: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400',
       },
     };
 
     const typeInfo = types[type] || {
       label: type,
-      color: 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600',
+      color: 'bg-muted-foreground/10 text-muted-foreground',
     };
 
     return {
@@ -117,7 +122,7 @@ export default function AgentsTable({
       sortable: true,
       render: agent => {
         const typeInfo = getAgentTypeInfo(agent.type);
-        return <Badge className={cn(typeInfo.color, 'border')}>{typeInfo.label}</Badge>;
+        return <Badge className={cn(CHIP_CLASS, typeInfo.color)}>{typeInfo.label}</Badge>;
       },
     },
     {
@@ -125,7 +130,7 @@ export default function AgentsTable({
       label: t('fields.model'),
       render: agent =>
         agent.model ? (
-          <Badge variant="outline" className="text-xs">
+          <Badge className={cn(CHIP_CLASS, 'bg-accent text-muted-foreground')}>
             {agent.model}
           </Badge>
         ) : (

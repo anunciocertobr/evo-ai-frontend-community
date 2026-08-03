@@ -19,6 +19,7 @@ interface AgentsHeaderProps {
   onFilter?: () => void;
   activeFilters?: HeaderFilter[];
   showFilters?: boolean;
+  hideTitle?: boolean;
 }
 
 export default function AgentsHeader({
@@ -33,6 +34,7 @@ export default function AgentsHeader({
   onFilter,
   activeFilters = [],
   showFilters = true,
+  hideTitle = false,
 }: AgentsHeaderProps) {
   const { t } = useLanguage('agents');
   const { can, isReady } = usePermissions();
@@ -67,6 +69,8 @@ export default function AgentsHeader({
     <BaseHeader
       title={t('title')}
       subtitle={t('subtitle')}
+      hideTitle={hideTitle}
+      selectionBarTone="primary"
       totalCount={totalCount}
       selectedCount={selectedCount}
       searchValue={searchValue}

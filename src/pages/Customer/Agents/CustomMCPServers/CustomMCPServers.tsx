@@ -23,6 +23,7 @@ import {
 } from '@/types/ai';
 import { BaseFilter, AppliedFilter, CUSTOM_MCP_SERVER_FILTER_TYPES } from '@/types/core';
 import { buildAppliedFilterChips } from '@/utils/appliedFilterChips';
+import { AgentsTabsLayout } from '@/components/agents';
 import { CustomMCPServerCard } from '@/components/customMcpServers';
 
 import CustomMCPServersHeader from '@/components/customMcpServers/CustomMCPServersHeader';
@@ -430,10 +431,12 @@ export default function CustomMCPServers() {
   }
 
   return (
+    <AgentsTabsLayout tab="customMcpServers">
     <div className="h-full flex flex-col p-4" data-tour="agents-custom-mcps-page">
       <AgentsCustomMCPsTour />
       <div data-tour="agents-custom-mcps-header">
         <CustomMCPServersHeader
+          hideTitle
           totalCount={state.meta.pagination.total}
           selectedCount={state.selectedServerIds.length}
           searchValue={state.searchQuery}
@@ -586,5 +589,6 @@ export default function CustomMCPServers() {
         onClearFilters={handleClearFilters}
       />
     </div>
+    </AgentsTabsLayout>
   );
 }

@@ -10,6 +10,7 @@ import EmptyState from '@/components/base/EmptyState';
 import { CustomTool, CustomToolsState, CustomToolFormData, CustomToolsListParams, CustomToolTestResponse } from '@/types/ai';
 import { BaseFilter, AppliedFilter, CUSTOM_TOOL_FILTER_TYPES } from '@/types/core';
 import { buildAppliedFilterChips } from '@/utils/appliedFilterChips';
+import { AgentsTabsLayout } from '@/components/agents';
 import {
   CustomToolCard,
   CustomToolsHeader,
@@ -396,10 +397,12 @@ export default function CustomTools() {
   }
 
   return (
+    <AgentsTabsLayout tab="customTools">
     <div className="h-full flex flex-col p-4" data-tour="agents-custom-tools-page">
       <AgentsCustomToolsTour />
       <div data-tour="agents-custom-tools-header">
         <CustomToolsHeader
+          hideTitle
           totalCount={state.meta.pagination.total}
           selectedCount={state.selectedToolIds.length}
           searchValue={state.searchQuery}
@@ -567,5 +570,6 @@ export default function CustomTools() {
         result={testResultData}
       />
     </div>
+    </AgentsTabsLayout>
   );
 }

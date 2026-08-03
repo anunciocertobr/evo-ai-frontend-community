@@ -175,5 +175,18 @@
         "disconnect": "Disconnect"
       }
     }
+  },
+  "container": {
+    "title": "AI Agents",
+    "subtitle": "Manage your agents, custom tools and MCP servers",
+    "tabs": {
+      "agents": "AI Agents",
+      "customTools": "Custom Tools",
+      "customMcpServers": "Custom MCPs"
+    },
+    "noAccess": {
+      "title": "No access to this area",
+      "description": "You do not have permission to view AI Agents, Custom Tools or Custom MCPs. Ask an administrator for access."
+    }
   }
 }

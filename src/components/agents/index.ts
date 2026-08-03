@@ -1,4 +1,5 @@
 export { default as AgentsTable } from './AgentsTable';
+export { default as AgentsTabsLayout } from './AgentsTabsLayout';
 export { default as AgentsHeader } from './AgentsHeader';
 export { default as AgentsFilter } from './AgentsFilter';
 export { default as AgentsPagination } from './AgentsPagination';

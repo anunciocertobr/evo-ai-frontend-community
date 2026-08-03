@@ -38,6 +38,12 @@ export interface HeaderFilter {
 export interface BaseHeaderProps {
   title: string;
   subtitle?: string;
+  /** Suppresses only the rendering of title/subtitle, for screens whose layout
+   *  already owns them (EVO-2231: the Agentes de IA tab container). */
+  hideTitle?: boolean;
+  /** `primary` is the canonical green bulk bar (PADRAO-DE-DESIGN §3.14). Opt-in so
+   *  the 30+ screens still on the neutral bar are untouched. */
+  selectionBarTone?: 'default' | 'primary';
   searchValue?: string;
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
@@ -60,6 +66,8 @@ export interface BaseHeaderProps {
 export default function BaseHeader({
   title,
   subtitle,
+  hideTitle = false,
+  selectionBarTone = 'default',
   searchValue,
   onSearchChange,
   searchPlaceholder,
@@ -80,6 +88,7 @@ export default function BaseHeader({
   const { t } = useLanguage('common');
   const placeholder = searchPlaceholder || t('base.header.searchPlaceholder');
   const hasSelection = selectedCount > 0;
+  const isPrimarySelectionBar = selectionBarTone === 'primary';
   const visibleSecondaryActions = secondaryActions.filter(action => action.show !== false);
   const visibleMoreActions = moreActions.filter(action => action.show !== false);
 
@@ -88,9 +97,13 @@ export default function BaseHeader({
       <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-start md:justify-between">
         {/* Title Section */}
         <div className="flex-1">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-7 sm:leading-8 text-sidebar-foreground mb-1 sm:mb-2">{title}</h1>
-          {subtitle && (
-            <p className="hidden sm:block text-sm leading-5 text-sidebar-foreground/70">{subtitle}</p>
+          {!hideTitle && (
+            <>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-7 sm:leading-8 text-sidebar-foreground mb-1 sm:mb-2">{title}</h1>
+              {subtitle && (
+                <p className="hidden sm:block text-sm leading-5 text-sidebar-foreground/70">{subtitle}</p>
+              )}
+            </>
           )}
         </div>
 
@@ -235,9 +248,15 @@ export default function BaseHeader({
 
       {/* Selection Bar */}
       {hasSelection && (
-        <div className="flex items-center justify-between rounded-lg bg-sidebar-accent/50 border border-sidebar-border px-4 py-2">
+        <div className={isPrimarySelectionBar
+          ? 'flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-[14px] py-[10px]'
+          : 'flex items-center justify-between rounded-lg bg-sidebar-accent/50 border border-sidebar-border px-4 py-2'}
+        >
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-sidebar-foreground">
+            <span className={isPrimarySelectionBar
+              ? 'text-[13.5px] font-bold text-primary'
+              : 'text-sm font-medium text-sidebar-foreground'}
+            >
               {t('base.header.selected', { count: selectedCount })}
             </span>
             {onClearSelection && (
@@ -245,7 +264,9 @@ export default function BaseHeader({
                 variant="ghost"
                 size="sm"
                 onClick={onClearSelection}
-                className="h-7 px-2 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                className={isPrimarySelectionBar
+                  ? 'h-7 px-2 text-primary/80 hover:bg-primary/20 hover:text-primary'
+                  : 'h-7 px-2 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent'}
               >
                 <X className="h-3 w-3 mr-1" />
                 {t('base.header.clear')}
@@ -254,13 +275,20 @@ export default function BaseHeader({
           </div>
           {bulkActions.length > 0 && (
             <div className="flex items-center gap-2">
-              {bulkActions.map((action, index) => (
+              {isPrimarySelectionBar && <span className="h-5 w-px bg-primary/30" aria-hidden="true" />}
+              {bulkActions.map((action, index) => {
+                const isDanger = action.variant === 'destructive';
+                return (
                 <Button
                   key={index}
-                  variant={action.variant || 'outline'}
+                  variant={isPrimarySelectionBar ? 'ghost' : action.variant || 'outline'}
                   size="sm"
                   onClick={action.onClick}
-                  className="h-7 bg-sidebar-accent border-sidebar-border text-sidebar-foreground hover:bg-sidebar"
+                  className={isPrimarySelectionBar
+                    ? (isDanger
+                        ? 'h-7 text-destructive hover:bg-destructive/10 hover:text-destructive'
+                        : 'h-7 text-primary hover:bg-primary/20 hover:text-primary')
+                    : 'h-7 bg-sidebar-accent border-sidebar-border text-sidebar-foreground hover:bg-sidebar'}
                 >
                   {action.icon && (typeof action.icon === 'function' ? (
                     (() => {
@@ -274,7 +302,8 @@ export default function BaseHeader({
                   ))}
                   {action.label}
                 </Button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

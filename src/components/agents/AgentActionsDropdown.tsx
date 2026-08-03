@@ -34,20 +34,21 @@ export default function AgentActionsDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-      <DropdownMenuContent align={align} className="w-48">
+      <DropdownMenuContent align={align} className="w-48 rounded-xl border-border shadow-lg">
         {isReady && can('ai_agents', 'update') && (
-          <DropdownMenuItem onClick={() => onEdit(agent)}>
-            <Edit className="h-4 w-4 mr-2" />
+          <DropdownMenuItem onClick={() => onEdit(agent)} className="focus:bg-accent">
+            <Edit className="h-4 w-4 mr-2 text-primary" />
             {t('dropdown.edit')}
           </DropdownMenuItem>
         )}
         <DropdownMenuItem
+          className="focus:bg-accent"
           onClick={async () => {
             await navigator.clipboard.writeText(agent.id);
             toast.success(t('dropdown.idCopied'));
           }}
         >
-          <Copy className="h-4 w-4 mr-2" />
+          <Copy className="h-4 w-4 mr-2 text-muted-foreground" />
           {t('dropdown.copyId')}
         </DropdownMenuItem>
         {/* {onExportAsJSON && (
@@ -67,7 +68,7 @@ export default function AgentActionsDropdown({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => onDelete(agent)}
-              className="text-red-500 focus:text-red-500"
+              className="text-destructive focus:bg-destructive/10 focus:text-destructive"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               {t('dropdown.delete')}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@evoapi/design-system';
-import { AgentsTable, AgentsHeader, AgentsPagination, AgentWizardModal, AgentsFilter } from '@/components/agents';
+import { AgentsTable, AgentsHeader, AgentsPagination, AgentWizardModal, AgentsFilter, AgentsTabsLayout } from '@/components/agents';
 import { EmptyState } from '@/components/base';
 import { Bot, Search } from 'lucide-react';
 import { toast } from 'sonner';
@@ -293,11 +293,13 @@ const Agentes = () => {
           />
         </div>
       ) : (
+        <AgentsTabsLayout tab="agents">
         <div className="animate-fadeIn h-full flex flex-col">
           <AgentsTour />
           <div className="flex-1 space-y-6 p-6">
             <div data-tour="agents-header">
             <AgentsHeader
+              hideTitle
               totalCount={state.meta.pagination.total}
               selectedCount={state.selectedAgents.length}
               searchValue={searchTerm}
@@ -375,6 +377,7 @@ const Agentes = () => {
             />
           </div>
         </div>
+        </AgentsTabsLayout>
       )}
 
       <ApiKeysModal open={isApiKeysModalOpen} onOpenChange={setIsApiKeysModalOpen} />

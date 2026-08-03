@@ -175,5 +175,18 @@
         "disconnect": "Desconectar"
       }
     }
+  },
+  "container": {
+    "title": "Agentes de IA",
+    "subtitle": "Gerencie seus agentes, ferramentas personalizadas e servidores MCP",
+    "tabs": {
+      "agents": "Agentes de IA",
+      "customTools": "Ferramentas Personalizadas",
+      "customMcpServers": "MCPs Personalizados"
+    },
+    "noAccess": {
+      "title": "Sem acesso a esta área",
+      "description": "Você não tem permissão para ver Agentes de IA, Ferramentas Personalizadas ou MCPs Personalizados. Peça acesso a um administrador."
+    }
   }
 }
