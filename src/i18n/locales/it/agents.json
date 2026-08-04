@@ -191,5 +191,20 @@
       "customTools": "Gestisci i tuoi strumenti personalizzati",
       "customMcpServers": "Gestisci i tuoi server MCP personalizzati"
     }
+  },
+  "filters": {
+    "title": "Filtri",
+    "clear": "Rimuovi filtri",
+    "empty": "Nessuna opzione disponibile",
+    "close": "Chiudi i filtri",
+    "sections": {
+      "type": "Tipo",
+      "model": "Modello"
+    },
+    "types": {
+      "native": "Nativo",
+      "external": "Esterno",
+      "advanced": "Avanzato"
+    }
   }
 }

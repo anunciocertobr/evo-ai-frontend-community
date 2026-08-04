@@ -432,9 +432,9 @@ export default function CustomMCPServers() {
 
   return (
     <AgentsTabsLayout tab="customMcpServers">
-    <div className="h-full flex flex-col p-4" data-tour="agents-custom-mcps-page">
+    <div className="flex h-full flex-col px-[34px] pb-5" data-tour="agents-custom-mcps-page">
       <AgentsCustomMCPsTour />
-      <div data-tour="agents-custom-mcps-header">
+      <div className="mt-6" data-tour="agents-custom-mcps-header">
         <CustomMCPServersHeader
           hideTitle
           totalCount={state.meta.pagination.total}
@@ -472,7 +472,7 @@ export default function CustomMCPServers() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto" data-tour="agents-custom-mcps-content">
+      <div className="mt-5 flex-1 overflow-auto" data-tour="agents-custom-mcps-content">
         {state.loading.list ? (
           <div className="flex items-center justify-center py-16">
             <div className="text-muted-foreground">{t('loading.servers')}</div>

@@ -1,4 +1,4 @@
-import { Bot, Server, Wrench, type LucideIcon } from 'lucide-react';
+import { Cpu, List, Wrench, type LucideIcon } from 'lucide-react';
 
 export type AgentsTabKey = 'agents' | 'customTools' | 'customMcpServers';
 
@@ -24,7 +24,7 @@ export const AGENTS_TABS: AgentsTabDefinition[] = [
     resource: 'ai_agents',
     labelKey: 'container.tabs.agents',
     subtitleKey: 'container.subtitles.agents',
-    icon: Bot,
+    icon: List,
   },
   {
     key: 'customTools',
@@ -40,7 +40,7 @@ export const AGENTS_TABS: AgentsTabDefinition[] = [
     resource: 'ai_custom_mcp_servers',
     labelKey: 'container.tabs.customMcpServers',
     subtitleKey: 'container.subtitles.customMcpServers',
-    icon: Server,
+    icon: Cpu,
   },
 ];
 

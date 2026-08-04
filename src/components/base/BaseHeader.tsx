@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import PrimaryActionButton from './PrimaryActionButton';
+import { cn } from '@/utils/cn';
 
 export interface HeaderAction {
   label: string;
@@ -41,6 +42,13 @@ export interface BaseHeaderProps {
   /** Suppresses only the rendering of title/subtitle, for screens whose layout
    *  already owns them (EVO-2231: the Agentes de IA tab container). */
   hideTitle?: boolean;
+  /** Painel ancorado ao botão "Filtros" (PADRAO-DE-DESIGN §2.3). Opt-in: sem ele o
+   *  botão segue apenas disparando `onFilterClick`. */
+  filterPanel?: ReactNode;
+  /** Badge do botão "Filtros" quando os filtros não viram chips. Default: nº de chips. */
+  filterCount?: number;
+  /** Classe extra do botão "Filtros" (a tela pode alinhá-lo ao próprio design). */
+  filterButtonClassName?: string;
   /** `primary` is the canonical green bulk bar (PADRAO-DE-DESIGN §3.14). Opt-in so
    *  the 30+ screens still on the neutral bar are untouched. */
   selectionBarTone?: 'default' | 'primary';
@@ -84,6 +92,9 @@ export default function BaseHeader({
   bulkActions = [],
   className = '',
   children,
+  filterPanel,
+  filterCount,
+  filterButtonClassName,
 }: BaseHeaderProps) {
   const { t } = useLanguage('common');
   const placeholder = searchPlaceholder || t('base.header.searchPlaceholder');
@@ -91,6 +102,7 @@ export default function BaseHeader({
   const isPrimarySelectionBar = selectionBarTone === 'primary';
   const visibleSecondaryActions = secondaryActions.filter(action => action.show !== false);
   const visibleMoreActions = moreActions.filter(action => action.show !== false);
+  const activeFilterCount = filterCount ?? filters.length;
   const hasPrimaryAction = !!primaryAction && primaryAction.show !== false;
   // Sem título, a linha de cima teria só o botão primário flutuando sozinho. Ele desce
   // para a barra de busca, à direita dos secundários — é o layout do protótipo.
@@ -145,24 +157,30 @@ export default function BaseHeader({
 
           {/* Filter Button */}
           {showFilters && onFilterClick && (
+            <div className="relative">
             <Button
               variant="outline"
               size="sm"
               onClick={onFilterClick}
-              className="bg-sidebar border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent whitespace-nowrap"
+              className={cn(
+                'bg-sidebar border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent whitespace-nowrap',
+                filterButtonClassName,
+              )}
               data-tour={filterButtonDataTour}
             >
               <Filter className="h-4 w-4 mr-2" />
               {t('base.header.filters')}
-              {filters.length > 0 && (
+              {activeFilterCount > 0 && (
                 <Badge
                   variant="secondary"
                   className="ml-2 h-5 px-1.5 text-xs bg-sidebar-accent"
                 >
-                  {filters.length}
+                  {activeFilterCount}
                 </Badge>
               )}
             </Button>
+            {filterPanel}
+            </div>
           )}
         </div>
 
@@ -190,7 +208,10 @@ export default function BaseHeader({
                 variant={action.variant || 'outline'}
                 size="sm"
                 onClick={action.onClick}
-                className="bg-sidebar border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent"
+                className={cn(
+                  'bg-sidebar border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent',
+                  action.className,
+                )}
                 data-tour={action.dataTour}
               >
                 {renderIcon()}

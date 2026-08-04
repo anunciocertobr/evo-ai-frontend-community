@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import {
   Plus,
   Key,
@@ -20,7 +21,20 @@ interface AgentsHeaderProps {
   activeFilters?: HeaderFilter[];
   showFilters?: boolean;
   hideTitle?: boolean;
+  filterPanel?: ReactNode;
+  filterCount?: number;
 }
+
+/**
+ * Medidas do protótipo (`.tbtn` e o botão verde do planning-novo-agente-ia-crm.html).
+ * `h-auto` cancela a altura fixa do `size="sm"` do design-system, que senão vence.
+ * O ícone já vem com `mr-2` do BaseHeader/PrimaryActionButton = o `gap:8px` do protótipo.
+ */
+const TOOLBAR_BUTTON_CLASS =
+  'h-auto rounded-[9px] border-border bg-card px-[15px] py-2.5 text-[13.5px] font-semibold text-muted-foreground shadow-none hover:border-primary/30 hover:bg-primary/10 hover:text-primary';
+
+const PRIMARY_BUTTON_CLASS =
+  'h-auto rounded-[9px] px-[18px] py-[11px] text-[13.5px] font-semibold shadow-md shadow-primary/25';
 
 export default function AgentsHeader({
   totalCount,
@@ -35,6 +49,8 @@ export default function AgentsHeader({
   activeFilters = [],
   showFilters = true,
   hideTitle = false,
+  filterPanel,
+  filterCount,
 }: AgentsHeaderProps) {
   const { t } = useLanguage('agents');
   const { can, isReady } = usePermissions();
@@ -43,6 +59,7 @@ export default function AgentsHeader({
     label: t('createAgent'),
     icon: <Plus className="h-4 w-4" />,
     onClick: onNewAgent,
+    className: PRIMARY_BUTTON_CLASS,
     dataTour: 'agents-new-button',
   } : undefined;
 
@@ -52,6 +69,7 @@ export default function AgentsHeader({
       icon: <Key className="h-4 w-4" />,
       onClick: onManageApiKeys,
       variant: 'outline' as const,
+      className: TOOLBAR_BUTTON_CLASS,
       dataTour: 'agents-api-keys',
     },
   ];
@@ -70,6 +88,9 @@ export default function AgentsHeader({
       title={t('title')}
       subtitle={t('subtitle')}
       hideTitle={hideTitle}
+      filterPanel={filterPanel}
+      filterButtonClassName={TOOLBAR_BUTTON_CLASS}
+      filterCount={filterCount}
       selectionBarTone="primary"
       totalCount={totalCount}
       selectedCount={selectedCount}

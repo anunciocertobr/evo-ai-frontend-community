@@ -87,9 +87,17 @@ describe('AgentsHeader', () => {
     const primaryBtn = screen.getByText('createAgent').closest('button')!;
     const secondaryBtn = screen.getByText('apiKeys.manage').closest('button')!;
 
-    const searchRow = filtersBtn.parentElement!.parentElement!;
-    expect(searchRow.contains(primaryBtn)).toBe(true);
-    expect(searchRow.contains(secondaryBtn)).toBe(true);
+    // Sobe até o ancestral comum em vez de contar níveis: o botão Filtros ganhou um
+    // wrapper `relative` para ancorar o painel §2.3, e profundidade fixa quebraria aqui.
+    const searchInput = screen.getByPlaceholderText('search.placeholder');
+    let searchRow: HTMLElement | null = filtersBtn;
+    while (searchRow && !(searchRow.contains(searchInput) && searchRow.contains(primaryBtn))) {
+      searchRow = searchRow.parentElement;
+    }
+    expect(searchRow).toBeTruthy();
+    expect(searchRow!.contains(secondaryBtn)).toBe(true);
+    // A linha do título saiu inteira — o primário não voltou para uma faixa própria.
+    expect(searchRow!.querySelector('h1')).toBeNull();
 
     // …e o primário fica DEPOIS do secundário (Gerenciar Chaves API · Novo Agente de IA).
     expect(secondaryBtn.compareDocumentPosition(primaryBtn) & Node.DOCUMENT_POSITION_FOLLOWING)
@@ -146,5 +154,27 @@ describe('AgentsTable', () => {
     // dismissable layer directly instead of through userEvent's pointer guard.
     fireEvent.pointerDown(document.body, { bubbles: true, button: 0, ctrlKey: false });
     await waitFor(() => expect(screen.queryByText('dropdown.copyId')).toBeNull());
+  });
+});
+
+describe('AgentsHeader — medidas do protótipo', () => {
+  // `.tbtn` do protótipo: radius 9, padding 10px 15, 13.5/600. Sem `h-auto` a altura
+  // fixa do `size="sm"` do design-system vence e o botão sai maior que o alvo.
+  it.each(['apiKeys.manage', 'base.header.filters'])('sizes %s like the prototype tbtn', label => {
+    renderHeader();
+    const btn = screen.getByText(label).closest('button')!;
+    expect(btn.className).toContain('h-auto');
+    expect(btn.className).toContain('rounded-[9px]');
+    expect(btn.className).toContain('px-[15px]');
+    expect(btn.className).toContain('text-[13.5px]');
+  });
+
+  it('sizes the green button like the prototype primary', () => {
+    renderHeader();
+    const btn = screen.getByText('createAgent').closest('button')!;
+    expect(btn.className).toContain('h-auto');
+    expect(btn.className).toContain('rounded-[9px]');
+    expect(btn.className).toContain('px-[18px]');
+    expect(btn.className).toContain('text-[13.5px]');
   });
 });

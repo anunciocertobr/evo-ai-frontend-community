@@ -398,9 +398,9 @@ export default function CustomTools() {
 
   return (
     <AgentsTabsLayout tab="customTools">
-    <div className="h-full flex flex-col p-4" data-tour="agents-custom-tools-page">
+    <div className="flex h-full flex-col px-[34px] pb-5" data-tour="agents-custom-tools-page">
       <AgentsCustomToolsTour />
-      <div data-tour="agents-custom-tools-header">
+      <div className="mt-6" data-tour="agents-custom-tools-header">
         <CustomToolsHeader
           hideTitle
           totalCount={state.meta.pagination.total}
@@ -439,7 +439,7 @@ export default function CustomTools() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto" data-tour="agents-custom-tools-content">
+      <div className="mt-5 flex-1 overflow-auto" data-tour="agents-custom-tools-content">
         {state.loading.list ? (
           <div className="flex items-center justify-center py-16">
             <div className="text-muted-foreground">{t('loading.tools')}</div>

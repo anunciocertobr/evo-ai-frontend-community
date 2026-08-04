@@ -1,15 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@evoapi/design-system';
-import { AgentsTable, AgentsHeader, AgentsPagination, AgentWizardModal, AgentsFilter, AgentsTabsLayout } from '@/components/agents';
-import { EmptyState } from '@/components/base';
-import { Bot, Search } from 'lucide-react';
+import { AgentsTable, AgentsHeader, AgentsPagination, AgentWizardModal, AgentsFilterPanel, AgentsTabsLayout } from '@/components/agents';
+import {
+  EMPTY_AGENT_FACETS,
+  AgentFacetSelection,
+  applyAgentFacets,
+  buildModelOptions,
+  countSelectedFacets,
+} from '@/components/agents/agentsFilterFacets';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { getAccessibleAgents, deleteAgent } from '@/services/agents';
-import { Agent, AGENT_FILTER_TYPES } from '@/types/agents';
-import { buildAppliedFilterChips } from '@/utils/appliedFilterChips';
-import type { BaseFilter, AppliedFilter } from '@/types/core';
+import { Agent } from '@/types/agents';
 import { useLanguage } from '@/hooks/useLanguage';
 import { ApiKeysModal } from '@/components/ApiKeysModal';
 import { AgentsTour } from '@/tours';
@@ -52,13 +55,10 @@ const Agentes = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [filterModalOpen, setFilterModalOpen] = useState(false);
-  const [activeFilters, setActiveFilters] = useState<BaseFilter[]>([]);
-  const [appliedFilters, setAppliedFilters] = useState<AppliedFilter[]>([]);
-  // EVO-1952: ref synced to activeFilters so the applied-chip "x" removes against
-  // the current list, not the stale snapshot captured when the chips were built.
-  const activeFiltersRef = useRef<BaseFilter[]>([]);
-  activeFiltersRef.current = activeFilters;
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  // Facetas Tipo/Modelo do protótipo §2.3. Filtram a PÁGINA carregada — igual ao
+  // protótipo e à busca desta tela; não há endpoint de facetas.
+  const [facets, setFacets] = useState<AgentFacetSelection>(EMPTY_AGENT_FACETS);
 
   const loadingRef = useRef(false);
   const loadAgentsRef = useRef<((params?: { page?: number; per_page?: number }) => Promise<void>) | null>(null);
@@ -69,7 +69,7 @@ const Agentes = () => {
   const isWizardOpen = location.pathname === '/agents/new';
 
   const loadAgents = useCallback(
-    async (params?: { page?: number; per_page?: number }, filtersOverride?: BaseFilter[]) => {
+    async (params?: { page?: number; per_page?: number }) => {
       if (loadingRef.current || permissionsLoading || !permissionsReady) {
         return;
       }
@@ -86,21 +86,7 @@ const Agentes = () => {
         const currentPage = params?.page ?? 1;
         const currentPageSize = params?.per_page ?? 24;
 
-        const effectiveFilters = filtersOverride ?? activeFilters;
-        const filterParams = effectiveFilters.reduce((acc, filter, index) => {
-          const prefix = `filters[${index}]`;
-          acc[`${prefix}[attribute_key]`] = filter.attributeKey;
-          acc[`${prefix}[filter_operator]`] = filter.filterOperator;
-          acc[`${prefix}[values]`] = Array.isArray(filter.values)
-            ? filter.values.join(',')
-            : String(filter.values);
-          if (index > 0) {
-            acc[`${prefix}[query_operator]`] = filter.queryOperator;
-          }
-          return acc;
-        }, {} as Record<string, string>);
-
-        const response = await getAccessibleAgents(currentPage, currentPageSize, { filterParams });
+        const response = await getAccessibleAgents(currentPage, currentPageSize);
 
         const total = response.meta?.pagination?.total || 0;
         const pageSize = response.meta?.pagination?.page_size || DEFAULT_PAGE_SIZE;
@@ -134,7 +120,7 @@ const Agentes = () => {
         loadingRef.current = false;
       }
     },
-    [permissionsReady, permissionsLoading, can, t, activeFilters],
+    [permissionsReady, permissionsLoading, can, t],
   );
 
   useEffect(() => {
@@ -243,37 +229,13 @@ const Agentes = () => {
     toast.info(t('bulkDelete'));
   };
 
-  const convertFiltersToApplied = (filters: BaseFilter[]): AppliedFilter[] =>
-    buildAppliedFilterChips(filters, AGENT_FILTER_TYPES, t, handleRemoveFilter);
-
-  const handleOpenFilter = () => setFilterModalOpen(true);
-
-  const handleApplyFilters = (filters: BaseFilter[]) => {
-    setActiveFilters(filters);
-    setAppliedFilters(convertFiltersToApplied(filters));
-    loadAgents({ page: 1 }, filters);
-  };
-
-  const handleClearFilters = () => {
-    setActiveFilters([]);
-    setAppliedFilters([]);
-    loadAgents({ page: 1 }, []);
-  };
-
-  const handleRemoveFilter = (index: number) => {
-    const newFilters = activeFiltersRef.current.filter((_, i) => i !== index);
-    if (newFilters.length === 0) {
-      handleClearFilters();
-    } else {
-      handleApplyFilters(newFilters);
-    }
-  };
-
-  const filteredAgents = state.agents.filter(
+  const searchedAgents = state.agents.filter(
     agent =>
       agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       agent.description?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
+  const filteredAgents = applyAgentFacets(searchedAgents, facets);
+  const modelOptions = buildModelOptions(state.agents);
 
   return (
     <div className="flex flex-col h-full">
@@ -296,8 +258,8 @@ const Agentes = () => {
         <AgentsTabsLayout tab="agents">
         <div className="animate-fadeIn h-full flex flex-col">
           <AgentsTour />
-          <div className="flex-1 space-y-6 p-6">
-            <div data-tour="agents-header">
+          <div className="flex-1 px-[34px] pb-5">
+            <div className="mt-6" data-tour="agents-header">
             <AgentsHeader
               hideTitle
               totalCount={state.meta.pagination.total}
@@ -308,64 +270,38 @@ const Agentes = () => {
               onManageApiKeys={() => setIsApiKeysModalOpen(true)}
               onBulkDelete={handleBulkDelete}
               onClearSelection={() => setState(prev => ({ ...prev, selectedAgents: [] }))}
-              onFilter={handleOpenFilter}
-              activeFilters={appliedFilters}
+              onFilter={() => setFilterPanelOpen(open => !open)}
+              filterCount={countSelectedFacets(facets)}
               showFilters={true}
+              filterPanel={
+                <AgentsFilterPanel
+                  open={filterPanelOpen}
+                  onClose={() => setFilterPanelOpen(false)}
+                  selection={facets}
+                  onSelectionChange={setFacets}
+                  onClear={() => setFacets(EMPTY_AGENT_FACETS)}
+                  modelOptions={modelOptions}
+                />
+              }
             />
             </div>
 
-            <AgentsFilter
-              open={filterModalOpen}
-              onOpenChange={setFilterModalOpen}
-              filters={activeFilters}
-              onFiltersChange={setActiveFilters}
-              onApplyFilters={handleApplyFilters}
-              onClearFilters={handleClearFilters}
+            <div className="mt-5" data-tour="agents-list">
+            <AgentsTable
+              agents={filteredAgents}
+              selectedAgents={state.selectedAgents}
+              loading={state.loading}
+              onSelectionChange={agents => setState(prev => ({ ...prev, selectedAgents: agents }))}
+              onEditAgent={agent => handleEditAgent(agent.id)}
+              onDeleteAgent={handleDeleteAgent}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSort={handleSort}
             />
-
-            <div data-tour="agents-list">
-            {state.loading ? (
-              <div className="flex items-center justify-center h-48">
-                <Bot className="h-8 w-8 animate-pulse" />
-              </div>
-            ) : state.agents.length === 0 ? (
-              <EmptyState
-                icon={Bot}
-                title={t('emptyState.title')}
-                description={t('emptyState.description')}
-                action={{
-                  label: t('createAgent'),
-                  onClick: handleCreateAgent,
-                }}
-              />
-            ) : filteredAgents.length === 0 ? (
-              <EmptyState
-                icon={Search}
-                title={t('emptyState.noResults')}
-                description={t('search.noResults')}
-                action={{
-                  label: t('search.clearSearch'),
-                  onClick: () => setSearchTerm(''),
-                  variant: 'outline',
-                }}
-              />
-            ) : (
-              <AgentsTable
-                agents={filteredAgents}
-                selectedAgents={state.selectedAgents}
-                loading={state.loading}
-                onSelectionChange={agents => setState(prev => ({ ...prev, selectedAgents: agents }))}
-                onEditAgent={agent => handleEditAgent(agent.id)}
-                onDeleteAgent={handleDeleteAgent}
-                sortBy={sortBy}
-                sortOrder={sortOrder}
-                onSort={handleSort}
-              />
-            )}
             </div>
           </div>
 
-          <div className="p-6 pt-0">
+          <div className="px-[34px] pb-5">
             <AgentsPagination
               currentPage={state.meta.pagination.page}
               totalPages={state.meta.pagination.total_pages}

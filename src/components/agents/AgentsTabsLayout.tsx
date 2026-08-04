@@ -70,11 +70,12 @@ const AgentsTabsLayout = ({ tab, children }: AgentsTabsLayoutProps) => {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex-shrink-0 border-b border-border px-6 pt-6">
-        <h1 className="text-xl font-bold leading-7 tracking-tight text-foreground sm:text-2xl sm:leading-8">
+      {/* Medidas do protótipo: área 26/34/20, título 27/800, abas mt 22 + pb 14. */}
+      <div className="flex-shrink-0 border-b border-border px-[34px] pt-[26px]">
+        <h1 className="text-[27px] font-extrabold leading-tight tracking-[-0.5px] text-foreground">
           {t(activeTab.labelKey)}
         </h1>
-        <p className="mt-1 hidden text-sm leading-5 text-muted-foreground sm:block">
+        <p className="mt-[5px] text-sm leading-5 text-muted-foreground">
           {t(activeTab.subtitleKey)}
         </p>
 
@@ -86,7 +87,7 @@ const AgentsTabsLayout = ({ tab, children }: AgentsTabsLayoutProps) => {
               navigate(target.route);
             }
           }}
-          className="mt-4"
+          className="mt-[22px]"
         >
           <TabsList className={`${AGENTS_TAB_LIST_CLASS} pb-[14px]`}>
             {allowedTabs.map(allowed => {
