@@ -155,9 +155,11 @@ export default function BaseHeader({
             </div>
           )}
 
-          {/* Filter Button */}
+          {/* Filter Button. O wrapper é a ÂNCORA do `filterPanel`: agrupa botão + painel
+              para o painel saber que um clique no botão não é "clique fora" — senão o
+              toggle nunca fecha. */}
           {showFilters && onFilterClick && (
-            <div className="relative">
+            <div className="relative" data-filter-anchor="">
             <Button
               variant="outline"
               size="sm"

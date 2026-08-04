@@ -47,9 +47,11 @@ export default function AgentsFilterPanel({
     if (!open) return;
 
     const handlePointerDown = (event: MouseEvent) => {
-      // O botão "Filtros" fica FORA deste root; fechar aqui e reabrir no clique dele
-      // faria o toggle piscar. O botão trata o próprio clique.
-      if (!rootRef.current?.contains(event.target as Node)) {
+      // Fecha pela ÂNCORA, não pelo painel: o botão "Filtros" é irmão deste root, e
+      // fechar no `mousedown` dele faria o `click` seguinte reabrir — o botão nunca
+      // conseguiria fechar o painel. Clique na âncora = o toggle do botão decide.
+      const anchor = rootRef.current?.closest('[data-filter-anchor]') ?? rootRef.current;
+      if (!anchor?.contains(event.target as Node)) {
         onClose();
       }
     };

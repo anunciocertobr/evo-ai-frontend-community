@@ -74,8 +74,10 @@ const Agentes = () => {
         return;
       }
 
+      // Sem toast: quem não tem `read` está sendo redirecionado pelo AgentsTabsLayout
+      // neste mesmo tick (AC 4). Um erro vermelho numa tela que o usuário está deixando
+      // é ruído — o container é quem comunica a falta de acesso.
       if (!can('ai_agents', 'read')) {
-        toast.error(t('permissions.viewDenied'));
         return;
       }
 

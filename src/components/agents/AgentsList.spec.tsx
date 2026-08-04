@@ -1,8 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AgentsHeader from './AgentsHeader';
 import AgentsTable from './AgentsTable';
+import AgentsFilterPanel from './AgentsFilterPanel';
+import { EMPTY_AGENT_FACETS } from './agentsFilterFacets';
 import type { Agent } from '@/types/agents';
 
 let allowedResources: string[] = [];
@@ -154,6 +157,60 @@ describe('AgentsTable', () => {
     // dismissable layer directly instead of through userEvent's pointer guard.
     fireEvent.pointerDown(document.body, { bubbles: true, button: 0, ctrlKey: false });
     await waitFor(() => expect(screen.queryByText('dropdown.copyId')).toBeNull());
+  });
+});
+
+// Fiação real do Agents.tsx: o botão alterna o estado e o painel fecha no clique fora.
+const FilterHarness = () => {
+  const [open, setOpen] = useState(false);
+  return (
+    <AgentsHeader
+      hideTitle
+      totalCount={0}
+      selectedCount={0}
+      searchValue=""
+      onSearchChange={vi.fn()}
+      onNewAgent={vi.fn()}
+      onManageApiKeys={vi.fn()}
+      onBulkDelete={vi.fn()}
+      onClearSelection={vi.fn()}
+      onFilter={() => setOpen(o => !o)}
+      showFilters
+      filterPanel={
+        <AgentsFilterPanel
+          open={open}
+          onClose={() => setOpen(false)}
+          selection={EMPTY_AGENT_FACETS}
+          onSelectionChange={vi.fn()}
+          onClear={vi.fn()}
+          modelOptions={['gpt-4o']}
+        />
+      }
+    />
+  );
+};
+
+describe('AgentsHeader + AgentsFilterPanel — toggle do botão Filtros', () => {
+  // Regressão: fechando no `mousedown` do próprio botão, o `click` seguinte reabria o
+  // painel e o botão virava via única — nunca fechava.
+  it('closes the panel on a second click of the Filtros button', async () => {
+    render(<FilterHarness />);
+    const button = screen.getByText('base.header.filters').closest('button')!;
+
+    await userEvent.click(button);
+    expect(screen.queryByText('filters.title')).toBeTruthy();
+
+    await userEvent.click(button);
+    expect(screen.queryByText('filters.title')).toBeNull();
+  });
+
+  it('still closes on a click outside the anchor', async () => {
+    render(<FilterHarness />);
+    await userEvent.click(screen.getByText('base.header.filters'));
+    expect(screen.queryByText('filters.title')).toBeTruthy();
+
+    fireEvent.mouseDown(document.body);
+    await waitFor(() => expect(screen.queryByText('filters.title')).toBeNull());
   });
 });
 

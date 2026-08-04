@@ -80,8 +80,8 @@ export default function CustomTools() {
   // Load tools
   const loadTools = useCallback(
     async (params?: Partial<CustomToolsListParams>, filtersOverride?: BaseFilter[]) => {
+      // Sem toast: o AgentsTabsLayout já está redirecionando quem não tem `read` (AC 4).
       if (!can('ai_custom_tools', 'read')) {
-        toast.error(t('permissions.viewDenied'));
         return;
       }
       setState(prev => ({ ...prev, loading: { ...prev.loading, list: true } }));

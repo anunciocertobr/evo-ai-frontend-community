@@ -105,8 +105,8 @@ export default function CustomMCPServers() {
   // Load servers
   const loadServers = useCallback(
     async (params?: Partial<ListCustomMcpServersParams>, filtersOverride?: BaseFilter[]) => {
+      // Sem toast: o AgentsTabsLayout já está redirecionando quem não tem `read` (AC 4).
       if (!can('ai_custom_mcp_servers', 'read')) {
-        toast.error(t('permissions.viewDenied'));
         return;
       }
       setState(prev => ({ ...prev, loading: { ...prev.loading, list: true } }));
