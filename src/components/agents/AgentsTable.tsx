@@ -99,11 +99,13 @@ export default function AgentsTable({
       sortable: true,
       render: agent => (
         <div
-          className="flex items-center gap-3 cursor-pointer hover:opacity-80 py-2"
+          className="flex cursor-pointer items-center gap-3 py-2 hover:opacity-80"
           onClick={() => onEditAgent(agent)}
         >
-          <div className="flex-shrink-0">{getAgentTypeIcon(agent.type)}</div>
-          <span className="font-medium">{agent.name}</span>
+          <div className="flex size-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            {getAgentTypeIcon(agent.type)}
+          </div>
+          <span className="font-semibold text-foreground">{agent.name}</span>
         </div>
       ),
     },
@@ -128,11 +130,10 @@ export default function AgentsTable({
     {
       key: 'model',
       label: t('fields.model'),
+      // Monoespaçado e sem chip: é um identificador técnico (`openai/GPT-4.1`), não um rótulo.
       render: agent =>
         agent.model ? (
-          <Badge className={cn(CHIP_CLASS, 'bg-accent text-muted-foreground')}>
-            {agent.model}
-          </Badge>
+          <span className="font-mono text-xs text-muted-foreground">{agent.model}</span>
         ) : (
           <span className="text-xs text-muted-foreground">{t('fields.notAvailable')}</span>
         ),

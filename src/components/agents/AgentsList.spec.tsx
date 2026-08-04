@@ -79,6 +79,23 @@ describe('AgentsHeader', () => {
     expect(screen.getByText('apiKeys.manage')).toBeTruthy();
   });
 
+  // Com o título escondido, a linha de cima ficaria só com o botão verde flutuando.
+  // O protótipo põe busca + Filtros à esquerda e os dois botões à direita, na MESMA linha.
+  it('keeps the primary action on the search row instead of a row of its own', () => {
+    renderHeader();
+    const filtersBtn = screen.getByText('base.header.filters').closest('button')!;
+    const primaryBtn = screen.getByText('createAgent').closest('button')!;
+    const secondaryBtn = screen.getByText('apiKeys.manage').closest('button')!;
+
+    const searchRow = filtersBtn.parentElement!.parentElement!;
+    expect(searchRow.contains(primaryBtn)).toBe(true);
+    expect(searchRow.contains(secondaryBtn)).toBe(true);
+
+    // …e o primário fica DEPOIS do secundário (Gerenciar Chaves API · Novo Agente de IA).
+    expect(secondaryBtn.compareDocumentPosition(primaryBtn) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+  });
+
   // PADRAO-DE-DESIGN §3.14: the bulk bar is the green one, not the neutral surface.
   it('paints the bulk-selection bar with the canonical primary tone', () => {
     renderHeader(vi.fn(), 2);

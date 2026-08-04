@@ -91,38 +91,40 @@ export default function BaseHeader({
   const isPrimarySelectionBar = selectionBarTone === 'primary';
   const visibleSecondaryActions = secondaryActions.filter(action => action.show !== false);
   const visibleMoreActions = moreActions.filter(action => action.show !== false);
+  const hasPrimaryAction = !!primaryAction && primaryAction.show !== false;
+  // Sem título, a linha de cima teria só o botão primário flutuando sozinho. Ele desce
+  // para a barra de busca, à direita dos secundários — é o layout do protótipo.
+  const primaryButton = hasPrimaryAction ? (
+    <div className="flex-shrink-0" data-tour={primaryAction!.dataTour}>
+      <PrimaryActionButton
+        label={primaryAction!.label}
+        icon={primaryAction!.icon}
+        onClick={primaryAction!.onClick}
+        size="sm"
+        variant={primaryAction!.variant || 'default'}
+        className={primaryAction!.className}
+        disabled={primaryAction!.disabled}
+        tooltip={primaryAction!.tooltip}
+      />
+    </div>
+  ) : null;
 
   return (
     <div className={`space-y-4 sm:space-y-6 ${className}`}>
-      <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-start md:justify-between">
-        {/* Title Section */}
-        <div className="flex-1">
-          {!hideTitle && (
-            <>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-7 sm:leading-8 text-sidebar-foreground mb-1 sm:mb-2">{title}</h1>
-              {subtitle && (
-                <p className="hidden sm:block text-sm leading-5 text-sidebar-foreground/70">{subtitle}</p>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Primary Action */}
-        {primaryAction && primaryAction.show !== false && (
-          <div className="flex-shrink-0" data-tour={primaryAction.dataTour}>
-            <PrimaryActionButton
-              label={primaryAction.label}
-              icon={primaryAction.icon}
-              onClick={primaryAction.onClick}
-              size="sm"
-              variant={primaryAction.variant || 'default'}
-              className={primaryAction.className}
-              disabled={primaryAction.disabled}
-              tooltip={primaryAction.tooltip}
-            />
+      {!hideTitle && (
+        <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-start md:justify-between">
+          {/* Title Section */}
+          <div className="flex-1">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-7 sm:leading-8 text-sidebar-foreground mb-1 sm:mb-2">{title}</h1>
+            {subtitle && (
+              <p className="hidden sm:block text-sm leading-5 text-sidebar-foreground/70">{subtitle}</p>
+            )}
           </div>
-        )}
-      </div>
+
+          {/* Primary Action */}
+          {primaryButton}
+        </div>
+      )}
 
       {/* Search and Filter Row */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -243,6 +245,8 @@ export default function BaseHeader({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+
+          {hideTitle && primaryButton}
         </div>
       </div>
 
