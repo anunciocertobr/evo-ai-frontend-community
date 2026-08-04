@@ -95,6 +95,22 @@ describe('AgentsTabsLayout', () => {
     expect(screen.getAllByRole('tab')).toHaveLength(2);
   });
 
+  // O protótipo troca `pageTitle`/`pageSub` por aba — um título fixo "Agentes de IA"
+  // em cima de Ferramentas/MCPs mente sobre onde o usuário está.
+  it.each([
+    ['agents', 'container.tabs.agents', 'container.subtitles.agents'],
+    ['customTools', 'container.tabs.customTools', 'container.subtitles.customTools'],
+    [
+      'customMcpServers',
+      'container.tabs.customMcpServers',
+      'container.subtitles.customMcpServers',
+    ],
+  ] as const)('titles the page after the %s tab, not after the screen', (tab, title, subtitle) => {
+    renderLayout(tab, `/agents/${tab}`);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(title);
+    expect(screen.getByText(subtitle)).toBeTruthy();
+  });
+
   it('navigates to the tab route when another chip is picked', async () => {
     renderLayout();
     await userEvent.click(screen.getByText(TAB_LABELS.customTools));

@@ -64,14 +64,18 @@ const AgentsTabsLayout = ({ tab, children }: AgentsTabsLayoutProps) => {
     return null;
   }
 
+  // Título e subtítulo são os da ABA ATIVA, não da tela — o usuário tem que ler
+  // onde está sem depender só do chip destacado.
+  const activeTab = allowedTabs.find(allowed => allowed.key === tab) ?? firstAllowedTab;
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex-shrink-0 border-b border-border px-6 pt-6">
         <h1 className="text-xl font-bold leading-7 tracking-tight text-foreground sm:text-2xl sm:leading-8">
-          {t('container.title')}
+          {t(activeTab.labelKey)}
         </h1>
         <p className="mt-1 hidden text-sm leading-5 text-muted-foreground sm:block">
-          {t('container.subtitle')}
+          {t(activeTab.subtitleKey)}
         </p>
 
         <Tabs

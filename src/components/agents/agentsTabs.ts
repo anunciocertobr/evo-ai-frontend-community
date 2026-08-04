@@ -8,7 +8,9 @@ export interface AgentsTabDefinition {
   route: string;
   /** RBAC resource the tab needs `read` on to be visible at all. */
   resource: string;
+  /** Chip label. Doubles as the page title — they are the same string by design. */
   labelKey: string;
+  subtitleKey: string;
   icon: LucideIcon;
 }
 
@@ -21,6 +23,7 @@ export const AGENTS_TABS: AgentsTabDefinition[] = [
     route: '/agents/list',
     resource: 'ai_agents',
     labelKey: 'container.tabs.agents',
+    subtitleKey: 'container.subtitles.agents',
     icon: Bot,
   },
   {
@@ -28,6 +31,7 @@ export const AGENTS_TABS: AgentsTabDefinition[] = [
     route: '/agents/custom-tools',
     resource: 'ai_custom_tools',
     labelKey: 'container.tabs.customTools',
+    subtitleKey: 'container.subtitles.customTools',
     icon: Wrench,
   },
   {
@@ -35,6 +39,7 @@ export const AGENTS_TABS: AgentsTabDefinition[] = [
     route: '/agents/custom-mcp-servers',
     resource: 'ai_custom_mcp_servers',
     labelKey: 'container.tabs.customMcpServers',
+    subtitleKey: 'container.subtitles.customMcpServers',
     icon: Server,
   },
 ];

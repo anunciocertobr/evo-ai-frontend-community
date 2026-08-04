@@ -177,8 +177,6 @@
     }
   },
   "container": {
-    "title": "Agentes de IA",
-    "subtitle": "Gerencie seus agentes, ferramentas personalizadas e servidores MCP",
     "tabs": {
       "agents": "Agentes de IA",
       "customTools": "Ferramentas Personalizadas",
@@ -187,6 +185,11 @@
     "noAccess": {
       "title": "Sem acesso a esta área",
       "description": "Você não tem permissão para ver Agentes de IA, Ferramentas Personalizadas ou MCPs Personalizados. Peça acesso a um administrador."
+    },
+    "subtitles": {
+      "agents": "Gerencie seus agentes de IA",
+      "customTools": "Gerencie suas ferramentas personalizadas",
+      "customMcpServers": "Gerencie seus servidores MCP personalizados"
     }
   }
 }
