@@ -42,12 +42,11 @@ export interface BaseHeaderProps {
   /** Suppresses only the rendering of title/subtitle, for screens whose layout
    *  already owns them (EVO-2231: the Agentes de IA tab container). */
   hideTitle?: boolean;
-  /** Painel ancorado ao botão "Filtros" (PADRAO-DE-DESIGN §2.3). Opt-in: sem ele o
-   *  botão segue apenas disparando `onFilterClick`. */
+  /** Popover anchored to the "Filters" button. Opt-in: without it the button only
+   *  fires `onFilterClick`. */
   filterPanel?: ReactNode;
-  /** Badge do botão "Filtros" quando os filtros não viram chips. Default: nº de chips. */
+  /** Badge count for screens whose filters do not become chips. Defaults to chip count. */
   filterCount?: number;
-  /** Classe extra do botão "Filtros" (a tela pode alinhá-lo ao próprio design). */
   filterButtonClassName?: string;
   /** `primary` is the canonical green bulk bar (PADRAO-DE-DESIGN §3.14). Opt-in so
    *  the 30+ screens still on the neutral bar are untouched. */
@@ -104,8 +103,8 @@ export default function BaseHeader({
   const visibleMoreActions = moreActions.filter(action => action.show !== false);
   const activeFilterCount = filterCount ?? filters.length;
   const hasPrimaryAction = !!primaryAction && primaryAction.show !== false;
-  // Sem título, a linha de cima teria só o botão primário flutuando sozinho. Ele desce
-  // para a barra de busca, à direita dos secundários — é o layout do protótipo.
+  // With no title the top row would hold only the primary button, so it moves down to
+  // the search row, right of the secondary actions.
   const primaryButton = hasPrimaryAction ? (
     <div className="flex-shrink-0" data-tour={primaryAction!.dataTour}>
       <PrimaryActionButton
@@ -125,7 +124,6 @@ export default function BaseHeader({
     <div className={`space-y-4 sm:space-y-6 ${className}`}>
       {!hideTitle && (
         <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-start md:justify-between">
-          {/* Title Section */}
           <div className="flex-1">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-7 sm:leading-8 text-sidebar-foreground mb-1 sm:mb-2">{title}</h1>
             {subtitle && (
@@ -133,7 +131,6 @@ export default function BaseHeader({
             )}
           </div>
 
-          {/* Primary Action */}
           {primaryButton}
         </div>
       )}
@@ -155,9 +152,8 @@ export default function BaseHeader({
             </div>
           )}
 
-          {/* Filter Button. O wrapper é a ÂNCORA do `filterPanel`: agrupa botão + painel
-              para o painel saber que um clique no botão não é "clique fora" — senão o
-              toggle nunca fecha. */}
+          {/* The wrapper anchors `filterPanel`: grouping button + panel is what tells the
+              panel a click on the button is not an outside click. */}
           {showFilters && onFilterClick && (
             <div className="relative" data-filter-anchor="">
             <Button

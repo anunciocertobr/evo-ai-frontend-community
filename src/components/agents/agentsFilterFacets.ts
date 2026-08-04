@@ -9,10 +9,7 @@ export interface AgentFacetSelection {
 
 export const EMPTY_AGENT_FACETS: AgentFacetSelection = { type: [], model: [] };
 
-/**
- * As 3 opções de Tipo do protótipo. "Avançado" agrupa os orquestradores e o a2a —
- * o usuário filtra por natureza do agente, não pelo enum interno.
- */
+/** "Advanced" groups the orchestrators and a2a: users filter by nature, not by enum. */
 export interface AgentTypeFacet {
   value: string;
   labelKey: string;
@@ -29,11 +26,11 @@ export const AGENT_TYPE_FACETS: AgentTypeFacet[] = [
   },
 ];
 
-/** `openai/gpt-4o` → `gpt-4o`: o provider não distingue nada na lista. */
+/** `openai/gpt-4o` → `gpt-4o`: the provider prefix distinguishes nothing in this list. */
 export const modelValue = (model?: string | null): string =>
   (model || '').split('/').pop() || '';
 
-/** Opções de Modelo vêm dos agentes JÁ CARREGADOS — não há endpoint de modelos usados. */
+/** Options come from the LOADED agents: there is no endpoint listing the models in use. */
 export const buildModelOptions = (agents: Agent[]): string[] =>
   [...new Set(agents.map(agent => modelValue(agent.model)).filter(Boolean))].sort();
 

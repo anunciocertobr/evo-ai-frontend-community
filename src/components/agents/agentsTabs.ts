@@ -4,11 +4,9 @@ export type AgentsTabKey = 'agents' | 'customTools' | 'customMcpServers';
 
 export interface AgentsTabDefinition {
   key: AgentsTabKey;
-  /** Canonical route of the tab. Shell and community both register these. */
   route: string;
   /** RBAC resource the tab needs `read` on to be visible at all. */
   resource: string;
-  /** Chip label. Doubles as the page title — they are the same string by design. */
   labelKey: string;
   subtitleKey: string;
   icon: LucideIcon;
@@ -57,10 +55,7 @@ export const AGENTS_TAB_ICON_CLASS = 'size-[18px]';
 
 type CanFn = (resource: string, action: string) => boolean;
 
-/**
- * Empty until `isReady`: deciding against half-loaded permissions would evict the
- * user from the tab they are already on while the fetch is still in flight.
- */
+/** Empty until `isReady`: half-loaded permissions would evict the user from their own tab. */
 export const getAllowedAgentsTabs = (can: CanFn, isReady: boolean): AgentsTabDefinition[] =>
   isReady ? AGENTS_TABS.filter(tab => can(tab.resource, 'read')) : [];
 

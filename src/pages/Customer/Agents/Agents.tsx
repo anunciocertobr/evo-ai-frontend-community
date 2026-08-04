@@ -56,8 +56,8 @@ const Agentes = () => {
   const [sortBy, setSortBy] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  // Facetas Tipo/Modelo do protótipo §2.3. Filtram a PÁGINA carregada — igual ao
-  // protótipo e à busca desta tela; não há endpoint de facetas.
+  // Type/Model facets filter the LOADED page, like the search above them: there is no
+  // facet endpoint and pagination is server-side.
   const [facets, setFacets] = useState<AgentFacetSelection>(EMPTY_AGENT_FACETS);
 
   const loadingRef = useRef(false);
@@ -74,9 +74,8 @@ const Agentes = () => {
         return;
       }
 
-      // Sem toast: quem não tem `read` está sendo redirecionado pelo AgentsTabsLayout
-      // neste mesmo tick (AC 4). Um erro vermelho numa tela que o usuário está deixando
-      // é ruído — o container é quem comunica a falta de acesso.
+      // No toast: `AgentsTabsLayout` is already redirecting whoever lacks `read`, and it
+      // owns the no-access message.
       if (!can('ai_agents', 'read')) {
         return;
       }

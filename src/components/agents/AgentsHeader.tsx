@@ -25,11 +25,7 @@ interface AgentsHeaderProps {
   filterCount?: number;
 }
 
-/**
- * Medidas do protótipo (`.tbtn` e o botão verde do planning-novo-agente-ia-crm.html).
- * `h-auto` cancela a altura fixa do `size="sm"` do design-system, que senão vence.
- * O ícone já vem com `mr-2` do BaseHeader/PrimaryActionButton = o `gap:8px` do protótipo.
- */
+/** `h-auto` cancels the fixed height of `size="sm"`, which otherwise wins over these. */
 const TOOLBAR_BUTTON_CLASS =
   'h-auto rounded-[9px] border-border bg-card px-[15px] py-2.5 text-[13.5px] font-semibold text-muted-foreground shadow-none hover:border-primary/30 hover:bg-primary/10 hover:text-primary';
 

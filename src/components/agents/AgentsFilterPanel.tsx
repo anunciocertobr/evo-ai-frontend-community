@@ -24,9 +24,8 @@ interface FacetOption {
 }
 
 /**
- * Painel de filtros da lista de agentes (PADRAO-DE-DESIGN §2.3): popover ancorado ao
- * botão "Filtros", NÃO um modal. Não usa o `BaseFilter` compartilhado de propósito —
- * ele é um Dialog consumido por ~20 telas e vira um query builder genérico.
+ * Anchored popover (PADRAO-DE-DESIGN §2.3), not the shared `BaseFilter`: that one is a
+ * generic query-builder Dialog used by ~20 screens.
  */
 export default function AgentsFilterPanel({
   open,
@@ -47,9 +46,8 @@ export default function AgentsFilterPanel({
     if (!open) return;
 
     const handlePointerDown = (event: MouseEvent) => {
-      // Fecha pela ÂNCORA, não pelo painel: o botão "Filtros" é irmão deste root, e
-      // fechar no `mousedown` dele faria o `click` seguinte reabrir — o botão nunca
-      // conseguiria fechar o painel. Clique na âncora = o toggle do botão decide.
+      // Outside is measured from the anchor, not the panel: closing on the trigger's
+      // `mousedown` would let its `click` reopen, so the button could never close it.
       const anchor = rootRef.current?.closest('[data-filter-anchor]') ?? rootRef.current;
       if (!anchor?.contains(event.target as Node)) {
         onClose();

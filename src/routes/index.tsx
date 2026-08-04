@@ -1199,7 +1199,6 @@ const AppRouter = () => {
             }
           />
 
-          {/* Rota principal de agents resolve a primeira aba permitida (EVO-2231) */}
           <Route path="/agents" element={<AgentsIndexRedirect />} />
 
           {/* Lista de agentes */}

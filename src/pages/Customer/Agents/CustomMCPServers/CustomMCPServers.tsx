@@ -105,7 +105,7 @@ export default function CustomMCPServers() {
   // Load servers
   const loadServers = useCallback(
     async (params?: Partial<ListCustomMcpServersParams>, filtersOverride?: BaseFilter[]) => {
-      // Sem toast: o AgentsTabsLayout já está redirecionando quem não tem `read` (AC 4).
+      // No toast: `AgentsTabsLayout` is already redirecting whoever lacks `read`.
       if (!can('ai_custom_mcp_servers', 'read')) {
         return;
       }

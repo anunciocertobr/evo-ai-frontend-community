@@ -6,9 +6,8 @@ import EmptyState from '@/components/base/EmptyState';
 import { resolveFirstAllowedTab } from './agentsTabs';
 
 /**
- * `/agents` has no screen of its own. It resolves to the first tab the user may
- * read — never to a fixed `/agents/list`, which 403s whoever only has Ferramentas
- * or MCPs. With no readable tab it stops on a terminal state instead of looping.
+ * `/agents` has no screen of its own: it resolves to the first readable tab, never to a
+ * fixed `/agents/list`. With no readable tab it stops instead of looping.
  */
 const AgentsIndexRedirect = () => {
   const { t } = useLanguage('agents');

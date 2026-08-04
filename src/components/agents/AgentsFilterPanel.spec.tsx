@@ -119,7 +119,6 @@ describe('AgentsFilterPanel', () => {
     expect(screen.queryByText('filters.title')).toBeNull();
   });
 
-  // §2.3 é popover ancorado, não modal: clicar fora fecha.
   it('closes on a click outside', () => {
     const props = renderPanel();
     fireEvent.mouseDown(document.body);

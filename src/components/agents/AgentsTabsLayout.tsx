@@ -30,8 +30,7 @@ const AgentsTabsLayout = ({ tab, children }: AgentsTabsLayoutProps) => {
   const isCurrentTabAllowed = allowedTabs.some(allowed => allowed.key === tab);
   const isIndexRoute = location.pathname === AGENTS_INDEX_ROUTE;
 
-  // No destination means no navigation: with zero allowed tabs a redirect would
-  // bounce forever, so the layout stops at the terminal state below instead.
+  // No destination means no navigation: with zero allowed tabs a redirect would loop.
   const redirectTo =
     firstAllowedTab && (!isCurrentTabAllowed || isIndexRoute) ? firstAllowedTab.route : null;
 
@@ -64,13 +63,10 @@ const AgentsTabsLayout = ({ tab, children }: AgentsTabsLayoutProps) => {
     return null;
   }
 
-  // Título e subtítulo são os da ABA ATIVA, não da tela — o usuário tem que ler
-  // onde está sem depender só do chip destacado.
   const activeTab = allowedTabs.find(allowed => allowed.key === tab) ?? firstAllowedTab;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Medidas do protótipo: área 26/34/20, título 27/800, abas mt 22 + pb 14. */}
       <div className="flex-shrink-0 border-b border-border px-[34px] pt-[26px]">
         <h1 className="text-[27px] font-extrabold leading-tight tracking-[-0.5px] text-foreground">
           {t(activeTab.labelKey)}

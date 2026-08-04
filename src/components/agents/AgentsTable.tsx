@@ -27,10 +27,8 @@ interface AgentsTableProps {
 }
 
 /**
- * Larguras do protótipo (planning-novo-agente-ia-crm.html). Não sai do `BaseTable`
- * por capricho: aquele é um `<table>` genérico de ~30 telas, sem como expressar
- * `flex:1.6` nem esconder-se quando a lista está vazia — e aqui o cabeçalho tem
- * que continuar visível com zero agentes.
+ * Not `BaseTable`: that one is a generic `<table>` shared by ~30 screens and hides itself
+ * on an empty list, while this header must stay visible with zero agents.
  */
 const COL = {
   checkbox: 'flex-[0_0_18px]',
@@ -42,7 +40,6 @@ const COL = {
   actions: 'flex-[0_0_70px]',
 };
 
-/** `#fafbfc` sobre linhas brancas: um véu do próprio texto, que responde aos 2 temas. */
 const HEAD_ROW_CLASS =
   'flex items-center gap-4 border-b border-border bg-muted-foreground/[0.06] px-5 py-[14px] text-[12.5px] font-bold text-muted-foreground';
 
@@ -74,7 +71,6 @@ export default function AgentsTable({
         : [...selectedAgents, agent],
     );
 
-  /** PADRAO-DE-DESIGN §3.4: chip = cor a 10% de fundo + a mesma cor no texto. */
   const CHIP_CLASS =
     'rounded-[7px] border-transparent px-2 py-0.5 text-[11.5px] font-bold leading-4';
 
@@ -201,7 +197,6 @@ export default function AgentsTable({
                 <Badge className={cn(CHIP_CLASS, typeInfo.color)}>{typeInfo.label}</Badge>
               </div>
 
-              {/* Identificador técnico (`openai/gpt-4o`), não rótulo: monoespaçado, sem chip. */}
               <div className={cn(COL.model, 'truncate font-mono text-[13px] text-muted-foreground')}>
                 {agent.model || t('fields.notAvailable')}
               </div>

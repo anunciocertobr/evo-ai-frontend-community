@@ -95,8 +95,7 @@ describe('AgentsTabsLayout', () => {
     expect(screen.getAllByRole('tab')).toHaveLength(2);
   });
 
-  // O protótipo troca `pageTitle`/`pageSub` por aba — um título fixo "Agentes de IA"
-  // em cima de Ferramentas/MCPs mente sobre onde o usuário está.
+  // A fixed "Agentes de IA" title on top of Ferramentas/MCPs lies about where you are.
   it.each([
     ['agents', 'container.tabs.agents', 'container.subtitles.agents'],
     ['customTools', 'container.tabs.customTools', 'container.subtitles.customTools'],

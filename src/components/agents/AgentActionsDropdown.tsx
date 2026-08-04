@@ -21,11 +21,7 @@ interface AgentActionsDropdownProps {
   align?: 'start' | 'center' | 'end';
 }
 
-/**
- * Medidas do menu de linha do protótipo (planning-novo-agente-ia-crm.html):
- * item 9px 12, gap 10, radius 8, 13.5/500 — e o ícone herda a cor do item, ficando
- * verde só no hover. `h-auto` cancela o padding/altura da base do design-system.
- */
+/** `h-auto` cancels the design-system item height, which `cn()` would otherwise keep. */
 const MENU_ITEM_CLASS =
   'h-auto cursor-pointer gap-2.5 rounded-lg px-3 py-[9px] text-[13.5px] font-medium text-foreground focus:bg-primary/10 focus:text-primary';
 

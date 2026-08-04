@@ -82,16 +82,14 @@ describe('AgentsHeader', () => {
     expect(screen.getByText('apiKeys.manage')).toBeTruthy();
   });
 
-  // Com o título escondido, a linha de cima ficaria só com o botão verde flutuando.
-  // O protótipo põe busca + Filtros à esquerda e os dois botões à direita, na MESMA linha.
   it('keeps the primary action on the search row instead of a row of its own', () => {
     renderHeader();
     const filtersBtn = screen.getByText('base.header.filters').closest('button')!;
     const primaryBtn = screen.getByText('createAgent').closest('button')!;
     const secondaryBtn = screen.getByText('apiKeys.manage').closest('button')!;
 
-    // Sobe até o ancestral comum em vez de contar níveis: o botão Filtros ganhou um
-    // wrapper `relative` para ancorar o painel §2.3, e profundidade fixa quebraria aqui.
+    // Walk up to the common ancestor instead of counting levels: the Filters button sits
+    // inside an anchor wrapper, so a fixed depth would break here.
     const searchInput = screen.getByPlaceholderText('search.placeholder');
     let searchRow: HTMLElement | null = filtersBtn;
     while (searchRow && !(searchRow.contains(searchInput) && searchRow.contains(primaryBtn))) {
@@ -99,10 +97,7 @@ describe('AgentsHeader', () => {
     }
     expect(searchRow).toBeTruthy();
     expect(searchRow!.contains(secondaryBtn)).toBe(true);
-    // A linha do título saiu inteira — o primário não voltou para uma faixa própria.
     expect(searchRow!.querySelector('h1')).toBeNull();
-
-    // …e o primário fica DEPOIS do secundário (Gerenciar Chaves API · Novo Agente de IA).
     expect(secondaryBtn.compareDocumentPosition(primaryBtn) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
   });
@@ -160,7 +155,7 @@ describe('AgentsTable', () => {
   });
 });
 
-// Fiação real do Agents.tsx: o botão alterna o estado e o painel fecha no clique fora.
+// Same wiring as Agents.tsx: the button toggles state, the panel closes on outside click.
 const FilterHarness = () => {
   const [open, setOpen] = useState(false);
   return (
@@ -191,8 +186,7 @@ const FilterHarness = () => {
 };
 
 describe('AgentsHeader + AgentsFilterPanel — toggle do botão Filtros', () => {
-  // Regressão: fechando no `mousedown` do próprio botão, o `click` seguinte reabria o
-  // painel e o botão virava via única — nunca fechava.
+  // Regression: closing on the button's own `mousedown` let the following `click` reopen it.
   it('closes the panel on a second click of the Filtros button', async () => {
     render(<FilterHarness />);
     const button = screen.getByText('base.header.filters').closest('button')!;
@@ -215,8 +209,7 @@ describe('AgentsHeader + AgentsFilterPanel — toggle do botão Filtros', () => 
 });
 
 describe('AgentsHeader — medidas do protótipo', () => {
-  // `.tbtn` do protótipo: radius 9, padding 10px 15, 13.5/600. Sem `h-auto` a altura
-  // fixa do `size="sm"` do design-system vence e o botão sai maior que o alvo.
+  // Without `h-auto` the fixed height of `size="sm"` wins and the button overshoots.
   it.each(['apiKeys.manage', 'base.header.filters'])('sizes %s like the prototype tbtn', label => {
     renderHeader();
     const btn = screen.getByText(label).closest('button')!;
