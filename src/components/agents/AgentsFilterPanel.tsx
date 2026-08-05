@@ -6,6 +6,7 @@ import {
   AGENT_TYPE_FACETS,
   AgentFacetKey,
   AgentFacetSelection,
+  modelValue,
   toggleFacetValue,
 } from './agentsFilterFacets';
 
@@ -86,7 +87,9 @@ export default function AgentsFilterPanel({
       key: 'model',
       label: t('filters.sections.model'),
       icon: Monitor,
-      options: modelOptions.map(model => ({ value: model, label: model })),
+      // Value is the stored model (the server compares against the column); the provider
+      // prefix is dropped only in the label.
+      options: modelOptions.map(model => ({ value: model, label: modelValue(model) })),
     },
   ];
 

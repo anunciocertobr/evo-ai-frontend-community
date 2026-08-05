@@ -5,9 +5,9 @@ import { AgentsTable, AgentsHeader, AgentsPagination, AgentWizardModal, AgentsFi
 import {
   EMPTY_AGENT_FACETS,
   AgentFacetSelection,
-  applyAgentFacets,
-  buildModelOptions,
+  buildAgentFilterParams,
   countSelectedFacets,
+  mergeModelOptions,
 } from '@/components/agents/agentsFilterFacets';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -56,12 +56,24 @@ const Agentes = () => {
   const [sortBy, setSortBy] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  // Type/Model facets filter the LOADED page, like the search above them: there is no
-  // facet endpoint and pagination is server-side.
+  // Type/Model facets are applied SERVER-side, over the whole base — filtering only the
+  // loaded page would report "3 external agents" when there are 40 (EVO-2231, AC 11).
   const [facets, setFacets] = useState<AgentFacetSelection>(EMPTY_AGENT_FACETS);
+  // There is no facet endpoint, so the options are what the loaded pages revealed. They
+  // accumulate: narrowing by Tipo must not make the Modelo you picked disappear.
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
 
   const loadingRef = useRef(false);
-  const loadAgentsRef = useRef<((params?: { page?: number; per_page?: number }) => Promise<void>) | null>(null);
+  const loadAgentsRef = useRef<
+    | ((
+        params?: { page?: number; per_page?: number },
+        facetsOverride?: AgentFacetSelection,
+      ) => Promise<void>)
+    | null
+  >(null);
+  // Last facets the user asked for. `loadAgents` bails while a request is in flight, so
+  // without this a checkbox toggled mid-request would stay checked over unfiltered rows.
+  const pendingFacetsRef = useRef<AgentFacetSelection>(EMPTY_AGENT_FACETS);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
@@ -69,7 +81,10 @@ const Agentes = () => {
   const isWizardOpen = location.pathname === '/agents/new';
 
   const loadAgents = useCallback(
-    async (params?: { page?: number; per_page?: number }) => {
+    async (
+      params?: { page?: number; per_page?: number },
+      facetsOverride?: AgentFacetSelection,
+    ) => {
       if (loadingRef.current || permissionsLoading || !permissionsReady) {
         return;
       }
@@ -80,6 +95,7 @@ const Agentes = () => {
         return;
       }
 
+      const requestedFacets = facetsOverride ?? facets;
       loadingRef.current = true;
       setState(prev => ({ ...prev, loading: true }));
 
@@ -87,7 +103,8 @@ const Agentes = () => {
         const currentPage = params?.page ?? 1;
         const currentPageSize = params?.per_page ?? 24;
 
-        const response = await getAccessibleAgents(currentPage, currentPageSize);
+        const filterParams = buildAgentFilterParams(requestedFacets);
+        const response = await getAccessibleAgents(currentPage, currentPageSize, { filterParams });
 
         const total = response.meta?.pagination?.total || 0;
         const pageSize = response.meta?.pagination?.page_size || DEFAULT_PAGE_SIZE;
@@ -97,6 +114,8 @@ const Agentes = () => {
               ? (response.data as unknown as Agent[][]).flat()
               : (response.data as unknown as Agent[]))
           : [];
+
+        setModelOptions(known => mergeModelOptions(known, agentsData));
 
         setState(prev => ({
           ...prev,
@@ -119,9 +138,12 @@ const Agentes = () => {
         setState(prev => ({ ...prev, loading: false }));
       } finally {
         loadingRef.current = false;
+        if (pendingFacetsRef.current !== requestedFacets) {
+          loadAgentsRef.current?.({ page: 1 }, pendingFacetsRef.current);
+        }
       }
     },
-    [permissionsReady, permissionsLoading, can, t],
+    [permissionsReady, permissionsLoading, can, t, facets],
   );
 
   useEffect(() => {
@@ -230,13 +252,37 @@ const Agentes = () => {
     toast.info(t('bulkDelete'));
   };
 
-  const searchedAgents = state.agents.filter(
+  // A facet change is a refetch from page 1: staying on page 5 would ask for a page the
+  // narrowed result set no longer has.
+  const applyFacets = (next: AgentFacetSelection) => {
+    pendingFacetsRef.current = next;
+    setFacets(next);
+    setState(prev => ({
+      ...prev,
+      meta: {
+        ...prev.meta,
+        pagination: { ...prev.meta.pagination, page: 1 },
+      },
+      selectedAgents: [],
+    }));
+    loadAgents({ page: 1 }, next);
+  };
+
+  // Dropping the selection is the honest move: keeping rows the user can no longer see
+  // counted in "N selecionados" hides what a bulk action would hit.
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setState(prev => (prev.selectedAgents.length > 0 ? { ...prev, selectedAgents: [] } : prev));
+  };
+
+  // Search stays client-side over the loaded page, as it always was on this screen.
+  const filteredAgents = state.agents.filter(
     agent =>
       agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       agent.description?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
-  const filteredAgents = applyAgentFacets(searchedAgents, facets);
-  const modelOptions = buildModelOptions(state.agents);
+
+  const isNarrowed = searchTerm.trim().length > 0 || countSelectedFacets(facets) > 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -266,7 +312,7 @@ const Agentes = () => {
               totalCount={state.meta.pagination.total}
               selectedCount={state.selectedAgents.length}
               searchValue={searchTerm}
-              onSearchChange={setSearchTerm}
+              onSearchChange={handleSearchChange}
               onNewAgent={handleCreateAgent}
               onManageApiKeys={() => setIsApiKeysModalOpen(true)}
               onBulkDelete={handleBulkDelete}
@@ -279,8 +325,8 @@ const Agentes = () => {
                   open={filterPanelOpen}
                   onClose={() => setFilterPanelOpen(false)}
                   selection={facets}
-                  onSelectionChange={setFacets}
-                  onClear={() => setFacets(EMPTY_AGENT_FACETS)}
+                  onSelectionChange={applyFacets}
+                  onClear={() => applyFacets(EMPTY_AGENT_FACETS)}
                   modelOptions={modelOptions}
                 />
               }
@@ -298,6 +344,7 @@ const Agentes = () => {
               sortBy={sortBy}
               sortOrder={sortOrder}
               onSort={handleSort}
+              emptyMessage={isNarrowed ? t('table.noResults') : undefined}
             />
             </div>
           </div>
