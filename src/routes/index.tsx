@@ -32,6 +32,7 @@ import FormPage from '@/pages/Public/Form/FormPage';
 // Páginas customer
 import Dashboard from '@/pages/Customer/Dashboard';
 import Agents from '@/pages/Customer/Agents';
+import AgentsIndexRedirect from '@/components/agents/AgentsIndexRedirect';
 import AgentEditPage from '@/pages/Customer/Agents/Agent/AgentEditPage';
 import MCPServers from '@/pages/Customer/Agents/MCPServers';
 import CustomMCPServers from '@/pages/Customer/Agents/CustomMCPServers';
@@ -1198,8 +1199,7 @@ const AppRouter = () => {
             }
           />
 
-          {/* Rota principal de agents redireciona para /agents/list */}
-          <Route path="/agents" element={<Navigate to="/agents/list" replace />} />
+          <Route path="/agents" element={<AgentsIndexRedirect />} />
 
           {/* Lista de agentes */}
           <Route

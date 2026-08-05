@@ -121,7 +121,17 @@
   "table": {
     "actions": "Acciones",
     "emptyMessage": "Ningún agente de IA encontrado",
-    "clickToView": "💡 Haz clic en un agente de IA para ver detalles o abrir la Tarjeta de Agente"
+    "clickToView": "💡 Haz clic en un agente de IA para ver detalles o abrir la Tarjeta de Agente",
+    "selectAll": "Seleccionar todos",
+    "noResults": "Ningún agente de IA coincide con los filtros actuales.",
+    "types": {
+      "llm": "Nativo",
+      "external": "Externo",
+      "a2a": "A2A",
+      "sequential": "Agente Secuencial",
+      "parallel": "Agente Paralelo",
+      "loop": "Agente Loop"
+    }
   },
   "dropdown": {
     "testA2A": "Probar A2A",
@@ -174,6 +184,37 @@
         "saveConfig": "GUARDAR CONFIGURACIÓN",
         "disconnect": "Desconectar"
       }
+    }
+  },
+  "container": {
+    "tabs": {
+      "agents": "Agentes de IA",
+      "customTools": "Herramientas Personalizadas",
+      "customMcpServers": "MCPs Personalizados"
+    },
+    "noAccess": {
+      "title": "Sin acceso a esta área",
+      "description": "No tienes permiso para ver Agentes de IA, Herramientas Personalizadas ni MCPs Personalizados. Solicita acceso a un administrador."
+    },
+    "subtitles": {
+      "agents": "Gestiona tus agentes de IA",
+      "customTools": "Gestiona tus herramientas personalizadas",
+      "customMcpServers": "Gestiona tus servidores MCP personalizados"
+    }
+  },
+  "filters": {
+    "title": "Filtros",
+    "clear": "Limpiar filtros",
+    "empty": "Ninguna opción disponible",
+    "close": "Cerrar filtros",
+    "sections": {
+      "type": "Tipo",
+      "model": "Modelo"
+    },
+    "types": {
+      "native": "Nativo",
+      "external": "Externo",
+      "advanced": "Avanzado"
     }
   }
 }
