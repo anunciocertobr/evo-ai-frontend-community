@@ -121,7 +121,17 @@
   "table": {
     "actions": "Ações",
     "emptyMessage": "Nenhum agente de IA encontrado",
-    "clickToView": "💡 Clique em um agente de IA para visualizar detalhes ou abrir o Agent Card"
+    "clickToView": "💡 Clique em um agente de IA para visualizar detalhes ou abrir o Agent Card",
+    "selectAll": "Selecionar todos",
+    "noResults": "Nenhum agente de IA corresponde aos filtros aplicados.",
+    "types": {
+      "llm": "Nativo",
+      "external": "Externo",
+      "a2a": "A2A",
+      "sequential": "Agente Sequencial",
+      "parallel": "Agente Paralelo",
+      "loop": "Agente Loop"
+    }
   },
   "dropdown": {
     "testA2A": "Testar A2A",

@@ -24,6 +24,8 @@ interface AgentsTableProps {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   onSort?: (column: string) => void;
+  /** Shown in place of the rows when the list is empty. Defaults to "no agent yet". */
+  emptyMessage?: string;
 }
 
 /**
@@ -56,6 +58,7 @@ export default function AgentsTable({
   sortBy,
   sortOrder,
   onSort,
+  emptyMessage,
 }: AgentsTableProps) {
   const { t } = useLanguage('agents');
 
@@ -74,25 +77,24 @@ export default function AgentsTable({
   const CHIP_CLASS =
     'rounded-[7px] border-transparent px-2 py-0.5 text-[11.5px] font-bold leading-4';
 
+  // Colours only: the label comes from `table.types.*`, so the chip follows the UI language
+  // instead of staying in pt-BR next to a translated filter (EVO-2231 review).
+  const TYPE_COLORS: Record<string, string> = {
+    llm: 'bg-primary/10 text-primary',
+    external: 'bg-blue-500/10 text-blue-700 dark:text-blue-400',
+    a2a: 'bg-blue-500/10 text-blue-700 dark:text-blue-400',
+    sequential: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+    parallel: 'bg-violet-500/10 text-violet-700 dark:text-violet-400',
+    loop: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400',
+  };
+
   const getAgentTypeInfo = (type: string) => {
-    const types: Record<string, { label: string; color: string }> = {
-      llm: { label: 'Nativo', color: 'bg-primary/10 text-primary' },
-      external: { label: 'Externo', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
-      a2a: { label: 'A2A', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
-      sequential: {
-        label: 'Agente Sequencial',
-        color: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
-      },
-      parallel: {
-        label: 'Agente Paralelo',
-        color: 'bg-violet-500/10 text-violet-700 dark:text-violet-400',
-      },
-      loop: {
-        label: 'Agente Loop',
-        color: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400',
-      },
-    };
-    return types[type] || { label: type, color: 'bg-muted-foreground/10 text-muted-foreground' };
+    const color = TYPE_COLORS[type];
+    if (!color) {
+      // Unknown type: show the raw value rather than a missing-key string.
+      return { label: type, color: 'bg-muted-foreground/10 text-muted-foreground' };
+    }
+    return { label: t(`table.types.${type}`), color };
   };
 
   const getAgentTypeIcon = (type: string) => {
@@ -109,6 +111,9 @@ export default function AgentsTable({
         return <Bot className="size-[18px]" />;
     }
   };
+
+  const ariaSort = (column: string): 'ascending' | 'descending' | 'none' =>
+    sortBy !== column ? 'none' : sortOrder === 'desc' ? 'descending' : 'ascending';
 
   const SortHeader = ({ column, label }: { column: string; label: string }) => {
     const active = sortBy === column;
@@ -134,40 +139,65 @@ export default function AgentsTable({
   };
 
   return (
-    <div className="overflow-visible rounded-[14px] border border-border bg-card shadow-[0_1px_2px_rgba(16,24,40,.04)]">
-      <div className={HEAD_ROW_CLASS}>
-        <div className={COL.checkbox}>
+    <div
+      role="table"
+      className="overflow-visible rounded-[14px] border border-border bg-card shadow-[0_1px_2px_rgba(16,24,40,.04)]"
+    >
+      <div role="row" className={HEAD_ROW_CLASS}>
+        <div role="columnheader" className={COL.checkbox}>
           <Checkbox
             checked={allSelected}
             onCheckedChange={toggleAll}
-            aria-label={t('fields.name')}
+            aria-label={t('table.selectAll')}
             className="data-[state=checked]:border-primary data-[state=checked]:bg-primary"
           />
         </div>
-        <div className={COL.name}>
+        <div role="columnheader" aria-sort={ariaSort('name')} className={COL.name}>
           <SortHeader column="name" label={t('fields.name')} />
         </div>
-        <div className={COL.description}>{t('fields.description')}</div>
-        <div className={COL.type}>
+        <div role="columnheader" className={COL.description}>
+          {t('fields.description')}
+        </div>
+        <div role="columnheader" aria-sort={ariaSort('type')} className={COL.type}>
           <SortHeader column="type" label={t('fields.type')} />
         </div>
-        <div className={COL.model}>{t('fields.model')}</div>
-        <div className={COL.createdAt}>
+        <div role="columnheader" className={COL.model}>
+          {t('fields.model')}
+        </div>
+        <div role="columnheader" aria-sort={ariaSort('created_at')} className={COL.createdAt}>
           <SortHeader column="created_at" label={t('fields.createdAt')} />
         </div>
-        <div className={cn(COL.actions, 'text-right')}>{t('table.actions')}</div>
+        <div role="columnheader" className={cn(COL.actions, 'text-right')}>
+          {t('table.actions')}
+        </div>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-          {t('loading.agent')}
+        <div role="row">
+          <div
+            role="cell"
+            className="flex items-center justify-center py-12 text-sm text-muted-foreground"
+          >
+            {t('loading.agent')}
+          </div>
+        </div>
+      ) : agents.length === 0 ? (
+        // Header-only was the outcome before: an empty bordered box with no explanation,
+        // which reads as "loaded and broken" rather than "nothing here" (EVO-2231 review).
+        <div role="row">
+          <div
+            role="cell"
+            className="flex items-center justify-center py-12 text-sm text-muted-foreground"
+          >
+            {emptyMessage ?? t('table.emptyMessage')}
+          </div>
         </div>
       ) : (
         agents.map(agent => {
           const typeInfo = getAgentTypeInfo(agent.type);
           return (
-            <div key={agent.id} className={ROW_CLASS}>
-              <div className={COL.checkbox}>
+            <div role="row" key={agent.id} className={ROW_CLASS}>
+              <div role="cell" className={COL.checkbox}>
                 <Checkbox
                   checked={selectedIds.has(agent.id)}
                   onCheckedChange={() => toggleOne(agent)}
@@ -176,10 +206,11 @@ export default function AgentsTable({
                 />
               </div>
 
+              <div role="cell" className={cn(COL.name, 'min-w-0')}>
               <button
                 type="button"
                 onClick={() => onEditAgent(agent)}
-                className={cn(COL.name, 'flex items-center gap-[11px] text-left')}
+                className="flex w-full items-center gap-[11px] text-left"
               >
                 <span className="flex size-[34px] flex-none items-center justify-center rounded-[9px] border border-primary/30 bg-primary/10 text-primary">
                   {getAgentTypeIcon(agent.type)}
@@ -188,24 +219,25 @@ export default function AgentsTable({
                   {agent.name}
                 </span>
               </button>
+              </div>
 
-              <div className={cn(COL.description, 'truncate text-[13.5px] text-muted-foreground')}>
+              <div role="cell" className={cn(COL.description, 'truncate text-[13.5px] text-muted-foreground')}>
                 {agent.description || t('fields.noDescription')}
               </div>
 
-              <div className={COL.type}>
+              <div role="cell" className={COL.type}>
                 <Badge className={cn(CHIP_CLASS, typeInfo.color)}>{typeInfo.label}</Badge>
               </div>
 
-              <div className={cn(COL.model, 'truncate font-mono text-[13px] text-muted-foreground')}>
+              <div role="cell" className={cn(COL.model, 'truncate font-mono text-[13px] text-muted-foreground')}>
                 {agent.model || t('fields.notAvailable')}
               </div>
 
-              <div className={cn(COL.createdAt, 'text-[13px] text-muted-foreground')}>
+              <div role="cell" className={cn(COL.createdAt, 'text-[13px] text-muted-foreground')}>
                 {agent.created_at && new Date(agent.created_at).toLocaleDateString('pt-BR')}
               </div>
 
-              <div className={cn(COL.actions, 'flex justify-end')}>
+              <div role="cell" className={cn(COL.actions, 'flex justify-end')}>
                 <AgentActionsDropdown
                   agent={agent}
                   trigger={

@@ -133,6 +133,76 @@ describe('AgentsTable', () => {
     expect(onSelectionChange).toHaveBeenCalledWith(AGENTS);
   });
 
+  // A bordered box with a header and no rows reads as broken, not as "nothing here".
+  it('says the list is empty instead of showing a header over nothing', () => {
+    render(
+      <AgentsTable
+        agents={[]}
+        selectedAgents={[]}
+        onSelectionChange={vi.fn()}
+        onEditAgent={vi.fn()}
+        onDeleteAgent={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('table.emptyMessage')).toBeTruthy();
+  });
+
+  it('lets the caller say WHY it is empty when a filter narrowed it', () => {
+    render(
+      <AgentsTable
+        agents={[]}
+        selectedAgents={[]}
+        onSelectionChange={vi.fn()}
+        onEditAgent={vi.fn()}
+        onDeleteAgent={vi.fn()}
+        emptyMessage="table.noResults"
+      />,
+    );
+    expect(screen.getByText('table.noResults')).toBeTruthy();
+    expect(screen.queryByText('table.emptyMessage')).toBeNull();
+  });
+
+  // Flex divs instead of <table> cost the semantics BaseTable gave for free.
+  it('keeps table semantics for assistive tech', () => {
+    renderTable();
+    expect(screen.getByRole('table')).toBeTruthy();
+    expect(screen.getAllByRole('columnheader')).toHaveLength(7);
+    // 1 header row + 2 agents.
+    expect(screen.getAllByRole('row')).toHaveLength(3);
+    expect(screen.getAllByRole('cell').length).toBeGreaterThan(0);
+  });
+
+  it('reports the sort direction of the active column', () => {
+    render(
+      <AgentsTable
+        agents={AGENTS}
+        selectedAgents={[]}
+        onSelectionChange={vi.fn()}
+        onEditAgent={vi.fn()}
+        onDeleteAgent={vi.fn()}
+        sortBy="name"
+        sortOrder="desc"
+        onSort={vi.fn()}
+      />,
+    );
+    const [, name] = screen.getAllByRole('columnheader');
+    expect(name.getAttribute('aria-sort')).toBe('descending');
+  });
+
+  // The chip used to be pt-BR hardcoded next to a translated filter panel.
+  it('takes the type chip label from the catalog, not from a hardcoded string', () => {
+    renderTable();
+    expect(screen.getByText('table.types.llm')).toBeTruthy();
+    expect(screen.getByText('table.types.external')).toBeTruthy();
+    expect(screen.queryByText('Nativo')).toBeNull();
+  });
+
+  it('announces the select-all checkbox as select-all, not as the Nome column', () => {
+    renderTable();
+    const [selectAll] = screen.getAllByRole('checkbox');
+    expect(selectAll.getAttribute('aria-label')).toBe('table.selectAll');
+  });
+
   it('opens the row ⋯ menu with Editar, Copiar ID and Excluir', async () => {
     allowedResources = ['ai_agents'];
     renderTable();
