@@ -268,10 +268,19 @@ const Agentes = () => {
     setIsBulkDeleting(true);
     try {
       const results = await Promise.allSettled(selected.map(agent => deleteAgent(agent.id)));
-      const failed = results.filter(result => result.status === 'rejected').length;
+      const rejected = results.filter(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+      const failed = rejected.length;
       const deleted = selected.length - failed;
 
       if (failed > 0) {
+        // The toast only carries a count: without this the reason each delete failed is
+        // lost, and a partial failure leaves nothing to debug.
+        console.error(
+          'Erro ao deletar agentes em massa:',
+          rejected.map(result => result.reason),
+        );
         toast.error(t('bulkDeleteDialog.partialError', { failed, total: selected.length }));
       } else {
         toast.success(t('bulkDeleteDialog.success', { count: deleted }));

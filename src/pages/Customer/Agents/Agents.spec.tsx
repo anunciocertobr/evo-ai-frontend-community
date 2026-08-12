@@ -39,9 +39,15 @@ vi.mock('@/contexts/PermissionsContext', () => ({
 
 vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({
-    // Options-aware echo so assertions can see the interpolated count.
-    t: (key: string, opts?: { count?: number }) =>
-      opts && typeof opts.count === 'number' ? `${key}#${opts.count}` : key,
+    // Options-aware echo. Every interpolated value lands in the echoed string, not just
+    // `count`: a swapped `failed`/`total` has to fail the spec instead of still matching
+    // on the bare key.
+    t: (key: string, opts?: Record<string, unknown>) => {
+      const named = Object.keys(opts ?? {}).sort();
+      return named.length > 0
+        ? `${key}#${named.map(name => `${name}=${String(opts![name])}`).join(',')}`
+        : key;
+    },
     currentLanguage: 'en',
   }),
 }));
@@ -111,7 +117,7 @@ describe('Agents bulk delete', () => {
     await selectAllAndOpenBulkDialog();
 
     expect(await screen.findByText('bulkDeleteDialog.title')).toBeInTheDocument();
-    expect(screen.getByText('bulkDeleteDialog.description#2')).toBeInTheDocument();
+    expect(screen.getByText('bulkDeleteDialog.description#count=2')).toBeInTheDocument();
     expect(deleteAgent).not.toHaveBeenCalled();
   });
 
@@ -125,7 +131,7 @@ describe('Agents bulk delete', () => {
     expect(deleteAgent).toHaveBeenCalledWith('a-1');
     expect(deleteAgent).toHaveBeenCalledWith('a-2');
 
-    await waitFor(() => expect(success).toHaveBeenCalledWith('bulkDeleteDialog.success#2'));
+    await waitFor(() => expect(success).toHaveBeenCalledWith('bulkDeleteDialog.success#count=2'));
     expect(screen.getByTestId('selected-count')).toHaveTextContent('0');
     // Initial load + post-delete refetch, preserving the user's page size (not the
     // 24-per-page default loadAgents falls back to).
@@ -142,10 +148,29 @@ describe('Agents bulk delete', () => {
     await selectAllAndOpenBulkDialog();
     await userEvent.click(await screen.findByText('bulkDeleteDialog.confirm'));
 
-    await waitFor(() => expect(error).toHaveBeenCalledWith('bulkDeleteDialog.partialError'));
+    // The counts are the whole point of the report: 1 of the 2 selected failed.
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith('bulkDeleteDialog.partialError#failed=1,total=2'),
+    );
     expect(success).not.toHaveBeenCalled();
     // The refetch reconciles the list with what actually got deleted.
     await waitFor(() => expect(getAccessibleAgents).toHaveBeenCalledTimes(2));
+  });
+
+  it('clamps the refetch to the last page that survives the deletion', async () => {
+    // Page 2 holds the single leftover row of a 21-agent list. Deleting it leaves page 2
+    // with nothing to show, so the refetch has to walk back to page 1.
+    getAccessibleAgents.mockResolvedValue({
+      data: [agentA],
+      meta: { pagination: { page: 2, page_size: 20, total: 21, total_pages: 2 } },
+    });
+    render(<Agents />);
+
+    await selectAllAndOpenBulkDialog();
+    await userEvent.click(await screen.findByText('bulkDeleteDialog.confirm'));
+
+    await waitFor(() => expect(getAccessibleAgents).toHaveBeenCalledTimes(2));
+    expect(getAccessibleAgents).toHaveBeenLastCalledWith(1, 20, expect.anything());
   });
 
   it('denies the action without the delete permission', async () => {
