@@ -20,8 +20,8 @@ import {
 } from 'lucide-react';
 import { journeyService } from '@/services';
 import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { useLanguage } from '@/hooks/useLanguage';
+import { getDateFnsLocale } from '@/lib/dateFnsLocale';
 
 interface SessionsViewerProps {
   journeyId: string;
@@ -65,7 +65,8 @@ interface JourneySession {
 }
 
 export function SessionsViewer({ journeyId, journeyName, onClose }: SessionsViewerProps) {
-  const { t } = useLanguage('journey');
+  const { t, currentLanguage } = useLanguage('journey');
+  const dateFnsLocale = getDateFnsLocale(currentLanguage);
 
   const getStatusConfig = () => ({
     active: {
@@ -380,7 +381,7 @@ export function SessionsViewer({ journeyId, journeyName, onClose }: SessionsView
                                 <span>
                                   {formatDistanceToNow(new Date(session.createdAt), {
                                     addSuffix: true,
-                                    locale: ptBR,
+                                    locale: dateFnsLocale,
                                   })}
                                 </span>
                               </div>
@@ -548,7 +549,7 @@ export function SessionsViewer({ journeyId, journeyName, onClose }: SessionsView
                             {log.nodeType} •{' '}
                             {formatDistanceToNow(new Date(log.timestamp), {
                               addSuffix: true,
-                              locale: ptBR,
+                              locale: dateFnsLocale,
                             })}
                           </div>
                           {log.error && (

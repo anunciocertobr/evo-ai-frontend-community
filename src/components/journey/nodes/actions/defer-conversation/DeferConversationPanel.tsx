@@ -28,7 +28,7 @@ export function DeferConversationPanel({
   onUpdate,
   onClose,
 }: DeferConversationPanelProps) {
-  const { t } = useLanguage('journey');
+  const { t, currentLanguage } = useLanguage('journey');
   const [snoozeType, setSnoozeType] = useState<'duration' | 'until_date'>(
     data.snooze_type || 'duration',
   );
@@ -203,8 +203,8 @@ export function DeferConversationPanel({
                 <span
                   dangerouslySetInnerHTML={{
                     __html: t('panels.deferConversation.preview.dateText', {
-                      date: new Date(snoozeUntil).toLocaleDateString('pt-BR'),
-                      time: new Date(snoozeUntil).toLocaleTimeString('pt-BR', {
+                      date: new Date(snoozeUntil).toLocaleDateString(currentLanguage),
+                      time: new Date(snoozeUntil).toLocaleTimeString(currentLanguage, {
                         hour: '2-digit',
                         minute: '2-digit',
                       }),

@@ -36,7 +36,7 @@ export default function JourneyPage() {
 
   const navigate = useNavigate();
   const { can, isReady: permissionsReady } = usePermissions();
-  const { t } = useLanguage('journey');
+  const { t, currentLanguage } = useLanguage('journey');
 
   const fetchJourneys = async () => {
     if (!can('journeys', 'read')) {
@@ -243,7 +243,7 @@ export default function JourneyPage() {
       render: journey => (
         <span className="text-sm text-sidebar-foreground/70">
           {journey.createdAt
-            ? new Date(journey.createdAt).toLocaleDateString('pt-BR')
+            ? new Date(journey.createdAt).toLocaleDateString(currentLanguage)
             : t('table.invalidDate')}
         </span>
       ),
