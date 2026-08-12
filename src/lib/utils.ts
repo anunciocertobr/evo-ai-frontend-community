@@ -269,28 +269,46 @@ export function getFlowStats(nodes: Node[], edges: any[]) {
 // ============================================================================
 
 /**
- * Utilitário para criar configuração de MiniMap com cores por tipo de node
+ * Utilitário para criar configuração de MiniMap com cores por tipo de node.
+ *
+ * `defaultColors` deve cobrir exatamente os 27 tipos de
+ * src/pages/Customer/Journey/journey-node-manifest.json — divergiu no passado
+ * (2 chaves de tipos que não existem, ~15 tipos reais sem cor, caindo no
+ * `|| 'var(--color-muted-foreground)'` de BaseFlowCanvas). A paridade é
+ * travada por miniMapNodeColors.spec.ts; um tipo novo no manifest sem entrada
+ * aqui quebra o teste. As cores espelham o `color` de cada nó na paleta
+ * (JourneyFlowEditor.tsx) — mesmo tom no ponto do minimap e no ícone da
+ * paleta, exceto journey-trigger-node (não tem entrada na paleta).
  */
 export function createMiniMapNodeColors(customColors: Record<string, string> = {}): Record<string, string> {
   const defaultColors = {
-    'trigger-node': '#10b981',
-    'action-node': '#3b82f6',
-    'condition-node': '#f59e0b',
-    'communication-node': '#8b5cf6',
-    'flow-node': '#06b6d4',
-    'assign-agent-node': '#3b82f6',
-    'assign-team-node': '#6366f1',
-    'add-label-node': '#10b981',
-    'remove-label-node': '#ef4444',
-    'send-message-node': '#f97316',
-    'send-attachment-node': '#06b6d4',
-    'send-email-team-node': '#a855f7',
-    'send-transcript-node': '#14b8a6',
-    'send-webhook-node': '#8b5cf6',
-    'mute-conversation-node': '#f97316',
-    'snooze-conversation-node': '#eab308',
-    'resolve-conversation-node': '#10b981',
-    'change-priority-node': '#6366f1',
+    'add-label-node': '#4ade80',
+    'assign-agent-node': '#a78bfa',
+    'assign-bot-node': '#c084fc',
+    'assign-team-node': '#38bdf8',
+    'assign-to-pipeline-node': '#fbbf24',
+    'change-priority-node': '#818cf8',
+    'conditional-node': '#facc15',
+    'create-pipeline-task-node': '#fbbf24',
+    'defer-conversation-node': '#facc15',
+    'exit-journey-node': '#f87171',
+    'journey-trigger-node': '#10b981',
+    'mute-conversation-node': '#9ca3af',
+    'move-to-pipeline-stage-node': '#fbbf24',
+    'remove-label-node': '#f87171',
+    'resolve-conversation-node': '#4ade80',
+    'scheduled-action-node': '#fb923c',
+    'send-canned-response-node': '#60a5fa',
+    'send-email-team-node': '#34d399',
+    'send-message-node': '#60a5fa',
+    'send-transcript-node': '#2dd4bf',
+    'send-webhook-node': '#c084fc',
+    'set-variable-node': '#c084fc',
+    'split-node': '#818cf8',
+    'transfer-journey-node': '#fb923c',
+    'update-contact-node': '#22d3ee',
+    'update-custom-attribute-node': '#f472b6',
+    'wait-node': '#60a5fa',
   };
 
   return {
