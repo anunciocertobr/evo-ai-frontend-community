@@ -173,4 +173,18 @@ describe('useChannelSubmission.submitCreate', () => {
 
     expect(toast.error).toHaveBeenCalledWith('Network Error');
   });
+
+  // An envelope with a code and no message must fall THROUGH, not pick up the
+  // English default extractError would have supplied for that shape.
+  it('does not invent a message when the envelope carries none', async () => {
+    createChannelMock.mockRejectedValue({
+      response: { status: 422, data: { success: false, error: { code: 'QUOTA_EXCEEDED' } } },
+      message: 'Request failed with status code 422',
+    } as never);
+
+    await submit('api', 'api', { name: 'api-inbox', webhook_url: 'https://hook' });
+
+    expect(toast.error).not.toHaveBeenCalledWith('An error occurred');
+    expect(toast.error).toHaveBeenCalledWith('Request failed with status code 422');
+  });
 });
