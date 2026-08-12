@@ -23,6 +23,7 @@ import type { CustomAttributeDefinition } from '@/types/settings';
 import { getSystemVariables } from './EnvironmentManager';
 
 export interface VariableSelectProps {
+  id?: string;
   value?: string;
   onValueChange?: (value: string) => void;
   onCreateNew?: () => void;
@@ -39,6 +40,7 @@ export interface VariableSelectProps {
 const VariableSelect = forwardRef<HTMLButtonElement, VariableSelectProps>(
   (
     {
+      id,
       value,
       onValueChange,
       onCreateNew,
@@ -155,6 +157,7 @@ const VariableSelect = forwardRef<HTMLButtonElement, VariableSelectProps>(
         >
           <SelectTrigger
             ref={ref}
+            id={id}
             data-testid={triggerTestId}
             className={cn(
               'w-full bg-sidebar border-sidebar-border text-sidebar-foreground',

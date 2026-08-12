@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DeferConversationPanel } from './DeferConversationPanel';
 import { DeferConversationNodeData } from './DeferConversationNode';
@@ -36,5 +36,50 @@ describe('DeferConversationPanel — no auto-persist on load', () => {
 
     await waitFor(() => expect(mockGetFormData).toHaveBeenCalled());
     expect(onUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// getByLabelText only resolves if the <Label> is actually paired to its
+// control (htmlFor/id, aria-labelledby, or wrapping) — these fail against the
+// pre-fix markup even though the label text is visibly right next to the field.
+describe('DeferConversationPanel — labels are paired to their controls', () => {
+  it('exposes the deferment type select via its label', async () => {
+    mockGetFormData.mockResolvedValueOnce({ agents: [], teams: [] });
+    render(
+      <DeferConversationPanel nodeId="n1" data={makeData()} onUpdate={vi.fn()} onClose={vi.fn()} />,
+    );
+    await waitFor(() => expect(mockGetFormData).toHaveBeenCalled());
+
+    expect(screen.getByLabelText('Deferment type')).toBeTruthy();
+  });
+
+  it('exposes the duration input via its label', async () => {
+    mockGetFormData.mockResolvedValueOnce({ agents: [], teams: [] });
+    render(
+      <DeferConversationPanel
+        nodeId="n1"
+        data={makeData({ snooze_type: 'duration' })}
+        onUpdate={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(mockGetFormData).toHaveBeenCalled());
+
+    expect(screen.getByLabelText('Duration (hours)')).toBeTruthy();
+  });
+
+  it('exposes the until-date input via its label', async () => {
+    mockGetFormData.mockResolvedValueOnce({ agents: [], teams: [] });
+    render(
+      <DeferConversationPanel
+        nodeId="n1"
+        data={makeData({ snooze_type: 'until_date' })}
+        onUpdate={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(mockGetFormData).toHaveBeenCalled());
+
+    expect(screen.getByLabelText('Date and time')).toBeTruthy();
   });
 });

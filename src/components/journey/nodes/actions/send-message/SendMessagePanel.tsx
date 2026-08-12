@@ -589,8 +589,8 @@ export function SendMessagePanel({
         )}
 
         <div className="space-y-2">
-          <Label className="text-sm font-medium">{t('panels.sendMessage.mode')}</Label>
-          <div className="flex gap-2">
+          <Label id="send-message-mode-label" className="text-sm font-medium">{t('panels.sendMessage.mode')}</Label>
+          <div className="flex gap-2" role="group" aria-labelledby="send-message-mode-label">
             <Button
               type="button"
               size="sm"
@@ -643,7 +643,7 @@ export function SendMessagePanel({
 
         {!formData.useEventChannel && (
           <div className="space-y-2">
-            <Label className="text-sm font-medium">{t('panels.sendMessage.sendChannel')}</Label>
+            <Label htmlFor="send-message-channel-select" className="text-sm font-medium">{t('panels.sendMessage.sendChannel')}</Label>
 
             {loading ? (
               <div className="flex items-center justify-center p-8 border-2 border-dashed border-border rounded-lg">
@@ -665,7 +665,7 @@ export function SendMessagePanel({
             ) : (
               <>
                 <Select value={formData.inboxId} onValueChange={handleInboxChange}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id="send-message-channel-select" className="w-full">
                     <SelectValue placeholder={t('panels.sendMessage.chooseChannel')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -693,7 +693,7 @@ export function SendMessagePanel({
         {isTemplateMode ? (
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label className="text-sm font-medium">{t('panels.sendMessage.template')}</Label>
+              <Label htmlFor="send-message-template-select" className="text-sm font-medium">{t('panels.sendMessage.template')}</Label>
               {!formData.inboxId ? (
                 <p className="text-xs text-muted-foreground">
                   {t('panels.sendMessage.selectChannelForTemplate')}
@@ -714,7 +714,7 @@ export function SendMessagePanel({
                 </Card>
               ) : (
                 <Select value={formData.templateId} onValueChange={handleTemplateChange}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id="send-message-template-select" className="w-full">
                     <SelectValue placeholder={t('panels.sendMessage.chooseTemplate')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -787,16 +787,17 @@ export function SendMessagePanel({
                       !!(mapping.expression ?? '').trim() &&
                       !isBalancedExpression(mapping.expression!);
                     const exprErrorId = `send-message-expr-error-${variable.name}`;
+                    const variableLabelId = `send-message-var-label-${variable.name}`;
 
                     return (
                       <div key={variable.name} className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">
+                        <Label id={variableLabelId} className="text-xs text-muted-foreground">
                           {variable.label || variable.name}
                           {variable.required && (
                             <span className="text-flow-feedback-error-fg"> *</span>
                           )}
                         </Label>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2" role="group" aria-labelledby={variableLabelId}>
                           <Select
                             value={mapping.source}
                             onValueChange={source =>
@@ -906,8 +907,9 @@ export function SendMessagePanel({
           </div>
         ) : (
           <div className="space-y-2">
-            <Label className="text-sm font-medium">{t('panels.sendMessage.message')}</Label>
+            <Label htmlFor="send-message-body" className="text-sm font-medium">{t('panels.sendMessage.message')}</Label>
             <VariableTextarea
+              id="send-message-body"
               value={formData.message || ''}
               onChange={e => setFormData(prev => ({ ...prev, message: e.target.value }))}
               placeholder={t('panels.sendMessage.messagePlaceholder')}

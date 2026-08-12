@@ -95,10 +95,11 @@ export function SendTranscriptPanel({ nodeId, data, onUpdate, onClose }: SendTra
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label className="text-sidebar-foreground font-medium">
+          <Label htmlFor="send-transcript-email" className="text-sidebar-foreground font-medium">
             {t('panels.sendTranscript.destinationEmail')}
           </Label>
           <Input
+            id="send-transcript-email"
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder={t('panels.sendTranscript.emailPlaceholder')}
@@ -119,10 +120,11 @@ export function SendTranscriptPanel({ nodeId, data, onUpdate, onClose }: SendTra
         </div>
 
         <div className="space-y-2">
-          <Label className="text-sidebar-foreground font-medium">
+          <Label htmlFor="send-transcript-subject" className="text-sidebar-foreground font-medium">
             {t('panels.sendTranscript.emailSubject')}
           </Label>
           <Input
+            id="send-transcript-subject"
             value={subject}
             onChange={e => setSubject(e.target.value)}
             placeholder={t('panels.sendTranscript.subjectPlaceholder')}

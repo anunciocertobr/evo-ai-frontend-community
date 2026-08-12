@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SendEmailTeamPanel } from './SendEmailTeamPanel';
 import { SendEmailTeamNodeData } from './SendEmailTeamNode';
@@ -31,5 +31,29 @@ describe('SendEmailTeamPanel — no auto-persist on load', () => {
 
     await waitFor(() => expect(mockGetFormData).toHaveBeenCalled());
     expect(onUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('SendEmailTeamPanel — labels are paired to their controls', () => {
+  it('exposes the team checkbox list as a group named by its label (not a lone caption)', async () => {
+    mockGetFormData.mockResolvedValueOnce({ teams: [{ id: 1, name: 'Support' }] });
+
+    render(
+      <SendEmailTeamPanel nodeId="n1" data={makeData()} onUpdate={vi.fn()} onClose={vi.fn()} />,
+    );
+    await waitFor(() => expect(mockGetFormData).toHaveBeenCalled());
+
+    expect(screen.getByRole('group', { name: 'Destination teams' })).toBeTruthy();
+  });
+
+  it('exposes the message textarea via its label', async () => {
+    mockGetFormData.mockResolvedValueOnce({ teams: [{ id: 1, name: 'Support' }] });
+
+    render(
+      <SendEmailTeamPanel nodeId="n1" data={makeData()} onUpdate={vi.fn()} onClose={vi.fn()} />,
+    );
+    await waitFor(() => expect(mockGetFormData).toHaveBeenCalled());
+
+    expect(screen.getByLabelText('Email message')).toBeTruthy();
   });
 });

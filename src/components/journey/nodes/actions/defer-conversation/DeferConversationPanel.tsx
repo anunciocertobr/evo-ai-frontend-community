@@ -120,7 +120,7 @@ export function DeferConversationPanel({
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label className="text-sidebar-foreground font-medium">
+          <Label htmlFor="defer-conversation-type" className="text-sidebar-foreground font-medium">
             {t('panels.deferConversation.defermentType')}
           </Label>
           <Select
@@ -128,7 +128,7 @@ export function DeferConversationPanel({
             onValueChange={(value: 'duration' | 'until_date') => setSnoozeType(value)}
             disabled={loading}
           >
-            <SelectTrigger className="w-full bg-sidebar border-sidebar-border text-sidebar-foreground">
+            <SelectTrigger id="defer-conversation-type" className="w-full bg-sidebar border-sidebar-border text-sidebar-foreground">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-sidebar border-sidebar-border">
@@ -144,10 +144,11 @@ export function DeferConversationPanel({
 
         {snoozeType === 'duration' && (
           <div className="space-y-2">
-            <Label className="text-sidebar-foreground font-medium">
+            <Label htmlFor="defer-conversation-duration" className="text-sidebar-foreground font-medium">
               {t('panels.deferConversation.duration.label')}
             </Label>
             <Input
+              id="defer-conversation-duration"
               type="number"
               value={snoozeDuration}
               onChange={e => setSnoozeDuration(Math.max(1, parseInt(e.target.value) || 1))}
@@ -164,10 +165,11 @@ export function DeferConversationPanel({
 
         {snoozeType === 'until_date' && (
           <div className="space-y-2">
-            <Label className="text-sidebar-foreground font-medium">
+            <Label htmlFor="defer-conversation-until" className="text-sidebar-foreground font-medium">
               {t('panels.deferConversation.dateTime.label')}
             </Label>
             <Input
+              id="defer-conversation-until"
               type="datetime-local"
               value={snoozeUntil}
               onChange={e => setSnoozeUntil(e.target.value)}
