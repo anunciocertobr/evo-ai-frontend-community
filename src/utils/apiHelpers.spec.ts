@@ -28,6 +28,19 @@ describe('apiErrorMessage', () => {
     expect(apiErrorMessage(rejection(null))).toBeUndefined();
   });
 
+  it('returns undefined for an envelope that carries a code but no message', () => {
+    expect(apiErrorMessage(rejection({ success: false, error: { code: 'QUOTA_EXCEEDED' } }))).toBeUndefined();
+    expect(apiErrorMessage(rejection({ success: false, error: {} }))).toBeUndefined();
+    expect(apiErrorMessage(rejection({ success: false, error: { code: 'X', message: '  ' } }))).toBeUndefined();
+  });
+
+  it('ignores 5xx bodies, whose message is not written for the person on screen', () => {
+    expect(apiErrorMessage(rejection({ message: 'PG::UndefinedTable: relation "x"' }, 500))).toBeUndefined();
+    expect(
+      apiErrorMessage(rejection({ success: false, error: { code: 'INTERNAL', message: 'NoMethodError' } }, 503)),
+    ).toBeUndefined();
+  });
+
   it('returns undefined for a rejection with no response at all', () => {
     expect(apiErrorMessage(new Error('Network Error'))).toBeUndefined();
   });
