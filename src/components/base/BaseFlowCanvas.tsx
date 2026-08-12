@@ -231,9 +231,16 @@ export function BaseFlowCanvas({
   // Handlers de mudanças
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      // Usar custom apply se helper lines customizado está habilitado
+      // customApplyNodeChanges tem efeito colateral (seta as helper lines e muta
+      // changes[0].position no snap) — computar uma vez só e reusar, senão o
+      // segundo call reprocessa o snap em cima do primeiro e refaz o setState
+      // das helper lines à toa.
+      const updatedNodes = customHelperLines
+        ? customApplyNodeChanges(changes, nodes)
+        : applyNodeChanges(changes, nodes);
+
       if (customHelperLines) {
-        setNodes(nodes => customApplyNodeChanges(changes, nodes));
+        setNodes(updatedNodes);
       } else {
         onNodesChangeInternal(changes);
       }
@@ -241,11 +248,6 @@ export function BaseFlowCanvas({
       if (onNodesChange) {
         onNodesChange(changes);
       }
-
-      // Notificar mudanças no flow
-      const updatedNodes = customHelperLines
-        ? customApplyNodeChanges(changes, nodes)
-        : applyNodeChanges(changes, nodes);
 
       if (onFlowDataChange) {
         onFlowDataChange(updatedNodes, edges);

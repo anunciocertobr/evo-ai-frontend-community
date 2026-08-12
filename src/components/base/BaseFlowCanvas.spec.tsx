@@ -41,10 +41,16 @@ vi.mock('@xyflow/react', async importOriginal => {
   };
 });
 
+vi.mock('@/lib/utils', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/utils')>();
+  return { ...actual, getHelperLines: vi.fn(actual.getHelperLines) };
+});
+
 import { ReactFlowProvider } from '@xyflow/react';
 import { BaseFlowCanvas } from './BaseFlowCanvas';
 import { DnDProvider, useDnD } from '@/contexts/DnDContext';
 import { DarkModeProvider } from '@/contexts/ThemeContext';
+import { getHelperLines } from '@/lib/utils';
 
 const NoopNode = () => <div />;
 
@@ -53,6 +59,7 @@ function renderCanvas(opts: {
   onFlowDataChangeExtended?: ReturnType<typeof vi.fn>;
   initialNodes?: Array<Record<string, unknown>>;
   initialEdges?: Array<Record<string, unknown>>;
+  customHelperLines?: boolean;
 }) {
   const initialNodes = opts.initialNodes ?? [
     { id: 'n1', type: 'noop', position: { x: 0, y: 0 }, data: {} },
@@ -70,6 +77,7 @@ function renderCanvas(opts: {
             initialEdges={initialEdges as never}
             onFlowDataChange={opts.onFlowDataChange}
             onFlowDataChangeExtended={opts.onFlowDataChangeExtended}
+            customHelperLines={opts.customHelperLines}
           />
         </ReactFlowProvider>
       </DnDProvider>
@@ -402,5 +410,23 @@ describe('BaseFlowCanvas — EVO-1643 mutation propagation', () => {
     expect(onFlowDataChange).toHaveBeenCalled();
     const lastCall = onFlowDataChange.mock.lastCall as [unknown, Array<{ id: string }>];
     expect(lastCall[1].map(e => e.id)).toEqual(['e2']);
+  });
+});
+
+// handleNodesChange used to run customApplyNodeChanges twice per drag move
+// (once for setNodes, once again to compute the onFlowDataChange payload) —
+// each run re-executes getHelperLines and re-mutates changes[0].position.
+describe('BaseFlowCanvas — customApplyNodeChanges runs once per change', () => {
+  it('calls getHelperLines exactly once per node drag when customHelperLines is on', () => {
+    renderCanvas({ customHelperLines: true });
+    const props = reactFlowMocks.capturedProps.current!;
+
+    act(() => {
+      (props.onNodesChange as (changes: Array<Record<string, unknown>>) => void)([
+        { type: 'position', id: 'n1', position: { x: 10, y: 10 }, dragging: true },
+      ]);
+    });
+
+    expect(getHelperLines).toHaveBeenCalledTimes(1);
   });
 });
