@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import {
   Button,
   Dialog,
@@ -155,19 +156,19 @@ export function EnvironmentManager({
 
   const handleCreateVariable = async () => {
     if (!newVariable.name.trim()) {
-      alert(t('environmentManager.form.fields.name.required'));
+      toast.error(t('environmentManager.form.fields.name.required'));
       return;
     }
 
     // Validar nome (sem espaços, apenas letras, números e underscore)
     if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(newVariable.name)) {
-      alert(t('environmentManager.form.fields.name.invalid'));
+      toast.error(t('environmentManager.form.fields.name.invalid'));
       return;
     }
 
     // Verificar se já existe
     if (variables.some(v => v.name === newVariable.name)) {
-      alert(t('environmentManager.form.fields.name.exists'));
+      toast.error(t('environmentManager.form.fields.name.exists'));
       return;
     }
 
@@ -177,7 +178,7 @@ export function EnvironmentManager({
       setNewVariable({ name: '', type: 'text', defaultValue: '', description: '' });
       setShowCreateForm(false);
     } catch (err) {
-      alert(t('environmentManager.form.messages.createError'));
+      toast.error(t('environmentManager.form.messages.createError'));
     }
   };
 
@@ -196,19 +197,19 @@ export function EnvironmentManager({
     if (!editingVariable) return;
 
     if (!newVariable.name.trim()) {
-      alert(t('environmentManager.form.fields.name.required'));
+      toast.error(t('environmentManager.form.fields.name.required'));
       return;
     }
 
     // Validar nome (sem espaços, apenas letras, números e underscore)
     if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(newVariable.name)) {
-      alert(t('environmentManager.form.fields.name.invalid'));
+      toast.error(t('environmentManager.form.fields.name.invalid'));
       return;
     }
 
     // Verificar se já existe (exceto a própria variável)
     if (variables.some(v => v.name === newVariable.name && v.id !== editingVariable.id)) {
-      alert(t('environmentManager.form.fields.name.exists'));
+      toast.error(t('environmentManager.form.fields.name.exists'));
       return;
     }
 
@@ -219,7 +220,7 @@ export function EnvironmentManager({
       setShowCreateForm(false);
       setEditingVariable(null);
     } catch (err) {
-      alert(t('environmentManager.form.messages.updateError'));
+      toast.error(t('environmentManager.form.messages.updateError'));
     }
   };
 
@@ -234,7 +235,7 @@ export function EnvironmentManager({
       await deleteVariable(deletingVariable.id);
       setDeletingVariable(null);
     } catch (err) {
-      alert(t('environmentManager.form.messages.deleteError'));
+      toast.error(t('environmentManager.form.messages.deleteError'));
     }
   };
 

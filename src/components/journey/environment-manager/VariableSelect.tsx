@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import {
   Select,
   SelectContent,
@@ -106,19 +107,19 @@ const VariableSelect = forwardRef<HTMLButtonElement, VariableSelectProps>(
       const trimmedName = newVariableName.trim();
 
       if (!trimmedName) {
-        alert(t('environmentManager.form.fields.name.required'));
+        toast.error(t('environmentManager.form.fields.name.required'));
         return;
       }
 
       // Validar nome (sem espaços, apenas letras, números e underscore)
       if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(trimmedName)) {
-        alert(t('environmentManager.form.fields.name.invalid'));
+        toast.error(t('environmentManager.form.fields.name.invalid'));
         return;
       }
 
       // Verificar se já existe
       if (variables.some(v => v.name === trimmedName)) {
-        alert(t('environmentManager.form.fields.name.exists'));
+        toast.error(t('environmentManager.form.fields.name.exists'));
         return;
       }
 
@@ -141,7 +142,7 @@ const VariableSelect = forwardRef<HTMLButtonElement, VariableSelectProps>(
         setShowCreateModal(false);
       } catch (error) {
         console.error('Erro ao criar variável:', error);
-        alert(t('environmentManager.form.messages.createError'));
+        toast.error(t('environmentManager.form.messages.createError'));
       }
     };
 
