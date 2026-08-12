@@ -161,7 +161,17 @@
     "deleting": "Eliminando...",
     "success": "¡Agente de IA \"{{name}}\" eliminado con éxito!"
   },
-  "bulkDelete": "Funcionalidad de eliminación masiva en desarrollo",
+  "bulkDeleteDialog": {
+    "title": "Eliminar Agentes de IA",
+    "description_one": "¿Estás seguro de que deseas eliminar {{count}} agente de IA? Esta acción no se puede deshacer.",
+    "description_other": "¿Estás seguro de que deseas eliminar {{count}} agentes de IA? Esta acción no se puede deshacer.",
+    "cancel": "Cancelar",
+    "confirm": "Eliminar",
+    "deleting": "Eliminando...",
+    "success_one": "¡{{count}} agente de IA eliminado con éxito!",
+    "success_other": "¡{{count}} agentes de IA eliminados con éxito!",
+    "partialError": "{{failed}} de {{total}} agentes de IA no se pudieron eliminar"
+  },
   "testA2A": "Funcionalidad de prueba A2A en desarrollo",
   "moveToFolder": "Funcionalidad de mover a carpeta en desarrollo",
   "exportJSON": "Funcionalidad de exportar JSON en desarrollo",

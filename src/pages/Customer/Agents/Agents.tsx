@@ -78,6 +78,8 @@ const Agentes = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const isWizardOpen = location.pathname === '/agents/new';
 
   const loadAgents = useCallback(
@@ -249,7 +251,53 @@ const Agentes = () => {
   };
 
   const handleBulkDelete = () => {
-    toast.info(t('bulkDelete'));
+    if (!can('ai_agents', 'delete')) {
+      toast.error(t('permissions.deleteDenied'));
+      return;
+    }
+    if (state.selectedAgents.length === 0) {
+      return;
+    }
+    setBulkDeleteDialogOpen(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    const selected = state.selectedAgents;
+    if (selected.length === 0) return;
+
+    setIsBulkDeleting(true);
+    try {
+      const results = await Promise.allSettled(selected.map(agent => deleteAgent(agent.id)));
+      const rejected = results.filter(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+      const failed = rejected.length;
+      const deleted = selected.length - failed;
+
+      if (failed > 0) {
+        // The toast only carries a count: without this the reason each delete failed is
+        // lost, and a partial failure leaves nothing to debug.
+        console.error(
+          'Erro ao deletar agentes em massa:',
+          rejected.map(result => result.reason),
+        );
+        toast.error(t('bulkDeleteDialog.partialError', { failed, total: selected.length }));
+      } else {
+        toast.success(t('bulkDeleteDialog.success', { count: deleted }));
+      }
+
+      // Refetch instead of local math: after a partial failure the local list is a guess,
+      // and the current page may no longer exist once rows are gone.
+      const { total, page_size, page } = state.meta.pagination;
+      const remainingPages = Math.max(1, Math.ceil(Math.max(0, total - deleted) / page_size));
+      setState(prev => ({ ...prev, selectedAgents: [] }));
+      setBulkDeleteDialogOpen(false);
+      // per_page must travel along: loadAgents defaults to 24, which would desync the
+      // target page computed from the user's current page size.
+      await loadAgents({ page: Math.min(page, remainingPages), per_page: page_size });
+    } finally {
+      setIsBulkDeleting(false);
+    }
   };
 
   // A facet change is a refetch from page 1: staying on page 5 would ask for a page the
@@ -384,6 +432,34 @@ const Agentes = () => {
             </Button>
             <Button variant="destructive" onClick={confirmDeleteAgent} disabled={isDeleting}>
               {isDeleting ? t('deleteDialog.deleting') : t('deleteDialog.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={bulkDeleteDialogOpen}
+        onOpenChange={open => {
+          if (!isBulkDeleting) setBulkDeleteDialogOpen(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('bulkDeleteDialog.title')}</DialogTitle>
+            <DialogDescription>
+              {t('bulkDeleteDialog.description', { count: state.selectedAgents.length })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteDialogOpen(false)}
+              disabled={isBulkDeleting}
+            >
+              {t('bulkDeleteDialog.cancel')}
+            </Button>
+            <Button variant="destructive" onClick={confirmBulkDelete} disabled={isBulkDeleting}>
+              {isBulkDeleting ? t('bulkDeleteDialog.deleting') : t('bulkDeleteDialog.confirm')}
             </Button>
           </DialogFooter>
         </DialogContent>

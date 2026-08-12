@@ -161,7 +161,17 @@
     "deleting": "Suppression...",
     "success": "Agent IA \"{{name}}\" supprimé avec succès !"
   },
-  "bulkDelete": "Fonctionnalité de suppression en masse en développement",
+  "bulkDeleteDialog": {
+    "title": "Supprimer les Agents IA",
+    "description_one": "Êtes-vous sûr de vouloir supprimer {{count}} agent IA ? Cette action ne peut pas être annulée.",
+    "description_other": "Êtes-vous sûr de vouloir supprimer {{count}} agents IA ? Cette action ne peut pas être annulée.",
+    "cancel": "Annuler",
+    "confirm": "Supprimer",
+    "deleting": "Suppression...",
+    "success_one": "{{count}} agent IA supprimé avec succès !",
+    "success_other": "{{count}} agents IA supprimés avec succès !",
+    "partialError": "{{failed}} sur {{total}} agents IA n'ont pas pu être supprimés"
+  },
   "testA2A": "Fonctionnalité de test A2A en développement",
   "moveToFolder": "Fonctionnalité de déplacement vers un dossier en développement",
   "exportJSON": "Fonctionnalité d'exportation JSON en développement",
