@@ -1,0 +1,38 @@
+import { describe, it, expect } from 'vitest';
+import { apiErrorMessage } from './apiHelpers';
+
+// Mirrors app/controllers/concerns/api_response_helper.rb#error_response.
+function rejection(data: unknown, status = 422) {
+  return { response: { status, data }, message: `Request failed with status code ${status}` };
+}
+
+describe('apiErrorMessage', () => {
+  it('reads the message the backend authored', () => {
+    const error = rejection({
+      success: false,
+      error: { code: 'QUOTA_EXCEEDED', message: 'Limite do plano excedido (5/5) para channels' },
+    });
+
+    expect(apiErrorMessage(error)).toBe('Limite do plano excedido (5/5) para channels');
+  });
+
+  it('reads the legacy string and bare-message shapes', () => {
+    expect(apiErrorMessage(rejection({ error: 'Canal já existe' }))).toBe('Canal já existe');
+    expect(apiErrorMessage(rejection({ message: 'Nome é obrigatório' }))).toBe(
+      'Nome é obrigatório',
+    );
+  });
+
+  it('returns undefined when the body carries no message', () => {
+    expect(apiErrorMessage(rejection({ whatever: true }))).toBeUndefined();
+    expect(apiErrorMessage(rejection(null))).toBeUndefined();
+  });
+
+  it('returns undefined for a rejection with no response at all', () => {
+    expect(apiErrorMessage(new Error('Network Error'))).toBeUndefined();
+  });
+
+  it.each([null, undefined, 'boom', 42])('returns undefined without throwing for %p', value => {
+    expect(apiErrorMessage(value)).toBeUndefined();
+  });
+});

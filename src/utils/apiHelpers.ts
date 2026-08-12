@@ -108,6 +108,22 @@ export function extractError(error: any): ErrorInfo {
 }
 
 /**
+ * The backend's message from the error envelope, or undefined if it has none —
+ * so each caller keeps its own localized fallback instead of a raw HTTP status text.
+ * @param error - Value caught from a rejected request
+ * @returns The server-authored message, or undefined
+ */
+export function apiErrorMessage(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+  if (!data || typeof data !== 'object') return undefined;
+
+  const { code, message } = extractError(error);
+  return code.startsWith('HTTP_') ? undefined : message;
+}
+
+/**
  * Extract success message from response
  * @param response - Axios response object
  * @returns Success message or undefined
