@@ -161,7 +161,17 @@
     "deleting": "Deleting...",
     "success": "AI agent \"{{name}}\" deleted successfully!"
   },
-  "bulkDelete": "Bulk Delete",
+  "bulkDeleteDialog": {
+    "title": "Delete AI Agents",
+    "description_one": "Are you sure you want to delete {{count}} AI agent? This action cannot be undone.",
+    "description_other": "Are you sure you want to delete {{count}} AI agents? This action cannot be undone.",
+    "cancel": "Cancel",
+    "confirm": "Delete",
+    "deleting": "Deleting...",
+    "success_one": "{{count}} AI agent deleted successfully!",
+    "success_other": "{{count}} AI agents deleted successfully!",
+    "partialError": "{{failed}} of {{total}} AI agents could not be deleted"
+  },
   "testA2A": "Test A2A",
   "moveToFolder": "Move to folder",
   "exportJSON": "Export JSON",
