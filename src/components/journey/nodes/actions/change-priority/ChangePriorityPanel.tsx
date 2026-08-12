@@ -75,16 +75,6 @@ export function ChangePriorityPanel({ nodeId, data, onUpdate, onClose }: ChangeP
     onClose();
   };
 
-  useEffect(() => {
-    if (formDataOptions.priorities.length > 0) {
-      const updatedData: ChangePriorityNodeData = {
-        ...data,
-        formDataOptions,
-      };
-      onUpdate(nodeId, updatedData);
-    }
-  }, [formDataOptions, data, nodeId, onUpdate]);
-
   const getPriorityIcon = (value: string) => {
     const icons: { [key: string]: string } = {
       low: '🔵',

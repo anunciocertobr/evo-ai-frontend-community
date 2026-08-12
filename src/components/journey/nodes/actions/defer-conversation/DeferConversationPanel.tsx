@@ -88,16 +88,6 @@ export function DeferConversationPanel({
     onClose();
   };
 
-  useEffect(() => {
-    if (formDataOptions.agents.length > 0 || formDataOptions.teams.length > 0) {
-      const updatedData: DeferConversationNodeData = {
-        ...data,
-        formDataOptions,
-      };
-      onUpdate(nodeId, updatedData);
-    }
-  }, [formDataOptions, data, nodeId, onUpdate]);
-
   const isValidDateTime = (dateTimeStr: string) => {
     const date = new Date(dateTimeStr);
     return date > new Date();

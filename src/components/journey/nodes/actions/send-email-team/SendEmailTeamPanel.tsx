@@ -76,16 +76,6 @@ export function SendEmailTeamPanel({ nodeId, data, onUpdate, onClose }: SendEmai
     onClose();
   };
 
-  useEffect(() => {
-    if (formDataOptions.teams.length > 0) {
-      const updatedData: SendEmailTeamNodeData = {
-        ...data,
-        formDataOptions,
-      };
-      onUpdate(nodeId, updatedData);
-    }
-  }, [formDataOptions, data, nodeId, onUpdate]);
-
   const getCharacterCount = () => message.length;
 
   const getCharacterCountColor = () => {

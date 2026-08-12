@@ -63,16 +63,6 @@ export function SendTranscriptPanel({ nodeId, data, onUpdate, onClose }: SendTra
     onClose();
   };
 
-  useEffect(() => {
-    if (formDataOptions.teams.length > 0 || formDataOptions.agents.length > 0) {
-      const updatedData: SendTranscriptNodeData = {
-        ...data,
-        formDataOptions,
-      };
-      onUpdate(nodeId, updatedData);
-    }
-  }, [formDataOptions, data, nodeId, onUpdate]);
-
   const getCharacterCount = (text: string) => text.length;
 
   const getCharacterCountColor = (text: string, max: number) => {
