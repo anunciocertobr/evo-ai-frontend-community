@@ -190,7 +190,13 @@ export const useChannelValidation = () => {
         return validateWebWidget(form);
 
       case 'whatsapp':
-        if (!providerId) return false;
+        // Every other guard in this file toasts before returning false — this was
+        // the one silent exit (CRM-114): pick a provider without filling anything
+        // else and the button did nothing visible.
+        if (!providerId) {
+          toast.error('Selecione um provedor');
+          return false;
+        }
 
         switch (providerId) {
           case 'twilio':
