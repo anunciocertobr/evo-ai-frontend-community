@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { apiErrorMessage } from './apiHelpers';
 
-// The envelope every controller renders through
-// app/controllers/concerns/api_response_helper.rb#error_response.
+// Mirrors app/controllers/concerns/api_response_helper.rb#error_response.
 function rejection(data: unknown, status = 422) {
   return { response: { status, data }, message: `Request failed with status code ${status}` };
 }
@@ -24,8 +23,6 @@ describe('apiErrorMessage', () => {
     );
   });
 
-  // Without a message from the server there is nothing better to show than the
-  // caller's own localized fallback — "Unprocessable Entity" is not it.
   it('returns undefined when the body carries no message', () => {
     expect(apiErrorMessage(rejection({ whatever: true }))).toBeUndefined();
     expect(apiErrorMessage(rejection(null))).toBeUndefined();
@@ -35,8 +32,6 @@ describe('apiErrorMessage', () => {
     expect(apiErrorMessage(new Error('Network Error'))).toBeUndefined();
   });
 
-  // A catch block can receive anything, and this runs inside error handling —
-  // it must not become the failure it is reporting.
   it.each([null, undefined, 'boom', 42])('returns undefined without throwing for %p', value => {
     expect(apiErrorMessage(value)).toBeUndefined();
   });

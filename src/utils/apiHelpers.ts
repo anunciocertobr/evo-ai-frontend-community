@@ -108,17 +108,9 @@ export function extractError(error: any): ErrorInfo {
 }
 
 /**
- * Message the backend authored for the user in the error envelope
- * ({ success: false, error: { code, message } }), or undefined when the response
- * carries none.
- *
- * Returning undefined instead of a message lets each caller keep its own
- * localized fallback: extractError's last resort is the HTTP status text, and
- * "Unprocessable Entity" reads worse on screen than "Falha ao criar canal".
- * Rejections without a response body (a local `throw`, a network failure) are
- * not this function's business either — the caller still has `error.message`.
- *
- * @param error - Value caught from a rejected request (anything at all)
+ * The backend's message from the error envelope, or undefined if it has none —
+ * so each caller keeps its own localized fallback instead of a raw HTTP status text.
+ * @param error - Value caught from a rejected request
  * @returns The server-authored message, or undefined
  */
 export function apiErrorMessage(error: unknown): string | undefined {

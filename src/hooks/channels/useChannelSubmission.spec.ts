@@ -146,9 +146,6 @@ describe('useChannelSubmission.submitCreate', () => {
     expect(toast.success).toHaveBeenCalledWith('Canal criado com sucesso');
   });
 
-  // A create barred by the plan ceiling comes back as 422 with a ready-to-show
-  // reason; showing `error.message` would print axios's "Request failed with
-  // status code 422" and leave the operator with no idea what to do.
   it('shows the reason the backend gave for refusing the create', async () => {
     createChannelMock.mockRejectedValue({
       response: {

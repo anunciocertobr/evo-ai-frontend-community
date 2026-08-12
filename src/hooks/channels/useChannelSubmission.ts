@@ -720,9 +720,6 @@ export const useChannelSubmission = (form?: FormData) => {
         navigate(`/channels/${createdId}/settings`);
       }
     } catch (e: unknown) {
-      // The backend rejects a create with a ready-to-show reason in the envelope
-      // (plan quota, validation). Reading only `.message` off the rejection would
-      // print axios's "Request failed with status code 422" instead.
       const err = e as Error;
       toast.error(apiErrorMessage(e) || err?.message || 'Falha ao criar canal');
     } finally {
