@@ -174,15 +174,30 @@ export function BaseFlowCanvas({
   const { type, setPointerEvents, setType } = useDnD();
 
   // Estados do canvas
-  const [nodes, setNodes, onNodesChangeInternal] = useNodesState(initialNodes);
+  const [nodes, setNodesState] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChangeInternal] = useEdgesState(initialEdges);
 
-  // Espelho síncrono de `nodes`. Dentro de um mesmo batch do React o closure não
-  // reflete a mudança anterior, então o payload dos callbacks sairia de um
-  // estado que o setNodes já superou — o store receberia um snapshot desfazendo
-  // a primeira mudança do batch.
+  // Synchronous mirror of `nodes`: React batches events, so inside one batch the
+  // `nodes` closure still holds the pre-batch value and a payload derived from it
+  // would undo the changes the batch already applied.
   const nodesRef = useRef(nodes);
-  nodesRef.current = nodes;
+
+  // Single writer for node state — advances the mirror and the React state
+  // together. Build callback payloads from `nodesRef.current`, never from the
+  // `nodes` closure; `nodes` is for rendering only. Calling `setNodesState`
+  // anywhere else desyncs the mirror, so it stays private to this function.
+  // The updater runs here, not inside React's setter, so it never has to be
+  // pure for StrictMode's benefit.
+  const commitNodes = useCallback(
+    (update: Node[] | ((current: Node[]) => Node[])): Node[] => {
+      const next = typeof update === 'function' ? update(nodesRef.current) : update;
+      nodesRef.current = next;
+      setNodesState(next);
+      return next;
+    },
+    [setNodesState],
+  );
+
   const [showNodePanel, setShowNodePanel] = useState(showNodePanelByDefault);
 
   // Context menu
@@ -238,21 +253,11 @@ export function BaseFlowCanvas({
   // Handlers de mudanças
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
+      // Runs first: it mutates changes[0].position for the snap, and must fire
+      // once per batch — hence outside the state write.
       applyHelperLineSnap(changes, nodesRef.current);
 
-      // Avança o espelho junto: é ele que mantém o payload dos callbacks
-      // alinhado com o estado que o setNodes aplica.
-      const updatedNodes = applyNodeChanges(changes, nodesRef.current);
-      nodesRef.current = updatedNodes;
-
-      if (customHelperLines) {
-        // Updater funcional: com o efeito colateral fora, é seguro de novo —
-        // uma segunda chamada no mesmo batch do React parte do resultado da
-        // primeira em vez de sobrescrevê-lo.
-        setNodes(current => applyNodeChanges(changes, current));
-      } else {
-        onNodesChangeInternal(changes);
-      }
+      const updatedNodes = commitNodes(current => applyNodeChanges(changes, current));
 
       if (onNodesChange) {
         onNodesChange(changes);
@@ -272,15 +277,13 @@ export function BaseFlowCanvas({
       }
     },
     [
-      onNodesChangeInternal,
+      commitNodes,
       onNodesChange,
       onFlowDataChange,
       onFlowDataChangeExtended,
       edges,
       flowVariables,
-      customHelperLines,
       applyHelperLineSnap,
-      setNodes,
     ],
   );
 
@@ -300,11 +303,11 @@ export function BaseFlowCanvas({
       if (persistChanges.length > 0) {
         const updatedEdges = applyEdgeChanges(persistChanges, edges);
         if (onFlowDataChange) {
-          onFlowDataChange(nodes, updatedEdges);
+          onFlowDataChange(nodesRef.current, updatedEdges);
         }
         if (onFlowDataChangeExtended) {
           onFlowDataChangeExtended({
-            nodes,
+            nodes: nodesRef.current,
             edges: updatedEdges,
             variables: flowVariables,
           });
@@ -320,7 +323,6 @@ export function BaseFlowCanvas({
       onEdgesChange,
       onFlowDataChange,
       onFlowDataChangeExtended,
-      nodes,
       edges,
       flowVariables,
     ],
@@ -339,11 +341,11 @@ export function BaseFlowCanvas({
       const updatedEdges = addEdge(edge, edges);
       setEdges(updatedEdges);
       if (onFlowDataChange) {
-        onFlowDataChange(nodes, updatedEdges);
+        onFlowDataChange(nodesRef.current, updatedEdges);
       }
       if (onFlowDataChangeExtended) {
         onFlowDataChangeExtended({
-          nodes,
+          nodes: nodesRef.current,
           edges: updatedEdges,
           variables: flowVariables,
         });
@@ -358,7 +360,6 @@ export function BaseFlowCanvas({
       onConnect,
       onFlowDataChange,
       onFlowDataChangeExtended,
-      nodes,
       flowVariables,
     ],
   );
@@ -397,11 +398,9 @@ export function BaseFlowCanvas({
         // EVO-1643: drops bypass xyflow's NodeChange path, so the new node
         // reached canvas state via setNodes but never the editor store — on
         // save the snapshot kept only the trigger and dropped every action
-        // node. Mirror the EVO-1573 edge fix: set the bare value and fire the
-        // store callbacks after (keep setNodes pure so StrictMode's
-        // double-invoke can't double-notify).
-        const updatedNodes = nodes.concat(newNode);
-        setNodes(updatedNodes);
+        // node. Mirror the EVO-1573 edge fix: commit the node first, fire the
+        // store callbacks after.
+        const updatedNodes = commitNodes(current => current.concat(newNode));
         if (onFlowDataChange) {
           onFlowDataChange(updatedNodes, edges);
         }
@@ -418,11 +417,11 @@ export function BaseFlowCanvas({
         
         // Selecionar o novo node após um pequeno delay para garantir que foi adicionado
         setTimeout(() => {
-          setNodes(nds => 
-            nds.map(node => ({ 
-              ...node, 
-              selected: node.id === newNodeId 
-            }))
+          commitNodes(current =>
+            current.map(node => ({
+              ...node,
+              selected: node.id === newNodeId,
+            })),
           );
         }, 10);
       }
@@ -431,9 +430,8 @@ export function BaseFlowCanvas({
       type,
       screenToFlowPosition,
       onDrop,
-      setNodes,
+      commitNodes,
       setType,
-      nodes,
       edges,
       onFlowDataChange,
       onFlowDataChangeExtended,
@@ -482,24 +480,20 @@ export function BaseFlowCanvas({
 
   // 🆕 Função para atualizar node (sistema de painéis de configuração).
   // Config-panel updates bypass xyflow's NodeChange path because they mutate
-  // `node.data` directly via `setNodes`. The parent's `onFlowDataChange`
-  // listener would otherwise never see the edit, so the journey editor's
-  // dirty/autosave/IDB pipeline would stay clean despite a real change in
-  // a panel field. Wire the callbacks here so the data path matches what
-  // `handleNodesChange` does for canvas-level edits.
+  // `node.data` directly. The parent's `onFlowDataChange` listener would
+  // otherwise never see the edit, so the journey editor's dirty/autosave/IDB
+  // pipeline would stay clean despite a real change in a panel field. Wire the
+  // callbacks here so the data path matches what `handleNodesChange` does for
+  // canvas-level edits.
   //
-  // IMPORTANT: side effects (onFlowDataChange / onFlowDataChangeExtended)
-  // run AFTER setNodes returns, NOT inside the updater callback. Updaters
-  // must be pure — React (and StrictMode in particular) double-invokes
-  // them in dev to surface non-idempotency, which would cause the store
-  // notifications to fire twice. This mirrors the pattern used by
-  // `handleNodesChange` above.
+  // IMPORTANT: side effects (onFlowDataChange / onFlowDataChangeExtended) run
+  // AFTER commitNodes returns, never inside the updater it receives — same
+  // shape as `handleNodesChange` above.
   const updateNode = useCallback(
     (nodeId: string, newData: any) => {
-      const updated = nodes.map(node =>
-        node.id === nodeId ? { ...node, data: newData } : node,
+      const updated = commitNodes(current =>
+        current.map(node => (node.id === nodeId ? { ...node, data: newData } : node)),
       );
-      setNodes(updated);
       if (onFlowDataChange) {
         onFlowDataChange(updated, edges);
       }
@@ -511,7 +505,7 @@ export function BaseFlowCanvas({
         });
       }
     },
-    [nodes, setNodes, onFlowDataChange, onFlowDataChangeExtended, edges, flowVariables],
+    [commitNodes, onFlowDataChange, onFlowDataChangeExtended, edges, flowVariables],
   );
 
   // Controle de conexões
@@ -548,22 +542,25 @@ export function BaseFlowCanvas({
       const updatedEdges = edges.filter(edge => edge.id !== id);
       setEdges(updatedEdges);
       if (onFlowDataChange) {
-        onFlowDataChange(nodes, updatedEdges);
+        onFlowDataChange(nodesRef.current, updatedEdges);
       }
       if (onFlowDataChangeExtended) {
-        onFlowDataChangeExtended({ nodes, edges: updatedEdges, variables: flowVariables });
+        onFlowDataChangeExtended({
+          nodes: nodesRef.current,
+          edges: updatedEdges,
+          variables: flowVariables,
+        });
       }
     },
-    [edges, setEdges, nodes, onFlowDataChange, onFlowDataChangeExtended, flowVariables],
+    [edges, setEdges, onFlowDataChange, onFlowDataChangeExtended, flowVariables],
   );
 
   const handleDeleteNode = useCallback(
     (nodeId: string) => {
-      const updatedNodes = nodes.filter(node => node.id !== nodeId);
       const updatedEdges = edges.filter(
         edge => edge.source !== nodeId && edge.target !== nodeId,
       );
-      setNodes(updatedNodes);
+      const updatedNodes = commitNodes(current => current.filter(node => node.id !== nodeId));
       setEdges(updatedEdges);
       if (onFlowDataChange) {
         onFlowDataChange(updatedNodes, updatedEdges);
@@ -576,12 +573,12 @@ export function BaseFlowCanvas({
         });
       }
     },
-    [nodes, edges, setNodes, setEdges, onFlowDataChange, onFlowDataChangeExtended, flowVariables],
+    [edges, commitNodes, setEdges, onFlowDataChange, onFlowDataChangeExtended, flowVariables],
   );
 
   const handleDuplicateNode = useCallback(
     (nodeId: string) => {
-      const original = nodes.find(node => node.id === nodeId);
+      const original = nodesRef.current.find(node => node.id === nodeId);
       if (!original) return;
       const copy: Node = {
         ...original,
@@ -590,8 +587,7 @@ export function BaseFlowCanvas({
         selected: false,
         dragging: false,
       };
-      const updatedNodes = nodes.concat(copy);
-      setNodes(updatedNodes);
+      const updatedNodes = commitNodes(current => current.concat(copy));
       if (onFlowDataChange) {
         onFlowDataChange(updatedNodes, edges);
       }
@@ -599,7 +595,7 @@ export function BaseFlowCanvas({
         onFlowDataChangeExtended({ nodes: updatedNodes, edges, variables: flowVariables });
       }
     },
-    [nodes, edges, setNodes, onFlowDataChange, onFlowDataChangeExtended, flowVariables],
+    [edges, commitNodes, onFlowDataChange, onFlowDataChangeExtended, flowVariables],
   );
 
   return (

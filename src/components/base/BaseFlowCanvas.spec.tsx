@@ -413,10 +413,12 @@ describe('BaseFlowCanvas — EVO-1643 mutation propagation', () => {
   });
 });
 
-// handleNodesChange used to run customApplyNodeChanges twice per drag move
-// (once for setNodes, once again to compute the onFlowDataChange payload) —
-// each run re-executes getHelperLines and re-mutates changes[0].position.
-describe('BaseFlowCanvas — customApplyNodeChanges runs once per change', () => {
+// CRM-119: handleNodesChange used to apply the changes twice per drag move
+// (once for the state write, once again to compute the onFlowDataChange
+// payload), re-running getHelperLines and re-mutating changes[0].position.
+// CRM-138: the dedup that fixed it rebased every write on the `nodes` closure,
+// so a second call in the same React batch overwrote the first.
+describe('BaseFlowCanvas — helper line snap and batched node changes', () => {
   it('calls getHelperLines exactly once per node drag when customHelperLines is on', () => {
     renderCanvas({ customHelperLines: true });
     const props = reactFlowMocks.capturedProps.current!;
@@ -430,30 +432,66 @@ describe('BaseFlowCanvas — customApplyNodeChanges runs once per change', () =>
     expect(getHelperLines).toHaveBeenCalledTimes(1);
   });
 
-  it('preserves both changes when handleNodesChange fires twice in one batch', () => {
+  // Both editors share this handler: the journey editor drives it with
+  // customHelperLines on, the segment editor with it off. The payload is built
+  // before that branch, so both need the guard.
+  it.each([true, false])(
+    'preserves both changes when handleNodesChange fires twice in one batch (customHelperLines=%s)',
+    customHelperLines => {
+      const onFlowDataChange = vi.fn();
+      renderCanvas({ customHelperLines, onFlowDataChange });
+      const onNodesChange = reactFlowMocks.capturedProps.current!.onNodesChange as (
+        changes: Array<Record<string, unknown>>,
+      ) => void;
+
+      act(() => {
+        onNodesChange([{ type: 'position', id: 'n1', position: { x: 10, y: 10 } }]);
+        onNodesChange([{ type: 'position', id: 'n2', position: { x: 300, y: 50 } }]);
+      });
+
+      const nodes = reactFlowMocks.capturedProps.current!.nodes as Array<{
+        id: string;
+        position: { x: number; y: number };
+      }>;
+      expect(nodes.find(n => n.id === 'n1')!.position).toEqual({ x: 10, y: 10 });
+      expect(nodes.find(n => n.id === 'n2')!.position).toEqual({ x: 300, y: 50 });
+
+      // The store gets the same accumulated state as the canvas: a payload
+      // rebased on the closure would send n1 back to {0,0}, and a save right
+      // after the batch would undo the first drag.
+      const payload = onFlowDataChange.mock.lastCall![0] as typeof nodes;
+      expect(payload.find(n => n.id === 'n1')!.position).toEqual({ x: 10, y: 10 });
+      expect(payload.find(n => n.id === 'n2')!.position).toEqual({ x: 300, y: 50 });
+    },
+  );
+
+  // Every node writer must advance the mirror, since the mirror is what builds
+  // the callback payloads. A drop plus a move in one batch catches a writer
+  // that sets state without going through commitNodes: the canvas keeps both
+  // changes, the store would only hear about the move.
+  it('keeps the payload correct when a drop and a node move land in one batch', () => {
     const onFlowDataChange = vi.fn();
-    renderCanvas({ customHelperLines: true, onFlowDataChange });
-    const onNodesChange = reactFlowMocks.capturedProps.current!.onNodesChange as (
-      changes: Array<Record<string, unknown>>,
-    ) => void;
+    renderCanvasForDrop({ onFlowDataChange, dndType: 'send-canned-response-node' });
+
+    const props = reactFlowMocks.capturedProps.current!;
+    onFlowDataChange.mockClear();
 
     act(() => {
-      onNodesChange([{ type: 'position', id: 'n1', position: { x: 10, y: 10 } }]);
-      onNodesChange([{ type: 'position', id: 'n2', position: { x: 300, y: 50 } }]);
+      (props.onDrop as (e: unknown) => void)({
+        preventDefault: () => {},
+        clientX: 120,
+        clientY: 120,
+      });
+      (props.onNodesChange as (changes: Array<Record<string, unknown>>) => void)([
+        { type: 'position', id: 'trigger-1', position: { x: 10, y: 10 } },
+      ]);
     });
 
-    const nodes = reactFlowMocks.capturedProps.current!.nodes as Array<{
+    const payload = onFlowDataChange.mock.lastCall![0] as Array<{
       id: string;
       position: { x: number; y: number };
     }>;
-    expect(nodes.find(n => n.id === 'n1')!.position).toEqual({ x: 10, y: 10 });
-    expect(nodes.find(n => n.id === 'n2')!.position).toEqual({ x: 300, y: 50 });
-
-    // O store recebe o mesmo estado acumulado que o canvas: um payload rebaseado
-    // no closure devolveria n1 para {0,0} e um save logo depois desfaria o
-    // primeiro arrasto.
-    const payload = onFlowDataChange.mock.lastCall![0] as typeof nodes;
-    expect(payload.find(n => n.id === 'n1')!.position).toEqual({ x: 10, y: 10 });
-    expect(payload.find(n => n.id === 'n2')!.position).toEqual({ x: 300, y: 50 });
+    expect(payload).toHaveLength(2);
+    expect(payload.find(n => n.id === 'trigger-1')!.position).toEqual({ x: 10, y: 10 });
   });
 });
