@@ -67,7 +67,8 @@ export function ResolveConversationPanel({
       icon={<CheckCircle className="h-5 w-5 text-flow-node-control-fg" />}
       onCancel={onClose}
       onSave={handleSave}
-      dirty={!loading}
+      // No editable field: there is never anything to save.
+      dirty={false}
       loading={loading}
       saveLabel={t('actions.save')}
       cancelLabel={t('actions.cancel')}
