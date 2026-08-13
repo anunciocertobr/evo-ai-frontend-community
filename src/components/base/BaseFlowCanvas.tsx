@@ -195,10 +195,8 @@ export function BaseFlowCanvas({
   const [configNodeData, setConfigNodeData] = useState<any>(null);
   const [configPanelType, setConfigPanelType] = useState<string>('');
 
-  // 🆕 Helper lines customizado: só o efeito colateral (publica as linhas e
-  // aplica o snap mutando changes[0].position). Fica separado da aplicação das
-  // mudanças para poder rodar exatamente uma vez por batch, fora do updater de
-  // setNodes — o StrictMode invoca updater duas vezes de propósito.
+  // 🆕 Só o efeito colateral do helper lines, separado de applyNodeChanges para
+  // rodar uma vez por batch fora do updater de setNodes.
   const applyHelperLineSnap = useCallback(
     (changes: NodeChange[], nodes: Node[]) => {
       if (!customHelperLines) {
@@ -233,16 +231,12 @@ export function BaseFlowCanvas({
   // Handlers de mudanças
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      // Antes de qualquer applyNodeChanges: o snap muta changes[0].position, e
-      // roda uma vez só por batch.
       applyHelperLineSnap(changes, nodes);
 
       if (customHelperLines) {
-        // Updater funcional (o que a doc do xyflow pede): se handleNodesChange
-        // for chamado duas vezes no mesmo batch do React, a segunda parte do
-        // resultado da primeira em vez de sobrescrevê-lo com o `nodes` do
-        // closure. Só é seguro porque o efeito colateral saiu daqui — o
-        // updater é puro e aguenta o double-invoke do StrictMode.
+        // Updater funcional: com o efeito colateral fora, é seguro de novo —
+        // uma segunda chamada no mesmo batch do React parte do resultado da
+        // primeira em vez de sobrescrevê-lo.
         setNodes(current => applyNodeChanges(changes, current));
       } else {
         onNodesChangeInternal(changes);
@@ -253,9 +247,6 @@ export function BaseFlowCanvas({
       }
 
       if (onFlowDataChange || onFlowDataChangeExtended) {
-        // Payload dos callbacks derivado do closure, como nos demais handlers
-        // do arquivo. applyNodeChanges é puro, então recomputar aqui não repete
-        // efeito colateral nenhum.
         const updatedNodes = applyNodeChanges(changes, nodes);
 
         if (onFlowDataChange) {
