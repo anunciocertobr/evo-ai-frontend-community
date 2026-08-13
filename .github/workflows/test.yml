@@ -43,7 +43,14 @@ jobs:
       #     a refused channel create keeps showing the message the backend wrote
       #     (the plan-quota 422 envelope) instead of the axios status text, and
       #     no validation guard returns false without saying why.
-      # The whole list runs in ~10s and is deterministic.
+      #   - Journey FE tech-debt (CRM-68): the six action panels stay free of
+      #     the auto-persist-on-load effect, AssignBotPanel keeps a typed
+      #     onUpdate contract, EnvironmentManager surfaces validation via
+      #     toast (not window.alert), BaseFlowCanvas dedupes its node-change
+      #     apply call, SessionsViewer debounces search and keeps stats
+      #     isolated from filters, and the locale-driven date/i18n specs
+      #     guard against hardcoded pt-BR creeping back in.
+      # The whole list runs in ~30s and is deterministic.
       #
       # Running the whole suite here was tried and reverted: 160 jsdom files in
       # forked workers take ~30min on the runner and flake on worker OOM (the
@@ -61,4 +68,19 @@ jobs:
             src/pages/Customer/Settings/Users/Users.spec.tsx \
             src/utils/apiHelpers.spec.ts \
             src/hooks/channels/useChannelSubmission.spec.ts \
-            src/hooks/channels/useChannelValidation.spec.ts
+            src/hooks/channels/useChannelValidation.spec.ts \
+            src/components/journey/environment-manager/EnvironmentManager.spec.tsx \
+            src/components/journey/nodes/actions/add-label/AddLabelNode.spec.tsx \
+            src/components/journey/nodes/actions/assign-bot/AssignBotPanel.spec.tsx \
+            src/components/journey/nodes/actions/change-priority/ChangePriorityPanel.spec.tsx \
+            src/components/journey/nodes/actions/defer-conversation/DeferConversationNode.spec.tsx \
+            src/components/journey/nodes/actions/defer-conversation/DeferConversationPanel.spec.tsx \
+            src/components/journey/nodes/actions/mute-conversation/MuteConversationPanel.spec.tsx \
+            src/components/journey/nodes/actions/resolve-conversation/ResolveConversationPanel.spec.tsx \
+            src/components/journey/nodes/actions/send-email-team/SendEmailTeamPanel.spec.tsx \
+            src/components/journey/nodes/actions/send-message/SendMessageNode.spec.tsx \
+            src/components/journey/nodes/actions/send-message/components/SendMessageContent.spec.tsx \
+            src/components/journey/nodes/actions/send-transcript/SendTranscriptPanel.spec.tsx \
+            src/lib/dateFnsLocale.spec.ts \
+            src/components/base/BaseFlowCanvas.spec.tsx \
+            src/components/journey/SessionsViewer.spec.tsx

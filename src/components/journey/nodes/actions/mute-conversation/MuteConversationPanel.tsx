@@ -59,16 +59,6 @@ export function MuteConversationPanel({
     onClose();
   };
 
-  useEffect(() => {
-    if (formDataOptions.agents.length > 0 || formDataOptions.teams.length > 0) {
-      const updatedData: MuteConversationNodeData = {
-        ...data,
-        formDataOptions,
-      };
-      onUpdate(nodeId, updatedData);
-    }
-  }, [formDataOptions, data, nodeId, onUpdate]);
-
   return (
     <NodeConfigModal
       open

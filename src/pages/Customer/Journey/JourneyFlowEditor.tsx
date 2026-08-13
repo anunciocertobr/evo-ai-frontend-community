@@ -1023,7 +1023,7 @@ function JourneyFlowEditor() {
             <span>
               {journey.createdAt
                 ? t('flowEditor.createdAt', {
-                  date: new Date(journey.createdAt).toLocaleString('pt-BR'),
+                  date: new Date(journey.createdAt).toLocaleString(currentLanguage),
                 })
                 : t('flowEditor.invalidDate')}
             </span>

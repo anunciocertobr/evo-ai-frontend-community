@@ -311,8 +311,9 @@ export function ConditionalPanel({
 
         <div className="grid grid-cols-12 gap-2 items-end">
           <div className="col-span-4">
-            <Label className="text-xs">{t('panels.conditional.field')}</Label>
+            <Label htmlFor={`conditional-field-${condition.id}`} className="text-xs">{t('panels.conditional.field')}</Label>
             <VariableSelect
+              id={`conditional-field-${condition.id}`}
               value={condition.field || ''}
               onValueChange={value => handleFieldChange(pathId, condition, value)}
               placeholder={t('panels.conditional.placeholders.selectVariable')}
@@ -325,12 +326,12 @@ export function ConditionalPanel({
           </div>
 
           <div className="col-span-3">
-            <Label className="text-xs">{t('panels.conditional.operator')}</Label>
+            <Label htmlFor={`conditional-operator-${condition.id}`} className="text-xs">{t('panels.conditional.operator')}</Label>
             <Select
               value={condition.operator}
               onValueChange={value => updateCondition(pathId, condition.id, { operator: value })}
             >
-              <SelectTrigger className="bg-sidebar border-sidebar-border text-sidebar-foreground">
+              <SelectTrigger id={`conditional-operator-${condition.id}`} className="bg-sidebar border-sidebar-border text-sidebar-foreground">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-sidebar border-sidebar-border">
@@ -348,7 +349,7 @@ export function ConditionalPanel({
           </div>
 
           <div className="col-span-4">
-            <Label className="text-xs">{t('panels.conditional.value')}</Label>
+            <Label htmlFor={`conditional-value-${condition.id}`} className="text-xs">{t('panels.conditional.value')}</Label>
             {isPipelineStageField ? (
               <Select
                 value={condition.value || ''}
@@ -359,7 +360,7 @@ export function ConditionalPanel({
                   })
                 }
               >
-                <SelectTrigger className="bg-sidebar border-sidebar-border text-sidebar-foreground">
+                <SelectTrigger id={`conditional-value-${condition.id}`} className="bg-sidebar border-sidebar-border text-sidebar-foreground">
                   <SelectValue
                     placeholder={t('panels.conditional.placeholders.selectStage')}
                   />
@@ -379,6 +380,7 @@ export function ConditionalPanel({
             ) : needsValue(condition.operator) ? (
               <>
                 <VariableInput
+                  id={`conditional-value-${condition.id}`}
                   value={condition.value || ''}
                   onChange={e =>
                     updateCondition(pathId, condition.id, {
@@ -482,14 +484,14 @@ export function ConditionalPanel({
         </div>
 
         <div className="flex items-center gap-2">
-          <Label className="text-sm">
+          <Label htmlFor={`conditional-logical-operator-${path.id}`} className="text-sm">
             {t('panels.conditional.logicalOperatorBetweenConditions')}
           </Label>
           <Select
             value={path.logicalOperator}
             onValueChange={(value: 'AND' | 'OR') => updatePath(path.id, { logicalOperator: value })}
           >
-            <SelectTrigger className="w-32 bg-sidebar border-sidebar-border text-sidebar-foreground">
+            <SelectTrigger id={`conditional-logical-operator-${path.id}`} className="w-32 bg-sidebar border-sidebar-border text-sidebar-foreground">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-sidebar border-sidebar-border">
