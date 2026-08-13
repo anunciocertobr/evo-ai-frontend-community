@@ -39,6 +39,10 @@ jobs:
       #     bare-body fallback when the backend skips the response envelope.
       #   - Users (EVO-1947): a list reload keeps carrying the search term and
       #     the chosen sort — dropping either serves a differently ordered page.
+      #   - apiHelpers / useChannelSubmission / useChannelValidation (CRM-114):
+      #     a refused channel create keeps showing the message the backend wrote
+      #     (the plan-quota 422 envelope) instead of the axios status text, and
+      #     no validation guard returns false without saying why.
       #   - Journey FE tech-debt (CRM-68): the six action panels stay free of
       #     the auto-persist-on-load effect, AssignBotPanel keeps a typed
       #     onUpdate contract, EnvironmentManager surfaces validation via
@@ -62,6 +66,9 @@ jobs:
             src/pages/Admin/Roles/RolesList.spec.tsx \
             src/services/campaigns/campaignsService.spec.ts \
             src/pages/Customer/Settings/Users/Users.spec.tsx \
+            src/utils/apiHelpers.spec.ts \
+            src/hooks/channels/useChannelSubmission.spec.ts \
+            src/hooks/channels/useChannelValidation.spec.ts \
             src/components/journey/environment-manager/EnvironmentManager.spec.tsx \
             src/components/journey/nodes/actions/add-label/AddLabelNode.spec.tsx \
             src/components/journey/nodes/actions/assign-bot/AssignBotPanel.spec.tsx \
