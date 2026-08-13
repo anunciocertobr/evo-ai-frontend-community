@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MuteConversationPanel } from './MuteConversationPanel';
 import { MuteConversationNodeData } from './MuteConversationNode';
-import '@/i18n/config';
+import i18n from '@/i18n/config';
 
 vi.mock('@/services/automation/automationService', () => ({
   automationService: { getFormData: vi.fn() },
@@ -19,6 +19,8 @@ function makeData(overrides: Partial<MuteConversationNodeData> = {}): MuteConver
 afterEach(() => {
   vi.clearAllMocks();
 });
+
+const j = (key: string) => i18n.t(`journey:${key}`);
 
 describe('MuteConversationPanel — no auto-persist on load', () => {
   it('does not call onUpdate merely from loading form data', async () => {
@@ -43,8 +45,8 @@ describe('MuteConversationPanel — Save gated by real edits', () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /cancel|cancelar/i })).not.toBeDisabled(),
+      expect(screen.getByRole('button', { name: j('panels.actions.cancel') })).not.toBeDisabled(),
     );
-    expect(screen.getByRole('button', { name: /save|salvar/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: j('panels.actions.save') })).toBeDisabled();
   });
 });
