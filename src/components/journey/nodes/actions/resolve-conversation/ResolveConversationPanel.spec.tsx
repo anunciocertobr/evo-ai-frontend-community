@@ -41,7 +41,7 @@ describe('ResolveConversationPanel — no auto-persist on load', () => {
   });
 });
 
-describe('ResolveConversationPanel — Save gated by real edits', () => {
+describe('ResolveConversationPanel — Save never enables', () => {
   it('keeps Save disabled after the form data finishes loading', async () => {
     mockGetFormData.mockResolvedValueOnce({ agents: [], teams: [] });
 

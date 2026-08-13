@@ -36,7 +36,7 @@ describe('MuteConversationPanel — no auto-persist on load', () => {
   });
 });
 
-describe('MuteConversationPanel — Save gated by real edits', () => {
+describe('MuteConversationPanel — Save never enables', () => {
   it('keeps Save disabled after the form data finishes loading', async () => {
     mockGetFormData.mockResolvedValueOnce({ agents: [], teams: [] });
 
