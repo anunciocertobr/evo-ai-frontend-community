@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useState } from 'react';
+import { forwardRef, useEffect, useId, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Select,
@@ -58,6 +58,9 @@ const VariableSelect = forwardRef<HTMLButtonElement, VariableSelectProps>(
     ref,
   ) => {
     const { t } = useLanguage('journey');
+    // One picker is rendered per mapping row, so the create-variable form
+    // cannot use fixed ids.
+    const formId = useId();
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [contactAttributes, setContactAttributes] = useState<CustomAttributeDefinition[]>([]);
     const [newVariableName, setNewVariableName] = useState('');
@@ -302,10 +305,11 @@ const VariableSelect = forwardRef<HTMLButtonElement, VariableSelectProps>(
 
             <div className="space-y-4">
               <div>
-                <Label className="text-sm font-medium">
+                <Label htmlFor={`${formId}-name`} className="text-sm font-medium">
                   {t('environmentManager.form.fields.name.label')}
                 </Label>
                 <Input
+                  id={`${formId}-name`}
                   value={newVariableName}
                   onChange={e => setNewVariableName(e.target.value)}
                   placeholder={t('environmentManager.form.fields.name.placeholder')}
@@ -317,7 +321,7 @@ const VariableSelect = forwardRef<HTMLButtonElement, VariableSelectProps>(
               </div>
 
               <div>
-                <Label className="text-sm font-medium">
+                <Label htmlFor={`${formId}-type`} className="text-sm font-medium">
                   {t('environmentManager.form.fields.type.label')}
                 </Label>
                 <Select
@@ -326,7 +330,7 @@ const VariableSelect = forwardRef<HTMLButtonElement, VariableSelectProps>(
                     setNewVariableType(value)
                   }
                 >
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger id={`${formId}-type`} className="mt-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -347,10 +351,11 @@ const VariableSelect = forwardRef<HTMLButtonElement, VariableSelectProps>(
               </div>
 
               <div>
-                <Label className="text-sm font-medium">
+                <Label htmlFor={`${formId}-description`} className="text-sm font-medium">
                   {t('environmentManager.form.fields.description.label')}
                 </Label>
                 <Input
+                  id={`${formId}-description`}
                   value={newVariableDescription}
                   onChange={e => setNewVariableDescription(e.target.value)}
                   placeholder={t('environmentManager.form.fields.description.placeholder')}
@@ -359,10 +364,11 @@ const VariableSelect = forwardRef<HTMLButtonElement, VariableSelectProps>(
               </div>
 
               <div>
-                <Label className="text-sm font-medium">
+                <Label htmlFor={`${formId}-default`} className="text-sm font-medium">
                   {t('environmentManager.form.fields.defaultValue.label')}
                 </Label>
                 <Input
+                  id={`${formId}-default`}
                   value={newVariableDefaultValue}
                   onChange={e => setNewVariableDefaultValue(e.target.value)}
                   placeholder={t('environmentManager.form.fields.defaultValue.placeholder')}

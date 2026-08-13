@@ -51,14 +51,20 @@ export function SendMessageAttachments({
   return (
     <>
       <div className="space-y-2">
-        <Label className="text-sm font-medium">{t('panels.sendMessage.attachments')}</Label>
+        <Label id="send-message-attachments-label" className="text-sm font-medium">
+          {t('panels.sendMessage.attachments')}
+        </Label>
 
+        {/* The file input is display:none, so it is out of the a11y tree and
+            cannot carry the label. The dropzone holds the visible control. */}
         <div
           className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
             isDragOver
               ? 'border-flow-node-action-message-fg bg-flow-node-action-message-bg'
               : 'border-border hover:border-flow-node-action-message-border'
           }`}
+          role="group"
+          aria-labelledby="send-message-attachments-label"
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onDrop={onDrop}
@@ -90,10 +96,14 @@ export function SendMessageAttachments({
 
       {attachments.length > 0 && (
         <div className="space-y-2">
-          <Label className="text-sm font-medium">
+          <Label id="send-message-attachments-list-label" className="text-sm font-medium">
             {t('panels.sendMessage.attachmentsList', { count: attachments.length })}
           </Label>
-          <div className="space-y-2 max-h-32 overflow-y-auto">
+          <div
+            className="space-y-2 max-h-32 overflow-y-auto"
+            role="group"
+            aria-labelledby="send-message-attachments-list-label"
+          >
             {attachments.map(attachment => (
               <div
                 key={attachment.id}
