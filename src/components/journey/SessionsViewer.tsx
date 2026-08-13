@@ -135,10 +135,8 @@ export function SessionsViewer({ journeyId, journeyName, onClose }: SessionsView
     return () => clearTimeout(handle);
   }, [searchContact]);
 
-  // O `t` do i18n troca de identidade enquanto o bundle de tradução não está
-  // pronto. Como ele só é usado no caminho de erro (assíncrono) das cargas
-  // abaixo, fica num ref — nas deps do useCallback ele religaria o efeito de
-  // carga a cada render.
+  // `t` troca de identidade a cada render antes do i18n ficar pronto; num ref
+  // para não religar loadSessions/loadStats a cada render.
   const tRef = useRef(t);
   useEffect(() => {
     tRef.current = t;
