@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button, Badge, Card, CardContent } from '@evoapi/design-system';
 import { toast } from 'sonner';
 import {
@@ -135,53 +135,65 @@ export function SessionsViewer({ journeyId, journeyName, onClose }: SessionsView
     return () => clearTimeout(handle);
   }, [searchContact]);
 
+  // O `t` do i18n troca de identidade enquanto o bundle de tradução não está
+  // pronto. Como ele só é usado no caminho de erro (assíncrono) das cargas
+  // abaixo, fica num ref — nas deps do useCallback ele religaria o efeito de
+  // carga a cada render.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+
   // `isStale` lets the auto-fetch effect below discard a response that's no
   // longer for the current filters (a slower earlier request resolving after
   // a faster later one used to overwrite `sessions` with stale data).
-  const loadSessions = async (isStale: () => boolean = () => false) => {
-    try {
-      setLoading(true);
-      const params: any = {
-        page,
-        pageSize,
-      };
+  const loadSessions = useCallback(
+    async (isStale: () => boolean = () => false) => {
+      try {
+        setLoading(true);
+        const params: any = {
+          page,
+          pageSize,
+        };
 
-      if (filterStatus !== 'all') {
-        params.status = filterStatus;
+        if (filterStatus !== 'all') {
+          params.status = filterStatus;
+        }
+
+        if (debouncedSearchContact) {
+          params.contactId = debouncedSearchContact;
+        }
+
+        const response = await journeyService.getJourneySessions(journeyId, params);
+        if (isStale()) return;
+
+        setSessions(response.data.sessions || []);
+        setTotal(response.data.total || 0);
+      } catch (error) {
+        if (isStale()) return;
+        console.error('Erro ao carregar sessões:', error);
+        toast.error(tRef.current('sessions.viewer.messages.loadError'));
+      } finally {
+        if (!isStale()) setLoading(false);
       }
-
-      if (debouncedSearchContact) {
-        params.contactId = debouncedSearchContact;
-      }
-
-      const response = await journeyService.getJourneySessions(journeyId, params);
-      if (isStale()) return;
-
-      setSessions(response.data.sessions || []);
-      setTotal(response.data.total || 0);
-    } catch (error) {
-      if (isStale()) return;
-      console.error('Erro ao carregar sessões:', error);
-      toast.error(t('sessions.viewer.messages.loadError'));
-    } finally {
-      if (!isStale()) setLoading(false);
-    }
-  };
+    },
+    [journeyId, filterStatus, debouncedSearchContact, page],
+  );
 
   // Independent of filterStatus/search/page — refetching it on every keystroke
   // was wasted (and doubled) request volume for numbers that hadn't changed.
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const response = await journeyService.getJourneySessionStats(journeyId);
       setStats(response.data);
     } catch (error) {
       console.error('Erro ao carregar estatísticas de sessões:', error);
     }
-  };
+  }, [journeyId]);
 
   useEffect(() => {
     loadStats();
-  }, [journeyId]);
+  }, [loadStats]);
 
   useEffect(() => {
     let cancelled = false;
@@ -189,7 +201,7 @@ export function SessionsViewer({ journeyId, journeyName, onClose }: SessionsView
     return () => {
       cancelled = true;
     };
-  }, [journeyId, filterStatus, debouncedSearchContact, page]);
+  }, [loadSessions]);
 
   const handleDeleteSession = async (sessionId: string) => {
     if (!confirm(t('sessions.viewer.actions.confirmDelete'))) return;

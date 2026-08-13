@@ -68,6 +68,14 @@ const getChannelTypeName = (channelType: string) => {
   }
 };
 
+// O /form_data devolve os canais num payload mais enxuto que o Inbox completo de
+// @/types/channels; este é o recorte que o seletor realmente renderiza.
+export interface SendMessageChannelOption {
+  id: string | number;
+  name: string;
+  channel_type: string;
+}
+
 interface SendMessageChannelConfigProps {
   isTemplateMode: boolean;
   isCloudInbox: boolean;
@@ -75,7 +83,7 @@ interface SendMessageChannelConfigProps {
   useEventChannel: boolean | undefined;
   onUseEventChannelChange: (checked: boolean) => void;
   loading: boolean;
-  filteredInboxes: any[];
+  filteredInboxes: SendMessageChannelOption[];
   inboxId: string | undefined;
   onInboxChange: (inboxId: string) => void;
 }
@@ -176,7 +184,7 @@ export function SendMessageChannelConfig({
                   <SelectValue placeholder={t('panels.sendMessage.chooseChannel')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredInboxes.map((inbox: any) => (
+                  {filteredInboxes.map(inbox => (
                     <SelectItem key={inbox.id} value={String(inbox.id)}>
                       <div className="flex items-center gap-2">
                         {getInboxIcon(inbox.channel_type)}
