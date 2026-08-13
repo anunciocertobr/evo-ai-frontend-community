@@ -67,7 +67,10 @@ export function MuteConversationPanel({
       icon={<VolumeX className="h-5 w-5 text-flow-node-control-fg" />}
       onCancel={onClose}
       onSave={handleSave}
-      dirty={!loading}
+      // Painel puramente informativo: não há campo editável, então nunca há o
+      // que salvar. dirty={!loading} declarava o nó sujo assim que o
+      // carregamento terminava, sem o usuário ter mexido em nada.
+      dirty={false}
       loading={loading}
       saveLabel={t('panels.actions.save')}
       cancelLabel={t('panels.actions.cancel')}

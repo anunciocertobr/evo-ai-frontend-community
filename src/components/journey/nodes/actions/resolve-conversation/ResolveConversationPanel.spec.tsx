@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ResolveConversationPanel } from './ResolveConversationPanel';
 import { ResolveConversationNodeData } from './ResolveConversationNode';
@@ -36,5 +36,29 @@ describe('ResolveConversationPanel — no auto-persist on load', () => {
 
     await waitFor(() => expect(mockGetFormData).toHaveBeenCalled());
     expect(onUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// CRM-139: o painel não tem campo editável, então nada pode ficar sujo — o
+// dirty={!loading} anterior habilitava Salvar sozinho ao fim do carregamento.
+describe('ResolveConversationPanel — Save gated by real edits', () => {
+  it('keeps Save disabled after the form data finishes loading', async () => {
+    mockGetFormData.mockResolvedValueOnce({ agents: [], teams: [] });
+
+    render(
+      <ResolveConversationPanel
+        nodeId="n1"
+        data={makeData()}
+        onUpdate={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    // Cancelar reabilita só depois que o loading termina — é o sinal de que o
+    // painel já está no estado final, e não que Salvar está travado pelo spinner.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /cancel|cancelar/i })).not.toBeDisabled(),
+    );
+    expect(screen.getByRole('button', { name: /save|salvar/i })).toBeDisabled();
   });
 });
