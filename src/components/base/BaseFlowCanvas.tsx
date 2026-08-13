@@ -195,35 +195,37 @@ export function BaseFlowCanvas({
   const [configNodeData, setConfigNodeData] = useState<any>(null);
   const [configPanelType, setConfigPanelType] = useState<string>('');
 
-  // 🆕 Custom onNodesChange com helper lines customizado
-  const customApplyNodeChanges = useCallback(
-    (changes: NodeChange[], nodes: Node[]): Node[] => {
+  // 🆕 Helper lines customizado: só o efeito colateral (publica as linhas e
+  // aplica o snap mutando changes[0].position). Fica separado da aplicação das
+  // mudanças para poder rodar exatamente uma vez por batch, fora do updater de
+  // setNodes — o StrictMode invoca updater duas vezes de propósito.
+  const applyHelperLineSnap = useCallback(
+    (changes: NodeChange[], nodes: Node[]) => {
+      if (!customHelperLines) {
+        return;
+      }
+
       // Reset helper lines
       setHelperLineHorizontal(undefined);
       setHelperLineVertical(undefined);
 
-      // Se helper lines customizado está habilitado
-      if (customHelperLines) {
-        // Se single node sendo arrastado
-        if (
-          changes.length === 1 &&
-          changes[0].type === 'position' &&
-          changes[0].dragging &&
-          changes[0].position
-        ) {
-          const helperLines = getHelperLines(changes[0], nodes);
+      // Se single node sendo arrastado
+      if (
+        changes.length === 1 &&
+        changes[0].type === 'position' &&
+        changes[0].dragging &&
+        changes[0].position
+      ) {
+        const helperLines = getHelperLines(changes[0], nodes);
 
-          // Snap to helper line position
-          changes[0].position.x = helperLines.snapPosition.x ?? changes[0].position.x;
-          changes[0].position.y = helperLines.snapPosition.y ?? changes[0].position.y;
+        // Snap to helper line position
+        changes[0].position.x = helperLines.snapPosition.x ?? changes[0].position.x;
+        changes[0].position.y = helperLines.snapPosition.y ?? changes[0].position.y;
 
-          // Set helper lines for display
-          setHelperLineHorizontal(helperLines.horizontal);
-          setHelperLineVertical(helperLines.vertical);
-        }
+        // Set helper lines for display
+        setHelperLineHorizontal(helperLines.horizontal);
+        setHelperLineVertical(helperLines.vertical);
       }
-
-      return applyNodeChanges(changes, nodes);
     },
     [customHelperLines],
   );
@@ -231,16 +233,17 @@ export function BaseFlowCanvas({
   // Handlers de mudanças
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      // customApplyNodeChanges tem efeito colateral (seta as helper lines e muta
-      // changes[0].position no snap) — computar uma vez só e reusar, senão o
-      // segundo call reprocessa o snap em cima do primeiro e refaz o setState
-      // das helper lines à toa.
-      const updatedNodes = customHelperLines
-        ? customApplyNodeChanges(changes, nodes)
-        : applyNodeChanges(changes, nodes);
+      // Antes de qualquer applyNodeChanges: o snap muta changes[0].position, e
+      // roda uma vez só por batch.
+      applyHelperLineSnap(changes, nodes);
 
       if (customHelperLines) {
-        setNodes(updatedNodes);
+        // Updater funcional (o que a doc do xyflow pede): se handleNodesChange
+        // for chamado duas vezes no mesmo batch do React, a segunda parte do
+        // resultado da primeira em vez de sobrescrevê-lo com o `nodes` do
+        // closure. Só é seguro porque o efeito colateral saiu daqui — o
+        // updater é puro e aguenta o double-invoke do StrictMode.
+        setNodes(current => applyNodeChanges(changes, current));
       } else {
         onNodesChangeInternal(changes);
       }
@@ -249,17 +252,24 @@ export function BaseFlowCanvas({
         onNodesChange(changes);
       }
 
-      if (onFlowDataChange) {
-        onFlowDataChange(updatedNodes, edges);
-      }
+      if (onFlowDataChange || onFlowDataChangeExtended) {
+        // Payload dos callbacks derivado do closure, como nos demais handlers
+        // do arquivo. applyNodeChanges é puro, então recomputar aqui não repete
+        // efeito colateral nenhum.
+        const updatedNodes = applyNodeChanges(changes, nodes);
 
-      // 🆕 Callback estendido com variables
-      if (onFlowDataChangeExtended) {
-        onFlowDataChangeExtended({
-          nodes: updatedNodes,
-          edges,
-          variables: flowVariables,
-        });
+        if (onFlowDataChange) {
+          onFlowDataChange(updatedNodes, edges);
+        }
+
+        // 🆕 Callback estendido com variables
+        if (onFlowDataChangeExtended) {
+          onFlowDataChangeExtended({
+            nodes: updatedNodes,
+            edges,
+            variables: flowVariables,
+          });
+        }
       }
     },
     [
@@ -271,7 +281,8 @@ export function BaseFlowCanvas({
       edges,
       flowVariables,
       customHelperLines,
-      customApplyNodeChanges,
+      applyHelperLineSnap,
+      setNodes,
     ],
   );
 

@@ -429,4 +429,26 @@ describe('BaseFlowCanvas — customApplyNodeChanges runs once per change', () =>
 
     expect(getHelperLines).toHaveBeenCalledTimes(1);
   });
+
+  // CRM-138: a deduplicação acima trocou o updater funcional de setNodes pela
+  // forma direta, computada do `nodes` do closure. Duas chamadas no mesmo batch
+  // do React partem do mesmo `nodes`, e a segunda descarta a primeira.
+  it('preserves both changes when handleNodesChange fires twice in one batch', () => {
+    renderCanvas({ customHelperLines: true });
+    const onNodesChange = reactFlowMocks.capturedProps.current!.onNodesChange as (
+      changes: Array<Record<string, unknown>>,
+    ) => void;
+
+    act(() => {
+      onNodesChange([{ type: 'position', id: 'n1', position: { x: 10, y: 10 } }]);
+      onNodesChange([{ type: 'position', id: 'n2', position: { x: 300, y: 50 } }]);
+    });
+
+    const nodes = reactFlowMocks.capturedProps.current!.nodes as Array<{
+      id: string;
+      position: { x: number; y: number };
+    }>;
+    expect(nodes.find(n => n.id === 'n1')!.position).toEqual({ x: 10, y: 10 });
+    expect(nodes.find(n => n.id === 'n2')!.position).toEqual({ x: 300, y: 50 });
+  });
 });
