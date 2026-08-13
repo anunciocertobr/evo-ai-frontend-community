@@ -32,6 +32,7 @@ interface ActionRowProps {
   canRemove: boolean;
   errors: Record<string, string>;
   disabled: boolean;
+  optionsLoading: boolean;
 }
 
 export default function MacroActionRow({
@@ -43,6 +44,7 @@ export default function MacroActionRow({
   canRemove,
   errors,
   disabled,
+  optionsLoading,
 }: ActionRowProps) {
   const { t } = useLanguage('macros');
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -82,6 +84,14 @@ export default function MacroActionRow({
     }
   };
 
+  // "Carregando opções..." em cima de uma lista vazia esconde o estado real:
+  // ou as opções ainda não chegaram, ou não existe nenhuma cadastrada.
+  const renderPlaceholderItem = (emptyKey: string) => (
+    <SelectItem value="__placeholder__" disabled className="text-sidebar-foreground">
+      {optionsLoading ? t('actionRow.loadingOptions') : t(emptyKey)}
+    </SelectItem>
+  );
+
   const renderActionInput = () => {
     if (!selectedActionConfig) return null;
 
@@ -90,14 +100,17 @@ export default function MacroActionRow({
     switch (inputType) {
       case 'select':
         let selectOptions: any[] = [];
+        let selectEmptyKey = 'actionRow.emptyOptions';
 
         // Determinar opções baseadas na ação
         switch (action.action_name) {
           case 'assign_agent':
             selectOptions = options.agents;
+            selectEmptyKey = 'actionRow.emptyAgents';
             break;
           case 'assign_team':
             selectOptions = options.teams;
+            selectEmptyKey = 'actionRow.emptyTeams';
             break;
           case 'change_priority':
           case 'change_status':
@@ -110,7 +123,7 @@ export default function MacroActionRow({
         return (
           <Select
             value={action.action_params[0]?.toString() || ''}
-            onValueChange={value => handleParamsChange([parseInt(value) || value])}
+            onValueChange={value => handleParamsChange([value])}
             disabled={disabled}
           >
             <SelectTrigger className="w-full bg-sidebar border-sidebar-border text-sidebar-foreground">
@@ -118,9 +131,7 @@ export default function MacroActionRow({
             </SelectTrigger>
             <SelectContent className="bg-sidebar border-sidebar-border">
               {selectOptions.length === 0 ? (
-                <SelectItem value="loading" disabled className="text-sidebar-foreground">
-                  {t('actionRow.loadingOptions')}
-                </SelectItem>
+                renderPlaceholderItem(selectEmptyKey)
               ) : (
                 selectOptions.map(option => (
                   <SelectItem
@@ -138,11 +149,13 @@ export default function MacroActionRow({
 
       case 'multi_select':
         let multiSelectOptions: any[] = [];
+        let multiSelectEmptyKey = 'actionRow.emptyOptions';
 
         switch (action.action_name) {
           case 'add_label':
           case 'remove_label':
             multiSelectOptions = options.labels;
+            multiSelectEmptyKey = 'actionRow.emptyLabels';
             break;
           default:
             multiSelectOptions = actionOptions || [];
@@ -153,9 +166,8 @@ export default function MacroActionRow({
             <Select
               value=""
               onValueChange={value => {
-                const numValue = parseInt(value) || value;
-                if (value && !action.action_params.includes(numValue)) {
-                  handleParamsChange([...action.action_params, numValue]);
+                if (value && !action.action_params.includes(value)) {
+                  handleParamsChange([...action.action_params, value]);
                 }
               }}
               disabled={disabled}
@@ -165,9 +177,7 @@ export default function MacroActionRow({
               </SelectTrigger>
               <SelectContent className="bg-sidebar border-sidebar-border">
                 {multiSelectOptions.length === 0 ? (
-                  <SelectItem value="loading" disabled className="text-sidebar-foreground">
-                    {t('actionRow.loadingOptions')}
-                  </SelectItem>
+                  renderPlaceholderItem(multiSelectEmptyKey)
                 ) : (
                   multiSelectOptions.map(option => (
                     <SelectItem

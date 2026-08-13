@@ -16,11 +16,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@evoapi/design-system';
-import { Plus, Globe, Lock } from 'lucide-react';
+import { Plus, Globe, Lock, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Macro, MACRO_ACTION_TYPES } from '@/types/automation';
 import { macrosService } from '@/services/macros';
+import type { MacroFormDataSource } from '@/services/macros';
 import MacroActionRow from './MacroActionRow';
+
+const ALL_FORM_DATA_SOURCES: MacroFormDataSource[] = ['inboxes', 'agents', 'teams', 'labels'];
 
 interface MacroFormModalProps {
   isOpen: boolean;
@@ -67,6 +70,8 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
     labels: [],
     campaigns: [],
   });
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [failedSources, setFailedSources] = useState<MacroFormDataSource[]>([]);
 
   const isEditing = !!macro;
 
@@ -94,11 +99,16 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
   }, [isOpen, macro]);
 
   const loadFormData = async () => {
+    setOptionsLoading(true);
     try {
-      const data = await macrosService.getFormData();
+      const { failedSources: failed, ...data } = await macrosService.getFormData();
       setFormDataOptions(data);
+      setFailedSources(failed);
     } catch (error) {
       console.error('Erro ao carregar dados do formulário:', error);
+      setFailedSources(ALL_FORM_DATA_SOURCES);
+    } finally {
+      setOptionsLoading(false);
     }
   };
 
@@ -236,6 +246,22 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {failedSources.length > 0 && (
+            <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 p-3">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-red-500" />
+              <div className="text-sm text-red-500">
+                <p className="font-medium">{t('modal.optionsError.title')}</p>
+                <p>
+                  {t('modal.optionsError.description', {
+                    sources: failedSources
+                      .map(source => t(`modal.optionsError.sources.${source}`))
+                      .join(', '),
+                  })}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Informações básicas */}
           <div className="space-y-4">
             <div className="space-y-2">
@@ -348,6 +374,7 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
                   canRemove={formData.actions.length > 1}
                   errors={errors}
                   disabled={loading}
+                  optionsLoading={optionsLoading}
                 />
               ))}
             </div>

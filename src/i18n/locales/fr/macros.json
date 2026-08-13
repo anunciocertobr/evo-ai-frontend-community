@@ -47,12 +47,26 @@
       "create": "Créer",
       "update": "Mettre à jour",
       "saving": "Enregistrement..."
+    },
+    "optionsError": {
+      "title": "Impossible de charger toutes les options",
+      "description": "Échec du chargement : {{sources}}. Fermez et rouvrez le formulaire pour réessayer.",
+      "sources": {
+        "inboxes": "boîtes de réception",
+        "agents": "agents",
+        "teams": "équipes",
+        "labels": "étiquettes"
+      }
     }
   },
   "actionRow": {
     "selectPlaceholder": "Sélectionnez une option",
     "multiSelectPlaceholder": "Sélectionnez des options",
     "loadingOptions": "Chargement des options...",
+    "emptyTeams": "Aucune équipe enregistrée",
+    "emptyAgents": "Aucun agent enregistré",
+    "emptyLabels": "Aucune étiquette enregistrée",
+    "emptyOptions": "Aucune option disponible",
     "textareaPlaceholder": "Saisissez le message ou la note",
     "textPlaceholder": "Saisissez la valeur",
     "hoursPlaceholder": "Heures de report",

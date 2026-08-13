@@ -12,6 +12,18 @@ import type {
   MacrosListParams,
 } from '@/types/automation';
 
+export type MacroFormDataSource = 'inboxes' | 'agents' | 'teams' | 'labels';
+
+export interface MacroFormData {
+  inboxes: any[];
+  agents: any[];
+  teams: any[];
+  labels: any[];
+  campaigns: any[];
+  customAttributes: any[];
+  failedSources: MacroFormDataSource[];
+}
+
 class MacrosService {
   // List macros with optional parameters
   async getMacros(params?: MacrosListParams): Promise<MacrosResponse> {
@@ -57,56 +69,54 @@ class MacrosService {
     return this.getMacros(searchParams);
   }
 
-  async getFormData(): Promise<{
-    inboxes: any[];
-    agents: any[];
-    teams: any[];
-    labels: any[];
-    campaigns: any[];
-    customAttributes: any[];
-  }> {
-    try {
-      // Buscar dados necessários para o formulário em paralelo
-      const [inboxesRes, agentsRes, teamsRes, labelsRes] = await Promise.allSettled([
-        api.get('/inboxes'),
-        authApi.get('/users'),
-        api.get('/teams'),
-        api.get('/labels'),
-      ]);
+  async getFormData(): Promise<MacroFormData> {
+    // Buscar dados necessários para o formulário em paralelo
+    const [inboxesRes, agentsRes, teamsRes, labelsRes] = await Promise.allSettled([
+      api.get('/inboxes'),
+      authApi.get('/users'),
+      api.get('/teams'),
+      api.get('/labels'),
+    ]);
 
-      const getResultData = (result: PromiseSettledResult<any>, isAuthService = false): any[] => {
-        if (result.status === 'fulfilled') {
-          if (isAuthService) {
-            // Auth services return {data, meta} structure
-            const response = extractResponse(result.value);
-            return (response.data as any[]) || [];
-          }
-          const data = extractData(result.value);
-          return Array.isArray(data) ? data : [];
-        }
+    const failedSources: MacroFormDataSource[] = [];
+
+    // Uma lista vazia por erro (403/500) é indistinguível de uma lista vazia de
+    // verdade — sem registrar a fonte que falhou, o formulário mente pro usuário.
+    const getResultData = (
+      source: MacroFormDataSource,
+      result: PromiseSettledResult<any>,
+      isAuthService = false,
+    ): any[] => {
+      if (result.status === 'rejected') {
+        console.error(`Erro ao carregar ${source} no formulário de macros:`, result.reason);
+        failedSources.push(source);
         return [];
-      };
+      }
 
-      return {
-        inboxes: getResultData(inboxesRes),
-        agents: getResultData(agentsRes, true), // true = isAuthService
-        teams: getResultData(teamsRes),
-        labels: getResultData(labelsRes),
-        campaigns: [],
-        customAttributes: [], // TODO: Implementar busca de custom attributes se necessário
-      };
-    } catch (error: any) {
-      console.error('Erro ao buscar dados do formulário:', error);
-      // Retornar dados vazios em caso de erro para não quebrar o formulário
-      return {
-        inboxes: [],
-        agents: [],
-        teams: [],
-        labels: [],
-        campaigns: [],
-        customAttributes: [],
-      };
-    }
+      try {
+        if (isAuthService) {
+          // Auth services return {data, meta} structure
+          const response = extractResponse(result.value);
+          return (response.data as any[]) || [];
+        }
+        const data = extractData(result.value);
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error(`Erro ao interpretar ${source} no formulário de macros:`, error);
+        failedSources.push(source);
+        return [];
+      }
+    };
+
+    return {
+      inboxes: getResultData('inboxes', inboxesRes),
+      agents: getResultData('agents', agentsRes, true), // true = isAuthService
+      teams: getResultData('teams', teamsRes),
+      labels: getResultData('labels', labelsRes),
+      campaigns: [],
+      customAttributes: [], // TODO: Implementar busca de custom attributes se necessário
+      failedSources,
+    };
   }
 }
 
