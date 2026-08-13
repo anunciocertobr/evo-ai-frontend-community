@@ -90,17 +90,10 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-// EVO-1573 review coverage map (each test fails on the pre-fix `develop`):
-//  - AC1 happy path: handleConnect did not call onFlowDataChange at all → tests 1+2 fail
-//  - AC1 parity: handleEdgesChange did not call onFlowDataChange → test 3 fails (delete dropped)
-//  - AC3 no-regression: the workaround path (connect + node move) still
-//    persists the edge — test 4 guards that handleNodesChange's closure
-//    reads the updated edges array after setEdges flushed
-//  - M1 (review): edge selection-only changes are volatile UI state and
-//    must NOT mark the editor store as dirty — test 5 guards that
-//    handleEdgesChange filters `select`-type changes before propagating
-describe('BaseFlowCanvas — EVO-1573 edge propagation', () => {
-  it('handleConnect propagates the new edge to onFlowDataChange (AC1)', () => {
+// Edge edits reach the editor store only through these handlers, and
+// selection-only changes must not.
+describe('BaseFlowCanvas — edge propagation', () => {
+  it('handleConnect propagates the new edge to onFlowDataChange', () => {
     const onFlowDataChange = vi.fn();
     renderCanvas({ onFlowDataChange });
 
@@ -160,7 +153,7 @@ describe('BaseFlowCanvas — EVO-1573 edge propagation', () => {
     );
   });
 
-  it('handleEdgesChange propagates deletes to onFlowDataChange (parity fix)', () => {
+  it('handleEdgesChange propagates deletes to onFlowDataChange', () => {
     const onFlowDataChange = vi.fn();
     renderCanvas({
       onFlowDataChange,
@@ -186,7 +179,7 @@ describe('BaseFlowCanvas — EVO-1573 edge propagation', () => {
     expect(lastCall![1].map(e => e.id)).toEqual(['e2']);
   });
 
-  it('preserves the new edge across a subsequent node movement (AC3 — workaround path no regression)', () => {
+  it('preserves the new edge across a subsequent node movement', () => {
     const onFlowDataChange = vi.fn();
     renderCanvas({ onFlowDataChange });
     const connectProps = reactFlowMocks.capturedProps.current!;
@@ -220,7 +213,7 @@ describe('BaseFlowCanvas — EVO-1573 edge propagation', () => {
     );
   });
 
-  it('does not propagate volatile select-only edge changes to onFlowDataChange (M1 review)', () => {
+  it('does not propagate volatile select-only edge changes to onFlowDataChange', () => {
     const onFlowDataChange = vi.fn();
     renderCanvas({
       onFlowDataChange,
@@ -239,10 +232,8 @@ describe('BaseFlowCanvas — EVO-1573 edge propagation', () => {
   });
 });
 
-// EVO-1643: dropping an action node from the palette went through handleDrop's
-// default branch, which added the node to canvas state via setNodes but never
-// notified the editor store — so the save snapshot kept only the trigger and
-// dropped every action node. These tests fail on pre-fix `develop`.
+// Drops bypass xyflow's NodeChange path, so handleDrop is the only place the
+// store hears about a node dragged in from the palette.
 function DnDTypeSetter({ value }: { value: string }) {
   const { setType } = useDnD();
   useEffect(() => {
@@ -276,7 +267,7 @@ function renderCanvasForDrop(opts: {
   );
 }
 
-describe('BaseFlowCanvas — EVO-1643 drop propagation', () => {
+describe('BaseFlowCanvas — drop propagation', () => {
   it('propagates a dropped node to onFlowDataChange so the save snapshot keeps it', () => {
     const onFlowDataChange = vi.fn();
     renderCanvasForDrop({ onFlowDataChange, dndType: 'send-canned-response-node' });
@@ -326,10 +317,9 @@ describe('BaseFlowCanvas — EVO-1643 drop propagation', () => {
   });
 });
 
-// EVO-1643 (extended): node delete + duplicate (context menu) and edge delete
-// (trash button) also bypassed the store pre-fix. Each is now routed through a
-// BaseFlowCanvas handler that fires onFlowDataChange.
-describe('BaseFlowCanvas — EVO-1643 mutation propagation', () => {
+// Context-menu delete/duplicate and edge delete also bypass the change
+// pipeline, so each notifies the store from its own handler.
+describe('BaseFlowCanvas — mutation propagation', () => {
   function openContextMenu(props: Record<string, unknown>, nodeId: string) {
     act(() => {
       (props.onNodeContextMenu as (e: unknown, n: unknown) => void)(
@@ -413,11 +403,8 @@ describe('BaseFlowCanvas — EVO-1643 mutation propagation', () => {
   });
 });
 
-// CRM-119: handleNodesChange used to apply the changes twice per drag move
-// (once for the state write, once again to compute the onFlowDataChange
-// payload), re-running getHelperLines and re-mutating changes[0].position.
-// CRM-138: the dedup that fixed it rebased every write on the `nodes` closure,
-// so a second call in the same React batch overwrote the first.
+// The snap runs once per batch, and changes batched together must all survive
+// in both the canvas and the payload.
 describe('BaseFlowCanvas — helper line snap and batched node changes', () => {
   it('calls getHelperLines exactly once per node drag when customHelperLines is on', () => {
     renderCanvas({ customHelperLines: true });
@@ -432,9 +419,8 @@ describe('BaseFlowCanvas — helper line snap and batched node changes', () => {
     expect(getHelperLines).toHaveBeenCalledTimes(1);
   });
 
-  // Both editors share this handler: the journey editor drives it with
-  // customHelperLines on, the segment editor with it off. The payload is built
-  // before that branch, so both need the guard.
+  // The payload is built before the customHelperLines branch, so the journey
+  // and segment editors both need the guard.
   it.each([true, false])(
     'preserves both changes when handleNodesChange fires twice in one batch (customHelperLines=%s)',
     customHelperLines => {
@@ -456,19 +442,16 @@ describe('BaseFlowCanvas — helper line snap and batched node changes', () => {
       expect(nodes.find(n => n.id === 'n1')!.position).toEqual({ x: 10, y: 10 });
       expect(nodes.find(n => n.id === 'n2')!.position).toEqual({ x: 300, y: 50 });
 
-      // The store gets the same accumulated state as the canvas: a payload
-      // rebased on the closure would send n1 back to {0,0}, and a save right
-      // after the batch would undo the first drag.
+      // The store gets the same accumulated state as the canvas; anything
+      // rebased on the closure would send n1 back to {0,0}.
       const payload = onFlowDataChange.mock.lastCall![0] as typeof nodes;
       expect(payload.find(n => n.id === 'n1')!.position).toEqual({ x: 10, y: 10 });
       expect(payload.find(n => n.id === 'n2')!.position).toEqual({ x: 300, y: 50 });
     },
   );
 
-  // Every node writer must advance the mirror, since the mirror is what builds
-  // the callback payloads. A drop plus a move in one batch catches a writer
-  // that sets state without going through commitNodes: the canvas keeps both
-  // changes, the store would only hear about the move.
+  // Every node writer must advance the mirror that builds the payloads: a
+  // writer that skips commitNodes leaves the store behind the canvas.
   it('keeps the payload correct when a drop and a node move land in one batch', () => {
     const onFlowDataChange = vi.fn();
     renderCanvasForDrop({ onFlowDataChange, dndType: 'send-canned-response-node' });
