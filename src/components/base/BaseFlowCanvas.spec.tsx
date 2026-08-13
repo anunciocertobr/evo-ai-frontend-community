@@ -431,7 +431,8 @@ describe('BaseFlowCanvas — customApplyNodeChanges runs once per change', () =>
   });
 
   it('preserves both changes when handleNodesChange fires twice in one batch', () => {
-    renderCanvas({ customHelperLines: true });
+    const onFlowDataChange = vi.fn();
+    renderCanvas({ customHelperLines: true, onFlowDataChange });
     const onNodesChange = reactFlowMocks.capturedProps.current!.onNodesChange as (
       changes: Array<Record<string, unknown>>,
     ) => void;
@@ -447,5 +448,12 @@ describe('BaseFlowCanvas — customApplyNodeChanges runs once per change', () =>
     }>;
     expect(nodes.find(n => n.id === 'n1')!.position).toEqual({ x: 10, y: 10 });
     expect(nodes.find(n => n.id === 'n2')!.position).toEqual({ x: 300, y: 50 });
+
+    // O store recebe o mesmo estado acumulado que o canvas: um payload rebaseado
+    // no closure devolveria n1 para {0,0} e um save logo depois desfaria o
+    // primeiro arrasto.
+    const payload = onFlowDataChange.mock.lastCall![0] as typeof nodes;
+    expect(payload.find(n => n.id === 'n1')!.position).toEqual({ x: 10, y: 10 });
+    expect(payload.find(n => n.id === 'n2')!.position).toEqual({ x: 300, y: 50 });
   });
 });

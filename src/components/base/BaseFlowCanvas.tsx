@@ -176,6 +176,13 @@ export function BaseFlowCanvas({
   // Estados do canvas
   const [nodes, setNodes, onNodesChangeInternal] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChangeInternal] = useEdgesState(initialEdges);
+
+  // Espelho síncrono de `nodes`. Dentro de um mesmo batch do React o closure não
+  // reflete a mudança anterior, então o payload dos callbacks sairia de um
+  // estado que o setNodes já superou — o store receberia um snapshot desfazendo
+  // a primeira mudança do batch.
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
   const [showNodePanel, setShowNodePanel] = useState(showNodePanelByDefault);
 
   // Context menu
@@ -231,7 +238,12 @@ export function BaseFlowCanvas({
   // Handlers de mudanças
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      applyHelperLineSnap(changes, nodes);
+      applyHelperLineSnap(changes, nodesRef.current);
+
+      // Avança o espelho junto: é ele que mantém o payload dos callbacks
+      // alinhado com o estado que o setNodes aplica.
+      const updatedNodes = applyNodeChanges(changes, nodesRef.current);
+      nodesRef.current = updatedNodes;
 
       if (customHelperLines) {
         // Updater funcional: com o efeito colateral fora, é seguro de novo —
@@ -246,21 +258,17 @@ export function BaseFlowCanvas({
         onNodesChange(changes);
       }
 
-      if (onFlowDataChange || onFlowDataChangeExtended) {
-        const updatedNodes = applyNodeChanges(changes, nodes);
+      if (onFlowDataChange) {
+        onFlowDataChange(updatedNodes, edges);
+      }
 
-        if (onFlowDataChange) {
-          onFlowDataChange(updatedNodes, edges);
-        }
-
-        // 🆕 Callback estendido com variables
-        if (onFlowDataChangeExtended) {
-          onFlowDataChangeExtended({
-            nodes: updatedNodes,
-            edges,
-            variables: flowVariables,
-          });
-        }
+      // 🆕 Callback estendido com variables
+      if (onFlowDataChangeExtended) {
+        onFlowDataChangeExtended({
+          nodes: updatedNodes,
+          edges,
+          variables: flowVariables,
+        });
       }
     },
     [
@@ -268,7 +276,6 @@ export function BaseFlowCanvas({
       onNodesChange,
       onFlowDataChange,
       onFlowDataChangeExtended,
-      nodes,
       edges,
       flowVariables,
       customHelperLines,
