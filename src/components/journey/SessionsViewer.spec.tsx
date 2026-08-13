@@ -300,3 +300,28 @@ describe('SessionsViewer — search debounce and stale-response guard', () => {
     expect(journeyService.getJourneySessionStats).not.toHaveBeenCalled();
   });
 });
+
+describe('SessionsViewer — load effects survive re-render', () => {
+  it('does not refetch when the component re-renders with the same props', async () => {
+    vi.mocked(journeyService.getJourneySessions).mockResolvedValue({
+      data: { sessions: [], total: 0 },
+    } as never);
+    vi.mocked(journeyService.getJourneySessionStats).mockResolvedValue({
+      data: { total: 0 },
+    } as never);
+
+    const { rerender } = render(<SessionsViewer {...baseProps} />);
+    await waitFor(() => {
+      expect(journeyService.getJourneySessions).toHaveBeenCalledTimes(1);
+      expect(journeyService.getJourneySessionStats).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      rerender(<SessionsViewer {...baseProps} />);
+      rerender(<SessionsViewer {...baseProps} />);
+    });
+
+    expect(journeyService.getJourneySessions).toHaveBeenCalledTimes(1);
+    expect(journeyService.getJourneySessionStats).toHaveBeenCalledTimes(1);
+  });
+});
