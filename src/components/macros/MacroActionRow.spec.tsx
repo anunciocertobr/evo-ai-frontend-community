@@ -106,7 +106,7 @@ function configSelect() {
 
 describe('MacroActionRow', () => {
   describe('assign_team (select)', () => {
-    it('emits the whole uuid when it starts with a digit 1-9 (CRM-54)', () => {
+    it('emits the whole uuid when it starts with a digit 1-9', () => {
       const onUpdate = renderRow({
         actionName: 'assign_team',
         options: { ...EMPTY_OPTIONS, teams: [TEAM_DIGIT] },
@@ -180,7 +180,7 @@ describe('MacroActionRow', () => {
     const LABEL_DIGIT = { id: '8f42e72a-1c3d-4b7a-9f11-2ab3cd4e5f60', title: 'urgente' };
     const LABEL_OTHER = { id: '9b31d05f-2e4a-4c88-8d77-1f2e3d4c5b6a', title: 'vip' };
 
-    it('appends the whole uuid when it starts with a digit 1-9 (CRM-54)', () => {
+    it('appends the whole uuid when it starts with a digit 1-9', () => {
       const onUpdate = renderRow({
         actionName: 'add_label',
         options: { ...EMPTY_OPTIONS, labels: [LABEL_DIGIT] },

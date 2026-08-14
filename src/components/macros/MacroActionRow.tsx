@@ -66,7 +66,7 @@ export default function MacroActionRow({
 
     setUploadingFile(true);
     try {
-      // TODO: real upload (CRM-131)
+      // TODO: real upload
       // const blobId = await macroService.uploadAttachment(file);
       const blobId = `blob_${Date.now()}`; // Mock, never accepted by the backend
 
