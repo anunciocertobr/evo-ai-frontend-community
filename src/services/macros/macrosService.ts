@@ -120,11 +120,11 @@ class MacrosService {
 
     return {
       inboxes: getResultData('inboxes', inboxesRes),
-      agents: getResultData('agents', agentsRes, true), // true = isAuthService
+      agents: getResultData('agents', agentsRes, true),
       teams: getResultData('teams', teamsRes),
       labels: getResultData('labels', labelsRes),
       campaigns: [],
-      customAttributes: [], // TODO: Implementar busca de custom attributes se necessário
+      customAttributes: [], // TODO: fetch custom attributes if they are ever needed
       failedSources,
     };
   }

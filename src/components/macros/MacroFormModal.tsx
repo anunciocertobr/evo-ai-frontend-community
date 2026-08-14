@@ -73,14 +73,14 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
 
   const isEditing = !!macro;
 
-  // Carregar dados do formulário
+  // Load the form option lists
   useEffect(() => {
     if (isOpen) {
       loadFormData();
     }
   }, [isOpen]);
 
-  // Carregar dados da macro para edição
+  // Load the macro being edited
   useEffect(() => {
     if (isOpen) {
       if (macro) {
@@ -103,7 +103,7 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
       setFormDataOptions(data);
       setFailedSources(failed);
     } catch (error) {
-      console.error('Erro ao carregar dados do formulário:', error);
+      console.error('Failed to load the macro form data:', error);
       setFailedSources(ALL_FORM_DATA_SOURCES);
     } finally {
       setOptionsLoading(false);
@@ -121,22 +121,22 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
       newErrors.actions = t('modal.validation.actionsRequired');
     }
 
-    // Validar ações
+    // Validate actions
     formData.actions.forEach((action, index) => {
       if (!action.action_name) {
         newErrors[`action_${index}_name`] = t('modal.validation.actionTypeRequired');
       }
 
-      // Validar parâmetros para ações que precisam
+      // Validate params for the actions that take one
       const actionType = MACRO_ACTION_TYPES.find(type => type.key === action.action_name);
       if (actionType && actionType.inputType && actionType.inputType !== null) {
-        // Para multi_select, verificar se tem pelo menos um item selecionado
+        // multi_select needs at least one item selected
         if (actionType.inputType === 'multi_select') {
           if (!action.action_params || action.action_params.length === 0) {
             newErrors[`action_${index}_params`] = t('modal.validation.selectAtLeastOne');
           }
         }
-        // Para outros tipos com input, verificar se o primeiro parâmetro existe
+        // Every other input type needs a first param
         else if (
           !action.action_params ||
           action.action_params.length === 0 ||
@@ -184,7 +184,7 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
       [field]: value,
     }));
 
-    // Limpar erro do campo
+    // Clear the field error
     if (errors[field]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -222,17 +222,12 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
       actions: prev.actions.map((action, i) => (i === index ? updatedAction : action)),
     }));
 
-    // Limpar erros relacionados à ação
+    // Clear the errors tied to this action
     const newErrors = { ...errors };
     delete newErrors[`action_${index}_name`];
     delete newErrors[`action_${index}_params`];
     setErrors(newErrors);
   };
-
-  // const getActionTypeLabel = (actionType: string) => {
-  //   const actionTypeObj = MACRO_ACTION_TYPES.find(type => type.key === actionType);
-  //   return actionTypeObj?.name || actionType;
-  // };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -260,7 +255,7 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
             </div>
           )}
 
-          {/* Informações básicas */}
+          {/* Basic information */}
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name" className="text-sidebar-foreground">
@@ -279,7 +274,7 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
               {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
             </div>
 
-            {/* Visibilidade */}
+            {/* Visibility */}
             <div className="space-y-4">
               <Label className="text-sidebar-foreground">{t('modal.form.visibility')}</Label>
               <div className="grid grid-cols-2 gap-4">
@@ -334,7 +329,7 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
 
           <Separator className="bg-sidebar-border" />
 
-          {/* Ações */}
+          {/* Actions */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>

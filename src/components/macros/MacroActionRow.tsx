@@ -48,7 +48,7 @@ export default function MacroActionRow({
   const handleFieldChange = (field: keyof MacroAction, value: string) => {
     const updated = { ...action, [field]: value };
 
-    // Reset params quando mudar a ação
+    // Reset params when the action changes
     if (field === 'action_name') {
       updated.action_params = [];
     }
@@ -66,13 +66,13 @@ export default function MacroActionRow({
 
     setUploadingFile(true);
     try {
-      // TODO: Implementar upload real
+      // TODO: real upload (CRM-131)
       // const blobId = await macroService.uploadAttachment(file);
-      const blobId = `blob_${Date.now()}`; // Mock para desenvolvimento
+      const blobId = `blob_${Date.now()}`; // Mock, never accepted by the backend
 
       handleParamsChange([blobId]);
     } catch (error) {
-      console.error('Erro ao fazer upload:', error);
+      console.error('Failed to upload the attachment:', error);
     } finally {
       setUploadingFile(false);
     }
@@ -204,7 +204,7 @@ export default function MacroActionRow({
               </SelectContent>
             </Select>
 
-            {/* Valores selecionados */}
+            {/* Selected values */}
             {action.action_params.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {action.action_params.map(paramValue => {
@@ -332,9 +332,9 @@ export default function MacroActionRow({
 
   return (
     <div className="p-4 border border-sidebar-border rounded-lg bg-sidebar-accent/30">
-      {/* Layout horizontal com ação e configuração na mesma linha */}
+      {/* Action and its configuration on the same row */}
       <div className="flex items-end gap-4">
-        {/* Ação */}
+        {/* Action */}
         <div className="flex-1 space-y-2">
           <Label className="text-sm text-sidebar-foreground/70">
             {t('modal.form.actionLabel')}
@@ -373,7 +373,7 @@ export default function MacroActionRow({
           )}
         </div>
 
-        {/* Configuração da ação */}
+        {/* Action configuration */}
         {selectedActionConfig && selectedActionConfig.inputType && (
           <div className="flex-1 space-y-2">
             <Label className="text-sm text-sidebar-foreground/70">
@@ -383,7 +383,7 @@ export default function MacroActionRow({
           </div>
         )}
 
-        {/* Botão de remover */}
+        {/* Remove button */}
         {canRemove && (
           <div className="pb-2">
             <Button
