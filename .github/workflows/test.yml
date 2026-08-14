@@ -93,3 +93,42 @@ jobs:
             src/components/journey/nodes/actions/send-webhook/components/WebhookHeadersConfig.spec.tsx \
             src/components/journey/nodes/actions/send-message/components/SendMessageAttachments.spec.tsx \
             src/components/journey/environment-manager/VariableMapping.spec.tsx
+
+  # Lint gate scoped to the files the PR touched.
+  eslint:
+    name: ESLint (diff)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The base commit has to be in the clone for the diff below to resolve.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ACMR skips deletions (nothing left to lint) and takes the new path on a
+      # rename. Only .ts/.tsx: they are what eslint.config.js covers.
+      - name: ESLint on changed files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mapfile -d '' -t files < <(
+            git diff --name-only -z --diff-filter=ACMR "$BASE_SHA"...HEAD -- '*.ts' '*.tsx'
+          )
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No .ts/.tsx file changed — nothing to lint."
+            exit 0
+          fi
+          printf 'Linting %d changed file(s):\n' "${#files[@]}"
+          printf '  %s\n' "${files[@]}"
+          npx eslint --no-warn-ignored --max-warnings=0 "${files[@]}"
