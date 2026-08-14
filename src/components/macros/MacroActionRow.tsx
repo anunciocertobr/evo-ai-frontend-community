@@ -84,8 +84,8 @@ export default function MacroActionRow({
     }
   };
 
-  // "Carregando opções..." em cima de uma lista vazia esconde o estado real:
-  // ou as opções ainda não chegaram, ou não existe nenhuma cadastrada.
+  // An empty list means either "still fetching" or "nothing registered", and
+  // the user has to be able to tell them apart.
   const renderPlaceholderItem = (emptyKey: string) => (
     <SelectItem value="__placeholder__" disabled className="text-sidebar-foreground">
       {optionsLoading ? t('actionRow.loadingOptions') : t(emptyKey)}

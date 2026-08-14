@@ -70,7 +70,6 @@ class MacrosService {
   }
 
   async getFormData(): Promise<MacroFormData> {
-    // Buscar dados necessários para o formulário em paralelo
     const [inboxesRes, agentsRes, teamsRes, labelsRes] = await Promise.allSettled([
       api.get('/inboxes'),
       authApi.get('/users'),
@@ -80,8 +79,8 @@ class MacrosService {
 
     const failedSources: MacroFormDataSource[] = [];
 
-    // Uma lista vazia por erro (403/500) é indistinguível de uma lista vazia de
-    // verdade — sem registrar a fonte que falhou, o formulário mente pro usuário.
+    // An empty list from a 403/500 is indistinguishable from a genuinely empty
+    // one, so the failing source has to be reported instead of swallowed.
     const getResultData = (
       source: MacroFormDataSource,
       result: PromiseSettledResult<any>,

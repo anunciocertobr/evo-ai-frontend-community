@@ -6,8 +6,7 @@ vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({ t: (key: string) => key, currentLanguage: 'pt-BR' }),
 }));
 
-// Render the design-system Select as a native <select> so options are assertable
-// and onValueChange is reachable without Radix's pointer machinery.
+// Native <select>: Radix needs pointer machinery jsdom does not have.
 vi.mock('@evoapi/design-system', () => ({
   Select: ({
     children,
@@ -33,8 +32,8 @@ vi.mock('@evoapi/design-system', () => ({
   SelectTrigger: () => null,
   SelectValue: () => null,
   SelectContent: ({ children }: { children: ReactNode }) => <>{children}</>,
-  // Only text children are rendered: the action-type items wrap their label in
-  // a <div>, which is invalid inside <option> and floods the run with warnings.
+  // Text children only: the action-type items wrap their label in a <div>,
+  // which is invalid inside <option>.
   SelectItem: ({
     value,
     children,
@@ -60,9 +59,9 @@ import MacroActionRow from './MacroActionRow';
 
 const EMPTY_OPTIONS = { inboxes: [], agents: [], teams: [], labels: [], campaigns: [] };
 
-// The bug reproduces only for uuids starting with a hex digit 1-9: parseInt
-// truncates those to a number and `|| value` lets it through. Uuids starting
-// with 0 (parseInt = 0, falsy) or with a letter (NaN) used to pass by accident.
+// Only uuids starting with a hex digit 1-9 reproduce the bug: parseInt truncates
+// those and `|| value` lets the number through. Leading 0 (falsy) and leading
+// letter (NaN) passed by accident.
 const TEAM_DIGIT = { id: '8f42e72a-1c3d-4b7a-9f11-2ab3cd4e5f60', name: 'Vendas' };
 const TEAM_ZERO = { id: '0a12b3c4-5d6e-4f70-8192-a3b4c5d6e7f8', name: 'Suporte' };
 const TEAM_LETTER = { id: 'ff11a2b3-c4d5-4e60-9182-73645adcbe90', name: 'Financeiro' };
@@ -96,7 +95,7 @@ function renderRow({
   return onUpdate;
 }
 
-// The action select ("Ação") is always the first one; the config input is the second.
+// First select is the action type; second is the action's config input.
 function configSelect() {
   return screen.getAllByTestId('select')[1];
 }
