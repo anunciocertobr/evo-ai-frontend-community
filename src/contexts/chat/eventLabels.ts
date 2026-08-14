@@ -8,12 +8,15 @@ import type { Label } from '@/types/settings/labels';
  * sendo lista de títulos (contrato dos webhooks externos) e sobra como fallback
  * para backend anterior ao CRM-155 — sem cor, o que faz o merge do ChatContext
  * preservar as etiquetas que já estavam na tela em vez de apagá-las.
+ *
+ * `createdAt`/`updatedAt` aceitam número porque o backend manda os timestamps
+ * do evento como epoch (`push_timestamps`), não como string ISO.
  */
 export function mapEventLabels(
   labelsData: ConversationEventLabel[] | undefined,
   labels: unknown,
-  createdAt: string,
-  updatedAt: string
+  createdAt: string | number,
+  updatedAt: string | number
 ): Label[] {
   if (labelsData) {
     return labelsData.map((label) => ({
@@ -22,8 +25,8 @@ export function mapEventLabels(
       description: '',
       color: String(label.color ?? ''),
       show_on_sidebar: false,
-      created_at: createdAt,
-      updated_at: updatedAt,
+      created_at: String(createdAt),
+      updated_at: String(updatedAt),
     }));
   }
 
@@ -37,8 +40,8 @@ export function mapEventLabels(
         description: '',
         color: '',
         show_on_sidebar: false,
-        created_at: createdAt,
-        updated_at: updatedAt,
+        created_at: String(createdAt),
+        updated_at: String(updatedAt),
       };
     }
     return {

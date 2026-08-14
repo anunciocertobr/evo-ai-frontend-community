@@ -4,6 +4,9 @@ import { mapEventLabels } from './eventLabels';
 const CREATED_AT = '2026-08-14T10:00:00Z';
 const UPDATED_AT = '2026-08-14T11:00:00Z';
 
+// Cobre o mapper. O merge em si (ChatContext.tsx:487-504 — a guarda `title && color`
+// e o override com lista vazia) não é unit-testável sem montar o provider inteiro;
+// os ACs de tela ficam no teste manual do card.
 describe('mapEventLabels (CRM-155)', () => {
   it('usa labels_data e entrega título e cor de verdade', () => {
     const result = mapEventLabels(
@@ -19,10 +22,23 @@ describe('mapEventLabels (CRM-155)', () => {
     expect(result[0].color).toBe('#ff0000');
   });
 
-  it('passa na guarda de merge do ChatContext (title && color)', () => {
-    const result = mapEventLabels([{ id: 'a1', title: 'urgente', color: '#ff0000' }], [], CREATED_AT, UPDATED_AT);
+  it('labels_data manda, mesmo quando é mais curto que labels (tag órfã)', () => {
+    const result = mapEventLabels(
+      [{ id: 'a1', title: 'urgente', color: '#ff0000' }],
+      ['urgente', 'b0b0b0b0-0000-0000-0000-000000000000'],
+      CREATED_AT,
+      UPDATED_AT
+    );
 
-    expect(result.every((label) => Boolean(label.title) && Boolean(label.color))).toBe(true);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('a1');
+  });
+
+  it('converte timestamp epoch do evento sem deixar número onde o tipo diz string', () => {
+    const result = mapEventLabels([{ id: 'a1', title: 'urgente', color: '#ff0000' }], [], 1755172800, 1755176400);
+
+    expect(typeof result[0].created_at).toBe('string');
+    expect(result[0].created_at).toBe('1755172800');
   });
 
   it('devolve lista vazia quando labels_data vem vazio — remoção tem que refletir', () => {
