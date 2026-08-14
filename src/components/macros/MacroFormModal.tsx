@@ -66,7 +66,9 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
     labels: [],
     campaigns: [],
   });
-  const [optionsLoading, setOptionsLoading] = useState(false);
+  // Starts true: the fetch is fired by an effect, which only runs after the
+  // first paint — false here shows "nothing registered" for a frame.
+  const [optionsLoading, setOptionsLoading] = useState(true);
   const [failedSources, setFailedSources] = useState<MacroFormDataSource[]>([]);
 
   const isEditing = !!macro;
@@ -371,6 +373,7 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
                   errors={errors}
                   disabled={loading}
                   optionsLoading={optionsLoading}
+                  failedSources={failedSources}
                 />
               ))}
             </div>

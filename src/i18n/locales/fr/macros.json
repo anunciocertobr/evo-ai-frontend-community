@@ -63,6 +63,7 @@
     "selectPlaceholder": "Sélectionnez une option",
     "multiSelectPlaceholder": "Sélectionnez des options",
     "loadingOptions": "Chargement des options...",
+    "loadFailed": "Impossible de charger les options",
     "emptyTeams": "Aucune équipe enregistrée",
     "emptyAgents": "Aucun agent enregistré",
     "emptyLabels": "Aucune étiquette enregistrée",

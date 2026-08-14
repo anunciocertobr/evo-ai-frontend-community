@@ -13,7 +13,7 @@ import {
 } from '@evoapi/design-system';
 import { Upload, X } from 'lucide-react';
 import { MACRO_ACTION_TYPES, MacroAction } from '@/types/automation';
-import type { MacroFormData, MacroFormOption } from '@/services/macros';
+import type { MacroFormData, MacroFormDataSource, MacroFormOption } from '@/services/macros';
 
 interface ActionRowProps {
   action: MacroAction;
@@ -25,6 +25,7 @@ interface ActionRowProps {
   errors: Record<string, string>;
   disabled: boolean;
   optionsLoading: boolean;
+  failedSources: MacroFormDataSource[];
 }
 
 export default function MacroActionRow({
@@ -37,6 +38,7 @@ export default function MacroActionRow({
   errors,
   disabled,
   optionsLoading,
+  failedSources,
 }: ActionRowProps) {
   const { t } = useLanguage('macros');
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -76,13 +78,24 @@ export default function MacroActionRow({
     }
   };
 
-  // An empty list means either "still fetching" or "nothing registered", and
-  // the user has to be able to tell them apart.
-  const renderPlaceholderItem = (emptyKey: string) => (
-    <SelectItem value="__placeholder__" disabled className="text-sidebar-foreground">
-      {optionsLoading ? t('actionRow.loadingOptions') : t(emptyKey)}
-    </SelectItem>
-  );
+  // An empty list has three causes and the user has to tell them apart: the
+  // fetch is still running, the source answered with an error, or nothing is
+  // registered. Reporting the failed source as "none registered" is the same
+  // lie the empty state was split up to stop telling.
+  const renderPlaceholderItem = (emptyKey: string, source: MacroFormDataSource | null) => {
+    let messageKey = emptyKey;
+    if (optionsLoading) {
+      messageKey = 'actionRow.loadingOptions';
+    } else if (source && failedSources.includes(source)) {
+      messageKey = 'actionRow.loadFailed';
+    }
+
+    return (
+      <SelectItem value="__placeholder__" disabled className="text-sidebar-foreground">
+        {t(messageKey)}
+      </SelectItem>
+    );
+  };
 
   const renderActionInput = () => {
     if (!selectedActionConfig) return null;
@@ -93,16 +106,20 @@ export default function MacroActionRow({
       case 'select': {
         let selectOptions: MacroFormOption[] = [];
         let selectEmptyKey = 'actionRow.emptyOptions';
+        // Static option lists cannot fail to load, so they carry no source.
+        let selectSource: MacroFormDataSource | null = null;
 
-        // Determinar opções baseadas na ação
+        // Options depend on the action
         switch (action.action_name) {
           case 'assign_agent':
             selectOptions = options.agents;
             selectEmptyKey = 'actionRow.emptyAgents';
+            selectSource = 'agents';
             break;
           case 'assign_team':
             selectOptions = options.teams;
             selectEmptyKey = 'actionRow.emptyTeams';
+            selectSource = 'teams';
             break;
           case 'change_priority':
           case 'change_status':
@@ -123,7 +140,7 @@ export default function MacroActionRow({
             </SelectTrigger>
             <SelectContent className="bg-sidebar border-sidebar-border">
               {selectOptions.length === 0 ? (
-                renderPlaceholderItem(selectEmptyKey)
+                renderPlaceholderItem(selectEmptyKey, selectSource)
               ) : (
                 selectOptions.map(option => (
                   <SelectItem
@@ -143,12 +160,14 @@ export default function MacroActionRow({
       case 'multi_select': {
         let multiSelectOptions: MacroFormOption[] = [];
         let multiSelectEmptyKey = 'actionRow.emptyOptions';
+        let multiSelectSource: MacroFormDataSource | null = null;
 
         switch (action.action_name) {
           case 'add_label':
           case 'remove_label':
             multiSelectOptions = options.labels;
             multiSelectEmptyKey = 'actionRow.emptyLabels';
+            multiSelectSource = 'labels';
             break;
           default:
             multiSelectOptions = actionOptions || [];
@@ -170,7 +189,7 @@ export default function MacroActionRow({
               </SelectTrigger>
               <SelectContent className="bg-sidebar border-sidebar-border">
                 {multiSelectOptions.length === 0 ? (
-                  renderPlaceholderItem(multiSelectEmptyKey)
+                  renderPlaceholderItem(multiSelectEmptyKey, multiSelectSource)
                 ) : (
                   multiSelectOptions.map(option => (
                     <SelectItem

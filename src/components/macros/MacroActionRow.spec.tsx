@@ -56,6 +56,7 @@ vi.mock('@evoapi/design-system', () => ({
 }));
 
 import MacroActionRow from './MacroActionRow';
+import type { MacroFormDataSource } from '@/services/macros';
 
 const EMPTY_OPTIONS = { inboxes: [], agents: [], teams: [], labels: [], campaigns: [] };
 
@@ -71,12 +72,14 @@ function renderRow({
   actionParams = [],
   options = EMPTY_OPTIONS,
   optionsLoading = false,
+  failedSources = [],
   onUpdate = vi.fn(),
 }: {
   actionName: string;
   actionParams?: unknown[];
   options?: typeof EMPTY_OPTIONS;
   optionsLoading?: boolean;
+  failedSources?: MacroFormDataSource[];
   onUpdate?: ReturnType<typeof vi.fn>;
 }) {
   render(
@@ -90,6 +93,7 @@ function renderRow({
       errors={{}}
       disabled={false}
       optionsLoading={optionsLoading}
+      failedSources={failedSources}
     />,
   );
   return onUpdate;
@@ -145,6 +149,22 @@ describe('MacroActionRow', () => {
 
       expect(screen.getByText('actionRow.loadingOptions')).toBeTruthy();
       expect(screen.queryByText('actionRow.emptyTeams')).toBeNull();
+    });
+
+    // A source that answered 403/500 arrives here as an empty list too, and
+    // calling that "no teams registered" is the same lie in a new place.
+    it('says the options failed to load when /teams errored', () => {
+      renderRow({ actionName: 'assign_team', failedSources: ['teams'] });
+
+      expect(screen.getByText('actionRow.loadFailed')).toBeTruthy();
+      expect(screen.queryByText('actionRow.emptyTeams')).toBeNull();
+    });
+
+    it('keeps the empty state when a different source is the one that failed', () => {
+      renderRow({ actionName: 'assign_team', failedSources: ['labels'] });
+
+      expect(screen.getByText('actionRow.emptyTeams')).toBeTruthy();
+      expect(screen.queryByText('actionRow.loadFailed')).toBeNull();
     });
   });
 
@@ -205,6 +225,13 @@ describe('MacroActionRow', () => {
       renderRow({ actionName: 'add_label' });
 
       expect(screen.getByText('actionRow.emptyLabels')).toBeTruthy();
+    });
+
+    it('says the options failed to load when /labels errored', () => {
+      renderRow({ actionName: 'add_label', failedSources: ['labels'] });
+
+      expect(screen.getByText('actionRow.loadFailed')).toBeTruthy();
+      expect(screen.queryByText('actionRow.emptyLabels')).toBeNull();
     });
   });
 });

@@ -98,7 +98,7 @@ class MacrosService {
       isAuthService = false,
     ): MacroFormOption[] => {
       if (result.status === 'rejected') {
-        console.error(`Erro ao carregar ${source} no formulário de macros:`, result.reason);
+        console.error(`Failed to load ${source} for the macro form:`, result.reason);
         failedSources.push(source);
         return [];
       }
@@ -112,7 +112,7 @@ class MacrosService {
         const data = extractData<MacroFormOption[]>(result.value);
         return Array.isArray(data) ? data : [];
       } catch (error) {
-        console.error(`Erro ao interpretar ${source} no formulário de macros:`, error);
+        console.error(`Failed to parse ${source} for the macro form:`, error);
         failedSources.push(source);
         return [];
       }
