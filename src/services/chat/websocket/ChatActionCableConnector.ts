@@ -137,6 +137,18 @@ export interface MessageUpdatedEvent {
   }>;
 }
 
+/**
+ * Etiqueta completa no payload do evento (CRM-155). `labels` continua lista de
+ * títulos porque o mesmo corpo vai para os webhooks de integrações de cliente;
+ * `labels_data` é o campo aditivo com id e cor. Opcional: backend anterior ao
+ * CRM-155 não envia.
+ */
+export interface ConversationEventLabel {
+  id: string;
+  title: string;
+  color: string;
+}
+
 /** Conversation event payload: id is canonical UUID; display_id is for UI display only (e.g. #12345). */
 export interface ConversationCreatedEvent {
   id: string; // UUID
@@ -175,6 +187,7 @@ export interface ConversationCreatedEvent {
     hmac_verified: boolean;
   };
   labels: string[]; // Evolution usa string[] para labels
+  labels_data?: ConversationEventLabel[];
   unread_count: number;
   is_group?: boolean;
   additional_attributes?: Record<string, unknown>;
@@ -222,6 +235,7 @@ export interface ConversationUpdatedEvent {
     hmac_verified: boolean;
   };
   labels: string[];
+  labels_data?: ConversationEventLabel[];
   unread_count: number;
   is_group?: boolean;
   additional_attributes?: Record<string, unknown>;
