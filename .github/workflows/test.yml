@@ -122,6 +122,13 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
+          # A git failure inside the process substitution below is swallowed by
+          # mapfile and would pass the gate with an empty file list. Make sure
+          # the base resolves before trusting the diff.
+          if ! git rev-parse -q --verify "$BASE_SHA^{commit}" >/dev/null; then
+            echo "Base sha $BASE_SHA not found in the clone — refusing to skip the lint gate." >&2
+            exit 1
+          fi
           mapfile -d '' -t files < <(
             git diff --name-only -z --diff-filter=ACMR "$BASE_SHA"...HEAD -- '*.ts' '*.tsx'
           )
