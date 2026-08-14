@@ -12,22 +12,14 @@ import {
   Label,
 } from '@evoapi/design-system';
 import { Upload, X } from 'lucide-react';
-import { MACRO_ACTION_TYPES } from '@/types/automation';
+import { MACRO_ACTION_TYPES, MacroAction } from '@/types/automation';
+import type { MacroFormData, MacroFormOption } from '@/services/macros';
 
 interface ActionRowProps {
-  action: {
-    action_name: string;
-    action_params: any[];
-  };
+  action: MacroAction;
   index: number;
-  options: {
-    inboxes: any[];
-    agents: any[];
-    teams: any[];
-    labels: any[];
-    campaigns: any[];
-  };
-  onUpdate: (index: number, action: any) => void;
+  options: Pick<MacroFormData, 'inboxes' | 'agents' | 'teams' | 'labels' | 'campaigns'>;
+  onUpdate: (index: number, action: MacroAction) => void;
   onRemove: (index: number) => void;
   canRemove: boolean;
   errors: Record<string, string>;
@@ -51,7 +43,7 @@ export default function MacroActionRow({
 
   const selectedActionConfig = MACRO_ACTION_TYPES.find(a => a.key === action.action_name);
 
-  const handleFieldChange = (field: string, value: any) => {
+  const handleFieldChange = (field: keyof MacroAction, value: string) => {
     const updated = { ...action, [field]: value };
 
     // Reset params quando mudar a ação
@@ -62,7 +54,7 @@ export default function MacroActionRow({
     onUpdate(index, updated);
   };
 
-  const handleParamsChange = (params: any[]) => {
+  const handleParamsChange = (params: MacroAction['action_params']) => {
     onUpdate(index, { ...action, action_params: params });
   };
 
@@ -98,8 +90,8 @@ export default function MacroActionRow({
     const { inputType, options: actionOptions } = selectedActionConfig;
 
     switch (inputType) {
-      case 'select':
-        let selectOptions: any[] = [];
+      case 'select': {
+        let selectOptions: MacroFormOption[] = [];
         let selectEmptyKey = 'actionRow.emptyOptions';
 
         // Determinar opções baseadas na ação
@@ -135,8 +127,8 @@ export default function MacroActionRow({
               ) : (
                 selectOptions.map(option => (
                   <SelectItem
-                    key={option.value || option.id}
-                    value={(option.value || option.id).toString()}
+                    key={String(option.value || option.id || '')}
+                    value={String(option.value || option.id || '')}
                     className="text-sidebar-foreground"
                   >
                     {option.label || option.name || option.title}
@@ -146,9 +138,10 @@ export default function MacroActionRow({
             </SelectContent>
           </Select>
         );
+      }
 
-      case 'multi_select':
-        let multiSelectOptions: any[] = [];
+      case 'multi_select': {
+        let multiSelectOptions: MacroFormOption[] = [];
         let multiSelectEmptyKey = 'actionRow.emptyOptions';
 
         switch (action.action_name) {
@@ -181,8 +174,8 @@ export default function MacroActionRow({
                 ) : (
                   multiSelectOptions.map(option => (
                     <SelectItem
-                      key={option.value || option.id}
-                      value={(option.value || option.id).toString()}
+                      key={String(option.value || option.id || '')}
+                      value={String(option.value || option.id || '')}
                       className="text-sidebar-foreground"
                     >
                       {option.label || option.name || option.title}
@@ -197,11 +190,11 @@ export default function MacroActionRow({
               <div className="flex flex-wrap gap-2">
                 {action.action_params.map(paramValue => {
                   const option = multiSelectOptions.find(
-                    o => (o.value || o.id).toString() === paramValue.toString(),
+                    o => String(o.value || o.id || '') === String(paramValue),
                   );
                   return (
                     <div
-                      key={paramValue}
+                      key={String(paramValue)}
                       className="flex items-center gap-1 px-2 py-1 bg-sidebar-accent text-sidebar-foreground rounded text-sm"
                     >
                       {option?.label || option?.name || option?.title || paramValue}
@@ -224,6 +217,7 @@ export default function MacroActionRow({
             )}
           </div>
         );
+      }
 
       case 'textarea':
         return (

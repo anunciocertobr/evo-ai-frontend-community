@@ -18,9 +18,9 @@ import {
 } from '@evoapi/design-system';
 import { Plus, Globe, Lock, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { Macro, MACRO_ACTION_TYPES } from '@/types/automation';
+import { Macro, MacroAction, MACRO_ACTION_TYPES } from '@/types/automation';
 import { macrosService } from '@/services/macros';
-import type { MacroFormDataSource } from '@/services/macros';
+import type { MacroFormData, MacroFormDataSource } from '@/services/macros';
 import MacroActionRow from './MacroActionRow';
 
 const ALL_FORM_DATA_SOURCES: MacroFormDataSource[] = ['inboxes', 'agents', 'teams', 'labels'];
@@ -35,11 +35,13 @@ interface MacroFormModalProps {
 interface FormData {
   name: string;
   visibility: 'personal' | 'global';
-  actions: Array<{
-    action_name: string;
-    action_params: any[];
-  }>;
+  actions: MacroAction[];
 }
+
+type FormOptions = Pick<
+  MacroFormData,
+  'inboxes' | 'agents' | 'teams' | 'labels' | 'campaigns'
+>;
 
 const initialFormData: FormData = {
   name: '',
@@ -57,13 +59,7 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formDataOptions, setFormDataOptions] = useState<{
-    inboxes: any[];
-    agents: any[];
-    teams: any[];
-    labels: any[];
-    campaigns: any[];
-  }>({
+  const [formDataOptions, setFormDataOptions] = useState<FormOptions>({
     inboxes: [],
     agents: [],
     teams: [],
@@ -180,7 +176,7 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
     }
   };
 
-  const handleFieldChange = (field: keyof FormData, value: any) => {
+  const handleFieldChange = (field: keyof FormData, value: FormData[keyof FormData]) => {
     setFormData(prev => ({
       ...prev,
       [field]: value,
@@ -218,7 +214,7 @@ export default function MacroFormModal({ isOpen, onClose, macro, onSuccess }: Ma
     }));
   };
 
-  const updateAction = (index: number, updatedAction: any) => {
+  const updateAction = (index: number, updatedAction: MacroAction) => {
     setFormData(prev => ({
       ...prev,
       actions: prev.actions.map((action, i) => (i === index ? updatedAction : action)),

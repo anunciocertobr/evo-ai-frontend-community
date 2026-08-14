@@ -1,3 +1,4 @@
+import type { AxiosResponse } from 'axios';
 import api from '@/services/core/api';
 import { extractData, extractResponse } from '@/utils/apiHelpers';
 import authApi from '@/services/core/apiAuth';
@@ -14,13 +15,23 @@ import type {
 
 export type MacroFormDataSource = 'inboxes' | 'agents' | 'teams' | 'labels';
 
+// The four endpoints answer with different shapes (id/value for the key, and
+// name/title/label for the text), so the picker reads whichever is present.
+export interface MacroFormOption {
+  id?: string;
+  value?: string | number;
+  name?: string;
+  title?: string;
+  label?: string;
+}
+
 export interface MacroFormData {
-  inboxes: any[];
-  agents: any[];
-  teams: any[];
-  labels: any[];
-  campaigns: any[];
-  customAttributes: any[];
+  inboxes: MacroFormOption[];
+  agents: MacroFormOption[];
+  teams: MacroFormOption[];
+  labels: MacroFormOption[];
+  campaigns: MacroFormOption[];
+  customAttributes: MacroFormOption[];
   failedSources: MacroFormDataSource[];
 }
 
@@ -83,9 +94,9 @@ class MacrosService {
     // one, so the failing source has to be reported instead of swallowed.
     const getResultData = (
       source: MacroFormDataSource,
-      result: PromiseSettledResult<any>,
+      result: PromiseSettledResult<AxiosResponse>,
       isAuthService = false,
-    ): any[] => {
+    ): MacroFormOption[] => {
       if (result.status === 'rejected') {
         console.error(`Erro ao carregar ${source} no formulário de macros:`, result.reason);
         failedSources.push(source);
@@ -95,10 +106,10 @@ class MacrosService {
       try {
         if (isAuthService) {
           // Auth services return {data, meta} structure
-          const response = extractResponse(result.value);
-          return (response.data as any[]) || [];
+          const response = extractResponse<MacroFormOption>(result.value);
+          return response.data || [];
         }
-        const data = extractData(result.value);
+        const data = extractData<MacroFormOption[]>(result.value);
         return Array.isArray(data) ? data : [];
       } catch (error) {
         console.error(`Erro ao interpretar ${source} no formulário de macros:`, error);
