@@ -47,12 +47,27 @@
       "create": "Crea",
       "update": "Aggiorna",
       "saving": "Salvataggio..."
+    },
+    "optionsError": {
+      "title": "Non è stato possibile caricare tutte le opzioni",
+      "description": "Errore nel caricamento: {{sources}}. Chiudi e riapri il modulo per riprovare.",
+      "sources": {
+        "inboxes": "caselle di posta",
+        "agents": "agenti",
+        "teams": "team",
+        "labels": "etichette"
+      }
     }
   },
   "actionRow": {
     "selectPlaceholder": "Seleziona un'opzione",
     "multiSelectPlaceholder": "Seleziona opzioni",
     "loadingOptions": "Caricamento opzioni...",
+    "loadFailed": "Non è stato possibile caricare le opzioni",
+    "emptyTeams": "Nessun team registrato",
+    "emptyAgents": "Nessun agente registrato",
+    "emptyLabels": "Nessuna etichetta registrata",
+    "emptyOptions": "Nessuna opzione disponibile",
     "textareaPlaceholder": "Inserisci il messaggio o la nota",
     "textPlaceholder": "Inserisci il valore",
     "hoursPlaceholder": "Ore per il posticipo",

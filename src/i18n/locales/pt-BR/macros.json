@@ -47,12 +47,27 @@
       "create": "Criar",
       "update": "Atualizar",
       "saving": "Salvando..."
+    },
+    "optionsError": {
+      "title": "Não foi possível carregar todas as opções",
+      "description": "Falha ao carregar: {{sources}}. Feche e reabra o formulário para tentar novamente.",
+      "sources": {
+        "inboxes": "caixas de entrada",
+        "agents": "agentes",
+        "teams": "equipes",
+        "labels": "etiquetas"
+      }
     }
   },
   "actionRow": {
     "selectPlaceholder": "Selecione uma opção",
     "multiSelectPlaceholder": "Selecione opções",
     "loadingOptions": "Carregando opções...",
+    "loadFailed": "Não foi possível carregar as opções",
+    "emptyTeams": "Nenhuma equipe cadastrada",
+    "emptyAgents": "Nenhum agente cadastrado",
+    "emptyLabels": "Nenhuma etiqueta cadastrada",
+    "emptyOptions": "Nenhuma opção disponível",
     "textareaPlaceholder": "Digite a mensagem ou nota",
     "textPlaceholder": "Digite o valor",
     "hoursPlaceholder": "Horas para adiamento",
