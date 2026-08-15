@@ -116,10 +116,10 @@ const MessageFile: React.FC<MessageFileProps> = ({ attachments }) => {
           {getFileIcon(attachment.extension!)}
 
           <div className="flex-1 min-w-0">
-            <div className="font-medium truncate text-sm">
+            <div className="font-medium truncate text-xs">
               {attachment.fallback_title || t('messages.messageFile.fileFallbackTitle')}
             </div>
-            <div className="text-xs text-primary-foreground/80 dark:text-primary-foreground/70">
+            <div className="text-xs text-muted-foreground/70">
               {formatFileSize(attachment.file_size)}
               {attachment.extension && ` • ${attachment.extension.toUpperCase()}`}
             </div>
@@ -129,7 +129,7 @@ const MessageFile: React.FC<MessageFileProps> = ({ attachments }) => {
             size="sm"
             variant="ghost"
             onClick={() => downloadFile(attachment)}
-            className="h-8 w-8 rounded-full hover:bg-primary-foreground/20 text-primary-foreground/80 dark:text-primary-foreground/70 flex-shrink-0 p-0"
+            className="h-8 w-8 rounded-full hover:bg-primary-foreground/20 text-primary-foreground/80 dark:text-primary-foreground/70 flex-shrink-0 p-0 cursor-pointer"
           >
             <Download className="h-3 w-3" />
           </Button>

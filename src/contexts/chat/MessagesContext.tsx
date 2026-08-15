@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { chatService } from '@/services/chat/chatService';
+import { useAuthStore } from '@/store/authStore';
 import { useUnansweredConversationsStore } from '@/store/unansweredConversationsStore';
 import { extractMessagesData } from '@/utils/chat/responseHelpers';
 import { Attachment, Message, MessageSender, MessageTypeValue } from '@/types/chat/api';
@@ -587,6 +588,8 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         isRecordedAudio,
       } = options;
 
+      const currentUser = useAuthStore.getState().currentUser;
+
       // 1. 🔧 REPLY TO: Preparar content_attributes com in_reply_to se houver reply
       const contentAttributes: Record<string, unknown> = {};
       if (state.replyToMessage?.id && !isPrivate) {
@@ -632,8 +635,8 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         created_at: Math.floor(Date.now() / 1000).toString(),
         conversation_id: conversationId,
         sender: {
-          id: '0',
-          name: 'Você',
+          id: currentUser?.id ?? '0',
+          name: currentUser?.display_name || currentUser?.name || t('messages.messageBubble.userFallback'),
           type: 'agent',
         } as MessageSender,
         content_attributes: contentAttributes,

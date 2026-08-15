@@ -331,7 +331,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         <div className="mb-1">
           {renderContextMenu(
             <div
-              className={`rounded-lg px-3 py-1.5 ${isDeleted ? 'cursor-default' : 'cursor-pointer'} ${isPrivate
+              className={`rounded-lg px-3 py-1.5 ${isPrivate
                 ? 'bg-orange-50 border border-orange-200 dark:bg-orange-950/20 dark:border-orange-800/50'
                 : 'bg-muted/50 hover:bg-muted/70 border border-border/50'
                 }`}
@@ -472,7 +472,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {renderContextMenu(
           <div
-            className={`rounded-lg px-3 py-2 ${isDeleted ? 'cursor-default' : 'cursor-pointer'} ${
+            className={`rounded-lg px-3 py-2 ${
               isOwn ? 'rounded-tr-[4px]' : isThreadReply ? 'rounded-tl-md' : ''
             } ${isPrivate
                 ? 'bg-orange-50 border-2 border-orange-200 border-l-4 border-l-orange-400 dark:bg-orange-950/20 dark:border-orange-800/50 dark:border-l-orange-600'
