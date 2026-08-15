@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { toast } from 'sonner';
 import AiCredentials from './AiCredentials';
 import { maskKey } from '@/constants/aiProviders';
 import type { ApiKey } from '@/types/agents';
@@ -18,7 +19,11 @@ vi.mock('@/contexts/PermissionsContext', () => ({
 }));
 
 vi.mock('@/hooks/useLanguage', () => ({
-  useLanguage: () => ({ t: (key: string) => key, currentLanguage: 'en' }),
+  useLanguage: () => ({
+    // Echo the interpolated code so the error-path test can see it reach the toast.
+    t: (key: string, opts?: { code?: string }) => (opts?.code ? `${key}:${opts.code}` : key),
+    currentLanguage: 'en',
+  }),
 }));
 
 const listApiKeys = vi.fn();
@@ -431,6 +436,37 @@ describe('AiCredentials — creating (AC2)', () => {
 
     // Provider is required, so an untouched select must block the save.
     await waitFor(() => expect(createApiKey).not.toHaveBeenCalled());
+  });
+});
+
+// The API answers a 500 with a machine-readable code (e.g. ERR_UNDEFINED_COLUMN when
+// the schema is behind the binary). The toast must carry that code instead of the
+// bare "failed to save", or the person on screen has nothing to report.
+describe('AiCredentials — save error carries the API code', () => {
+  it('shows the envelope code on the toast when the save fails', async () => {
+    const user = userEvent.setup();
+    updateApiKey.mockRejectedValue({
+      response: { status: 500, data: { success: false, error: { code: 'ERR_UNDEFINED_COLUMN', message: 'Undefined column' } } },
+    });
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    await user.click(screen.getAllByLabelText('actions.edit')[0]);
+    await user.click(await screen.findByText('actions.save'));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('messages.saveErrorWithCode:ERR_UNDEFINED_COLUMN'));
+  });
+
+  it('keeps the plain message when the failure has no envelope code', async () => {
+    const user = userEvent.setup();
+    updateApiKey.mockRejectedValue(new Error('network down'));
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    await user.click(screen.getAllByLabelText('actions.edit')[0]);
+    await user.click(await screen.findByText('actions.save'));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('messages.saveError'));
   });
 });
 

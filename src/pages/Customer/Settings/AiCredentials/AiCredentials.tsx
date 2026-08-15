@@ -29,6 +29,7 @@ import {
   resolveCredentialState,
 } from '@/constants/aiProviders';
 import { createApiKey, deleteApiKey, listApiKeys, listAgents, updateApiKey } from '@/services/agents';
+import { apiErrorCode } from '@/utils/apiHelpers';
 import type { ApiKey, ApiKeyCreate, ApiKeyScope, ApiKeyUpdate } from '@/types/agents';
 
 interface CredentialDraft {
@@ -220,7 +221,8 @@ export default function AiCredentials() {
       loadCredentials();
     } catch (error) {
       console.error('Error saving AI credential:', error);
-      toast.error(t('messages.saveError'));
+      const code = apiErrorCode(error);
+      toast.error(code ? t('messages.saveErrorWithCode', { code }) : t('messages.saveError'));
     } finally {
       setSaving(false);
     }

@@ -137,6 +137,21 @@ export function apiErrorMessage(error: unknown): string | undefined {
 }
 
 /**
+ * The backend's error code from the envelope (`{ error: { code } }`), or undefined.
+ * Unlike apiErrorMessage this does not skip 5xx: a code such as ERR_UNDEFINED_COLUMN
+ * is exactly what a 500 needs to surface so the person on screen can report it.
+ * @param error - Value caught from a rejected request
+ * @returns The machine-readable code, or undefined
+ */
+export function apiErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+  if (!data || typeof data !== 'object') return undefined;
+  const code = (data as { error?: { code?: unknown } | null }).error?.code;
+  return typeof code === 'string' && code.trim() !== '' ? code : undefined;
+}
+
+/**
  * Extract success message from response
  * @param response - Axios response object
  * @returns Success message or undefined
