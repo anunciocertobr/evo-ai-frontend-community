@@ -134,7 +134,7 @@ describe('write-control render gates', () => {
     expect(document.querySelector('[data-slot="dropdown-menu-trigger"]')).not.toBeNull();
   });
 
-  it('MacrosTable keeps the read action but hides execute/edit/delete without permission', async () => {
+  it('MacrosTable keeps the read action but hides edit/delete without permission', async () => {
     render(
       <MacrosTable
         macros={[macro]}
@@ -143,7 +143,6 @@ describe('write-control render gates', () => {
         onMacroClick={noop}
         onEditMacro={noop}
         onDeleteMacro={noop}
-        onExecuteMacro={noop}
         onCreateMacro={noop}
         canEditMacro={() => allowed}
         canDeleteMacro={() => allowed}
@@ -155,7 +154,6 @@ describe('write-control render gates', () => {
     await userEvent.click(trigger as HTMLElement);
 
     expect(screen.getByText('table.actions.view')).toBeTruthy();
-    expect(screen.queryByText('table.actions.execute')).toBeNull();
     expect(screen.queryByText('table.actions.edit')).toBeNull();
     expect(screen.queryByText('table.actions.delete')).toBeNull();
   });

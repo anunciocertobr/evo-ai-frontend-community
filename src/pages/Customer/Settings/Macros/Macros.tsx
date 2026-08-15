@@ -202,16 +202,6 @@ export default function Macros() {
     setDeleteDialogOpen(true);
   };
 
-  const handleExecuteMacro = async (macro: Macro) => {
-    if (!can('macros', 'execute')) {
-      toast.error(t('messages.permissionDenied.execute'));
-      return;
-    }
-    // This would typically open a dialog to select conversations
-    // For now, we'll just show a success message
-    toast.success(t('messages.executeSuccess', { name: macro.name }));
-  };
-
   // Bulk actions
   const handleBulkDelete = () => {
     if (!can('macros', 'delete')) {
@@ -332,7 +322,6 @@ export default function Macros() {
             onMacroClick={handleMacroClick}
             onEditMacro={handleEditMacro}
             onDeleteMacro={handleDeleteMacro}
-            onExecuteMacro={handleExecuteMacro}
             onCreateMacro={handleCreateMacro}
             sortBy={state.sortBy}
             sortOrder={state.sortOrder}
