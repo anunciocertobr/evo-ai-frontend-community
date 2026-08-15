@@ -29,6 +29,7 @@ import {
   resolveCredentialState,
 } from '@/constants/aiProviders';
 import { createApiKey, deleteApiKey, listApiKeys, listAgents, updateApiKey } from '@/services/agents';
+import { apiErrorCode } from '@/utils/apiHelpers';
 import type { ApiKey, ApiKeyCreate, ApiKeyScope, ApiKeyUpdate } from '@/types/agents';
 
 interface CredentialDraft {
@@ -119,7 +120,8 @@ export default function AiCredentials() {
       setCredentials(await listApiKeys());
     } catch (error) {
       console.error('Error loading AI credentials:', error);
-      toast.error(t('messages.loadError'));
+      const code = apiErrorCode(error);
+      toast.error(code ? t('messages.loadErrorWithCode', { code }) : t('messages.loadError'));
     } finally {
       setLoading(false);
     }
@@ -220,7 +222,8 @@ export default function AiCredentials() {
       loadCredentials();
     } catch (error) {
       console.error('Error saving AI credential:', error);
-      toast.error(t('messages.saveError'));
+      const code = apiErrorCode(error);
+      toast.error(code ? t('messages.saveErrorWithCode', { code }) : t('messages.saveError'));
     } finally {
       setSaving(false);
     }
@@ -238,7 +241,8 @@ export default function AiCredentials() {
       loadCredentials();
     } catch (error) {
       console.error('Error toggling AI credential:', error);
-      toast.error(t('messages.saveError'));
+      const code = apiErrorCode(error);
+      toast.error(code ? t('messages.saveErrorWithCode', { code }) : t('messages.saveError'));
     } finally {
       setSaving(false);
     }
@@ -296,7 +300,8 @@ export default function AiCredentials() {
       loadCredentials();
     } catch (error) {
       console.error('Error deleting AI credential:', error);
-      toast.error(t('messages.deleteError'));
+      const code = apiErrorCode(error);
+      toast.error(code ? t('messages.deleteErrorWithCode', { code }) : t('messages.deleteError'));
     } finally {
       setSaving(false);
     }
