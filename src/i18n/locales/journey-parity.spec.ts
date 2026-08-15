@@ -257,4 +257,31 @@ describe('journey i18n parity (EVO-1260)', () => {
     const leaks = findLeaks(en, ptBR, JOURNEY_ALLOWED_IDENTICAL);
     expect(leaks).toEqual([]);
   });
+
+  // CRM-147: MuteConversationPanel showed literal "Save"/"Cancel" in pt/es/fr/it
+  // while the sibling ResolveConversationPanel (a different key with the same
+  // meaning) showed the translated label — the anti-leak check above only ever
+  // ran for pt-BR, so pt/es/fr/it never had ANY leak guard. The audit for this
+  // card found the same leak on every Save/Cancel button-label pair in the file
+  // (7 pairs, not just panels.actions) — pt-BR was fine everywhere, pt/es/fr/it
+  // leaked everywhere. Rather than pin an explicit key list (which would stop
+  // growing the day an N+1th pair is added), discover every EN leaf whose value
+  // is exactly "Save" or "Cancel" and assert none come back identical in
+  // pt/es/fr/it — narrower than a full-file leak check (pt/es/fr/it carry ~700
+  // lines of pre-existing, out-of-scope drift elsewhere in this file), but it
+  // covers any future orphaned save/cancel key for free.
+  const saveCancelKeys = flatten(en).filter((k) => {
+    const v = getAtPath(en, k);
+    return v === 'Save' || v === 'Cancel';
+  });
+
+  it.each([
+    ['pt', pt],
+    ['es', es],
+    ['fr', fr],
+    ['it', itLocale],
+  ])('%s translates every Save/Cancel button-label key', (_name, locale) => {
+    const leaks = saveCancelKeys.filter((k) => getAtPath(locale, k) === getAtPath(en, k));
+    expect(leaks).toEqual([]);
+  });
 });
