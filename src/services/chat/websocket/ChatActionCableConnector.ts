@@ -138,10 +138,9 @@ export interface MessageUpdatedEvent {
 }
 
 /**
- * Etiqueta completa no payload do evento (CRM-155). `labels` continua lista de
- * títulos porque o mesmo corpo vai para os webhooks de integrações de cliente;
- * `labels_data` é o campo aditivo com id e cor. Opcional: backend anterior ao
- * CRM-155 não envia.
+ * Full label on the event payload. `labels` stays a list of titles because the
+ * same body feeds the customer webhooks; `labels_data` is the additive field
+ * carrying id and colour. Optional: a backend older than CRM-155 omits it.
  */
 export interface ConversationEventLabel {
   id: string;

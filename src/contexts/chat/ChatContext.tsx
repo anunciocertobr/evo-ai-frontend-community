@@ -480,12 +480,9 @@ function useChatIntegration() {
           }
         }
 
-        // Preservar labels existentes quando WS envia dados incompletos (sem título ou cor).
-        // CRM-155: com `labels_data` no payload a cor sempre chega (coluna NOT NULL), então
-        // esta guarda só atua contra backend anterior ao CRM-155 — antes ela reprovava TODO
-        // label do WS. Ela detecta label sem cor, não lista truncada: labels_data já descarta
-        // tag órfã de propósito, igual à REST. Lista vazia continua passando pela guarda, senão
-        // remover etiqueta não refletiria na hora.
+        // Keep the labels on screen when the WS payload is incomplete (no title or colour).
+        // With labels_data the colour always arrives, so this now only guards against a
+        // backend older than CRM-155. An empty list still passes: a removal has to reflect.
         const existingLabels = existingConversation?.labels || [];
         const incomingLabels = conversation.labels || [];
         const incomingLabelsComplete =

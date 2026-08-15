@@ -2,15 +2,14 @@ import type { ConversationEventLabel } from '@/services/chat/websocket/ChatActio
 import type { Label } from '@/types/settings/labels';
 
 /**
- * Monta as etiquetas de um evento de conversa (CRM-155).
+ * Builds the labels of a conversation event.
  *
- * `labels_data` traz id/título/cor e é a fonte preferida. `labels` continua
- * sendo lista de títulos (contrato dos webhooks externos) e sobra como fallback
- * para backend anterior ao CRM-155 — sem cor, o que faz o merge do ChatContext
- * preservar as etiquetas que já estavam na tela em vez de apagá-las.
+ * `labels_data` is the preferred source. `labels` stays a list of titles (the
+ * external webhook contract) and is the fallback for a backend older than
+ * CRM-155 — colourless, so the ChatContext merge keeps what is already on
+ * screen instead of wiping it.
  *
- * `createdAt`/`updatedAt` aceitam número porque o backend manda os timestamps
- * do evento como epoch (`push_timestamps`), não como string ISO.
+ * Timestamps arrive as epoch numbers (`push_timestamps`), not ISO strings.
  */
 export function mapEventLabels(
   labelsData: ConversationEventLabel[] | undefined,
