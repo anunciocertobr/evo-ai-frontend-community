@@ -258,26 +258,14 @@ describe('journey i18n parity (EVO-1260)', () => {
     expect(leaks).toEqual([]);
   });
 
-  // CRM-147: MuteConversationPanel showed literal "Save"/"Cancel" in pt/es/fr/it
-  // while the sibling ResolveConversationPanel (a different key with the same
-  // meaning) showed the translated label — the anti-leak check above only ever
-  // ran for pt-BR, so pt/es/fr/it never had ANY leak guard. The audit for this
-  // card found the same leak on every Save/Cancel button-label pair in the file
-  // (7 pairs, not just panels.actions) — pt-BR was fine everywhere, pt/es/fr/it
-  // leaked everywhere. Rather than pin an explicit key list (which would stop
-  // growing the day an N+1th pair is added), discover every EN leaf whose value
-  // is exactly "Save" or "Cancel" and assert none come back identical in
-  // pt/es/fr/it — narrower than a full-file leak check (pt/es/fr/it carry ~700
-  // lines of pre-existing, out-of-scope drift elsewhere in this file), but it
-  // covers any future orphaned save/cancel key for free.
+  // Every EN leaf labelled exactly "Save" or "Cancel". Discovered, not listed,
+  // so a newly orphaned pair is covered without editing this file.
   const saveCancelKeys = flatten(en).filter((k) => {
     const v = getAtPath(en, k);
     return v === 'Save' || v === 'Cancel';
   });
 
-  // The set above is derived from EN copy. Reword "Save"/"Cancel" in EN and it
-  // silently shrinks — possibly to empty — leaving the cases below passing
-  // vacuously. Assert it found something before trusting a green run.
+  // Reworded EN copy empties the set and passes the cases below vacuously.
   it('discovers the Save/Cancel keys it guards', () => {
     expect(saveCancelKeys.length).toBeGreaterThan(0);
   });
@@ -288,10 +276,8 @@ describe('journey i18n parity (EVO-1260)', () => {
     ['fr', fr],
     ['it', itLocale],
   ])('%s translates every Save/Cancel key', (_name, locale) => {
-    // An absent key leaks too: fallbackLng is 'en' (src/i18n/config.ts), so a
-    // key missing from the locale renders the English literal on screen — the
-    // same symptom as a key present with the English value. Missing is also the
-    // likelier regression: new keys land in en + pt-BR and skip these four.
+    // An absent key renders the EN literal via fallbackLng, so it leaks the
+    // same as a key holding the EN value.
     const leaks = saveCancelKeys.filter((k) => {
       const v = getAtPath(locale, k);
       return v === undefined || v === getAtPath(en, k);
