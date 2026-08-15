@@ -468,6 +468,42 @@ describe('AiCredentials — save error carries the API code', () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('messages.saveError'));
   });
+
+  // AC4 is written for the whole screen, not just the save: load, toggle and delete
+  // must surface the same code, or the person on screen is blind on three of four paths.
+  const ENVELOPE_500 = {
+    response: { status: 500, data: { success: false, error: { code: 'ERR_UNDEFINED_COLUMN', message: 'Undefined column' } } },
+  };
+
+  it('shows the envelope code when the list fails to load', async () => {
+    listApiKeys.mockRejectedValue(ENVELOPE_500);
+    render(<AiCredentials />);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('messages.loadErrorWithCode:ERR_UNDEFINED_COLUMN'));
+  });
+
+  it('shows the envelope code when the activate/deactivate toggle fails', async () => {
+    const user = userEvent.setup();
+    updateApiKey.mockRejectedValue(ENVELOPE_500);
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    await user.click(screen.getAllByText('actions.deactivate')[0]);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('messages.saveErrorWithCode:ERR_UNDEFINED_COLUMN'));
+  });
+
+  it('shows the envelope code when the delete fails', async () => {
+    const user = userEvent.setup();
+    deleteApiKey.mockRejectedValue(ENVELOPE_500);
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    await user.click(screen.getAllByLabelText('actions.delete')[0]);
+    await user.click(await screen.findByText('deleteDialog.confirm'));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('messages.deleteErrorWithCode:ERR_UNDEFINED_COLUMN'));
+  });
 });
 
 // EVO-2250 review, ALTO 7: the screen has always sent base_url, but the field
