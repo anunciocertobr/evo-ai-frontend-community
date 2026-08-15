@@ -80,7 +80,8 @@
     "messageList": {
       "loadingConversation": "Loading conversation...",
       "loadingPrevious": "Loading previous messages...",
-      "conversationStart": "Start of conversation"
+      "conversationStart": "Start of conversation",
+      "newMessage": "New message"
     },
     "messageLocation": {
       "sharedLocation": "Shared location",

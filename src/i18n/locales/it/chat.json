@@ -79,7 +79,8 @@
     "messageList": {
       "loadingConversation": "Caricamento conversazione...",
       "loadingPrevious": "Caricamento messaggi precedenti...",
-      "conversationStart": "Inizio della conversazione"
+      "conversationStart": "Inizio della conversazione",
+      "newMessage": "Nuovo messaggio"
     },
     "messageLocation": {
       "sharedLocation": "Posizione condivisa",

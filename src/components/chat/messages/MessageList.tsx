@@ -126,6 +126,8 @@ const MessageList: React.FC<MessageListProps> = ({
   const { t } = useLanguage('chat');
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const isNearBottomRef = useRef(true);
+  const [hasNewMessage, setHasNewMessage] = useState(false);
   const conversationIdRef = useRef<string | null>(null);
   const hasInitialScrolled = useRef(false);
   const lastLoadTime = useRef(0); // ✅ Throttle do carregamento
@@ -178,7 +180,9 @@ const MessageList: React.FC<MessageListProps> = ({
       // 🧹 Reset scroll height ref
       scrollHeightRef.current = 0;
 
+      isNearBottomRef.current = true;
       setIsNearBottom(true);
+      setHasNewMessage(false);
     }
   }, [currentConversationId, isInitialLoading, messages.length]); // ✅ Incluir dependência necessária para lint
 
@@ -247,26 +251,33 @@ const MessageList: React.FC<MessageListProps> = ({
     }
   }, [isLoadingMore]);
 
-  // 🚀 STEP 4: Auto-scroll quando uma nova mensagem OUTGOING é enviada
+  // 🚀 STEP 4: Auto-scroll quando chega mensagem nova — sempre que o próprio
+  // usuário envia (OUTGOING), ou quando chega qualquer outra mensagem E o
+  // scroll já está no fim. Se o atendente estiver lendo o histórico (scroll
+  // pra cima), NÃO rola — só marca indicador de mensagem nova.
   const lastMessageRef = useRef<Message | null>(null);
   useEffect(() => {
     if (messages.length === 0 || !hasInitialScrolled.current) return;
 
     const lastMessage = messages[messages.length - 1];
+    const isNewMessage = lastMessage && lastMessageRef.current?.id !== lastMessage.id;
 
-    // Auto-scroll quando usuário envia mensagem
-    if (
-      lastMessage &&
-      lastMessageRef.current?.id !== lastMessage.id &&
-      lastMessage.message_type === MESSAGE_TYPE.OUTGOING
-    ) {
-      const container = scrollRef.current;
-      if (container) {
-        requestAnimationFrame(() => {
-          const targetScrollTop = container.scrollHeight - container.clientHeight;
-          container.scrollTop = Math.max(0, targetScrollTop);
-          setIsNearBottom(true);
-        });
+    if (isNewMessage) {
+      const isOwnMessage = lastMessage.message_type === MESSAGE_TYPE.OUTGOING;
+
+      if (isOwnMessage || isNearBottomRef.current) {
+        const container = scrollRef.current;
+        if (container) {
+          requestAnimationFrame(() => {
+            const targetScrollTop = container.scrollHeight - container.clientHeight;
+            container.scrollTop = Math.max(0, targetScrollTop);
+            isNearBottomRef.current = true;
+            setIsNearBottom(true);
+          });
+        }
+        setHasNewMessage(false);
+      } else {
+        setHasNewMessage(true);
       }
     }
 
@@ -280,7 +291,11 @@ const MessageList: React.FC<MessageListProps> = ({
       const nearBottom = scrollHeight - scrollTop - clientHeight < 100;
       const nearTop = scrollTop < 100; // Próximo ao topo
 
+      isNearBottomRef.current = nearBottom;
       setIsNearBottom(nearBottom);
+      if (nearBottom) {
+        setHasNewMessage(false);
+      }
 
       // 🚀 SCROLL INFINITO: Carregar mais quando chega perto do topo (como WhatsApp)
       if (nearTop && hasMoreMessages && !isLoadingMore && hasInitialScrolled.current) {
@@ -303,7 +318,9 @@ const MessageList: React.FC<MessageListProps> = ({
         top: container.scrollHeight,
         behavior: 'smooth',
       });
+      isNearBottomRef.current = true;
       setIsNearBottom(true);
+      setHasNewMessage(false);
     }
   }, []);
 
@@ -609,16 +626,28 @@ const MessageList: React.FC<MessageListProps> = ({
         </div>
       </div>
 
-      {/* Botão voltar ao final */}
+      {/* Botão voltar ao final / indicador de mensagem nova */}
       {!isNearBottom && (
-        <div className="absolute bottom-4 right-4 z-10">
+        <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
+          {hasNewMessage && (
+            <Badge
+              variant="default"
+              className="cursor-pointer shadow-lg"
+              onClick={scrollToBottom}
+            >
+              {t('messages.messageList.newMessage')}
+            </Badge>
+          )}
           <Button
             size="icon"
             variant="secondary"
-            className="rounded-full shadow-lg border bg-background/95 backdrop-blur-sm hover:bg-accent"
+            className="relative rounded-full shadow-lg border bg-background/95 backdrop-blur-sm hover:bg-accent"
             onClick={scrollToBottom}
           >
             <ChevronDown className="h-4 w-4" />
+            {hasNewMessage && (
+              <span className="absolute top-0 right-0 h-2.5 w-2.5 rounded-full bg-primary" />
+            )}
           </Button>
         </div>
       )}
