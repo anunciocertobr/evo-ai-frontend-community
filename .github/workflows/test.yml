@@ -130,17 +130,24 @@ jobs:
       # rename. Only .ts/.tsx: they are what eslint.config.js covers.
       - name: ESLint on changed files
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           # A git failure inside the process substitution below is swallowed by
           # mapfile and would pass the gate with an empty file list. Make sure
-          # the base resolves before trusting the diff.
-          if ! git rev-parse -q --verify "$BASE_SHA^{commit}" >/dev/null; then
-            echo "Base sha $BASE_SHA not found in the clone — refusing to skip the lint gate." >&2
+          # the base resolves before trusting the diff. Uses base.ref (not
+          # base.sha): GitHub's pull_request payload can hand back a stale base
+          # sha — seen up to 150 commits behind the base branch's real tip —
+          # which turns the three-dot diff into "everything since that old
+          # point" and floods the gate with pre-existing errors the PR never
+          # touched. Fetching the ref explicitly into a known remote-tracking
+          # name always resolves to the branch's current tip.
+          git fetch --no-tags origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+          if ! git rev-parse -q --verify "origin/$BASE_REF^{commit}" >/dev/null; then
+            echo "Base ref origin/$BASE_REF not found in the clone — refusing to skip the lint gate." >&2
             exit 1
           fi
           mapfile -d '' -t files < <(
-            git diff --name-only -z --diff-filter=ACMR "$BASE_SHA"...HEAD -- '*.ts' '*.tsx'
+            git diff --name-only -z --diff-filter=ACMR "origin/$BASE_REF"...HEAD -- '*.ts' '*.tsx'
           )
           if [ ${#files[@]} -eq 0 ]; then
             echo "No .ts/.tsx file changed — nothing to lint."
