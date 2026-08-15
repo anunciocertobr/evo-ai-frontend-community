@@ -751,7 +751,8 @@
       "documents": "Documentos",
       "media": "Fotos y Vídeos",
       "conversationNote": "Notas de la Conversación",
-      "schedule": "Programar"
+      "schedule": "Programar Mensaje",
+      "scheduleDisabledHint": "Escribe un mensaje para poder programarlo"
     },
     "macros": {
       "tooltip": "Macros",
@@ -760,7 +761,7 @@
     "schedule": {
       "title": "Programar mensaje",
       "messagePreview": "Mensaje",
-      "emptyMessage": "Escribe un mensaje en el editor antes de programar.",
+      "emptyMessage": "Ningún mensaje escrito para programar.",
       "dateTime": "Fecha y hora",
       "note": "Observación",
       "notePlaceholder": "Observación interna (opcional)",

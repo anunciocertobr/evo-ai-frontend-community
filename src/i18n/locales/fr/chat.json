@@ -751,7 +751,8 @@
       "documents": "Documents",
       "media": "Photos et Vidéos",
       "conversationNote": "Notes de la Conversation",
-      "schedule": "Planifier"
+      "schedule": "Planifier un message",
+      "scheduleDisabledHint": "Écrivez un message pour pouvoir le planifier"
     },
     "macros": {
       "tooltip": "Macros",
@@ -760,7 +761,7 @@
     "schedule": {
       "title": "Planifier le message",
       "messagePreview": "Message",
-      "emptyMessage": "Saisissez un message dans le composer avant de planifier.",
+      "emptyMessage": "Aucun message saisi à planifier.",
       "dateTime": "Date et heure",
       "note": "Observation",
       "notePlaceholder": "Note interne (facultative)",

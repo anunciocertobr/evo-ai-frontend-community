@@ -776,7 +776,8 @@
       "documents": "Documents",
       "media": "Photos and Videos",
       "conversationNote": "Conversation Notes",
-      "schedule": "Schedule"
+      "schedule": "Schedule Message",
+      "scheduleDisabledHint": "Type a message to schedule it"
     },
     "macros": {
       "tooltip": "Macros",
@@ -785,7 +786,7 @@
     "schedule": {
       "title": "Schedule message",
       "messagePreview": "Message",
-      "emptyMessage": "Type a message in the composer before scheduling.",
+      "emptyMessage": "No message typed to schedule.",
       "dateTime": "Date and time",
       "note": "Note",
       "notePlaceholder": "Internal note (optional)",

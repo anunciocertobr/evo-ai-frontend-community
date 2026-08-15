@@ -779,7 +779,8 @@
       "documents": "Documentos",
       "media": "Fotos e Vídeos",
       "conversationNote": "Notas da Conversa",
-      "schedule": "Agendar"
+      "schedule": "Agendar Mensagem",
+      "scheduleDisabledHint": "Digite uma mensagem para poder agendar"
     },
     "macros": {
       "tooltip": "Macros",
@@ -788,7 +789,7 @@
     "schedule": {
       "title": "Agendar mensagem",
       "messagePreview": "Mensagem",
-      "emptyMessage": "Digite uma mensagem no composer antes de agendar.",
+      "emptyMessage": "Nenhuma mensagem digitada para agendar.",
       "dateTime": "Data e hora",
       "note": "Observação",
       "notePlaceholder": "Observação interna (opcional)",
