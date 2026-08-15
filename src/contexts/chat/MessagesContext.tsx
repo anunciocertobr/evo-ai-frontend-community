@@ -636,7 +636,11 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         conversation_id: conversationId,
         sender: {
           id: currentUser?.id ?? '0',
-          name: currentUser?.display_name || currentUser?.name || t('messages.messageBubble.userFallback'),
+          name:
+            currentUser?.available_name ||
+            currentUser?.display_name ||
+            currentUser?.name ||
+            t('messages.messageBubble.userFallback'),
           type: 'agent',
         } as MessageSender,
         content_attributes: contentAttributes,
