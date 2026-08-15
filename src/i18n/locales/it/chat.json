@@ -79,7 +79,8 @@
     "messageList": {
       "loadingConversation": "Caricamento conversazione...",
       "loadingPrevious": "Caricamento messaggi precedenti...",
-      "conversationStart": "Inizio della conversazione"
+      "conversationStart": "Inizio della conversazione",
+      "newMessage": "Nuovo messaggio"
     },
     "messageLocation": {
       "sharedLocation": "Posizione condivisa",
@@ -751,7 +752,8 @@
       "documents": "Documenti",
       "media": "Foto e Video",
       "conversationNote": "Note della Conversazione",
-      "schedule": "Pianifica"
+      "schedule": "Pianifica Messaggio",
+      "scheduleDisabledHint": "Scrivi un messaggio per poterlo pianificare"
     },
     "macros": {
       "tooltip": "Macro",
@@ -760,7 +762,7 @@
     "schedule": {
       "title": "Pianifica messaggio",
       "messagePreview": "Messaggio",
-      "emptyMessage": "Digita un messaggio nel composer prima di pianificare.",
+      "emptyMessage": "Nessun messaggio digitato da pianificare.",
       "dateTime": "Data e ora",
       "note": "Osservazione",
       "notePlaceholder": "Nota interna (opzionale)",

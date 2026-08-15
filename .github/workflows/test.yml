@@ -53,6 +53,10 @@ jobs:
       #   - Journey subcomponent labels: every <Label> that names a single
       #     control resolves through getByLabelText, and the ones that cover
       #     a set (webhook headers) expose a named group.
+      #   - MessageList (CRM-165): a message arriving with the view at the
+      #     bottom keeps auto-scrolling (even while an own send is still in
+      #     flight), reading history is never hijacked — bot replies included —
+      #     and the new-message indicator only fires for real messages.
       #   - eventLabels (CRM-155): a conversation event prefers labels_data over
       #     the title-only labels field, and an empty labels_data still yields an
       #     empty list. Losing either brings back the label that only shows up
@@ -97,6 +101,7 @@ jobs:
             src/components/journey/nodes/actions/send-webhook/components/WebhookHeadersConfig.spec.tsx \
             src/components/journey/nodes/actions/send-message/components/SendMessageAttachments.spec.tsx \
             src/components/journey/environment-manager/VariableMapping.spec.tsx \
+            src/components/chat/messages/MessageList.spec.tsx \
             src/contexts/chat/eventLabels.spec.ts
 
   # Lint gate scoped to the files the PR touched.
