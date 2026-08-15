@@ -128,23 +128,38 @@ jobs:
 
       # ACMR skips deletions (nothing left to lint) and takes the new path on a
       # rename. Only .ts/.tsx: they are what eslint.config.js covers.
+      #
+      # Uses base.ref (not base.sha) purely as defensive hardening against a
+      # PR pointed at the wrong base branch (e.g. opened against `main` by
+      # accident — the repo's default — instead of `develop`, which is the
+      # actual root cause of this gate flooding PRs with unrelated errors).
+      # base.ref re-resolves the base's live tip on every run, whereas
+      # base.sha is a frozen snapshot from the PR-open event — but this is
+      # NOT a fix for that root cause by itself: pointed at the wrong branch,
+      # base.ref just diffs against the wrong branch's live tip instead of a
+      # frozen wrong commit. Same flood, moving target.
       - name: ESLint on changed files
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           # A git failure inside the process substitution below is swallowed by
           # mapfile and would pass the gate with an empty file list. Make sure
-          # the base resolves before trusting the diff. Uses base.ref (not
-          # base.sha): GitHub's pull_request payload can hand back a stale base
-          # sha — seen up to 150 commits behind the base branch's real tip —
-          # which turns the three-dot diff into "everything since that old
-          # point" and floods the gate with pre-existing errors the PR never
-          # touched. Fetching the ref explicitly into a known remote-tracking
-          # name always resolves to the branch's current tip.
-          git fetch --no-tags origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+          # the base resolves before trusting the diff — don't let `set -e`
+          # swallow a fetch failure before this check can report it.
+          git fetch --no-tags origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF" || true
           if ! git rev-parse -q --verify "origin/$BASE_REF^{commit}" >/dev/null; then
             echo "Base ref origin/$BASE_REF not found in the clone — refusing to skip the lint gate." >&2
             exit 1
+          fi
+          # merge-base == HEAD means this ref is already fully contained in
+          # the base (e.g. a stale re-run after the PR merged) — the three-dot
+          # diff below is then always empty by construction, not because
+          # nothing changed. Label that explicitly instead of letting it read
+          # as an ordinary clean "nothing to lint".
+          merge_base=$(git merge-base "origin/$BASE_REF" HEAD)
+          if [ "$merge_base" = "$(git rev-parse HEAD)" ]; then
+            echo "HEAD is already an ancestor of origin/$BASE_REF (merge-base == HEAD) — likely a stale re-run after this ref merged. Skipping: nothing left to diff, not evidence the code is clean."
+            exit 0
           fi
           mapfile -d '' -t files < <(
             git diff --name-only -z --diff-filter=ACMR "origin/$BASE_REF"...HEAD -- '*.ts' '*.tsx'
