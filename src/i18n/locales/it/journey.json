@@ -2009,5 +2009,12 @@
       "captureWebhookData": "Cattura Dati del Webhook",
       "urlCopied": "URL del Webhook copiato negli appunti"
     }
+  },
+  "sessions": {
+    "viewer": {
+      "actions": {
+        "cancel": "Annulla"
+      }
+    }
   }
 }

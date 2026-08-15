@@ -275,13 +275,27 @@ describe('journey i18n parity (EVO-1260)', () => {
     return v === 'Save' || v === 'Cancel';
   });
 
+  // The set above is derived from EN copy. Reword "Save"/"Cancel" in EN and it
+  // silently shrinks — possibly to empty — leaving the cases below passing
+  // vacuously. Assert it found something before trusting a green run.
+  it('discovers the Save/Cancel keys it guards', () => {
+    expect(saveCancelKeys.length).toBeGreaterThan(0);
+  });
+
   it.each([
     ['pt', pt],
     ['es', es],
     ['fr', fr],
     ['it', itLocale],
-  ])('%s translates every Save/Cancel button-label key', (_name, locale) => {
-    const leaks = saveCancelKeys.filter((k) => getAtPath(locale, k) === getAtPath(en, k));
+  ])('%s translates every Save/Cancel key', (_name, locale) => {
+    // An absent key leaks too: fallbackLng is 'en' (src/i18n/config.ts), so a
+    // key missing from the locale renders the English literal on screen — the
+    // same symptom as a key present with the English value. Missing is also the
+    // likelier regression: new keys land in en + pt-BR and skip these four.
+    const leaks = saveCancelKeys.filter((k) => {
+      const v = getAtPath(locale, k);
+      return v === undefined || v === getAtPath(en, k);
+    });
     expect(leaks).toEqual([]);
   });
 });
