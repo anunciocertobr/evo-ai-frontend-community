@@ -70,7 +70,13 @@
     "uploadHint": "Trascina le immagini qui o usa il pulsante in basso.",
     "selectFiles": "Seleziona file",
     "existing": "Immagini esistenti",
-    "pending": "In attesa di caricamento"
+    "pending": "In attesa di caricamento",
+    "limits": "Fino a {{max}} immagini, {{size}} MB ciascuna.",
+    "rejected": {
+      "invalidType": "\"{{name}}\": formato non supportato.",
+      "tooLarge": "\"{{name}}\": supera {{size}} MB.",
+      "tooMany": "\"{{name}}\": limite di {{max}} immagini per prodotto raggiunto."
+    }
   },
   "variants": {
     "empty": "Nessuna variante. Clicca su \"Aggiungi variante\".",
