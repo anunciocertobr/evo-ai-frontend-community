@@ -63,6 +63,38 @@ See [README.md](./README.md) for project-specific setup instructions.
 - Document public APIs and non-obvious behavior
 - Keep commits atomic and focused
 
+### The lint baseline
+
+`eslint-suppressions.json` records the lint debt this repository already
+carried when the `ESLint (diff)` gate was introduced — per file, per rule, as a
+count. ESLint applies it automatically; you do not pass a flag to opt in.
+
+It exists so the gate fails you for violations **you** wrote, not for whatever
+was already in a file you happened to touch. Practically:
+
+- **Touching a file with old errors is fine.** Nothing to do.
+- **Adding a violation fails the gate**, as it always has. When the rule already
+  has a baseline entry for that file, ESLint reports *every* occurrence in the
+  file, not only the new one — yours is the one in your diff.
+- **Fixing an old violation** leaves the baseline overstated, and ESLint exits 2
+  ("There are suppressions left that do not occur anymore"). Run
+  `npx eslint --prune-suppressions src` and commit the result. CI will not block
+  you on this — it prints a reminder — but the baseline only shrinks if someone
+  commits the prune, and shrinking it is the point.
+
+Two things that surprise people:
+
+- **Renaming a file loses its entry.** The baseline is keyed by path, so a
+  renamed file arrives with its whole backlog looking brand new. Re-key it with
+  `npx eslint --suppress-all <new path>`, which touches only that file.
+- **Pruning the whole tree can sweep up more than your PR.** Debt paid in
+  earlier PRs where nobody pruned shows up in your diff. That is expected — it
+  is catch-up, not a mistake.
+
+After bumping ESLint or its plugins, regenerate the baseline
+(`npx eslint --suppress-all src`): new rules and fixed false positives move the
+counts in both directions.
+
 ## Branch Strategy
 
 - `main` — stable production-ready code
