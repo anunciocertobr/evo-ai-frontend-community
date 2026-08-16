@@ -86,14 +86,22 @@ was already in a file you happened to touch. Practically:
 so that one person's unpruned fix does not break everyone else's local lint;
 `npm run lint:fix` prunes as it goes, so the shrink lands in your diff.
 
-Two things that surprise people:
+Three things that surprise people:
 
 - **Renaming a file loses its entry.** The baseline is keyed by path, so a
-  renamed file arrives with its whole backlog looking brand new. Re-key it with
-  `npx eslint --suppress-all <new path>`, which touches only that file.
+  renamed file arrives with its whole backlog looking brand new, and the gate
+  fails you for all of it. Re-key it with `npx eslint --suppress-all <new
+  path>`, which touches only that file. The re-keyed entry makes the baseline
+  *grow* in your diff — that is the rename being recorded at its new path, not
+  debt being added, and it is the expected shape of a rename PR.
 - **Pruning the whole tree can sweep up more than your PR.** Debt paid in
   earlier PRs where nobody pruned shows up in your diff. That is expected — it
   is catch-up, not a mistake.
+- **A deleted file's entry outlives the PR that deleted it.** The gate lints
+  added, changed and renamed files, never deletions, so a deletion-only PR
+  prunes nothing. ESLint drops entries for files that no longer exist on the
+  next prune of any kind, so the *following* PR is the one whose CI reports a
+  shrink it did not earn. The notice is misattributed; the baseline is right.
 
 After bumping ESLint or its plugins, regenerate the baseline
 (`npx eslint --suppress-all .`): new rules and fixed false positives move the
