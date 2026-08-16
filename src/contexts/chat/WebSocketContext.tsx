@@ -516,7 +516,6 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
               }
             : undefined;
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const updatedConversation: Partial<Conversation> & { id: string } = {
             id: String(data.id),
             ...(data.display_id != null && { display_id: String(data.display_id) }),

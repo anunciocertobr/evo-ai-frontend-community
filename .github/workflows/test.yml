@@ -138,7 +138,23 @@ jobs:
       # NOT a fix for that root cause by itself: pointed at the wrong branch,
       # base.ref just diffs against the wrong branch's live tip instead of a
       # frozen wrong commit. Same flood, moving target.
+      #
+      # eslint lints whole FILES, not diff lines, so touching a file with
+      # pre-existing debt used to fail the PR over errors it did not write
+      # (CRM-175: 8 of 12 red runs on a correct base). eslint-suppressions.json
+      # is the baseline that fixes that — it records the debt per file per
+      # rule, and eslint applies it automatically when the file is present, no
+      # flag needed. Only new violations are reported.
+      #
+      # --prune-suppressions is what keeps the gate from failing a PR that
+      # IMPROVES a file: with fewer violations than the baseline records,
+      # eslint exits 2 ("There are suppressions left that do not occur
+      # anymore"). Pruning clears the leftover before the comparison. It does
+      # not weaken the gate — eslint prunes, reloads, and only then applies, so
+      # a new violation is still reported. It only prunes the files this run
+      # actually linted, so the rest of the baseline is untouched.
       - name: ESLint on changed files
+        id: eslint_gate
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
@@ -170,4 +186,46 @@ jobs:
           fi
           printf 'Linting %d changed file(s):\n' "${#files[@]}"
           printf '  %s\n' "${files[@]}"
-          npx eslint --no-warn-ignored --max-warnings=0 "${files[@]}"
+          # Tells the next step that eslint actually ran. Without it, an early
+          # exit above (or a failure before this step) leaves the baseline
+          # untouched, and "unchanged" would be read as "this PR paid no debt"
+          # when nothing was ever compared.
+          echo "linted=true" >> "$GITHUB_OUTPUT"
+          npx eslint --no-warn-ignored --max-warnings=0 --prune-suppressions "${files[@]}"
+
+      # The prune above rewrites eslint-suppressions.json inside the runner,
+      # and the runner is thrown away — so the committed baseline never shrinks
+      # on its own. What the rewrite does give us is a precise diff: whatever
+      # changed here is exactly the pre-existing debt THIS PR paid. Surface it
+      # as a notice, never as a failure. Failing here would put the gate back
+      # to red-on-a-good-PR, which is the failure the baseline exists to stop.
+      - name: Baseline shrank — remind to commit it
+        if: ${{ !cancelled() }}
+        env:
+          GATE_LINTED: ${{ steps.eslint_gate.outputs.linted }}
+        run: |
+          if [ "$GATE_LINTED" != "true" ]; then
+            echo "ESLint did not run (nothing to lint, or the job failed before it) — no baseline comparison to make."
+            exit 0
+          fi
+          if git diff --quiet -- eslint-suppressions.json; then
+            echo "Baseline unchanged — this PR paid no pre-existing lint debt."
+            exit 0
+          fi
+          git --no-pager diff --stat -- eslint-suppressions.json
+          echo "::notice title=Lint baseline shrank::This PR fixed pre-existing lint errors. Run 'npx eslint --prune-suppressions .' and commit eslint-suppressions.json so the baseline shrinks with it. Optional — nothing is blocked if you skip it."
+          {
+            echo "### Lint baseline shrank"
+            echo
+            echo "This PR fixed lint errors that were already in the files it touched."
+            echo "The gate pruned \`eslint-suppressions.json\` inside the runner, but that copy is discarded."
+            echo
+            echo "To make the shrink permanent:"
+            echo
+            echo '```bash'
+            echo "npx eslint --prune-suppressions ."
+            echo "git add eslint-suppressions.json"
+            echo '```'
+            echo
+            echo "Optional — nothing is blocked if you skip it."
+          } >> "$GITHUB_STEP_SUMMARY"
