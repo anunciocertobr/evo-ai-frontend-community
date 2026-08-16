@@ -76,11 +76,15 @@ was already in a file you happened to touch. Practically:
 - **Adding a violation fails the gate**, as it always has. When the rule already
   has a baseline entry for that file, ESLint reports *every* occurrence in the
   file, not only the new one — yours is the one in your diff.
-- **Fixing an old violation** leaves the baseline overstated, and ESLint exits 2
-  ("There are suppressions left that do not occur anymore"). Run
-  `npx eslint --prune-suppressions src` and commit the result. CI will not block
-  you on this — it prints a reminder — but the baseline only shrinks if someone
-  commits the prune, and shrinking it is the point.
+- **Fixing an old violation** leaves the baseline overstated, and a bare
+  `npx eslint` exits 2 ("There are suppressions left that do not occur
+  anymore"). Run `npx eslint --prune-suppressions .` and commit the result. CI
+  will not block you on this — it prints a reminder — but the baseline only
+  shrinks if someone commits the prune, and shrinking it is the point.
+
+`npm run lint` tolerates an overstated baseline (`--pass-on-unpruned-suppressions`)
+so that one person's unpruned fix does not break everyone else's local lint;
+`npm run lint:fix` prunes as it goes, so the shrink lands in your diff.
 
 Two things that surprise people:
 
@@ -92,8 +96,14 @@ Two things that surprise people:
   is catch-up, not a mistake.
 
 After bumping ESLint or its plugins, regenerate the baseline
-(`npx eslint --suppress-all src`): new rules and fixed false positives move the
+(`npx eslint --suppress-all .`): new rules and fixed false positives move the
 counts in both directions.
+
+Always scope these commands to `.`, not to `src`. The gate lints every changed
+`.ts`/`.tsx` in the repository, which includes `vite.config.ts`, `e2e/` and the
+other config files — they are clean today, so a `src`-scoped snapshot happens to
+match, but the first violation to land outside `src` would fail PRs over debt
+they did not write, which is exactly what this baseline exists to prevent.
 
 ## Branch Strategy
 

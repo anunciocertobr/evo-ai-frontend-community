@@ -154,6 +154,7 @@ jobs:
       # a new violation is still reported. It only prunes the files this run
       # actually linted, so the rest of the baseline is untouched.
       - name: ESLint on changed files
+        id: eslint_gate
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
@@ -185,6 +186,11 @@ jobs:
           fi
           printf 'Linting %d changed file(s):\n' "${#files[@]}"
           printf '  %s\n' "${files[@]}"
+          # Tells the next step that eslint actually ran. Without it, an early
+          # exit above (or a failure before this step) leaves the baseline
+          # untouched, and "unchanged" would be read as "this PR paid no debt"
+          # when nothing was ever compared.
+          echo "linted=true" >> "$GITHUB_OUTPUT"
           npx eslint --no-warn-ignored --max-warnings=0 --prune-suppressions "${files[@]}"
 
       # The prune above rewrites eslint-suppressions.json inside the runner,
@@ -194,14 +200,20 @@ jobs:
       # as a notice, never as a failure. Failing here would put the gate back
       # to red-on-a-good-PR, which is the failure the baseline exists to stop.
       - name: Baseline shrank — remind to commit it
-        if: always()
+        if: ${{ !cancelled() }}
+        env:
+          GATE_LINTED: ${{ steps.eslint_gate.outputs.linted }}
         run: |
+          if [ "$GATE_LINTED" != "true" ]; then
+            echo "ESLint did not run (nothing to lint, or the job failed before it) — no baseline comparison to make."
+            exit 0
+          fi
           if git diff --quiet -- eslint-suppressions.json; then
             echo "Baseline unchanged — this PR paid no pre-existing lint debt."
             exit 0
           fi
           git --no-pager diff --stat -- eslint-suppressions.json
-          echo "::notice title=Lint baseline shrank::This PR fixed pre-existing lint errors. Run 'npx eslint --prune-suppressions src' and commit eslint-suppressions.json so the baseline shrinks with it. Optional — nothing is blocked if you skip it."
+          echo "::notice title=Lint baseline shrank::This PR fixed pre-existing lint errors. Run 'npx eslint --prune-suppressions .' and commit eslint-suppressions.json so the baseline shrinks with it. Optional — nothing is blocked if you skip it."
           {
             echo "### Lint baseline shrank"
             echo
@@ -211,7 +223,7 @@ jobs:
             echo "To make the shrink permanent:"
             echo
             echo '```bash'
-            echo "npx eslint --prune-suppressions src"
+            echo "npx eslint --prune-suppressions ."
             echo "git add eslint-suppressions.json"
             echo '```'
             echo
