@@ -57,6 +57,10 @@ jobs:
       #     bottom keeps auto-scrolling (even while an own send is still in
       #     flight), reading history is never hijacked — bot replies included —
       #     and the new-message indicator only fires for real messages.
+      #   - ContactNotesCard (CRM-177): the notes list keeps reading the standard
+      #     `{ success, data, meta }` envelope. Reading it wrong is invisible —
+      #     the card shows its empty state with the notes in the database, which
+      #     the person on screen reports as "the note did not save".
       #   - eventLabels (CRM-155): a conversation event prefers labels_data over
       #     the title-only labels field, and an empty labels_data still yields an
       #     empty list. Losing either brings back the label that only shows up
@@ -102,7 +106,8 @@ jobs:
             src/components/journey/nodes/actions/send-message/components/SendMessageAttachments.spec.tsx \
             src/components/journey/environment-manager/VariableMapping.spec.tsx \
             src/components/chat/messages/MessageList.spec.tsx \
-            src/contexts/chat/eventLabels.spec.ts
+            src/contexts/chat/eventLabels.spec.ts \
+            src/components/contacts/ContactNotesCard.spec.tsx
 
   # Lint gate scoped to the files the PR touched.
   eslint:
