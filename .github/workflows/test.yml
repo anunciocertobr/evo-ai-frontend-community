@@ -69,6 +69,11 @@ jobs:
       #     can() denies and renders when it grants. The paired positive case is
       #     what keeps the negative ones honest — a control that stopped
       #     rendering for everyone would satisfy the denial assertions too.
+      #   - permissions service (CRM-164): a fetch that fails with no cache to
+      #     serve rejects instead of resolving to []. PermissionsContext.spec
+      #     mocks this service away, so without these examples putting the two
+      #     `return []` back restores the "load failure shown as denial" bug
+      #     with every other spec here still green.
       # The whole list runs in ~30s and is deterministic.
       #
       # Running the whole suite here was tried and reverted: 160 jsdom files in
@@ -81,6 +86,7 @@ jobs:
         run: |
           npx vitest run --reporter=basic \
             src/contexts/PermissionsContext.spec.tsx \
+            src/services/permissions.spec.ts \
             src/pages/Admin/Roles/RoleDetail.spec.tsx \
             src/pages/Admin/Roles/RolesList.spec.tsx \
             src/services/campaigns/campaignsService.spec.ts \
