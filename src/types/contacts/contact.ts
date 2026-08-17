@@ -276,7 +276,7 @@ export interface ContactsResponse extends PaginatedResponse<Contact> {}
 
 export interface ContactResponse extends StandardResponse<Contact> {}
 
-export interface ContactNotesResponse extends PaginatedResponse<ContactNote> {}
+export interface ContactNotesResponse extends StandardResponse<ContactNote[]> {}
 
 export interface ContactNoteDeleteResponse extends StandardResponse<{ message: string }> {}
 
