@@ -79,7 +79,8 @@
     "messageList": {
       "loadingConversation": "Carregando conversa...",
       "loadingPrevious": "Carregando mensagens anteriores...",
-      "conversationStart": "Início da conversa"
+      "conversationStart": "Início da conversa",
+      "newMessage": "Nova mensagem"
     },
     "messageLocation": {
       "sharedLocation": "Localização compartilhada",
@@ -754,7 +755,8 @@
       "documents": "Documentos",
       "media": "Fotos e Vídeos",
       "conversationNote": "Notas da Conversa",
-      "schedule": "Agendar"
+      "schedule": "Agendar Mensagem",
+      "scheduleDisabledHint": "Escreva uma mensagem para poder agendar"
     },
     "macros": {
       "tooltip": "Macros",
@@ -763,7 +765,7 @@
     "schedule": {
       "title": "Agendar mensagem",
       "messagePreview": "Mensagem",
-      "emptyMessage": "Escreva uma mensagem no composer antes de agendar.",
+      "emptyMessage": "Nenhuma mensagem escrita para agendar.",
       "dateTime": "Data e hora",
       "note": "Observação",
       "notePlaceholder": "Observação interna (opcional)",

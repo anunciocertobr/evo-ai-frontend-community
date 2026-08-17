@@ -29,6 +29,7 @@ import {
   resolveCredentialState,
 } from '@/constants/aiProviders';
 import { createApiKey, deleteApiKey, listApiKeys, listAgents, updateApiKey } from '@/services/agents';
+import { apiErrorCode } from '@/utils/apiHelpers';
 import type { ApiKey, ApiKeyCreate, ApiKeyScope, ApiKeyUpdate } from '@/types/agents';
 
 interface CredentialDraft {
@@ -88,8 +89,9 @@ export default function AiCredentials() {
   // from the server (a credential imported by the 1.5 task marks a migrated
   // install); with the registry empty and no such mark, the panel says
   // "legacy" instead of the flat lie "no credential" (review, MÉDIO 15).
+  // Inactive rows are listed too (CRM-174), so "empty" means no active one.
   const legacyActive = useMemo(
-    () => credentials.length === 0,
+    () => !credentials.some(credential => credential.is_active),
     [credentials],
   );
 
@@ -116,10 +118,32 @@ export default function AiCredentials() {
 
     try {
       setLoading(true);
-      setCredentials(await listApiKeys());
+      // The registry answers "active only" by default, which hid a deactivated
+      // credential and left it with no way back from the screen. Both states
+      // are listed so the row stays visible and can be re-enabled.
+      const [active, inactive] = await Promise.all([
+        listApiKeys(1, 100, { active: true }),
+        // The inactive listing is additive: losing it must degrade to the
+        // active list, never blank the screen the way a rejected Promise.all
+        // would.
+        listApiKeys(1, 100, { active: false }).catch(error => {
+          console.error('Error loading inactive AI credentials:', error);
+          return [];
+        }),
+      ]);
+      // The two calls are concurrent, so a key toggled while they run comes
+      // back in both with no telling which read is newer. The inactive copy
+      // wins: the in-use panel keys off is_active, and under-reporting a live
+      // credential is safer than claiming a deactivated one is serving.
+      const inactiveIds = new Set(inactive.map(credential => credential.id));
+      setCredentials([
+        ...active.filter(credential => !inactiveIds.has(credential.id)),
+        ...inactive,
+      ]);
     } catch (error) {
       console.error('Error loading AI credentials:', error);
-      toast.error(t('messages.loadError'));
+      const code = apiErrorCode(error);
+      toast.error(code ? t('messages.loadErrorWithCode', { code }) : t('messages.loadError'));
     } finally {
       setLoading(false);
     }
@@ -220,7 +244,8 @@ export default function AiCredentials() {
       loadCredentials();
     } catch (error) {
       console.error('Error saving AI credential:', error);
-      toast.error(t('messages.saveError'));
+      const code = apiErrorCode(error);
+      toast.error(code ? t('messages.saveErrorWithCode', { code }) : t('messages.saveError'));
     } finally {
       setSaving(false);
     }
@@ -238,7 +263,8 @@ export default function AiCredentials() {
       loadCredentials();
     } catch (error) {
       console.error('Error toggling AI credential:', error);
-      toast.error(t('messages.saveError'));
+      const code = apiErrorCode(error);
+      toast.error(code ? t('messages.saveErrorWithCode', { code }) : t('messages.saveError'));
     } finally {
       setSaving(false);
     }
@@ -296,7 +322,8 @@ export default function AiCredentials() {
       loadCredentials();
     } catch (error) {
       console.error('Error deleting AI credential:', error);
-      toast.error(t('messages.deleteError'));
+      const code = apiErrorCode(error);
+      toast.error(code ? t('messages.deleteErrorWithCode', { code }) : t('messages.deleteError'));
     } finally {
       setSaving(false);
     }
@@ -437,7 +464,8 @@ export default function AiCredentials() {
           </div>
         ))}
 
-        {accountCredentials.length === 0 && installationCredentials.length > 0 && (
+        {!accountCredentials.some(credential => credential.is_active) &&
+          installationCredentials.some(credential => credential.is_active) && (
           <p className="text-xs text-muted-foreground">{t('inUse.inheritingHint')}</p>
         )}
       </section>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { apiErrorMessage } from './apiHelpers';
+import { apiErrorCode, apiErrorMessage } from './apiHelpers';
 
 // Mirrors app/controllers/concerns/api_response_helper.rb#error_response.
 function rejection(data: unknown, status = 422) {
@@ -47,5 +47,21 @@ describe('apiErrorMessage', () => {
 
   it.each([null, undefined, 'boom', 42])('returns undefined without throwing for %p', value => {
     expect(apiErrorMessage(value)).toBeUndefined();
+  });
+});
+
+describe('apiErrorCode', () => {
+  it('returns the envelope code even on a 5xx', () => {
+    const error = {
+      response: { status: 500, data: { success: false, error: { code: 'ERR_UNDEFINED_COLUMN', message: 'Undefined column' } } },
+    };
+    expect(apiErrorCode(error)).toBe('ERR_UNDEFINED_COLUMN');
+  });
+
+  it('is undefined when the envelope has no code', () => {
+    expect(apiErrorCode({ response: { status: 422, data: { error: { message: 'x' } } } })).toBeUndefined();
+    expect(apiErrorCode({ response: { status: 500, data: { error: { code: '' } } } })).toBeUndefined();
+    expect(apiErrorCode(new Error('network'))).toBeUndefined();
+    expect(apiErrorCode(undefined)).toBeUndefined();
   });
 });
