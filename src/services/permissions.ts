@@ -82,7 +82,11 @@ class PermissionsService {
     }
 
     // Criar nova Promise e armazenar
-    this.userPermissionsPromise = (async () => {
+    // `forceRefresh` bypasses the dedup guard above, so a retry can install a
+    // newer promise while this one is still in flight. Clearing the slot
+    // unconditionally would then discard the NEWER promise and let a third
+    // caller fire yet another request — defeating the dedup entirely.
+    const promise = (async () => {
     try {
       const response = await apiAuth.get('/permissions');
 
@@ -91,12 +95,12 @@ class PermissionsService {
       this.permissionsCacheExpiry = now + this.CACHE_DURATION;
 
         // Limpar Promise após sucesso
-        this.userPermissionsPromise = null;
+        if (this.userPermissionsPromise === promise) this.userPermissionsPromise = null;
 
       return this.userPermissionsCache || [];
     } catch (error) {
         // Limpar Promise em caso de erro
-        this.userPermissionsPromise = null;
+        if (this.userPermissionsPromise === promise) this.userPermissionsPromise = null;
 
       console.error('Erro ao buscar permissões do usuário:', error);
 
@@ -106,11 +110,16 @@ class PermissionsService {
         return this.userPermissionsCache;
       }
 
-      return [];
+      // CRM-164: sem cache para servir, a falha PRECISA propagar. Devolver []
+      // aqui fazia o PermissionsContext marcar isReady com lista vazia, e daí
+      // `can()` respondia false — falha de carga chegava ao usuário como
+      // negação de permissão.
+      throw error;
     }
     })();
 
-    return this.userPermissionsPromise;
+    this.userPermissionsPromise = promise;
+    return promise;
   }
 
   /**
@@ -142,12 +151,13 @@ class PermissionsService {
         };
 
         // Limpar Promise após sucesso
-        this.accountPermissionsPromise = null;
+        // Ver getUserPermissions: só limpa o slot se ele ainda for este promise.
+        if (this.accountPermissionsPromise === promise) this.accountPermissionsPromise = null;
 
         return permissions;
       } catch (error) {
         // Limpar Promise em caso de erro
-        this.accountPermissionsPromise = null;
+        if (this.accountPermissionsPromise === promise) this.accountPermissionsPromise = null;
 
         console.error('Erro ao buscar permissões do account:', error);
 
@@ -157,7 +167,8 @@ class PermissionsService {
           return this.accountPermissionsData.permissions;
         }
 
-        return [];
+        // CRM-164: ver getUserPermissions — falha sem cache propaga.
+        throw error;
       }
     })();
 

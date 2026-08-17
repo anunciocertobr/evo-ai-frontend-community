@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { PermissionsProvider, usePermissions } from './PermissionsContext';
 
@@ -22,6 +22,7 @@ vi.mock('@/store/authStore', () => ({
 }));
 
 const mockAccountPermissions = vi.fn<[], Promise<string[]>>();
+const mockUserPermissions = vi.fn<[], Promise<string[]>>();
 
 vi.mock('@/services/permissions', () => ({
   permissionsService: {
@@ -34,31 +35,49 @@ vi.mock('@/services/permissions', () => ({
           ],
         },
       }),
-    getUserPermissions: () => Promise.resolve([]),
+    getUserPermissions: () => mockUserPermissions(),
     getAccountPermissions: () => mockAccountPermissions(),
   },
 }));
 
 const Probe: React.FC = () => {
-  const { can, isReady } = usePermissions();
-  if (!isReady) return <span>loading</span>;
+  const { can, isReady, loadFailed, refreshPermissions } = usePermissions();
   return (
     <>
-      <span data-testid="contacts-read">{String(can('contacts', 'read'))}</span>
-      <span data-testid="installation-manage">{String(can('installation_configs', 'manage'))}</span>
+      <span data-testid="ready">{String(isReady)}</span>
+      <span data-testid="load-failed">{String(loadFailed)}</span>
+      <button
+        onClick={() => {
+          void refreshPermissions();
+        }}
+      >
+        retry
+      </button>
+      {isReady ? (
+        <>
+          <span data-testid="contacts-read">{String(can('contacts', 'read'))}</span>
+          <span data-testid="installation-manage">{String(can('installation_configs', 'manage'))}</span>
+        </>
+      ) : (
+        <span>loading</span>
+      )}
     </>
   );
 };
 
-async function renderWith(role: string, granted: string[]) {
+function renderProbe(role = 'agent') {
   mockUser.mockReturnValue({ id: 'user-1', name: 'Someone', role });
-  mockAccountPermissions.mockResolvedValue(granted);
-
   render(
     <PermissionsProvider>
       <Probe />
     </PermissionsProvider>,
   );
+}
+
+async function renderWith(role: string, granted: string[]) {
+  mockUserPermissions.mockResolvedValue([]);
+  mockAccountPermissions.mockResolvedValue(granted);
+  renderProbe(role);
 
   await waitFor(() => expect(screen.queryByText('loading')).toBeNull());
 }
@@ -89,5 +108,71 @@ describe('PermissionsContext — can() stays data-driven (no role short-circuit)
 
     expect(screen.getByTestId('contacts-read').textContent).toBe('false');
     expect(screen.getByTestId('installation-manage').textContent).toBe('false');
+  });
+});
+
+// CRM-164. The service used to swallow a failed fetch and return [], so the
+// context reported `isReady` with an empty list and every `can()` answered
+// false — a load failure reaching the user as "you don't have permission".
+// The two windows the bug was reported through (reloading with a conversation
+// open, and switching accounts — which the shell serves with a full
+// window.location.reload) are the same boot path, so they are the same
+// examples: a fetch that throws must leave the context not-ready and flagged.
+describe('PermissionsContext — a failed load is not a denial (CRM-164)', () => {
+  let consoleError: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUserPermissions.mockResolvedValue([]);
+    mockAccountPermissions.mockResolvedValue([]);
+    consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleError.mockRestore();
+  });
+
+  it('stays not-ready and reports loadFailed when the account fetch throws', async () => {
+    mockAccountPermissions.mockRejectedValue(new Error('network down'));
+    renderProbe();
+
+    await waitFor(() => expect(screen.getByTestId('load-failed').textContent).toBe('true'));
+    expect(screen.getByTestId('ready').textContent).toBe('false');
+    // Nothing evaluated `can()`, so no screen could have rendered a denial.
+    expect(screen.queryByTestId('contacts-read')).toBeNull();
+  });
+
+  it('stays not-ready and reports loadFailed when the user fetch throws', async () => {
+    mockUserPermissions.mockRejectedValue(new Error('network down'));
+    renderProbe();
+
+    await waitFor(() => expect(screen.getByTestId('load-failed').textContent).toBe('true'));
+    expect(screen.getByTestId('ready').textContent).toBe('false');
+  });
+
+  it('recovers on retry: refreshPermissions clears the failure and grants access', async () => {
+    mockAccountPermissions.mockRejectedValueOnce(new Error('network down'));
+    mockAccountPermissions.mockResolvedValue(['contacts.read']);
+    renderProbe();
+
+    await waitFor(() => expect(screen.getByTestId('load-failed').textContent).toBe('true'));
+    // Pinned so the recovery below cannot be credited to an effect refiring on
+    // its own — the click has to be what refetches.
+    const callsBeforeRetry = mockAccountPermissions.mock.calls.length;
+
+    fireEvent.click(screen.getByText('retry'));
+
+    await waitFor(() => expect(screen.getByTestId('ready').textContent).toBe('true'));
+    expect(screen.getByTestId('load-failed').textContent).toBe('false');
+    expect(screen.getByTestId('contacts-read').textContent).toBe('true');
+    expect(mockAccountPermissions.mock.calls.length).toBeGreaterThan(callsBeforeRetry);
+  });
+
+  it('treats a successfully empty list as a real denial, not a failure', async () => {
+    renderProbe();
+
+    await waitFor(() => expect(screen.getByTestId('ready').textContent).toBe('true'));
+    expect(screen.getByTestId('load-failed').textContent).toBe('false');
+    expect(screen.getByTestId('contacts-read').textContent).toBe('false');
   });
 });

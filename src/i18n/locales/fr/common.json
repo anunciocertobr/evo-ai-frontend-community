@@ -150,5 +150,13 @@
   },
   "validation": {
     "required": "Ce champ est obligatoire"
+  },
+  "permissions": {
+    "loadFailed": {
+      "title": "Impossible de charger vos permissions",
+      "description": "Cela ne signifie pas que vous n'avez pas accès — la vérification des permissions a échoué. Réessayez.",
+      "retry": "Réessayer",
+      "signOut": "Se déconnecter"
+    }
   }
 }

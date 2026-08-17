@@ -160,5 +160,13 @@
   },
   "validation": {
     "required": "This field is required"
+  },
+  "permissions": {
+    "loadFailed": {
+      "title": "Could not load your permissions",
+      "description": "This does not mean you lack access — the permission check failed. Try again.",
+      "retry": "Try again",
+      "signOut": "Sign out"
+    }
   }
 }

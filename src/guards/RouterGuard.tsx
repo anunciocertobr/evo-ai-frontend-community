@@ -4,6 +4,9 @@ import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { useGlobalConfig } from '@/contexts/GlobalConfigContext';
+import { useLanguage } from '@/hooks/useLanguage';
+import EmptyState from '@/components/base/EmptyState';
+import { ShieldAlert } from 'lucide-react';
 import { markBootstrapPhaseEnd, markBootstrapPhaseStart } from '@/utils/requestMonitor';
 
 interface RouterGuardProps {
@@ -27,8 +30,14 @@ const RouterGuard: React.FC<RouterGuardProps> = ({ children }) => {
   const location = useLocation();
   const { isLoading } = useAuthStore();
   const { user, isAuthenticated, logout } = useAuth();
-  const { isReady: permissionsReady } = usePermissions();
+  const {
+    isReady: permissionsReady,
+    loadFailed: permissionsLoadFailed,
+    loading: permissionsLoading,
+    refreshPermissions,
+  } = usePermissions();
   const { setupRequired, setupLoading } = useGlobalConfig();
+  const { t } = useLanguage('common');
 
   useEffect(() => {
     const handleSetupRequired = async () => {
@@ -131,6 +140,42 @@ const RouterGuard: React.FC<RouterGuardProps> = ({ children }) => {
   const isCurrentPathPublic = SPECIAL_ROUTES.PUBLIC_ROUTES.some(route =>
     location.pathname.startsWith(route)
   );
+
+  // A permission fetch that blew up leaves `permissionsReady` false forever, so
+  // the spinner below would never end. Say what actually happened instead — the
+  // whole point of CRM-164 is that a failure to load is not a denial, and the
+  // user has to be able to tell the two apart and retry.
+  if (!isLoading && !isCurrentPathPublic && isAuthenticated && permissionsLoadFailed) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <EmptyState
+          icon={ShieldAlert}
+          title={t('permissions.loadFailed.title')}
+          description={t('permissions.loadFailed.description')}
+          action={{
+            label: t('permissions.loadFailed.retry'),
+            onClick: () => {
+              void refreshPermissions();
+            },
+            disabled: permissionsLoading,
+          }}
+        />
+        {/* A deterministic failure (403 from the membership gate, auth-service
+            down) retries into the same error forever, and this screen replaces
+            every protected route. Without a way out the user cannot even sign
+            out to try another account. */}
+        <button
+          type="button"
+          className="mt-2 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          onClick={() => {
+            void logout();
+          }}
+        >
+          {t('permissions.loadFailed.signOut')}
+        </button>
+      </div>
+    );
+  }
 
   if (isLoading || (!isCurrentPathPublic && isAuthenticated && !permissionsReady)) {
     return (
