@@ -89,8 +89,9 @@ export default function AiCredentials() {
   // from the server (a credential imported by the 1.5 task marks a migrated
   // install); with the registry empty and no such mark, the panel says
   // "legacy" instead of the flat lie "no credential" (review, MÉDIO 15).
+  // Inactive rows are listed too (CRM-174), so "empty" means no active one.
   const legacyActive = useMemo(
-    () => credentials.length === 0,
+    () => !credentials.some(credential => credential.is_active),
     [credentials],
   );
 
@@ -124,7 +125,12 @@ export default function AiCredentials() {
         listApiKeys(1, 100, { active: true }),
         listApiKeys(1, 100, { active: false }),
       ]);
-      setCredentials([...active, ...inactive]);
+      // A key toggled between the two calls could come back in both.
+      const activeIds = new Set(active.map(credential => credential.id));
+      setCredentials([
+        ...active,
+        ...inactive.filter(credential => !activeIds.has(credential.id)),
+      ]);
     } catch (error) {
       console.error('Error loading AI credentials:', error);
       const code = apiErrorCode(error);
@@ -449,7 +455,8 @@ export default function AiCredentials() {
           </div>
         ))}
 
-        {accountCredentials.length === 0 && installationCredentials.length > 0 && (
+        {!accountCredentials.some(credential => credential.is_active) &&
+          installationCredentials.some(credential => credential.is_active) && (
           <p className="text-xs text-muted-foreground">{t('inUse.inheritingHint')}</p>
         )}
       </section>

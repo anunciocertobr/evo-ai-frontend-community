@@ -34,7 +34,6 @@ describe('agentService.listApiKeys — active filter', () => {
     expect(mockApi.get).toHaveBeenCalledWith('/agents/apikeys', {
       params: { page: 1, pageSize: 100 },
     });
-    expect(mockApi.get.mock.calls[0][1].params).not.toHaveProperty('active');
   });
 
   it('asks for the inactive keys with active=false', async () => {

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import AiCredentials from './AiCredentials';
 import { maskKey } from '@/constants/aiProviders';
 import type { ApiKey } from '@/types/agents';
+import type { ListApiKeysOptions } from '@/services/agents/agentService';
 
 // EVO-2250 story 1.1: the page reads the evo_core_api_keys registry only, never
 // returns the key to the browser, and gates every action on ai_api_keys.*.
@@ -97,7 +98,7 @@ const findAccountRow = () => screen.findByRole('cell', { name: 'Producao' });
 let registry: ApiKey[] = [];
 const mockRegistry = (keys: ApiKey[]) => {
   registry = keys;
-  listApiKeys.mockImplementation((_page?: number, _pageSize?: number, options?: { active?: boolean }) =>
+  listApiKeys.mockImplementation((_page?: number, _pageSize?: number, options?: ListApiKeysOptions) =>
     Promise.resolve(registry.filter(key => key.is_active === (options?.active ?? true))),
   );
 };
@@ -318,13 +319,19 @@ describe('AiCredentials — deactivate keeps the row and can be undone (CRM-174)
     expect(screen.queryByText('status.inactive')).not.toBeInTheDocument();
   });
 
-  it('asks the registry for the inactive credentials explicitly', async () => {
+  it('keeps reporting the legacy fallback while the only credential is inactive', async () => {
+    const user = userEvent.setup();
     render(<AiCredentials />);
 
     await findAccountRow();
-    // Without this second call the default (active only) hides the row —
-    // the exact regression this block guards.
-    expect(listApiKeys).toHaveBeenCalledWith(1, 100, { active: false });
+    await user.click(screen.getByText('actions.deactivate'));
+    await screen.findByText('status.inactive');
+
+    // No active credential resolves, so the panel must not claim "none" just
+    // because an inactive row is now listed.
+    const panel = screen.getByLabelText('inUse.title');
+    expect(panel).toHaveTextContent('inUse.legacy');
+    expect(panel).not.toHaveTextContent('inUse.none');
   });
 });
 

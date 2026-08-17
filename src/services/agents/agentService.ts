@@ -17,6 +17,10 @@ import {
 import { processAgentData } from '@/utils/agentUtils';
 import { extractData, buildPaginationParams, extractResponse } from '@/utils/apiHelpers';
 
+export interface ListApiKeysOptions {
+  active?: boolean;
+}
+
 class AgentsService {
   // AI Agents
   async createAgent(data: AgentCreate): Promise<Agent> {
@@ -130,7 +134,7 @@ class AgentsService {
   async listApiKeys(
     page = 1,
     pageSize = 100,
-    options?: { active?: boolean },
+    options?: ListApiKeysOptions,
   ): Promise<ApiKey[]> {
     const params: Record<string, unknown> = buildPaginationParams(page, pageSize);
     if (options?.active !== undefined) {
@@ -196,7 +200,7 @@ export const updateFolder = (folderId: string, data: FolderUpdate) => agentsServ
 export const deleteFolder = (folderId: string) => agentsService.deleteFolder(folderId);
 
 export const createApiKey = (data: ApiKeyCreate) => agentsService.createApiKey(data);
-export const listApiKeys = (page?: number, pageSize?: number, options?: { active?: boolean }) =>
+export const listApiKeys = (page?: number, pageSize?: number, options?: ListApiKeysOptions) =>
   agentsService.listApiKeys(page, pageSize, options);
 export const updateApiKey = (keyId: string, data: ApiKeyUpdate) => agentsService.updateApiKey(keyId, data);
 export const deleteApiKey = (keyId: string) => agentsService.deleteApiKey(keyId);
