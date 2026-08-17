@@ -20,7 +20,7 @@ describe('getAiCredentialMigrationState', () => {
       migrated: false,
       legacy_fallback_active: true,
     });
-    expect(mockApi.get).toHaveBeenCalledWith('/ai/credentials/migration_state');
+    expect(mockApi.get).toHaveBeenCalledWith('/ai_credentials/migration_state');
   });
 
   it('propagates a failure so the caller decides how to degrade', async () => {

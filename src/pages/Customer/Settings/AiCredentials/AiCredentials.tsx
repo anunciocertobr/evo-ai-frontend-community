@@ -61,10 +61,11 @@ export default function AiCredentials() {
   const { can, isReady: permissionsReady } = usePermissions();
 
   const [credentials, setCredentials] = useState<ApiKey[]>([]);
-  // The server's word on the legacy fallback: 'pending' until the first answer
-  // (or failure) lands, then a boolean, or null when it stays unknown (older
-  // CRM without the endpoint, transient failure). The panel must not claim
-  // "legacy" from a guess while the request is in flight.
+  // The server's word on the legacy fallback: 'pending' while a request is in
+  // flight, then a boolean, or null when it stays unknown (older CRM without
+  // the endpoint, transient failure). It goes back to 'pending' on every
+  // refresh: an answer about the previous registry must not be rendered
+  // against the new one.
   const [legacyFallbackActive, setLegacyFallbackActive] = useState<boolean | null | 'pending'>('pending');
   const migrationStateRequest = useRef(0);
   const [loading, setLoading] = useState(false);
@@ -112,7 +113,12 @@ export default function AiCredentials() {
         : !credentials.some(credential => credential.is_active),
     [legacyFallbackActive, credentials],
   );
-  const inUsePending = loading || legacyFallbackActive === 'pending';
+  // Each half of the verdict waits only for what it depends on. A credential
+  // resolved from the registry follows the list alone, so a slow signal must
+  // not hide a name the screen already knows; "legacy" vs "none" is the only
+  // branch the signal decides, and that one waits.
+  const listPending = loading;
+  const signalPending = legacyFallbackActive === 'pending';
 
   const featuresInUse = useMemo(() => {
     const openAIOnly = resolveCredentialState(credentials, {
@@ -131,14 +137,20 @@ export default function AiCredentials() {
 
   const loadCredentials = useCallback(async () => {
     if (!canRead) {
+      // Never reached through the route (PermissionRoute gates on
+      // ai_api_keys.read), but leaving the signal 'pending' here would spin
+      // forever instead of degrading.
+      setLegacyFallbackActive(null);
       toast.error(t('messages.permissionDenied.read'));
       return;
     }
 
     // Advisory: a failure here must not block the list, it only leaves the
     // panel on the heuristic. Refreshed with the list because deleting the last
-    // imported credential can flip it. Last response wins.
+    // imported credential can flip it, and reset to 'pending' first so the
+    // previous answer is not rendered against the new list. Last response wins.
     const request = ++migrationStateRequest.current;
+    setLegacyFallbackActive('pending');
     getAiCredentialMigrationState()
       .then(state => {
         if (request !== migrationStateRequest.current) return;
@@ -147,7 +159,10 @@ export default function AiCredentials() {
       })
       .catch(error => {
         if (request !== migrationStateRequest.current) return;
-        console.error('Error loading AI credential migration state:', error);
+        // Expected while a CRM without the endpoint is still deployed: the
+        // panel falls back to the heuristic, so this is a degradation notice,
+        // not a failure.
+        console.warn('AI credential migration state unavailable, using the heuristic:', error);
         setLegacyFallbackActive(null);
       });
 
@@ -482,7 +497,7 @@ export default function AiCredentials() {
         {featuresInUse.map(feature => (
           <div key={feature.key} className="flex items-baseline gap-2 text-sm">
             <span className="text-muted-foreground">{t(`inUse.features.${feature.key}`)}</span>
-            {inUsePending ? (
+            {listPending || (signalPending && feature.resolution.state !== 'registry') ? (
               <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" aria-hidden="true" />
             ) : feature.resolution.state === 'registry' ? (
               <>

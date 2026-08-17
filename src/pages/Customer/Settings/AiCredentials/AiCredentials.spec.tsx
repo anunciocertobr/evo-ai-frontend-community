@@ -43,10 +43,20 @@ vi.mock('@/services/agents', () => ({
   getAiCredentialMigrationState: (...args: unknown[]) => getAiCredentialMigrationState(...args),
 }));
 
+type MigrationState = { migrated: boolean; legacy_fallback_active: boolean };
+
 // The server's word on the legacy fallback (Ai::MigrationState). Tests that
 // need the fallback alive say so explicitly; the default is a migrated install.
 const serverSaysLegacy = (active: boolean) =>
   getAiCredentialMigrationState.mockResolvedValue({ migrated: !active, legacy_fallback_active: active });
+
+// Persists the toggle so the reload after it reflects the new state, the way
+// the core does.
+const mockToggleWritesThrough = () =>
+  updateApiKey.mockImplementation((id: string, data: Partial<ApiKey>) => {
+    registry = registry.map(key => (key.id === id ? { ...key, ...data } : key));
+    return Promise.resolve(registry.find(key => key.id === id));
+  });
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -744,17 +754,89 @@ describe('AiCredentials — panel honesty and full agent count', () => {
   // "legacy" that flips to "none" a moment later is the very lie this fixes.
   it('shows no verdict while the migration state is still loading', async () => {
     mockRegistry([]);
-    let answer: (state: { migrated: boolean; legacy_fallback_active: boolean }) => void = () => {};
+    let answer: (state: MigrationState) => void = () => {};
     getAiCredentialMigrationState.mockReturnValue(new Promise(resolve => { answer = resolve; }));
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
-    await waitFor(() => expect(listApiKeys).toHaveBeenCalled());
+    // The empty state proves the list already settled, so the signal is the
+    // only thing still missing — otherwise `loading` alone would satisfy this.
+    await screen.findByText('empty.title');
     expect(panel).not.toHaveTextContent('inUse.legacy');
     expect(panel).not.toHaveTextContent('inUse.none');
 
     answer({ migrated: true, legacy_fallback_active: false });
     await waitFor(() => expect(panel).toHaveTextContent('inUse.none'));
+  });
+
+  // The signal decides "legacy" vs "none" and nothing else: a credential that
+  // resolves from the registry is settled by the list alone, so waiting on the
+  // CRM would hide a name the screen already knows.
+  it('shows the resolved credential without waiting for the migration state', async () => {
+    mockRegistry([OPENAI_KEY]);
+    getAiCredentialMigrationState.mockReturnValue(new Promise(() => {}));
+    render(<AiCredentials />);
+
+    await findAccountRow();
+
+    const panel = screen.getByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('Producao'));
+  });
+
+  // A refresh re-asks the server, and the previous answer describes the
+  // previous registry: rendering it against the new list is the same flip this
+  // story removed from the first load.
+  it('withholds the verdict while a refreshed signal is in flight', async () => {
+    const user = userEvent.setup();
+    mockRegistry([OPENAI_KEY]);
+    let answerSecond: (state: MigrationState) => void = () => {};
+    getAiCredentialMigrationState
+      .mockResolvedValueOnce({ migrated: true, legacy_fallback_active: false })
+      .mockReturnValueOnce(new Promise(resolve => { answerSecond = resolve; }));
+    mockToggleWritesThrough();
+
+    render(<AiCredentials />);
+    await findAccountRow();
+    const panel = screen.getByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('Producao'));
+
+    await user.click(screen.getByText('actions.deactivate'));
+    await screen.findByText('status.inactive');
+
+    // The list came back deactivated; the refreshed signal has not. Neither
+    // verdict may show — least of all the one from before the toggle.
+    expect(panel).not.toHaveTextContent('inUse.none');
+    expect(panel).not.toHaveTextContent('inUse.legacy');
+
+    answerSecond({ migrated: false, legacy_fallback_active: true });
+    await waitFor(() => expect(panel).toHaveTextContent('inUse.legacy'));
+  });
+
+  it('ignores a stale migration state answer that lands after a newer one', async () => {
+    const user = userEvent.setup();
+    mockRegistry([OPENAI_KEY]);
+    let answerFirst: (state: MigrationState) => void = () => {};
+    let answerSecond: (state: MigrationState) => void = () => {};
+    getAiCredentialMigrationState
+      .mockReturnValueOnce(new Promise(resolve => { answerFirst = resolve; }))
+      .mockReturnValueOnce(new Promise(resolve => { answerSecond = resolve; }));
+    mockToggleWritesThrough();
+
+    render(<AiCredentials />);
+    await findAccountRow();
+    await user.click(screen.getByText('actions.deactivate'));
+    await screen.findByText('status.inactive');
+    expect(getAiCredentialMigrationState).toHaveBeenCalledTimes(2);
+
+    answerSecond({ migrated: true, legacy_fallback_active: false });
+    const panel = screen.getByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('inUse.none'));
+
+    // The first request finally answers, describing the registry before the
+    // toggle. It must not overwrite the newer verdict.
+    answerFirst({ migrated: false, legacy_fallback_active: true });
+    await waitFor(() => expect(panel).toHaveTextContent('inUse.none'));
+    expect(panel).not.toHaveTextContent('inUse.legacy');
   });
 
   it('asks the server for the migration state on load', async () => {
