@@ -96,7 +96,6 @@
     },
     "actions": {
       "view": "Visualizar",
-      "execute": "Executar",
       "edit": "Editar",
       "delete": "Deletar"
     },
@@ -106,7 +105,6 @@
   "actions": {
     "edit": "Editar",
     "delete": "Deletar",
-    "execute": "Executar",
     "cancel": "Cancelar",
     "save": "Salvar",
     "confirm": "Confirmar"
@@ -120,9 +118,7 @@
     "deleteSuccess": "Macro deletada com sucesso",
     "deleteError": "Erro ao deletar macro",
     "bulkDeleteSuccess": "{{count}} macro(s) deletada(s) com sucesso",
-    "bulkDeleteError": "Erro ao deletar macros",
-    "executeSuccess": "Macro \"{{name}}\" executada com sucesso",
-    "executeError": "Erro ao executar macro"
+    "bulkDeleteError": "Erro ao deletar macros"
   },
   "dialog": {
     "delete": {
