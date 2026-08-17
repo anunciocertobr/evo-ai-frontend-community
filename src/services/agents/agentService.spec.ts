@@ -20,8 +20,8 @@ import { listApiKeys } from './agentService';
 const envelope = (data: unknown) => ({ data: { success: true, data } });
 
 // The registry lists only active keys unless `active` is sent (CRM-174): the
-// default must stay untouched for the agent pickers, and the value must reach
-// the wire as a boolean string — never empty, which the server rejects.
+// default must stay untouched for the agent pickers, and an omitted option must
+// send no param at all, since the server reads an empty one as "active only".
 describe('agentService.listApiKeys — active filter', () => {
   beforeEach(() => {
     vi.clearAllMocks();

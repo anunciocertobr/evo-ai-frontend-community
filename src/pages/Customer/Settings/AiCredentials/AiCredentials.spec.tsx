@@ -319,6 +319,35 @@ describe('AiCredentials — deactivate keeps the row and can be undone (CRM-174)
     expect(screen.queryByText('status.inactive')).not.toBeInTheDocument();
   });
 
+  // The inactive listing is a second call: it must not be able to take the
+  // whole screen down with it, which a bare Promise.all rejection would.
+  it('still lists the active credentials when the inactive listing fails', async () => {
+    listApiKeys.mockImplementation((_page?: number, _pageSize?: number, options?: ListApiKeysOptions) =>
+      options?.active === false
+        ? Promise.reject(new Error('boom'))
+        : Promise.resolve([OPENAI_KEY]),
+    );
+    render(<AiCredentials />);
+
+    expect(await findAccountRow()).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  // Both calls run concurrently, so a key toggled mid-flight lands in both
+  // listings. The inactive read wins: claiming a deactivated credential is
+  // serving is the worse of the two lies.
+  it('renders a key returned by both listings as inactive', async () => {
+    listApiKeys.mockImplementation((_page?: number, _pageSize?: number, options?: ListApiKeysOptions) =>
+      Promise.resolve([{ ...OPENAI_KEY, is_active: options?.active ?? true }]),
+    );
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    expect(screen.getAllByRole('cell', { name: 'Producao' })).toHaveLength(1);
+    expect(screen.getByText('status.inactive')).toBeInTheDocument();
+    expect(screen.queryByText('status.active')).not.toBeInTheDocument();
+  });
+
   it('keeps reporting the legacy fallback while the only credential is inactive', async () => {
     const user = userEvent.setup();
     render(<AiCredentials />);

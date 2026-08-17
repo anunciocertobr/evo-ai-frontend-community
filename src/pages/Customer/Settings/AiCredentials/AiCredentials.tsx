@@ -123,13 +123,22 @@ export default function AiCredentials() {
       // are listed so the row stays visible and can be re-enabled.
       const [active, inactive] = await Promise.all([
         listApiKeys(1, 100, { active: true }),
-        listApiKeys(1, 100, { active: false }),
+        // The inactive listing is additive: losing it must degrade to the
+        // active list, never blank the screen the way a rejected Promise.all
+        // would.
+        listApiKeys(1, 100, { active: false }).catch(error => {
+          console.error('Error loading inactive AI credentials:', error);
+          return [];
+        }),
       ]);
-      // A key toggled between the two calls could come back in both.
-      const activeIds = new Set(active.map(credential => credential.id));
+      // The two calls are concurrent, so a key toggled while they run comes
+      // back in both with no telling which read is newer. The inactive copy
+      // wins: the in-use panel keys off is_active, and under-reporting a live
+      // credential is safer than claiming a deactivated one is serving.
+      const inactiveIds = new Set(inactive.map(credential => credential.id));
       setCredentials([
-        ...active,
-        ...inactive.filter(credential => !activeIds.has(credential.id)),
+        ...active.filter(credential => !inactiveIds.has(credential.id)),
+        ...inactive,
       ]);
     } catch (error) {
       console.error('Error loading AI credentials:', error);
