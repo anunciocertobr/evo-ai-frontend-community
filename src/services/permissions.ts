@@ -28,6 +28,12 @@ class PermissionsService {
   private userPermissionsPromise: Promise<string[]> | null = null;
   private accountPermissionsPromise: Promise<string[]> | null = null;
 
+  // Identifica a requisição dona do slot de dedup acima. Comparar contra a
+  // própria Promise seria mais direto, mas a auto-referência dentro da IIFE que
+  // a cria não compila (TS2454).
+  private userPermissionsRequestId = 0;
+  private accountPermissionsRequestId = 0;
+
   /**
    * Busca todas as configurações de recursos e permissões do backend
    */
@@ -86,6 +92,7 @@ class PermissionsService {
     // newer promise while this one is still in flight. Clearing the slot
     // unconditionally would then discard the NEWER promise and let a third
     // caller fire yet another request — defeating the dedup entirely.
+    const requestId = ++this.userPermissionsRequestId;
     const promise = (async () => {
     try {
       const response = await apiAuth.get('/permissions');
@@ -95,12 +102,12 @@ class PermissionsService {
       this.permissionsCacheExpiry = now + this.CACHE_DURATION;
 
         // Limpar Promise após sucesso
-        if (this.userPermissionsPromise === promise) this.userPermissionsPromise = null;
+        if (this.userPermissionsRequestId === requestId) this.userPermissionsPromise = null;
 
       return this.userPermissionsCache || [];
     } catch (error) {
         // Limpar Promise em caso de erro
-        if (this.userPermissionsPromise === promise) this.userPermissionsPromise = null;
+        if (this.userPermissionsRequestId === requestId) this.userPermissionsPromise = null;
 
       console.error('Erro ao buscar permissões do usuário:', error);
 
@@ -139,6 +146,7 @@ class PermissionsService {
     }
 
     // Criar nova Promise e armazenar
+    const requestId = ++this.accountPermissionsRequestId;
     const promise = (async () => {
       try {
         const response = await apiAuth.get('/permissions');
@@ -151,13 +159,13 @@ class PermissionsService {
         };
 
         // Limpar Promise após sucesso
-        // Ver getUserPermissions: só limpa o slot se ele ainda for este promise.
-        if (this.accountPermissionsPromise === promise) this.accountPermissionsPromise = null;
+        // Ver getUserPermissions: só limpa o slot se esta ainda for a requisição dona.
+        if (this.accountPermissionsRequestId === requestId) this.accountPermissionsPromise = null;
 
         return permissions;
       } catch (error) {
         // Limpar Promise em caso de erro
-        if (this.accountPermissionsPromise === promise) this.accountPermissionsPromise = null;
+        if (this.accountPermissionsRequestId === requestId) this.accountPermissionsPromise = null;
 
         console.error('Erro ao buscar permissões do account:', error);
 
