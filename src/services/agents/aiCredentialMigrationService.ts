@@ -1,4 +1,5 @@
 import api from '@/services/core/api';
+import { extractData } from '@/utils/apiHelpers';
 
 /**
  * Whether the CRM still resolves AI credentials through the legacy sources
@@ -14,5 +15,5 @@ export interface AiCredentialMigrationState {
 
 export async function getAiCredentialMigrationState(): Promise<AiCredentialMigrationState> {
   const response = await api.get('/ai/credentials/migration_state');
-  return response.data?.data as AiCredentialMigrationState;
+  return extractData<AiCredentialMigrationState>(response);
 }

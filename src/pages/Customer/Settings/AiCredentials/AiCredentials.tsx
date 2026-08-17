@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { toast } from 'sonner';
@@ -61,9 +61,12 @@ export default function AiCredentials() {
   const { can, isReady: permissionsReady } = usePermissions();
 
   const [credentials, setCredentials] = useState<ApiKey[]>([]);
-  // null until the server answered (or failed): the panel must not claim
+  // The server's word on the legacy fallback: 'pending' until the first answer
+  // (or failure) lands, then a boolean, or null when it stays unknown (older
+  // CRM without the endpoint, transient failure). The panel must not claim
   // "legacy" from a guess while the request is in flight.
-  const [legacyFallbackActive, setLegacyFallbackActive] = useState<boolean | null>(null);
+  const [legacyFallbackActive, setLegacyFallbackActive] = useState<boolean | null | 'pending'>('pending');
+  const migrationStateRequest = useRef(0);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -99,13 +102,17 @@ export default function AiCredentials() {
   // (Ai::MigrationState) can tell that apart from "migrated and off": a
   // migrated install with its last credential deactivated used to read
   // "configured before this screen" while AI was simply disabled (CRM-187).
-  // While the signal is unknown (request pending or an older CRM without the
-  // endpoint) the pre-existing heuristic — no active credential — stands in,
+  // While the signal stays unknown (an older CRM without the endpoint, a
+  // failure) the pre-existing heuristic — no active credential — stands in,
   // so a deploy window swaps no lie for another.
   const legacyActive = useMemo(
-    () => legacyFallbackActive ?? !credentials.some(credential => credential.is_active),
+    () =>
+      typeof legacyFallbackActive === 'boolean'
+        ? legacyFallbackActive
+        : !credentials.some(credential => credential.is_active),
     [legacyFallbackActive, credentials],
   );
+  const inUsePending = loading || legacyFallbackActive === 'pending';
 
   const featuresInUse = useMemo(() => {
     const openAIOnly = resolveCredentialState(credentials, {
@@ -129,13 +136,17 @@ export default function AiCredentials() {
     }
 
     // Advisory: a failure here must not block the list, it only leaves the
-    // panel on the heuristic.
+    // panel on the heuristic. Refreshed with the list because deleting the last
+    // imported credential can flip it. Last response wins.
+    const request = ++migrationStateRequest.current;
     getAiCredentialMigrationState()
       .then(state => {
+        if (request !== migrationStateRequest.current) return;
         const active = state?.legacy_fallback_active;
         setLegacyFallbackActive(typeof active === 'boolean' ? active : null);
       })
       .catch(error => {
+        if (request !== migrationStateRequest.current) return;
         console.error('Error loading AI credential migration state:', error);
         setLegacyFallbackActive(null);
       });
@@ -471,7 +482,9 @@ export default function AiCredentials() {
         {featuresInUse.map(feature => (
           <div key={feature.key} className="flex items-baseline gap-2 text-sm">
             <span className="text-muted-foreground">{t(`inUse.features.${feature.key}`)}</span>
-            {feature.resolution.state === 'registry' ? (
+            {inUsePending ? (
+              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" aria-hidden="true" />
+            ) : feature.resolution.state === 'registry' ? (
               <>
                 <span className="font-medium">{feature.resolution.credential.name}</span>
                 <span className="text-xs text-muted-foreground">

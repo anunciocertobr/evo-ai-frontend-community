@@ -719,13 +719,42 @@ describe('AiCredentials — panel honesty and full agent count', () => {
   // the pre-existing heuristic instead of trading one lie for another, and the
   // credential list itself is unaffected.
   it('falls back to the heuristic and still lists the credentials when the signal fails', async () => {
-    mockRegistry([]);
+    mockRegistry([ANTHROPIC_KEY]);
     getAiCredentialMigrationState.mockRejectedValue(new Error('404'));
+    render(<AiCredentials />);
+
+    // The list still renders — the inactive row, from the second listing call.
+    expect(await screen.findByRole('cell', { name: 'Testes' })).toBeInTheDocument();
+    const panel = screen.getByLabelText('inUse.title');
+    // Heuristic: no active credential → legacy, as before this change.
+    await waitFor(() => expect(panel).toHaveTextContent('inUse.legacy'));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('treats a malformed answer as unknown and keeps the heuristic', async () => {
+    mockRegistry([]);
+    getAiCredentialMigrationState.mockResolvedValue({ legacy_fallback_active: 'yes' });
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
     await waitFor(() => expect(panel).toHaveTextContent('inUse.legacy'));
-    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  // Before the server answers, the panel must show neither verdict: a guessed
+  // "legacy" that flips to "none" a moment later is the very lie this fixes.
+  it('shows no verdict while the migration state is still loading', async () => {
+    mockRegistry([]);
+    let answer: (state: { migrated: boolean; legacy_fallback_active: boolean }) => void = () => {};
+    getAiCredentialMigrationState.mockReturnValue(new Promise(resolve => { answer = resolve; }));
+    render(<AiCredentials />);
+
+    const panel = await screen.findByLabelText('inUse.title');
+    await waitFor(() => expect(listApiKeys).toHaveBeenCalled());
+    expect(panel).not.toHaveTextContent('inUse.legacy');
+    expect(panel).not.toHaveTextContent('inUse.none');
+
+    answer({ migrated: true, legacy_fallback_active: false });
+    await waitFor(() => expect(panel).toHaveTextContent('inUse.none'));
   });
 
   it('asks the server for the migration state on load', async () => {
