@@ -119,6 +119,21 @@ const renderTeamsTable = () =>
     />,
   );
 
+const renderMacrosTable = () =>
+  render(
+    <MacrosTable
+      macros={[macro]}
+      selectedMacros={[]}
+      onSelectionChange={noop}
+      onMacroClick={noop}
+      onEditMacro={noop}
+      onDeleteMacro={noop}
+      onCreateMacro={noop}
+      canEditMacro={() => allowed}
+      canDeleteMacro={() => allowed}
+    />,
+  );
+
 describe('write-control render gates', () => {
   it('TeamsTable renders no row-actions menu without teams write permissions', () => {
     renderTeamsTable();
@@ -135,19 +150,7 @@ describe('write-control render gates', () => {
   });
 
   it('MacrosTable keeps the read action but hides edit/delete without permission', async () => {
-    render(
-      <MacrosTable
-        macros={[macro]}
-        selectedMacros={[]}
-        onSelectionChange={noop}
-        onMacroClick={noop}
-        onEditMacro={noop}
-        onDeleteMacro={noop}
-        onCreateMacro={noop}
-        canEditMacro={() => allowed}
-        canDeleteMacro={() => allowed}
-      />,
-    );
+    renderMacrosTable();
 
     const trigger = document.querySelector('[data-slot="dropdown-menu-trigger"]');
     expect(trigger).not.toBeNull();
@@ -156,6 +159,17 @@ describe('write-control render gates', () => {
     expect(screen.getByText('table.actions.view')).toBeTruthy();
     expect(screen.queryByText('table.actions.edit')).toBeNull();
     expect(screen.queryByText('table.actions.delete')).toBeNull();
+  });
+
+  it('MacrosTable renders edit/delete when permissions grant', async () => {
+    allowed = true;
+    renderMacrosTable();
+
+    const trigger = document.querySelector('[data-slot="dropdown-menu-trigger"]');
+    await userEvent.click(trigger as HTMLElement);
+
+    expect(screen.getByText('table.actions.edit')).toBeTruthy();
+    expect(screen.getByText('table.actions.delete')).toBeTruthy();
   });
 
   it('CannedResponsesTable renders no row actions without write permissions', () => {

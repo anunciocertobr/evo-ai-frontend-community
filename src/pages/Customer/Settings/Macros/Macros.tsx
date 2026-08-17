@@ -39,7 +39,6 @@ const INITIAL_STATE: MacrosState = {
     create: false,
     update: false,
     delete: false,
-    execute: false,
   },
   filters: [],
   searchQuery: '',
