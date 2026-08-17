@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { toast } from 'sonner';
@@ -28,7 +28,14 @@ import {
   maskKey,
   resolveCredentialState,
 } from '@/constants/aiProviders';
-import { createApiKey, deleteApiKey, listApiKeys, listAgents, updateApiKey } from '@/services/agents';
+import {
+  createApiKey,
+  deleteApiKey,
+  getAiCredentialMigrationState,
+  listApiKeys,
+  listAgents,
+  updateApiKey,
+} from '@/services/agents';
 import { apiErrorCode } from '@/utils/apiHelpers';
 import type { ApiKey, ApiKeyCreate, ApiKeyScope, ApiKeyUpdate } from '@/types/agents';
 
@@ -54,6 +61,13 @@ export default function AiCredentials() {
   const { can, isReady: permissionsReady } = usePermissions();
 
   const [credentials, setCredentials] = useState<ApiKey[]>([]);
+  // The server's word on the legacy fallback: 'pending' while a request is in
+  // flight, then a boolean, or null when it stays unknown (older CRM without
+  // the endpoint, transient failure). It goes back to 'pending' on every
+  // refresh: an answer about the previous registry must not be rendered
+  // against the new one.
+  const [legacyFallbackActive, setLegacyFallbackActive] = useState<boolean | null | 'pending'>('pending');
+  const migrationStateRequest = useRef(0);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -85,15 +99,26 @@ export default function AiCredentials() {
   // reach any provider; the other four build OpenAI-shaped requests, so they
   // resolve with the same compatibility filter the backend applies.
   // An installation that has not migrated resolves through the resolver's
-  // legacy fallback, so AI works while the registry is empty. The signal comes
-  // from the server (a credential imported by the 1.5 task marks a migrated
-  // install); with the registry empty and no such mark, the panel says
-  // "legacy" instead of the flat lie "no credential" (review, MÉDIO 15).
-  // Inactive rows are listed too (CRM-174), so "empty" means no active one.
+  // legacy fallback, so AI works while the registry is empty. Only the server
+  // (Ai::MigrationState) can tell that apart from "migrated and off": a
+  // migrated install with its last credential deactivated used to read
+  // "configured before this screen" while AI was simply disabled (CRM-187).
+  // While the signal stays unknown (an older CRM without the endpoint, a
+  // failure) the pre-existing heuristic — no active credential — stands in,
+  // so a deploy window swaps no lie for another.
   const legacyActive = useMemo(
-    () => !credentials.some(credential => credential.is_active),
-    [credentials],
+    () =>
+      typeof legacyFallbackActive === 'boolean'
+        ? legacyFallbackActive
+        : !credentials.some(credential => credential.is_active),
+    [legacyFallbackActive, credentials],
   );
+  // Each half of the verdict waits only for what it depends on. A credential
+  // resolved from the registry follows the list alone, so a slow signal must
+  // not hide a name the screen already knows; "legacy" vs "none" is the only
+  // branch the signal decides, and that one waits.
+  const listPending = loading;
+  const signalPending = legacyFallbackActive === 'pending';
 
   const featuresInUse = useMemo(() => {
     const openAIOnly = resolveCredentialState(credentials, {
@@ -112,9 +137,34 @@ export default function AiCredentials() {
 
   const loadCredentials = useCallback(async () => {
     if (!canRead) {
+      // Never reached through the route (PermissionRoute gates on
+      // ai_api_keys.read), but leaving the signal 'pending' here would spin
+      // forever instead of degrading.
+      setLegacyFallbackActive(null);
       toast.error(t('messages.permissionDenied.read'));
       return;
     }
+
+    // Advisory: a failure here must not block the list, it only leaves the
+    // panel on the heuristic. Refreshed with the list because deleting the last
+    // imported credential can flip it, and reset to 'pending' first so the
+    // previous answer is not rendered against the new list. Last response wins.
+    const request = ++migrationStateRequest.current;
+    setLegacyFallbackActive('pending');
+    getAiCredentialMigrationState()
+      .then(state => {
+        if (request !== migrationStateRequest.current) return;
+        const active = state?.legacy_fallback_active;
+        setLegacyFallbackActive(typeof active === 'boolean' ? active : null);
+      })
+      .catch(error => {
+        if (request !== migrationStateRequest.current) return;
+        // Expected while a CRM without the endpoint is still deployed: the
+        // panel falls back to the heuristic, so this is a degradation notice,
+        // not a failure.
+        console.warn('AI credential migration state unavailable, using the heuristic:', error);
+        setLegacyFallbackActive(null);
+      });
 
     try {
       setLoading(true);
@@ -447,7 +497,9 @@ export default function AiCredentials() {
         {featuresInUse.map(feature => (
           <div key={feature.key} className="flex items-baseline gap-2 text-sm">
             <span className="text-muted-foreground">{t(`inUse.features.${feature.key}`)}</span>
-            {feature.resolution.state === 'registry' ? (
+            {listPending || (signalPending && feature.resolution.state !== 'registry') ? (
+              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" aria-hidden="true" />
+            ) : feature.resolution.state === 'registry' ? (
               <>
                 <span className="font-medium">{feature.resolution.credential.name}</span>
                 <span className="text-xs text-muted-foreground">

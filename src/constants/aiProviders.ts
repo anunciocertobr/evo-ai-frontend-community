@@ -108,9 +108,12 @@ function byCreatedAtAsc(a: ResolvableCredential, b: ResolvableCredential): numbe
 
 /** Resolves what the panel should render for a feature.
  *
- * `legacyActive` comes from the server (the migration guard), never from a
- * guess: only the backend can tell "the registry is empty AND the legacy
- * fallback is serving" apart from "nothing is configured".
+ * `legacyActive` is the server's answer (the migration guard): only the backend
+ * can tell "the registry is empty AND the legacy fallback is serving" apart
+ * from "nothing is configured". It is consulted only when nothing resolves from
+ * the registry, so a caller that does not have the answer yet should withhold
+ * that branch rather than pass a guess — the pre-existing heuristic is a
+ * documented last resort for a CRM that does not serve the signal at all.
  */
 export function resolveCredentialState<T extends ResolvableCredential>(
   credentials: T[],
