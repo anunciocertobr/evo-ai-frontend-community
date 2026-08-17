@@ -24,7 +24,7 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
   {
     key: 'crm',
     labelKey: 'domains.crm',
-    resources: ['pipelines', 'pipeline_stages', 'products', 'crm_forms'], // pipeline_stages nested under pipelines (AC6)
+    resources: ['pipelines', 'pipeline_stages', 'pipeline_items', 'products', 'crm_forms'], // pipeline_stages + pipeline_items nested under pipelines (AC6, CRM-178)
   },
   {
     key: 'automation',
@@ -64,6 +64,7 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
 // (AC6), never as their own card and never under "Others".
 export const RESOURCE_NESTING: Record<string, string> = {
   pipeline_stages: 'pipelines',
+  pipeline_items: 'pipelines',
   working_hours: 'inboxes',
 };
 
