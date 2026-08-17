@@ -5,3 +5,4 @@ export * from './customToolsService';
 export * from './mcpServerService';
 export * from './customMcpServerService';
 export * from './integrationCredentialService';
+export * from './aiCredentialMigrationService';
