@@ -32,6 +32,7 @@ const createApiKey = vi.fn();
 const updateApiKey = vi.fn();
 const deleteApiKey = vi.fn();
 const listAgents = vi.fn();
+const getAiCredentialMigrationState = vi.fn();
 
 vi.mock('@/services/agents', () => ({
   listApiKeys: (...args: unknown[]) => listApiKeys(...args),
@@ -39,7 +40,13 @@ vi.mock('@/services/agents', () => ({
   updateApiKey: (...args: unknown[]) => updateApiKey(...args),
   deleteApiKey: (...args: unknown[]) => deleteApiKey(...args),
   listAgents: (...args: unknown[]) => listAgents(...args),
+  getAiCredentialMigrationState: (...args: unknown[]) => getAiCredentialMigrationState(...args),
 }));
+
+// The server's word on the legacy fallback (Ai::MigrationState). Tests that
+// need the fallback alive say so explicitly; the default is a migrated install.
+const serverSaysLegacy = (active: boolean) =>
+  getAiCredentialMigrationState.mockResolvedValue({ migrated: !active, legacy_fallback_active: active });
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -116,6 +123,7 @@ beforeEach(() => {
   granted = [...ALL_PERMISSIONS];
   mockRegistry([OPENAI_KEY, ANTHROPIC_KEY]);
   listAgents.mockResolvedValue({ data: [] });
+  serverSaysLegacy(false);
 });
 
 describe('AiCredentials — listing (AC1, AC7)', () => {
@@ -348,16 +356,32 @@ describe('AiCredentials — deactivate keeps the row and can be undone (CRM-174)
     expect(screen.queryByText('status.active')).not.toBeInTheDocument();
   });
 
-  it('keeps reporting the legacy fallback while the only credential is inactive', async () => {
+
+  // The panel used to guess "legacy" from "no active credential". On a migrated
+  // install that reads as "AI still runs" while it is simply off (CRM-187).
+  it('says "none", not "legacy", when the only credential is deactivated on a migrated install', async () => {
     const user = userEvent.setup();
+    serverSaysLegacy(false);
     render(<AiCredentials />);
 
     await findAccountRow();
     await user.click(screen.getByText('actions.deactivate'));
     await screen.findByText('status.inactive');
 
-    // No active credential resolves, so the panel must not claim "none" just
-    // because an inactive row is now listed.
+    const panel = screen.getByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('inUse.none'));
+    expect(panel).not.toHaveTextContent('inUse.legacy');
+  });
+
+  it('keeps saying "legacy" while the server reports the fallback alive', async () => {
+    const user = userEvent.setup();
+    serverSaysLegacy(true);
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    await user.click(screen.getByText('actions.deactivate'));
+    await screen.findByText('status.inactive');
+
     const panel = screen.getByLabelText('inUse.title');
     expect(panel).toHaveTextContent('inUse.legacy');
     expect(panel).not.toHaveTextContent('inUse.none');
@@ -480,8 +504,9 @@ describe('AiCredentials — in-use panel (1.2 AC9)', () => {
   // MÉDIO 15 names: an installation that has not migrated resolves through the
   // resolver's legacy fallback, so AI is running while the registry is empty.
   // "No credential" told the user their working AI was off.
-  it('reports the legacy fallback, not "none", when the registry is empty', async () => {
+  it('reports the legacy fallback, not "none", when the registry is empty on a non-migrated install', async () => {
     mockRegistry([]);
+    serverSaysLegacy(true);
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
@@ -670,6 +695,7 @@ describe('AiCredentials — base_url round trip (ALTO 7)', () => {
 describe('AiCredentials — panel honesty and full agent count', () => {
   it('says "configured before this screen" instead of "no credential" on a non-migrated install', async () => {
     mockRegistry([]);
+    serverSaysLegacy(true);
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
@@ -677,6 +703,36 @@ describe('AiCredentials — panel honesty and full agent count', () => {
     // claiming "no credential" told the user their working AI was off.
     await waitFor(() => expect(panel).toHaveTextContent('inUse.legacy'));
     expect(panel).not.toHaveTextContent('inUse.none');
+  });
+
+  it('says "none" on an empty registry once the server reports the install migrated', async () => {
+    mockRegistry([]);
+    serverSaysLegacy(false);
+    render(<AiCredentials />);
+
+    const panel = await screen.findByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('inUse.none'));
+    expect(panel).not.toHaveTextContent('inUse.legacy');
+  });
+
+  // An older CRM without the endpoint, or a transient failure: the panel keeps
+  // the pre-existing heuristic instead of trading one lie for another, and the
+  // credential list itself is unaffected.
+  it('falls back to the heuristic and still lists the credentials when the signal fails', async () => {
+    mockRegistry([]);
+    getAiCredentialMigrationState.mockRejectedValue(new Error('404'));
+    render(<AiCredentials />);
+
+    const panel = await screen.findByLabelText('inUse.title');
+    await waitFor(() => expect(panel).toHaveTextContent('inUse.legacy'));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('asks the server for the migration state on load', async () => {
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    expect(getAiCredentialMigrationState).toHaveBeenCalledTimes(1);
   });
 
   it('counts agents beyond the first page before confirming a delete', async () => {

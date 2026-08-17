@@ -28,7 +28,14 @@ import {
   maskKey,
   resolveCredentialState,
 } from '@/constants/aiProviders';
-import { createApiKey, deleteApiKey, listApiKeys, listAgents, updateApiKey } from '@/services/agents';
+import {
+  createApiKey,
+  deleteApiKey,
+  getAiCredentialMigrationState,
+  listApiKeys,
+  listAgents,
+  updateApiKey,
+} from '@/services/agents';
 import { apiErrorCode } from '@/utils/apiHelpers';
 import type { ApiKey, ApiKeyCreate, ApiKeyScope, ApiKeyUpdate } from '@/types/agents';
 
@@ -54,6 +61,9 @@ export default function AiCredentials() {
   const { can, isReady: permissionsReady } = usePermissions();
 
   const [credentials, setCredentials] = useState<ApiKey[]>([]);
+  // null until the server answered (or failed): the panel must not claim
+  // "legacy" from a guess while the request is in flight.
+  const [legacyFallbackActive, setLegacyFallbackActive] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -85,14 +95,16 @@ export default function AiCredentials() {
   // reach any provider; the other four build OpenAI-shaped requests, so they
   // resolve with the same compatibility filter the backend applies.
   // An installation that has not migrated resolves through the resolver's
-  // legacy fallback, so AI works while the registry is empty. The signal comes
-  // from the server (a credential imported by the 1.5 task marks a migrated
-  // install); with the registry empty and no such mark, the panel says
-  // "legacy" instead of the flat lie "no credential" (review, MÉDIO 15).
-  // Inactive rows are listed too (CRM-174), so "empty" means no active one.
+  // legacy fallback, so AI works while the registry is empty. Only the server
+  // (Ai::MigrationState) can tell that apart from "migrated and off": a
+  // migrated install with its last credential deactivated used to read
+  // "configured before this screen" while AI was simply disabled (CRM-187).
+  // While the signal is unknown (request pending or an older CRM without the
+  // endpoint) the pre-existing heuristic — no active credential — stands in,
+  // so a deploy window swaps no lie for another.
   const legacyActive = useMemo(
-    () => !credentials.some(credential => credential.is_active),
-    [credentials],
+    () => legacyFallbackActive ?? !credentials.some(credential => credential.is_active),
+    [legacyFallbackActive, credentials],
   );
 
   const featuresInUse = useMemo(() => {
@@ -115,6 +127,18 @@ export default function AiCredentials() {
       toast.error(t('messages.permissionDenied.read'));
       return;
     }
+
+    // Advisory: a failure here must not block the list, it only leaves the
+    // panel on the heuristic.
+    getAiCredentialMigrationState()
+      .then(state => {
+        const active = state?.legacy_fallback_active;
+        setLegacyFallbackActive(typeof active === 'boolean' ? active : null);
+      })
+      .catch(error => {
+        console.error('Error loading AI credential migration state:', error);
+        setLegacyFallbackActive(null);
+      });
 
     try {
       setLoading(true);
