@@ -117,7 +117,14 @@ export default function AiCredentials() {
 
     try {
       setLoading(true);
-      setCredentials(await listApiKeys());
+      // The registry answers "active only" by default, which hid a deactivated
+      // credential and left it with no way back from the screen. Both states
+      // are listed so the row stays visible and can be re-enabled.
+      const [active, inactive] = await Promise.all([
+        listApiKeys(1, 100, { active: true }),
+        listApiKeys(1, 100, { active: false }),
+      ]);
+      setCredentials([...active, ...inactive]);
     } catch (error) {
       console.error('Error loading AI credentials:', error);
       const code = apiErrorCode(error);

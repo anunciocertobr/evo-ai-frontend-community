@@ -91,6 +91,17 @@ const ALL_PERMISSIONS = [
 // table assertions resolve the row instead of the bare text.
 const findAccountRow = () => screen.findByRole('cell', { name: 'Producao' });
 
+// Mirrors the registry: `active` picks one state, and its absence means "active
+// only" — the default that used to hide a deactivated credential (CRM-174).
+// Mutable so a toggle can be observed across the reload that follows it.
+let registry: ApiKey[] = [];
+const mockRegistry = (keys: ApiKey[]) => {
+  registry = keys;
+  listApiKeys.mockImplementation((_page?: number, _pageSize?: number, options?: { active?: boolean }) =>
+    Promise.resolve(registry.filter(key => key.is_active === (options?.active ?? true))),
+  );
+};
+
 beforeAll(() => {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -102,7 +113,7 @@ beforeAll(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   granted = [...ALL_PERMISSIONS];
-  listApiKeys.mockResolvedValue([OPENAI_KEY, ANTHROPIC_KEY]);
+  mockRegistry([OPENAI_KEY, ANTHROPIC_KEY]);
   listAgents.mockResolvedValue({ data: [] });
 });
 
@@ -113,8 +124,11 @@ describe('AiCredentials — listing (AC1, AC7)', () => {
     expect(await findAccountRow()).toBeInTheDocument();
     expect(screen.getByText(maskKey('4f2a'))).toBeInTheDocument();
     expect(screen.getByText(maskKey('91bc'))).toBeInTheDocument();
-    // The registry is the only source consulted.
-    expect(listApiKeys).toHaveBeenCalledTimes(1);
+    // The registry is the only source consulted, asked for both states so a
+    // deactivated credential stays on screen (CRM-174).
+    expect(listApiKeys).toHaveBeenCalledTimes(2);
+    expect(listApiKeys).toHaveBeenCalledWith(1, 100, { active: true });
+    expect(listApiKeys).toHaveBeenCalledWith(1, 100, { active: false });
   });
 
   it('says which features each provider serves', async () => {
@@ -260,11 +274,65 @@ describe('AiCredentials — delete warns about agents in use (AC5)', () => {
 });
 
 // EVO-2250 story 1.2: the installation link of the chain.
+describe('AiCredentials — deactivate keeps the row and can be undone (CRM-174)', () => {
+  beforeEach(() => {
+    mockRegistry([OPENAI_KEY]);
+    // Persist the toggle so the reload after it reflects the new state, the
+    // way the core does.
+    updateApiKey.mockImplementation((id: string, data: Partial<ApiKey>) => {
+      registry = registry.map(key => (key.id === id ? { ...key, ...data } : key));
+      return Promise.resolve(registry.find(key => key.id === id));
+    });
+  });
+
+  it('keeps a deactivated credential visible, marked inactive, with the activate action', async () => {
+    const user = userEvent.setup();
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    await user.click(screen.getByText('actions.deactivate'));
+
+    await waitFor(() =>
+      expect(updateApiKey).toHaveBeenCalledWith('key-openai', expect.objectContaining({ is_active: false })),
+    );
+    // Still on screen after the reload — the row used to vanish here.
+    expect(await findAccountRow()).toBeInTheDocument();
+    expect(await screen.findByText('status.inactive')).toBeInTheDocument();
+    expect(screen.getByText('actions.activate')).toBeInTheDocument();
+    expect(screen.queryByText('empty.title')).not.toBeInTheDocument();
+  });
+
+  it('reactivates from the screen, closing the cycle', async () => {
+    const user = userEvent.setup();
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    await user.click(screen.getByText('actions.deactivate'));
+    await user.click(await screen.findByText('actions.activate'));
+
+    await waitFor(() =>
+      expect(updateApiKey).toHaveBeenLastCalledWith('key-openai', expect.objectContaining({ is_active: true })),
+    );
+    expect(await screen.findByText('status.active')).toBeInTheDocument();
+    expect(screen.getByText('actions.deactivate')).toBeInTheDocument();
+    expect(screen.queryByText('status.inactive')).not.toBeInTheDocument();
+  });
+
+  it('asks the registry for the inactive credentials explicitly', async () => {
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    // Without this second call the default (active only) hides the row —
+    // the exact regression this block guards.
+    expect(listApiKeys).toHaveBeenCalledWith(1, 100, { active: false });
+  });
+});
+
 describe('AiCredentials — installation scope (1.2 AC1, AC2)', () => {
   const findInstallationRow = () => screen.findByRole('cell', { name: 'Chave da casa' });
 
   beforeEach(() => {
-    listApiKeys.mockResolvedValue([OPENAI_KEY, INSTALLATION_KEY]);
+    mockRegistry([OPENAI_KEY, INSTALLATION_KEY]);
   });
 
   it('splits credentials into the account and installation sections', async () => {
@@ -272,8 +340,9 @@ describe('AiCredentials — installation scope (1.2 AC1, AC2)', () => {
 
     await findAccountRow();
     expect(await findInstallationRow()).toBeInTheDocument();
-    // A single listing call feeds both sections.
-    expect(listApiKeys).toHaveBeenCalledTimes(1);
+    // The same listing (active + inactive) feeds both sections; scope is
+    // split on the client.
+    expect(listApiKeys).toHaveBeenCalledTimes(2);
   });
 
   it('lets an installation admin add a credential at that level', async () => {
@@ -332,7 +401,7 @@ describe('AiCredentials — installation scope (1.2 AC1, AC2)', () => {
   });
 
   it('shows the empty hint when the installation has no default', async () => {
-    listApiKeys.mockResolvedValue([OPENAI_KEY]);
+    mockRegistry([OPENAI_KEY]);
     render(<AiCredentials />);
 
     await findAccountRow();
@@ -343,7 +412,7 @@ describe('AiCredentials — installation scope (1.2 AC1, AC2)', () => {
 // The panel answers "which credential is in effect right now" (1.2 AC9).
 describe('AiCredentials — in-use panel (1.2 AC9)', () => {
   it('shows the account credential winning over the installation default', async () => {
-    listApiKeys.mockResolvedValue([INSTALLATION_KEY, OPENAI_KEY]);
+    mockRegistry([INSTALLATION_KEY, OPENAI_KEY]);
     render(<AiCredentials />);
 
     await findAccountRow();
@@ -354,7 +423,7 @@ describe('AiCredentials — in-use panel (1.2 AC9)', () => {
   });
 
   it('falls back to the installation default when the account has none', async () => {
-    listApiKeys.mockResolvedValue([INSTALLATION_KEY]);
+    mockRegistry([INSTALLATION_KEY]);
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
@@ -364,7 +433,7 @@ describe('AiCredentials — in-use panel (1.2 AC9)', () => {
   });
 
   it('ignores an inactive account credential and inherits the default', async () => {
-    listApiKeys.mockResolvedValue([INSTALLATION_KEY, ANTHROPIC_KEY]);
+    mockRegistry([INSTALLATION_KEY, ANTHROPIC_KEY]);
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
@@ -376,7 +445,7 @@ describe('AiCredentials — in-use panel (1.2 AC9)', () => {
   // resolver's legacy fallback, so AI is running while the registry is empty.
   // "No credential" told the user their working AI was off.
   it('reports the legacy fallback, not "none", when the registry is empty', async () => {
-    listApiKeys.mockResolvedValue([]);
+    mockRegistry([]);
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
@@ -384,7 +453,7 @@ describe('AiCredentials — in-use panel (1.2 AC9)', () => {
   });
 
   it('lists the five AI features of the CRM (1.4 completes the panel)', async () => {
-    listApiKeys.mockResolvedValue([OPENAI_KEY]);
+    mockRegistry([OPENAI_KEY]);
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
@@ -397,7 +466,7 @@ describe('AiCredentials — in-use panel (1.2 AC9)', () => {
   // OpenAI-shaped features, which fall through to the installation default.
   it('splits agents from the OpenAI-only features when providers differ', async () => {
     const anthropicActive = { ...ANTHROPIC_KEY, is_active: true };
-    listApiKeys.mockResolvedValue([INSTALLATION_KEY, anthropicActive]);
+    mockRegistry([INSTALLATION_KEY, anthropicActive]);
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
@@ -411,7 +480,7 @@ describe('AiCredentials — in-use panel (1.2 AC9)', () => {
   // installation default while AI Agents keep the account credential.
   it('shows the assist falling back when the account credential is incompatible', async () => {
     const anthropicActive = { ...ANTHROPIC_KEY, is_active: true };
-    listApiKeys.mockResolvedValue([INSTALLATION_KEY, anthropicActive]);
+    mockRegistry([INSTALLATION_KEY, anthropicActive]);
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
@@ -527,7 +596,7 @@ describe('AiCredentials — base_url round trip (ALTO 7)', () => {
 
   it('renders the stored endpoint when editing a credential that has one', async () => {
     const user = userEvent.setup();
-    listApiKeys.mockResolvedValue([
+    mockRegistry([
       { ...OPENAI_KEY, provider: 'custom_openai_compatible', base_url: 'https://gw.example.com/v1' },
     ]);
     render(<AiCredentials />);
@@ -543,7 +612,7 @@ describe('AiCredentials — base_url round trip (ALTO 7)', () => {
   it('carries base_url in the update payload (negative proof of the discard)', async () => {
     const user = userEvent.setup();
     updateApiKey.mockResolvedValue(OPENAI_KEY);
-    listApiKeys.mockResolvedValue([
+    mockRegistry([
       { ...OPENAI_KEY, provider: 'custom_openai_compatible', base_url: 'https://gw.example.com/v1' },
     ]);
     render(<AiCredentials />);
@@ -564,7 +633,7 @@ describe('AiCredentials — base_url round trip (ALTO 7)', () => {
 // EVO-2250 review, MÉDIO 15 and BAIXO 19.
 describe('AiCredentials — panel honesty and full agent count', () => {
   it('says "configured before this screen" instead of "no credential" on a non-migrated install', async () => {
-    listApiKeys.mockResolvedValue([]);
+    mockRegistry([]);
     render(<AiCredentials />);
 
     const panel = await screen.findByLabelText('inUse.title');
