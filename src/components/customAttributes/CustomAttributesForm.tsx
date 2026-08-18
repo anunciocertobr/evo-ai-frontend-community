@@ -16,9 +16,10 @@ import {
   Textarea,
   Switch,
 } from '@evoapi/design-system';
-import { Plus, X, Settings, Pencil, Check, Loader2 } from 'lucide-react';
+import { Plus, X, Settings, Pencil, Check, Loader2, AlertTriangle } from 'lucide-react';
 import { customAttributesService } from '@/services/customAttributes/customAttributesService';
 import { CustomAttributeDefinition, AttributeModel } from '@/types/settings';
+import EmptyState from '@/components/base/EmptyState';
 import { toast } from 'sonner';
 
 export type CustomAttributesMode = 'form' | 'editable';
@@ -42,7 +43,6 @@ export interface CustomAttributesFormProps {
   translationNamespace?: string;
   /** Translation keys for messages (used in 'editable' mode) */
   translationKeys?: {
-    loadError?: string;
     updateSuccess?: string;
     updateError?: string;
     noAttributes?: string;
@@ -70,8 +70,11 @@ export default function CustomAttributesForm({
 }: CustomAttributesFormProps) {
   const defaultTranslationNamespace = mode === 'editable' ? 'chat' : 'customAttributes';
   const { t } = useLanguage(translationNamespace || defaultTranslationNamespace);
+  const { t: tCommon } = useLanguage('common');
   const [definedAttributes, setDefinedAttributes] = useState<CustomAttributeDefinition[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [newAttributeKey, setNewAttributeKey] = useState('');
   const [newAttributeValue, setNewAttributeValue] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -90,27 +93,41 @@ export default function CustomAttributesForm({
     return value;
   };
 
-  // Load defined custom attributes for the specified model
+  // CRM-166: a failed load used to leave `definedAttributes` at [] and only
+  // toast, so every read-only surface rendered "no attributes" — indistinguishable
+  // from a real empty catalog. The failure is tracked so the render paths below can
+  // say what happened and offer a retry.
+  //
+  // `cancelled` guards the ordering: on a model switch (or a retry landing before
+  // the request it replaced) a stale rejection must not stamp failed over a newer
+  // success.
   useEffect(() => {
-    const loadDefinedAttributes = async () => {
-      setLoading(true);
-      try {
-        const response = await customAttributesService.getCustomAttributes(attributeModel);
-        setDefinedAttributes(response.data);
-      } catch (error) {
-        if (mode === 'editable') {
-          const errorKey = translationKeys.loadError || 'contactSidebar.customAttributes.loadError';
-          toast.error(t(errorKey));
-        } else {
-          console.error('Error loading custom attributes:', error);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
+    let cancelled = false;
+    setLoading(true);
 
-    loadDefinedAttributes();
-  }, [attributeModel, mode, t, translationKeys.loadError]);
+    customAttributesService
+      .getCustomAttributes(attributeModel)
+      .then(response => {
+        if (cancelled) return;
+        setDefinedAttributes(response.data);
+        setLoadFailed(false);
+      })
+      .catch(error => {
+        if (cancelled) return;
+        console.error('Error loading custom attributes:', error);
+        setLoadFailed(true);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [attributeModel, reloadToken]);
+
+  const retryLoadDefinedAttributes = () => setReloadToken(token => token + 1);
 
   // Form mode handlers
   const handleAddAttribute = () => {
@@ -599,6 +616,29 @@ export default function CustomAttributesForm({
       );
     }
 
+    if (loadFailed) {
+      return (
+        <div className="space-y-2 py-4 text-center" data-testid="custom-attributes-load-failed">
+          <AlertTriangle className="mx-auto h-4 w-4 text-muted-foreground" />
+          <p className="text-xs font-medium text-foreground">
+            {tCommon('customAttributes.loadFailed.title')}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {tCommon('customAttributes.loadFailed.description')}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={retryLoadDefinedAttributes}
+            disabled={loading}
+            className="h-6 px-2 text-xs"
+          >
+            {tCommon('customAttributes.loadFailed.retry')}
+          </Button>
+        </div>
+      );
+    }
+
     if (definedAttributes.length === 0) {
       const noAttributesKey = translationKeys.noAttributes || 'contactSidebar.customAttributes.noAttributes';
       return (
@@ -629,6 +669,21 @@ export default function CustomAttributesForm({
         <div className="text-center py-4">
           <div className="text-sm text-muted-foreground">{t('loading')}</div>
         </div>
+      )}
+
+      {loadFailed && !loading && (
+        <EmptyState
+          icon={AlertTriangle}
+          title={tCommon('customAttributes.loadFailed.title')}
+          description={tCommon('customAttributes.loadFailed.description')}
+          action={{
+            label: tCommon('customAttributes.loadFailed.retry'),
+            onClick: retryLoadDefinedAttributes,
+            variant: 'outline',
+            disabled: loading,
+          }}
+          className="py-8"
+        />
       )}
 
       {/* Defined Custom Attributes */}
@@ -796,7 +851,8 @@ export default function CustomAttributesForm({
       {definedAttributes.length === 0 &&
         attributeEntries.length === 0 &&
         !showAddForm &&
-        !loading && (
+        !loading &&
+        !loadFailed && (
           <div className="text-center py-6 text-muted-foreground">
             <Settings className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">{t('empty.title')}</p>
