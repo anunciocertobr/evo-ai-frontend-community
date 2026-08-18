@@ -69,6 +69,11 @@ jobs:
       #     can() denies and renders when it grants. The paired positive case is
       #     what keeps the negative ones honest — a control that stopped
       #     rendering for everyone would satisfy the denial assertions too.
+      #   - permissions service (CRM-164): a fetch with no cache to serve must
+      #     reject, not resolve to []. The context spec mocks the service away,
+      #     so these are the only examples guarding it.
+      #   - RouterGuard (CRM-164): the load-failure panel, and the path split
+      #     that keeps public pages reachable for a logged-in visitor.
       # The whole list runs in ~30s and is deterministic.
       #
       # Running the whole suite here was tried and reverted: 160 jsdom files in
@@ -81,6 +86,8 @@ jobs:
         run: |
           npx vitest run --reporter=basic \
             src/contexts/PermissionsContext.spec.tsx \
+            src/services/permissions.spec.ts \
+            src/guards/RouterGuard.spec.tsx \
             src/pages/Admin/Roles/RoleDetail.spec.tsx \
             src/pages/Admin/Roles/RolesList.spec.tsx \
             src/services/campaigns/campaignsService.spec.ts \
