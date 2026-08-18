@@ -34,8 +34,11 @@ import {
 } from '@/config/permissionDomains';
 
 // Nested resource -> i18n key for its sub-label inside the parent card (AC6).
+// Every key in RESOURCE_NESTING needs an entry here: the nested row renders its label
+// through this map, so a missing one is t(undefined) — an unnamed row of checkboxes.
 const NESTED_LABEL_KEYS: Record<string, string> = {
   pipeline_stages: 'detail.nested.pipelineStages',
+  pipeline_items: 'detail.nested.pipelineItems',
   working_hours: 'detail.nested.workingHours',
 };
 

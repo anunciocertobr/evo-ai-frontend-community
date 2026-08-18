@@ -91,7 +91,7 @@ vi.mock('@/services/permissions', () => ({
               stats: { name: 'Statistics', description: '', basic: false, implied_by: null },
             },
           },
-          // CRM domain, with a nested child (pipeline_stages under pipelines).
+          // CRM domain, with nested children (pipeline_stages, pipeline_items) under pipelines.
           pipelines: {
             name: 'Pipelines',
             description: '',
@@ -105,6 +105,14 @@ vi.mock('@/services/permissions', () => ({
             actions: {
               read: { name: 'View', description: '', basic: false, implied_by: null },
               create: { name: 'Create', description: '', basic: false, implied_by: null },
+            },
+          },
+          // CRM-178: card writes, write-only (reads stay on pipelines.read).
+          pipeline_items: {
+            name: 'Pipeline Cards',
+            description: '',
+            actions: {
+              update: { name: 'Manage cards', description: '', basic: false, implied_by: null },
             },
           },
           // Channels domain: nested child (working_hours) + an inbox template action.
@@ -482,9 +490,11 @@ describe('RoleDetail — bulk select', () => {
 
     const savedKeys = bulkUpdateMock.mock.calls[0][1] as string[];
     expect(savedKeys).toContain('pipelines.read');
-    // pipeline_stages renders inside the pipelines row but is its own resource.
+    // pipeline_stages/pipeline_items render inside the pipelines row but are their
+    // own resources.
     expect(savedKeys).toContain('pipeline_stages.read');
     expect(savedKeys).toContain('pipeline_stages.create');
+    expect(savedKeys).toContain('pipeline_items.update');
     // Another section is untouched.
     expect(savedKeys).not.toContain('conversations.read');
   });
@@ -645,5 +655,17 @@ describe('RoleDetail — domain grouping, system filter, search, nesting', () =>
 
     expect(screen.getByText('detail.nested.pipelineStages')).toBeTruthy();
     expect(screen.getByText('detail.nested.workingHours')).toBeTruthy();
+  });
+
+  // CRM-178: pipeline_items joined RESOURCE_NESTING. Without a matching
+  // NESTED_LABEL_KEYS entry the row renders t(undefined) — checkboxes with no name.
+  it('nests pipeline_items under Pipelines WITH a label (CRM-178, AC6)', async () => {
+    render(<RoleDetail />);
+    await waitFor(() => expect(cb('group-pipelines-read')).not.toBeNull());
+
+    expect(cb('group-pipeline_items-write')).not.toBeNull();
+    expect(cb('resource-pipeline_items')).toBeNull();
+
+    expect(screen.getByText('detail.nested.pipelineItems')).toBeTruthy();
   });
 });

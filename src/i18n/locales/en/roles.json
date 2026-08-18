@@ -57,6 +57,7 @@
     "filterPlaceholder": "Search permissions...",
     "nested": {
       "pipelineStages": "Stages",
+      "pipelineItems": "Cards",
       "workingHours": "Working hours"
     },
     "lock": {

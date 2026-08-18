@@ -57,6 +57,7 @@
     "filterPlaceholder": "Rechercher des permissions...",
     "nested": {
       "pipelineStages": "Étapes",
+      "pipelineItems": "Cartes",
       "workingHours": "Heures d'ouverture"
     },
     "lock": {
