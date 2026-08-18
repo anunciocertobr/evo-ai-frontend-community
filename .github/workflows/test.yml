@@ -69,14 +69,11 @@ jobs:
       #     can() denies and renders when it grants. The paired positive case is
       #     what keeps the negative ones honest — a control that stopped
       #     rendering for everyone would satisfy the denial assertions too.
-      #   - permissions service (CRM-164): a fetch that fails with no cache to
-      #     serve rejects instead of resolving to []. PermissionsContext.spec
-      #     mocks this service away, so without these examples putting the two
-      #     `return []` back restores the "load failure shown as denial" bug
-      #     with every other spec here still green.
-      #   - RouterGuard (CRM-164): the load-failure panel is the half of that
-      #     fix the user sees, and the path split is what keeps a logged-in
-      #     visitor on /widget or /f/:slug from being blocked by it.
+      #   - permissions service (CRM-164): a fetch with no cache to serve must
+      #     reject, not resolve to []. The context spec mocks the service away,
+      #     so these are the only examples guarding it.
+      #   - RouterGuard (CRM-164): the load-failure panel, and the path split
+      #     that keeps public pages reachable for a logged-in visitor.
       # The whole list runs in ~30s and is deterministic.
       #
       # Running the whole suite here was tried and reverted: 160 jsdom files in

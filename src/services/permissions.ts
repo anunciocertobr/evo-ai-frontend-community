@@ -16,12 +16,9 @@ class PermissionsService {
   // ⚡ OTIMIZAÇÃO: Aumentado cache de 5min para 30min
   // Permissões mudam raramente, não é necessário revalidar a cada 5 minutos
   private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutos (antes: 5 minutos)
-  // How long past expiry a cached list may still be served when the fetch
-  // fails. Unbounded, the fallback below would answer `can()` from a list of
-  // arbitrary age and `loadFailed` would never fire, so the "a failure is not a
-  // denial" guarantee (CRM-164) would only ever hold on the first fetch of a
-  // session — and a revoked permission would stay granted for as long as the
-  // tab is open.
+  // Bounds the stale-cache fallback below. Unbounded, a revoked permission
+  // would stay granted for the life of the tab and `loadFailed` would never
+  // fire (CRM-164).
   private readonly MAX_STALE_DURATION = 60 * 60 * 1000; // 1h past expiry
 
   // Cache para permissões do usuário (global)
@@ -35,9 +32,9 @@ class PermissionsService {
   private userPermissionsPromise: Promise<string[]> | null = null;
   private accountPermissionsPromise: Promise<string[]> | null = null;
 
-  // Identifica a requisição dona do slot de dedup acima. Comparar contra a
-  // própria Promise seria mais direto, mas a auto-referência dentro da IIFE que
-  // a cria não compila (TS2454).
+  // Identifies the request that owns the dedup slot above. Comparing against
+  // the Promise itself would be simpler, but the self-reference inside the IIFE
+  // that creates it does not compile (TS2454).
   private userPermissionsRequestId = 0;
   private accountPermissionsRequestId = 0;
 
@@ -95,10 +92,8 @@ class PermissionsService {
     }
 
     // Criar nova Promise e armazenar
-    // `forceRefresh` bypasses the dedup guard above, so a retry can install a
-    // newer promise while this one is still in flight. Clearing the slot
-    // unconditionally would then discard the NEWER promise and let a third
-    // caller fire yet another request — defeating the dedup entirely.
+    // `forceRefresh` bypasses the dedup guard, so a newer promise can land in
+    // the slot mid-flight; only its owner may clear it.
     const requestId = ++this.userPermissionsRequestId;
     const promise = (async () => {
       try {
@@ -107,8 +102,7 @@ class PermissionsService {
         const responseData = extractData<{ permissions: string[] }>(response);
         const permissions = responseData.permissions || [];
 
-        // Only the request that owns the slot writes: an older response
-        // settling after a newer forceRefresh would overwrite the fresh data.
+        // Only the owner writes: an older response would overwrite fresh data.
         if (this.userPermissionsRequestId === requestId) {
           this.userPermissionsCache = permissions;
           this.permissionsCacheExpiry = Date.now() + this.CACHE_DURATION;
@@ -122,17 +116,14 @@ class PermissionsService {
 
         console.error('Erro ao buscar permissões do usuário:', error);
 
-        // Serve the previous list as a fallback while it is still inside the
-        // tolerance window
+        // Fall back to the previous list while it is inside the tolerance window
         if (this.userPermissionsCache && Date.now() < this.permissionsCacheExpiry + this.MAX_STALE_DURATION) {
           console.warn('Usando cache antigo de permissões do usuário');
           return this.userPermissionsCache;
         }
 
-        // CRM-164: sem cache para servir, a falha PRECISA propagar. Devolver []
-        // aqui fazia o PermissionsContext marcar isReady com lista vazia, e daí
-        // `can()` respondia false — falha de carga chegava ao usuário como
-        // negação de permissão.
+        // CRM-164: with no cache to serve, the failure MUST propagate.
+        // Returning [] here reached the user as a permission denial.
         throw error;
       }
     })();
@@ -182,8 +173,7 @@ class PermissionsService {
 
         console.error('Erro ao buscar permissões do account:', error);
 
-        // Serve the previous list as a fallback while it is still inside the
-        // tolerance window
+        // Fall back to the previous list while it is inside the tolerance window
         if (
           this.accountPermissionsData &&
           Date.now() < this.accountPermissionsData.expiry + this.MAX_STALE_DURATION
@@ -192,7 +182,7 @@ class PermissionsService {
           return this.accountPermissionsData.permissions;
         }
 
-        // CRM-164: ver getUserPermissions — falha sem cache propaga.
+        // CRM-164: see getUserPermissions — a failure with no cache propagates.
         throw error;
       }
     })();

@@ -34,14 +34,9 @@ export const PermissionsContext = createContext<PermissionsContextValue | undefi
 
 interface PermissionsProviderProps {
   children: React.ReactNode;
-  // Whether a failed load replaces the tree with the failure panel. Default
-  // true, because the embedded shell mounts this provider around the vendor
-  // pages WITHOUT the vendor router — RouterGuard, the other host of the panel,
-  // never runs there, so a failure would leave every CRM screen rendering as an
-  // empty list forever with no message and no retry (CRM-164).
-  // The standalone app opts out: its RouterGuard shows the same panel and knows
-  // which paths are public, and a logged-in visitor on /widget or /f/:slug must
-  // still get the page.
+  // Whether a failed load replaces the tree with the failure panel (CRM-164).
+  // Default true for the embedded shell, which mounts this provider but not
+  // RouterGuard. The standalone app opts out — see App.tsx.
   blockOnLoadFailure?: boolean;
 }
 
@@ -56,13 +51,10 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Outcome of each permission fetch for the current user. `pending` keeps
-  // `isReady` false during the render between user appearing and the fetch
-  // effect running — that window used to flash the Unauthorized page after a
-  // fresh login. `failed` keeps it false too: a fetch that blew up leaves an
-  // empty list that is indistinguishable from a real denial (CRM-164), so the
-  // app must not act on it. Only `loaded` means the list can be trusted —
-  // including a legitimately empty one.
+  // Outcome of each permission fetch. Only `loaded` means the list can be
+  // trusted, including a legitimately empty one: `pending` covers the render
+  // before the fetch effect runs, `failed` an empty list that is really a load
+  // error and not a denial (CRM-164).
   const [userPermsStatus, setUserPermsStatus] = useState<FetchStatus>('pending');
   const [accountPermsStatus, setAccountPermsStatus] = useState<FetchStatus>('pending');
 
@@ -70,9 +62,8 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({
   const [resourceActions, setResourceActions] = useState<ResourceActionsResponse | null>(null);
   const [configLoading, setConfigLoading] = useState(false);
 
-  // Reset the fetch status whenever the logged-in user changes so the next
-  // user's permissions go through the fetch cycle before `isReady` flips back
-  // to true.
+  // Reset on user change so the next user's fetch cycle runs before `isReady`
+  // flips back to true.
   useEffect(() => {
     setUserPermsStatus('pending');
     setAccountPermsStatus('pending');
@@ -104,16 +95,12 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({
     if (!user?.id) {
       setUserPermissions([]);
       setUserPermsStatus('loaded');
-      // The cancelled leg of a previous run no longer clears this in its
-      // `finally`, so an early return has to.
-      setLoading(false);
+      setLoading(false); // a cancelled leg no longer clears it in its `finally`
       return;
     }
 
-    // Nothing cancels an in-flight request, and the fetch can outlive the effect
-    // (user changes, or a retry supersedes it). Without this flag an orphaned
-    // rejection landing after a newer success would stamp `failed` over a
-    // perfectly loaded context and bounce the user to the failure screen.
+    // The fetch can outlive the effect. Without this flag an orphaned rejection
+    // would stamp `failed` over a context a newer success already loaded.
     let cancelled = false;
 
     const loadUserPermissions = async () => {
@@ -157,9 +144,7 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({
     if (!isAuthenticated || !user) {
       setAccountPermissions([]);
       setAccountPermsStatus('loaded');
-      // See the user-permissions effect: an early return releases the flag a
-      // cancelled leg leaves set.
-      setLoading(false);
+      setLoading(false); // see the user-permissions effect
       return;
     }
 
@@ -170,8 +155,7 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({
       return;
     }
 
-    // See the user-permissions effect: an orphaned rejection must not overwrite
-    // a newer result.
+    // See the user-permissions effect.
     let cancelled = false;
 
     const loadAccountPermissions = async () => {
@@ -295,11 +279,9 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({
     setLoading(true);
     setError(null);
 
-    // The two fetches are independent, and each drives its own status. Awaiting
-    // them in sequence meant a rejected user fetch skipped the account fetch
-    // entirely, so the retry offered on a failure could never refresh a stale
-    // account list. A failed leg keeps its last known list rather than blanking
-    // it — `isReady` is false either way, so nothing acts on it.
+    // allSettled, not sequential awaits: a rejected user fetch used to skip the
+    // account one, so a retry could never refresh a stale account list. A failed
+    // leg keeps its last list — `isReady` is false either way.
     const [userResult, accountResult] = await Promise.allSettled([
       permissionsService.getUserPermissions(true),
       permissionsService.getAccountPermissions(true),
@@ -328,12 +310,9 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({
     setLoading(false);
   }, [user?.id]);
 
-  // isReady: true when user is loaded, config finished, and both permission
-  // fetches SUCCEEDED at least once for the current user. Tracking the outcome
-  // (rather than just `!loading`) prevents consumers from evaluating `can()`
-  // against empty arrays — during the render window between user appearing and
-  // the fetch effect firing (flashed Unauthorized after a fresh login), and
-  // after a failed fetch (served the failure as a denial, CRM-164).
+  // True once user, config and BOTH fetches succeeded. Tracking the outcome
+  // rather than `!loading` keeps consumers from evaluating `can()` against an
+  // empty array — before the fetch effect fires, or after it failed (CRM-164).
   const isReady = useMemo(() => {
     if (!user) return false;
     if (configLoading) return false;
@@ -341,11 +320,8 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({
     return userPermsStatus === 'loaded' && accountPermsStatus === 'loaded';
   }, [configLoading, loading, user, userPermsStatus, accountPermsStatus]);
 
-  // Only report a failure once BOTH fetches have settled. `loading` cannot serve
-  // as the gate here: it is one shared flag, so whichever fetch finishes first
-  // clears it while the other is still in flight. Reporting on the first
-  // rejection alone flashed the failure screen mid-boot — the same "transient
-  // wrong state shown to the user" this fix exists to remove.
+  // Both must settle first: `loading` is one shared flag that the faster fetch
+  // clears, so reporting on the first rejection flashed the panel mid-boot.
   const permissionsSettled = userPermsStatus !== 'pending' && accountPermsStatus !== 'pending';
   const loadFailed =
     permissionsSettled && (userPermsStatus === 'failed' || accountPermsStatus === 'failed');

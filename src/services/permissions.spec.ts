@@ -2,11 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { permissionsService } from './permissions';
 import { apiAuth } from '@/services/core';
 
-// CRM-164. The context tests mock this service away, so without these examples
-// reverting the two `throw error` lines below back to `return []` restores the
-// original bug with every other test still green. The conditional is the whole
-// point: a failure serves the stale cache when there is one, and only fails
-// when there is nothing to serve.
+// CRM-164. The context tests mock this service away, so these are the only
+// examples guarding the two `throw error` lines — and the condition that
+// matters: fail only when there is no cache to serve.
 
 vi.mock('@/services/core', () => ({
   apiAuth: { get: vi.fn() },
@@ -64,9 +62,8 @@ describe('permissionsService — a failed fetch fails loudly (CRM-164)', () => {
     get.mockResolvedValueOnce({ data: { data: { permissions: ['contacts.read'] } } });
     await expect(permissionsService.getUserPermissions()).resolves.toEqual(['contacts.read']);
 
-    // 30min of cache + 1h of tolerance. Past that the list is too old to answer
-    // `can()` with: the failure has to surface instead of a revoked permission
-    // staying granted for as long as the tab is open.
+    // 30min of cache + 1h of tolerance: past that the list is too old to
+    // answer `can()` with, so the failure has to surface.
     vi.useFakeTimers();
     try {
       vi.setSystemTime(Date.now() + 100 * 60 * 1000);

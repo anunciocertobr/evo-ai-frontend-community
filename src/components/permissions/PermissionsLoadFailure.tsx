@@ -10,14 +10,9 @@ interface PermissionsLoadFailureProps {
 }
 
 /**
- * Shown when the permission fetch blew up and left no list to answer `can()`
- * with. Without it every screen below renders as if nothing were granted — the
- * load failure reaching the user as a denial (CRM-164).
- *
- * Two hosts render it, which is why it lives here instead of inside either one:
- * RouterGuard, for the standalone app, because it is the piece that knows which
- * paths are public; and PermissionsProvider, because the embedded shell mounts
- * the vendor providers and pages but never the vendor router.
+ * Shown when the permission fetch left no list to answer `can()` with (CRM-164).
+ * Lives here because two hosts render it: RouterGuard, for the standalone app,
+ * and PermissionsProvider, which is all the embedded shell mounts.
  */
 const PermissionsLoadFailure: React.FC<PermissionsLoadFailureProps> = ({ className }) => {
   const { t } = useLanguage('common');
@@ -41,10 +36,8 @@ const PermissionsLoadFailure: React.FC<PermissionsLoadFailureProps> = ({ classNa
           disabled: loading,
         }}
       />
-      {/* A deterministic failure (403 from the membership gate, auth-service
-          down) retries into the same error forever, and this panel replaces
-          every protected screen. Without a way out the user cannot even sign
-          out to try another account. */}
+      {/* A deterministic failure retries into itself forever, and this panel
+          replaces every protected screen — so it needs a way out. */}
       <button
         type="button"
         data-testid="permissions-load-failure-signout"

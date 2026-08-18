@@ -64,10 +64,8 @@ function App() {
         <DarkModeProvider>
           <GlobalConfigProvider>
             <UISettingsApplier />
-            {/* The provider's own failure panel is off here: AppRouter's
-                RouterGuard renders the same panel and, unlike the provider,
-                knows which paths are public — a logged-in visitor on /widget or
-                /f/:slug must not be blocked by it (CRM-164). */}
+            {/* RouterGuard renders the same panel and knows which paths are
+                public, so the provider must not block here (CRM-164). */}
             <PermissionsProvider blockOnLoadFailure={false}>
             <NotificationsProvider>
               <AppInitializer>

@@ -133,14 +133,9 @@ const RouterGuard: React.FC<RouterGuardProps> = ({ children }) => {
     location.pathname.startsWith(route)
   );
 
-  // A permission fetch that blew up leaves `permissionsReady` false forever, so
-  // the spinner below would never end. Say what actually happened instead — the
-  // whole point of CRM-164 is that a failure to load is not a denial, and the
-  // user has to be able to tell the two apart and retry. Public paths are
-  // excluded here and nowhere else: a logged-in visitor opening /widget or
-  // /f/:slug must still get the page, and this guard is the only piece that
-  // knows which paths those are (PermissionsProvider renders the same panel for
-  // the embedded shell, which mounts protected screens only).
+  // A failed fetch leaves `permissionsReady` false forever, so the spinner
+  // below would never end (CRM-164). Public paths are excluded here because
+  // this guard is the only host of the panel that knows which ones they are.
   if (!isLoading && !isCurrentPathPublic && isAuthenticated && permissionsLoadFailed) {
     return <PermissionsLoadFailure className="min-h-screen" />;
   }

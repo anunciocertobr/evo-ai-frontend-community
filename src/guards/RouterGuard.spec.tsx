@@ -3,11 +3,9 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import RouterGuard from './RouterGuard';
 
-// CRM-164. The guard is where the standalone app turns a failed permission load
-// into something the user can read and act on, instead of the spinner that can
-// never end (`isReady` stays false for as long as the fetch keeps failing).
-// The path split is the part worth pinning: a logged-in visitor opening a
-// public page — /widget, /f/:slug, /chat/:slug — must still get the page.
+// CRM-164. The guard turns a failed permission load into a panel instead of a
+// spinner that can never end. The path split is the part worth pinning: a
+// logged-in visitor on /widget, /f/:slug or /chat/:slug must still get the page.
 
 const mockLocation = { pathname: '/conversations', search: '' };
 
@@ -86,8 +84,7 @@ describe('RouterGuard — a failed permission load is not a denial (CRM-164)', (
 
     renderGuard('/conversations');
 
-    // Not-ready without a failure is the boot window, not an error: no panel,
-    // and the children stay withheld so nothing evaluates can() against [].
+    // Not-ready without a failure is the boot window, not an error.
     expect(screen.queryByTestId('permissions-load-failure')).toBeNull();
     expect(screen.queryByTestId('app')).toBeNull();
   });

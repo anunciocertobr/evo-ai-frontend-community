@@ -67,9 +67,8 @@ const Probe: React.FC = () => {
   );
 };
 
-// `blockOnLoadFailure={false}` mirrors the standalone app (App.tsx), where the
-// RouterGuard owns the failure panel. The default — the embedded shell — is
-// covered by its own describe below.
+// `blockOnLoadFailure={false}` mirrors the standalone app, where RouterGuard
+// owns the panel. The default is covered by its own describe below.
 function renderProbe(role = 'agent') {
   mockUser.mockReturnValue({ id: 'user-1', name: 'Someone', role });
   render(
@@ -116,13 +115,10 @@ describe('PermissionsContext — can() stays data-driven (no role short-circuit)
   });
 });
 
-// CRM-164. The service used to swallow a failed fetch and return [], so the
-// context reported `isReady` with an empty list and every `can()` answered
-// false — a load failure reaching the user as "you don't have permission".
-// The two windows the bug was reported through (reloading with a conversation
-// open, and switching accounts — which the shell serves with a full
-// window.location.reload) are the same boot path, so they are the same
-// examples: a fetch that throws must leave the context not-ready and flagged.
+// CRM-164. A swallowed fetch error used to flip `isReady` with an empty list,
+// so every `can()` answered false — a load failure served as a denial. Both
+// reported windows (reload, and account switch, which the shell serves with a
+// full page reload) are this same boot path.
 describe('PermissionsContext — a failed load is not a denial (CRM-164)', () => {
   let consoleError: ReturnType<typeof vi.spyOn>;
 
@@ -161,8 +157,7 @@ describe('PermissionsContext — a failed load is not a denial (CRM-164)', () =>
     renderProbe();
 
     await waitFor(() => expect(screen.getByTestId('load-failed').textContent).toBe('true'));
-    // Pinned so the recovery below cannot be credited to an effect refiring on
-    // its own — the click has to be what refetches.
+    // Pinned so the recovery cannot be credited to an effect refiring on its own.
     const callsBeforeRetry = mockAccountPermissions.mock.calls.length;
 
     fireEvent.click(screen.getByText('retry'));
@@ -182,11 +177,9 @@ describe('PermissionsContext — a failed load is not a denial (CRM-164)', () =>
   });
 });
 
-// CRM-164. The panel is the half of the fix the user actually sees, and it has
-// two hosts: RouterGuard (standalone, path-aware — see RouterGuard.spec.tsx)
-// and this provider, which is the ONLY one the embedded shell mounts. Without
-// the provider host, a failed load in the shell leaves every CRM screen
-// rendering an empty list forever, with no message and no retry.
+// CRM-164. The panel has two hosts: RouterGuard (see its spec) and this
+// provider, the only one the embedded shell mounts — without it a failed load
+// leaves every CRM screen rendering an empty list, with no message and no retry.
 describe('PermissionsProvider — the failure panel replaces the tree it wraps (CRM-164)', () => {
   let consoleError: ReturnType<typeof vi.spyOn>;
 
