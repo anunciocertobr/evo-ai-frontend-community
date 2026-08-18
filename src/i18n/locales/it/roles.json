@@ -57,6 +57,7 @@
     "filterPlaceholder": "Cerca permessi...",
     "nested": {
       "pipelineStages": "Fasi",
+      "pipelineItems": "Schede",
       "workingHours": "Orari di lavoro"
     },
     "lock": {
