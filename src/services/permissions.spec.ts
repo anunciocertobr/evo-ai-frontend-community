@@ -60,6 +60,24 @@ describe('permissionsService — a failed fetch fails loudly (CRM-164)', () => {
     ]);
   });
 
+  it('stops serving the stale cache once it is older than the tolerance window', async () => {
+    get.mockResolvedValueOnce({ data: { data: { permissions: ['contacts.read'] } } });
+    await expect(permissionsService.getUserPermissions()).resolves.toEqual(['contacts.read']);
+
+    // 30min of cache + 1h of tolerance. Past that the list is too old to answer
+    // `can()` with: the failure has to surface instead of a revoked permission
+    // staying granted for as long as the tab is open.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(Date.now() + 100 * 60 * 1000);
+      get.mockRejectedValue(new Error('network down'));
+
+      await expect(permissionsService.getUserPermissions(true)).rejects.toThrow('network down');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not strand a rejected promise in the dedup slot', async () => {
     get.mockRejectedValueOnce(new Error('network down'));
     await expect(permissionsService.getUserPermissions()).rejects.toThrow('network down');

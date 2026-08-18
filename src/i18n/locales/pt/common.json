@@ -156,6 +156,7 @@
       "title": "Não foi possível carregar suas permissões",
       "description": "Isso não significa que você não tem acesso — a verificação de permissões falhou. Tente novamente.",
       "retry": "Tentar novamente",
+      "retrying": "Tentando novamente…",
       "signOut": "Sair"
     }
   }

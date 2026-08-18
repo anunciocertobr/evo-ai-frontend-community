@@ -13,8 +13,10 @@ import { PermissionsProvider, usePermissions } from './PermissionsContext';
 
 const mockUser = vi.fn();
 
+const mockLogout = vi.fn();
+
 vi.mock('./AuthContext', () => ({
-  useAuth: () => ({ user: mockUser() }),
+  useAuth: () => ({ user: mockUser(), logout: mockLogout }),
 }));
 
 vi.mock('@/store/authStore', () => ({
@@ -65,10 +67,13 @@ const Probe: React.FC = () => {
   );
 };
 
+// `blockOnLoadFailure={false}` mirrors the standalone app (App.tsx), where the
+// RouterGuard owns the failure panel. The default — the embedded shell — is
+// covered by its own describe below.
 function renderProbe(role = 'agent') {
   mockUser.mockReturnValue({ id: 'user-1', name: 'Someone', role });
   render(
-    <PermissionsProvider>
+    <PermissionsProvider blockOnLoadFailure={false}>
       <Probe />
     </PermissionsProvider>,
   );
@@ -174,5 +179,74 @@ describe('PermissionsContext — a failed load is not a denial (CRM-164)', () =>
     await waitFor(() => expect(screen.getByTestId('ready').textContent).toBe('true'));
     expect(screen.getByTestId('load-failed').textContent).toBe('false');
     expect(screen.getByTestId('contacts-read').textContent).toBe('false');
+  });
+});
+
+// CRM-164. The panel is the half of the fix the user actually sees, and it has
+// two hosts: RouterGuard (standalone, path-aware — see RouterGuard.spec.tsx)
+// and this provider, which is the ONLY one the embedded shell mounts. Without
+// the provider host, a failed load in the shell leaves every CRM screen
+// rendering an empty list forever, with no message and no retry.
+describe('PermissionsProvider — the failure panel replaces the tree it wraps (CRM-164)', () => {
+  let consoleError: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUserPermissions.mockResolvedValue([]);
+    mockAccountPermissions.mockResolvedValue([]);
+    consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleError.mockRestore();
+  });
+
+  function renderBlocking() {
+    mockUser.mockReturnValue({ id: 'user-1', name: 'Someone', role: 'agent' });
+    render(
+      <PermissionsProvider>
+        <span data-testid="app">app</span>
+      </PermissionsProvider>,
+    );
+  }
+
+  it('renders the panel instead of the children when the load fails', async () => {
+    mockAccountPermissions.mockRejectedValue(new Error('network down'));
+    renderBlocking();
+
+    await waitFor(() => expect(screen.getByTestId('permissions-load-failure')).toBeTruthy());
+    expect(screen.queryByTestId('app')).toBeNull();
+  });
+
+  it('keeps rendering the children when the load succeeds', async () => {
+    renderBlocking();
+
+    await waitFor(() => expect(screen.getByTestId('app')).toBeTruthy());
+    expect(screen.queryByTestId('permissions-load-failure')).toBeNull();
+  });
+
+  it('gives the panel a way out of a failure that retries into itself', async () => {
+    mockAccountPermissions.mockRejectedValue(new Error('network down'));
+    renderBlocking();
+
+    await waitFor(() => expect(screen.getByTestId('permissions-load-failure')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('permissions-load-failure-signout'));
+
+    expect(mockLogout).toHaveBeenCalled();
+  });
+
+  it('restores the children when the panel retry recovers', async () => {
+    mockAccountPermissions.mockRejectedValueOnce(new Error('network down'));
+    mockAccountPermissions.mockResolvedValue(['contacts.read']);
+    renderBlocking();
+
+    await waitFor(() => expect(screen.getByTestId('permissions-load-failure')).toBeTruthy());
+    const retry = screen
+      .getAllByRole('button')
+      .find(button => button.getAttribute('data-testid') !== 'permissions-load-failure-signout');
+    fireEvent.click(retry!);
+
+    await waitFor(() => expect(screen.getByTestId('app')).toBeTruthy());
+    expect(screen.queryByTestId('permissions-load-failure')).toBeNull();
   });
 });

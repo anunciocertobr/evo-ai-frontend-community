@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useAuth } from './AuthContext';
 import { useAuthStore } from '@/store/authStore';
 import { permissionsService } from '@/services/permissions';
+import PermissionsLoadFailure from '@/components/permissions/PermissionsLoadFailure';
 import type { ResourceActionsResponse } from '@/types/auth';
 
 interface PermissionsContextValue {
@@ -33,9 +34,21 @@ export const PermissionsContext = createContext<PermissionsContextValue | undefi
 
 interface PermissionsProviderProps {
   children: React.ReactNode;
+  // Whether a failed load replaces the tree with the failure panel. Default
+  // true, because the embedded shell mounts this provider around the vendor
+  // pages WITHOUT the vendor router — RouterGuard, the other host of the panel,
+  // never runs there, so a failure would leave every CRM screen rendering as an
+  // empty list forever with no message and no retry (CRM-164).
+  // The standalone app opts out: its RouterGuard shows the same panel and knows
+  // which paths are public, and a logged-in visitor on /widget or /f/:slug must
+  // still get the page.
+  blockOnLoadFailure?: boolean;
 }
 
-export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ children }) => {
+export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({
+  children,
+  blockOnLoadFailure = true,
+}) => {
   const { user } = useAuth();
 
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
@@ -91,6 +104,9 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
     if (!user?.id) {
       setUserPermissions([]);
       setUserPermsStatus('loaded');
+      // The cancelled leg of a previous run no longer clears this in its
+      // `finally`, so an early return has to.
+      setLoading(false);
       return;
     }
 
@@ -141,12 +157,16 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
     if (!isAuthenticated || !user) {
       setAccountPermissions([]);
       setAccountPermsStatus('loaded');
+      // See the user-permissions effect: an early return releases the flag a
+      // cancelled leg leaves set.
+      setLoading(false);
       return;
     }
 
     // ⚡ Proteção: não carregar se já tem permissões (evita recarregar desnecessariamente)
     if (accountPermissions.length > 0) {
       setAccountPermsStatus('loaded');
+      setLoading(false);
       return;
     }
 
@@ -346,7 +366,11 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
     getPermissionDisplayName,
   };
 
-  return <PermissionsContext.Provider value={value}>{children}</PermissionsContext.Provider>;
+  return (
+    <PermissionsContext.Provider value={value}>
+      {loadFailed && blockOnLoadFailure ? <PermissionsLoadFailure /> : children}
+    </PermissionsContext.Provider>
+  );
 };
 
 export const usePermissions = (): PermissionsContextValue => {

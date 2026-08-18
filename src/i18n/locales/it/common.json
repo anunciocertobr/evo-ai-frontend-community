@@ -156,6 +156,7 @@
       "title": "Impossibile caricare i tuoi permessi",
       "description": "Questo non significa che non hai accesso — la verifica dei permessi è fallita. Riprova.",
       "retry": "Riprova",
+      "retrying": "Nuovo tentativo…",
       "signOut": "Esci"
     }
   }

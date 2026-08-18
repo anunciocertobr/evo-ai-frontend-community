@@ -16,6 +16,13 @@ class PermissionsService {
   // ⚡ OTIMIZAÇÃO: Aumentado cache de 5min para 30min
   // Permissões mudam raramente, não é necessário revalidar a cada 5 minutos
   private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutos (antes: 5 minutos)
+  // How long past expiry a cached list may still be served when the fetch
+  // fails. Unbounded, the fallback below would answer `can()` from a list of
+  // arbitrary age and `loadFailed` would never fire, so the "a failure is not a
+  // denial" guarantee (CRM-164) would only ever hold on the first fetch of a
+  // session — and a revoked permission would stay granted for as long as the
+  // tab is open.
+  private readonly MAX_STALE_DURATION = 60 * 60 * 1000; // 1h past expiry
 
   // Cache para permissões do usuário (global)
   private userPermissionsCache: string[] | null = null;
@@ -94,35 +101,40 @@ class PermissionsService {
     // caller fire yet another request — defeating the dedup entirely.
     const requestId = ++this.userPermissionsRequestId;
     const promise = (async () => {
-    try {
-      const response = await apiAuth.get('/permissions');
+      try {
+        const response = await apiAuth.get('/permissions');
 
-      const responseData = extractData<{ permissions: string[] }>(response);
-      this.userPermissionsCache = responseData.permissions || [];
-      this.permissionsCacheExpiry = now + this.CACHE_DURATION;
+        const responseData = extractData<{ permissions: string[] }>(response);
+        const permissions = responseData.permissions || [];
 
-        // Limpar Promise após sucesso
-        if (this.userPermissionsRequestId === requestId) this.userPermissionsPromise = null;
+        // Only the request that owns the slot writes: an older response
+        // settling after a newer forceRefresh would overwrite the fresh data.
+        if (this.userPermissionsRequestId === requestId) {
+          this.userPermissionsCache = permissions;
+          this.permissionsCacheExpiry = Date.now() + this.CACHE_DURATION;
+          this.userPermissionsPromise = null;
+        }
 
-      return this.userPermissionsCache || [];
-    } catch (error) {
+        return permissions;
+      } catch (error) {
         // Limpar Promise em caso de erro
         if (this.userPermissionsRequestId === requestId) this.userPermissionsPromise = null;
 
-      console.error('Erro ao buscar permissões do usuário:', error);
+        console.error('Erro ao buscar permissões do usuário:', error);
 
-      // Se tiver cache antigo, usar como fallback
-      if (this.userPermissionsCache) {
-        console.warn('Usando cache antigo de permissões do usuário');
-        return this.userPermissionsCache;
+        // Serve the previous list as a fallback while it is still inside the
+        // tolerance window
+        if (this.userPermissionsCache && Date.now() < this.permissionsCacheExpiry + this.MAX_STALE_DURATION) {
+          console.warn('Usando cache antigo de permissões do usuário');
+          return this.userPermissionsCache;
+        }
+
+        // CRM-164: sem cache para servir, a falha PRECISA propagar. Devolver []
+        // aqui fazia o PermissionsContext marcar isReady com lista vazia, e daí
+        // `can()` respondia false — falha de carga chegava ao usuário como
+        // negação de permissão.
+        throw error;
       }
-
-      // CRM-164: sem cache para servir, a falha PRECISA propagar. Devolver []
-      // aqui fazia o PermissionsContext marcar isReady com lista vazia, e daí
-      // `can()` respondia false — falha de carga chegava ao usuário como
-      // negação de permissão.
-      throw error;
-    }
     })();
 
     this.userPermissionsPromise = promise;
@@ -153,14 +165,15 @@ class PermissionsService {
 
         const responseData = extractData<{ permissions: string[] }>(response);
         const permissions = responseData.permissions || [];
-        this.accountPermissionsData = {
-          permissions,
-          expiry: now + this.CACHE_DURATION
-        };
 
-        // Limpar Promise após sucesso
-        // Ver getUserPermissions: só limpa o slot se esta ainda for a requisição dona.
-        if (this.accountPermissionsRequestId === requestId) this.accountPermissionsPromise = null;
+        // See getUserPermissions: only the owning request writes the cache.
+        if (this.accountPermissionsRequestId === requestId) {
+          this.accountPermissionsData = {
+            permissions,
+            expiry: Date.now() + this.CACHE_DURATION
+          };
+          this.accountPermissionsPromise = null;
+        }
 
         return permissions;
       } catch (error) {
@@ -169,8 +182,12 @@ class PermissionsService {
 
         console.error('Erro ao buscar permissões do account:', error);
 
-        // Se tiver cache antigo, usar como fallback
-        if (this.accountPermissionsData) {
+        // Serve the previous list as a fallback while it is still inside the
+        // tolerance window
+        if (
+          this.accountPermissionsData &&
+          Date.now() < this.accountPermissionsData.expiry + this.MAX_STALE_DURATION
+        ) {
           console.warn('Usando cache antigo de permissões do account');
           return this.accountPermissionsData.permissions;
         }
