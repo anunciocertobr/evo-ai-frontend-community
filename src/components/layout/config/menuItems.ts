@@ -216,7 +216,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         href: '/settings/teams',
         icon: Clock,
         resource: 'teams',
-        action: 'read',
+        action: 'manage',
       },
       {
         name: t('menu.settings.labels'),
@@ -265,14 +265,14 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         href: '/settings/message-templates',
         icon: LayoutTemplate,
         resource: 'message_templates',
-        action: 'read',
+        action: 'manage',
       },
       {
         name: t('menu.settings.macros'),
         href: '/settings/macros',
         icon: Settings,
         resource: 'macros',
-        action: 'read',
+        action: 'manage',
       },
       {
         name: t('menu.settings.crmForms'),

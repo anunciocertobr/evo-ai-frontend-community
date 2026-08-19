@@ -193,6 +193,10 @@ const READ_ACTIONS = new Set([
 const STANDALONE_ACTIONS: Record<string, Set<string>> = {
   conversations: new Set(['read_all']),
   users: new Set(['manage']),
+  // CRM-70 use-vs-manage: Settings-screen management, own row like users.manage.
+  macros: new Set(['manage']),
+  message_templates: new Set(['manage']),
+  teams: new Set(['manage']),
 };
 
 export function isStandaloneAction(resourceKey: string, actionKey: string): boolean {

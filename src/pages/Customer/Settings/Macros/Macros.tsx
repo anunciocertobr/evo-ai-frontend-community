@@ -166,7 +166,7 @@ export default function Macros() {
 
   // Macro actions
   const handleMacroClick = (macro: Macro) => {
-    if (!can('macros', 'update')) {
+    if (!can('macros', 'manage')) {
       toast.error(t('messages.permissionDenied.update'));
       return;
     }
@@ -175,7 +175,7 @@ export default function Macros() {
   };
 
   const handleCreateMacro = () => {
-    if (!can('macros', 'create')) {
+    if (!can('macros', 'manage')) {
       toast.error(t('messages.permissionDenied.create'));
       return;
     }
@@ -184,7 +184,7 @@ export default function Macros() {
   };
 
   const handleEditMacro = (macro: Macro) => {
-    if (!can('macros', 'update')) {
+    if (!can('macros', 'manage')) {
       toast.error(t('messages.permissionDenied.update'));
       return;
     }
@@ -212,7 +212,7 @@ export default function Macros() {
 
   const canDeleteMacro = () => permissionsReady && can('macros', 'delete');
 
-  const canEditMacro = () => permissionsReady && can('macros', 'update');
+  const canEditMacro = () => permissionsReady && can('macros', 'manage');
 
   // Confirm delete single macro
   const confirmDeleteMacro = async () => {

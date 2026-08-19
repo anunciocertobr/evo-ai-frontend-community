@@ -105,12 +105,30 @@ describe('menuItems — EVO-1938 admin Settings gating for the default agent', (
     },
   );
 
-  // teams stays visible (teams.read kept for the chat picker); the Teams Settings
-  // use-vs-manage split is deferred to EVO-1955, like labels/canned/macros.
-  it.each(['/settings/labels', '/settings/canned-responses', '/settings/teams'])(
+  // Labels and canned responses stay agent-managed by product decision (CRM-70).
+  it.each(['/settings/labels', '/settings/canned-responses'])(
     'keeps the operational Settings item %s visible to the agent',
     href => {
       expect(isVisible(findSubItem(href), agentGranted)).toBe(true);
+    },
+  );
+
+  // CRM-70 use-vs-manage: the Settings screens of teams, macros and message
+  // templates demand `.manage`, which the agent does not hold — even though it
+  // keeps teams.read (chat picker), macros.read/execute and
+  // message_templates.read for the chat itself.
+  it.each(['/settings/teams', '/settings/macros', '/settings/message-templates'])(
+    'hides the manage-gated Settings item %s from the agent',
+    href => {
+      expect(isVisible(findSubItem(href), agentGranted)).toBe(false);
+    },
+  );
+
+  it.each(['/settings/teams', '/settings/macros', '/settings/message-templates'])(
+    'shows the manage-gated Settings item %s to a manage holder',
+    href => {
+      const managerGranted = [...agentGranted, 'teams.manage', 'macros.manage', 'message_templates.manage'];
+      expect(isVisible(findSubItem(href), managerGranted)).toBe(true);
     },
   );
 
