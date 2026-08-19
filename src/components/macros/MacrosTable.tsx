@@ -162,7 +162,7 @@ export default function MacrosTable({
       getRowKey={getRowKey || ((macro: Macro) => macro.id.toString())}
       emptyTitle={t('empty.title')}
       emptyDescription={t('empty.description')}
-      emptyAction={onCreateMacro && isReady && can('macros', 'create') ? {
+      emptyAction={onCreateMacro && isReady && can('macros', 'manage') ? {
         label: t('empty.action'),
         onClick: onCreateMacro,
       } : undefined}

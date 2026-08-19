@@ -710,7 +710,7 @@ const AppRouter = () => {
               <PrivateRoute>
                 <CustomerRoute>
                   <MainLayout>
-                    <PermissionRoute resource="teams" action="read">
+                    <PermissionRoute resource="teams" action="manage">
                       <Teams />
                     </PermissionRoute>
                   </MainLayout>
@@ -725,7 +725,7 @@ const AppRouter = () => {
               <PrivateRoute>
                 <CustomerRoute>
                   <MainLayout>
-                    <PermissionRoute resource="teams" action="create">
+                    <PermissionRoute resource="teams" action="manage">
                       <AddUsers />
                     </PermissionRoute>
                   </MainLayout>
@@ -815,7 +815,7 @@ const AppRouter = () => {
               <PrivateRoute>
                 <CustomerRoute>
                   <MainLayout>
-                    <PermissionRoute resource="message_templates" action="read">
+                    <PermissionRoute resource="message_templates" action="manage">
                       <MessageTemplates />
                     </PermissionRoute>
                   </MainLayout>
@@ -890,7 +890,7 @@ const AppRouter = () => {
               <PrivateRoute>
                 <CustomerRoute>
                   <MainLayout>
-                    <PermissionRoute resource="macros" action="read">
+                    <PermissionRoute resource="macros" action="manage">
                       <Macros />
                     </PermissionRoute>
                   </MainLayout>
@@ -1190,7 +1190,7 @@ const AppRouter = () => {
               <PrivateRoute>
                 <CustomerRoute>
                   <MainLayout>
-                    <PermissionRoute resource="message_templates" action="create">
+                    <PermissionRoute resource="message_templates" action="manage">
                       <EmailTemplateEditor />
                     </PermissionRoute>
                   </MainLayout>
