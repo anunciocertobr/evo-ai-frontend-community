@@ -93,14 +93,9 @@ export default function CustomAttributesForm({
     return value;
   };
 
-  // CRM-166: a failed load used to leave `definedAttributes` at [] and only
-  // toast, so every read-only surface rendered "no attributes" — indistinguishable
-  // from a real empty catalog. The failure is tracked so the render paths below can
-  // say what happened and offer a retry.
-  //
-  // `cancelled` guards the ordering: on a model switch (or a retry landing before
-  // the request it replaced) a stale rejection must not stamp failed over a newer
-  // success.
+  // CRM-166: the catch only toasted and left `definedAttributes` at [], so a failed
+  // load was indistinguishable from an empty catalog. `cancelled` keeps a stale
+  // rejection from overwriting a newer success on a model switch or overlapping retry.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -127,7 +122,12 @@ export default function CustomAttributesForm({
     };
   }, [attributeModel, reloadToken]);
 
-  const retryLoadDefinedAttributes = () => setReloadToken(token => token + 1);
+  // The design-system Button sets no `type`, and in `form` mode this renders inside
+  // ContactForm's <form>: without preventDefault the retry submits it instead.
+  const retryLoadDefinedAttributes = (event?: React.MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault();
+    setReloadToken(token => token + 1);
+  };
 
   // Form mode handlers
   const handleAddAttribute = () => {

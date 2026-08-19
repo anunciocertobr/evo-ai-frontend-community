@@ -18,15 +18,9 @@ vi.mock('@/services/customAttributes/customAttributesService', () => ({
   },
 }));
 
-// CRM-166. `GET /custom_attribute_definitions` is gated on
-// `custom_attribute_definitions.read`, which the default agent role did not hold,
-// so the request 403'd. The component swallowed the rejection, left
-// `definedAttributes` at [], and every read-only surface rendered "no attributes"
-// — the user reported "my custom attributes disappeared outside the edit form".
-//
-// The paired positive cases below are what keep the negative ones honest: a
-// component that rendered the failure panel unconditionally would satisfy the
-// failure assertions too.
+// CRM-166: a 403 on the definitions endpoint was swallowed and rendered as "no
+// attributes". The paired empty-catalog cases keep the failure assertions honest —
+// a panel rendered unconditionally would satisfy them too.
 describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)', () => {
   const definition = {
     id: 'def-1',
@@ -134,9 +128,8 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       expect(screen.queryByText('customAttributes.loadFailed.title')).not.toBeInTheDocument();
     });
 
-    // The edit form is the one surface that kept working through the bug: values
-    // with no matching definition fall through to the ad-hoc section. The failure
-    // panel must not take that away — it replaces the "Defined" section only.
+    // The edit form kept working through the bug because values with no definition
+    // fall through to the ad-hoc section, which the failure panel must not replace.
     it('keeps rendering the ad-hoc values while the definitions are unavailable', async () => {
       mockGetCustomAttributes.mockRejectedValue(new Error('Request failed with status code 403'));
 
@@ -147,6 +140,33 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       });
       expect(screen.getByText('plano_contratado')).toBeInTheDocument();
       expect(screen.getByDisplayValue('Pro')).toBeInTheDocument();
+    });
+
+    // Needs the surrounding <form>: rendered standalone the component satisfies every
+    // case above even while the retry is submitting ContactForm instead of refetching.
+    it('does not submit the surrounding form when retrying', async () => {
+      mockGetCustomAttributes.mockRejectedValue(new Error('Request failed with status code 403'));
+      const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+
+      render(
+        <form onSubmit={onSubmit}>
+          <CustomAttributesForm
+            attributeModel="contact_attribute"
+            attributes={{}}
+            mode="form"
+            onAttributesChange={vi.fn()}
+          />
+        </form>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('customAttributes.loadFailed.title')).toBeInTheDocument();
+      });
+
+      await userEvent.click(screen.getByRole('button', { name: 'customAttributes.loadFailed.retry' }));
+
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(mockGetCustomAttributes).toHaveBeenCalledTimes(2);
     });
   });
 });

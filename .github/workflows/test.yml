@@ -74,11 +74,9 @@ jobs:
       #     so these are the only examples guarding it.
       #   - RouterGuard (CRM-164): the load-failure panel, and the path split
       #     that keeps public pages reachable for a logged-in visitor.
-      #   - CustomAttributesForm (CRM-166): a definitions fetch that fails is
-      #     reported as a failure with a retry, not as "no attributes". The two
-      #     modes are asserted against their genuine empty states, which is what
-      #     keeps the failure assertions honest — a panel rendered
-      #     unconditionally would satisfy them too.
+      #   - CustomAttributesForm (CRM-166): a failed definitions fetch is reported
+      #     as a failure with a retry, not as "no attributes". Asserted against the
+      #     genuine empty state, which is what keeps the failure cases honest.
       # The whole list runs in ~30s and is deterministic.
       #
       # Running the whole suite here was tried and reverted: 160 jsdom files in
