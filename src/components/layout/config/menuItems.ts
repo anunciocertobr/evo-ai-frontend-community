@@ -230,7 +230,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         href: '/settings/attributes',
         icon: Code,
         resource: 'custom_attribute_definitions',
-        action: 'read',
+        action: 'create',
       },
       {
         name: t('menu.settings.segments'),

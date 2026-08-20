@@ -54,7 +54,7 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       renderEditable();
 
       await waitFor(() => {
-        expect(screen.getByText('customAttributes.loadFailed.title')).toBeInTheDocument();
+        expect(screen.getByTestId('custom-attributes-load-failed')).toBeInTheDocument();
       });
       expect(
         screen.queryByText('contactSidebar.customAttributes.noAttributes'),
@@ -71,7 +71,7 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
           screen.getByText('contactSidebar.customAttributes.noAttributes'),
         ).toBeInTheDocument();
       });
-      expect(screen.queryByText('customAttributes.loadFailed.title')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('custom-attributes-load-failed')).not.toBeInTheDocument();
     });
 
     it('retries the load and renders the attributes once the request succeeds', async () => {
@@ -82,7 +82,7 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       renderEditable();
 
       await waitFor(() => {
-        expect(screen.getByText('customAttributes.loadFailed.title')).toBeInTheDocument();
+        expect(screen.getByTestId('custom-attributes-load-failed')).toBeInTheDocument();
       });
 
       await userEvent.click(screen.getByRole('button', { name: 'customAttributes.loadFailed.retry' }));
@@ -90,7 +90,7 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       await waitFor(() => {
         expect(screen.getByText('Plano contratado')).toBeInTheDocument();
       });
-      expect(screen.queryByText('customAttributes.loadFailed.title')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('custom-attributes-load-failed')).not.toBeInTheDocument();
       expect(mockGetCustomAttributes).toHaveBeenCalledTimes(2);
     });
   });
@@ -112,7 +112,7 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       renderForm();
 
       await waitFor(() => {
-        expect(screen.getByText('customAttributes.loadFailed.title')).toBeInTheDocument();
+        expect(screen.getByTestId('custom-attributes-load-failed')).toBeInTheDocument();
       });
       expect(screen.queryByText('empty.title')).not.toBeInTheDocument();
     });
@@ -125,7 +125,7 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       await waitFor(() => {
         expect(screen.getByText('empty.title')).toBeInTheDocument();
       });
-      expect(screen.queryByText('customAttributes.loadFailed.title')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('custom-attributes-load-failed')).not.toBeInTheDocument();
     });
 
     // The edit form kept working through the bug because values with no definition
@@ -136,7 +136,7 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       renderForm({ plano_contratado: 'Pro' });
 
       await waitFor(() => {
-        expect(screen.getByText('customAttributes.loadFailed.title')).toBeInTheDocument();
+        expect(screen.getByTestId('custom-attributes-load-failed')).toBeInTheDocument();
       });
       expect(screen.getByText('plano_contratado')).toBeInTheDocument();
       expect(screen.getByDisplayValue('Pro')).toBeInTheDocument();
@@ -160,7 +160,7 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       );
 
       await waitFor(() => {
-        expect(screen.getByText('customAttributes.loadFailed.title')).toBeInTheDocument();
+        expect(screen.getByTestId('custom-attributes-load-failed')).toBeInTheDocument();
       });
 
       await userEvent.click(screen.getByRole('button', { name: 'customAttributes.loadFailed.retry' }));

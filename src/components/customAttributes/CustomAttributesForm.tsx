@@ -24,6 +24,49 @@ import { toast } from 'sonner';
 
 export type CustomAttributesMode = 'form' | 'editable';
 
+/**
+ * CRM-166: both modes report a failed definitions load with the same three strings
+ * and the same retry. `compact` is the sidebar shape; the default is the full-width
+ * EmptyState used inside the contact edit form.
+ */
+function LoadFailurePanel({ compact, onRetry }: { compact?: boolean; onRetry: () => void }) {
+  const { t: tCommon } = useLanguage('common');
+  const title = tCommon('customAttributes.loadFailed.title');
+  const description = tCommon('customAttributes.loadFailed.description');
+  const retryLabel = tCommon('customAttributes.loadFailed.retry');
+
+  if (compact) {
+    return (
+      <div className="space-y-2 py-4 text-center" data-testid="custom-attributes-load-failed">
+        <AlertTriangle className="mx-auto h-4 w-4 text-muted-foreground" />
+        <p className="text-xs font-medium text-foreground">{title}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={onRetry}
+          className="h-6 px-2 text-xs"
+        >
+          {retryLabel}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="custom-attributes-load-failed">
+      <EmptyState
+        icon={AlertTriangle}
+        title={title}
+        description={description}
+        action={{ label: retryLabel, onClick: onRetry, variant: 'outline' }}
+        className="py-8"
+      />
+    </div>
+  );
+}
+
 export interface CustomAttributesFormProps {
   /** The attribute model type (e.g., 'pipeline_item_attribute', 'contact_attribute') */
   attributeModel: AttributeModel;
@@ -70,7 +113,6 @@ export default function CustomAttributesForm({
 }: CustomAttributesFormProps) {
   const defaultTranslationNamespace = mode === 'editable' ? 'chat' : 'customAttributes';
   const { t } = useLanguage(translationNamespace || defaultTranslationNamespace);
-  const { t: tCommon } = useLanguage('common');
   const [definedAttributes, setDefinedAttributes] = useState<CustomAttributeDefinition[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -94,8 +136,9 @@ export default function CustomAttributesForm({
   };
 
   // CRM-166: the catch only toasted and left `definedAttributes` at [], so a failed
-  // load was indistinguishable from an empty catalog. `cancelled` keeps a stale
-  // rejection from overwriting a newer success on a model switch or overlapping retry.
+  // load was indistinguishable from an empty catalog. `cancelled` is for StrictMode's
+  // double-mount: without it the first mount's rejection lands after the second
+  // mount's success and paints the failure panel over loaded attributes.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -122,10 +165,7 @@ export default function CustomAttributesForm({
     };
   }, [attributeModel, reloadToken]);
 
-  // The design-system Button sets no `type`, and in `form` mode this renders inside
-  // ContactForm's <form>: without preventDefault the retry submits it instead.
-  const retryLoadDefinedAttributes = (event?: React.MouseEvent<HTMLButtonElement>) => {
-    event?.preventDefault();
+  const retryLoadDefinedAttributes = () => {
     setReloadToken(token => token + 1);
   };
 
@@ -617,26 +657,7 @@ export default function CustomAttributesForm({
     }
 
     if (loadFailed) {
-      return (
-        <div className="space-y-2 py-4 text-center" data-testid="custom-attributes-load-failed">
-          <AlertTriangle className="mx-auto h-4 w-4 text-muted-foreground" />
-          <p className="text-xs font-medium text-foreground">
-            {tCommon('customAttributes.loadFailed.title')}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {tCommon('customAttributes.loadFailed.description')}
-          </p>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={retryLoadDefinedAttributes}
-            disabled={loading}
-            className="h-6 px-2 text-xs"
-          >
-            {tCommon('customAttributes.loadFailed.retry')}
-          </Button>
-        </div>
-      );
+      return <LoadFailurePanel compact onRetry={retryLoadDefinedAttributes} />;
     }
 
     if (definedAttributes.length === 0) {
@@ -672,18 +693,7 @@ export default function CustomAttributesForm({
       )}
 
       {loadFailed && !loading && (
-        <EmptyState
-          icon={AlertTriangle}
-          title={tCommon('customAttributes.loadFailed.title')}
-          description={tCommon('customAttributes.loadFailed.description')}
-          action={{
-            label: tCommon('customAttributes.loadFailed.retry'),
-            onClick: retryLoadDefinedAttributes,
-            variant: 'outline',
-            disabled: loading,
-          }}
-          className="py-8"
-        />
+        <LoadFailurePanel onRetry={retryLoadDefinedAttributes} />
       )}
 
       {/* Defined Custom Attributes */}
