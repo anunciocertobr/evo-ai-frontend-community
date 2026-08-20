@@ -465,6 +465,7 @@ export default function CustomAttributesForm({
                 disabled={saving}
               />
               <Button
+                type="button"
                 size="sm"
                 variant="ghost"
                 onClick={handleSave}
@@ -478,6 +479,7 @@ export default function CustomAttributesForm({
                 )}
               </Button>
               <Button
+                type="button"
                 size="sm"
                 variant="ghost"
                 onClick={handleCancelEdit}
@@ -505,6 +507,7 @@ export default function CustomAttributesForm({
                 disabled={saving}
               />
               <Button
+                type="button"
                 size="sm"
                 variant="ghost"
                 onClick={handleSave}
@@ -518,6 +521,7 @@ export default function CustomAttributesForm({
                 )}
               </Button>
               <Button
+                type="button"
                 size="sm"
                 variant="ghost"
                 onClick={handleCancelEdit}
@@ -545,6 +549,7 @@ export default function CustomAttributesForm({
                 </SelectContent>
               </Select>
               <Button
+                type="button"
                 size="sm"
                 variant="ghost"
                 onClick={handleSave}
@@ -558,6 +563,7 @@ export default function CustomAttributesForm({
                 )}
               </Button>
               <Button
+                type="button"
                 size="sm"
                 variant="ghost"
                 onClick={handleCancelEdit}
@@ -580,6 +586,7 @@ export default function CustomAttributesForm({
                 disabled={saving}
               />
               <Button
+                type="button"
                 size="sm"
                 variant="ghost"
                 onClick={handleSave}
@@ -593,6 +600,7 @@ export default function CustomAttributesForm({
                 )}
               </Button>
               <Button
+                type="button"
                 size="sm"
                 variant="ghost"
                 onClick={handleCancelEdit}
@@ -631,6 +639,7 @@ export default function CustomAttributesForm({
           {value || <span className="text-muted-foreground">--</span>}
         </span>
         <Button
+          type="button"
           size="sm"
           variant="ghost"
           onClick={() => handleStartEdit(key, rawValue)}

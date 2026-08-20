@@ -229,8 +229,13 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         name: t('menu.settings.customAttributes'),
         href: '/settings/attributes',
         icon: Code,
-        resource: 'custom_attribute_definitions',
-        action: 'create',
+        // CRM-166: administrative gate, not `read` — the agent holds the read to
+        // render a contact's attributes and must not reach this Settings screen.
+        permissions: [
+          'custom_attribute_definitions.create',
+          'custom_attribute_definitions.update',
+          'custom_attribute_definitions.delete',
+        ],
       },
       {
         name: t('menu.settings.segments'),

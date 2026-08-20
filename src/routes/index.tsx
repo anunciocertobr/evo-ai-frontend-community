@@ -755,7 +755,13 @@ const AppRouter = () => {
               <PrivateRoute>
                 <CustomerRoute>
                   <MainLayout>
-                    <PermissionRoute resource="custom_attribute_definitions" action="create">
+                    <PermissionRoute
+                      permissions={[
+                        'custom_attribute_definitions.create',
+                        'custom_attribute_definitions.update',
+                        'custom_attribute_definitions.delete',
+                      ]}
+                    >
                       <CustomAttributes />
                     </PermissionRoute>
                   </MainLayout>

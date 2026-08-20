@@ -138,3 +138,35 @@ describe('menuItems — EVO-1938 admin Settings gating for the default agent', (
     expect(isVisible(findSubItem('/settings/segments'), adminGranted)).toBe(true);
   });
 });
+
+// CRM-166: the agent now holds `custom_attribute_definitions.read` so a contact's
+// attributes render in the read-only screens. The Settings screen must not come
+// with it — it is gated on the administrative keys instead. Any of the three, not
+// `create` alone: create/update come as one group in the role editor, but delete is
+// its own, and deleting a definition is only offered from this screen.
+describe('menuItems — Settings > Atributos Personalizados gating (CRM-166)', () => {
+  const item = () => findSubItem('/settings/attributes');
+  const isVisible = (granted: string[]) =>
+    shouldShowMenuItem(item(), canFrom(granted), canAnyFrom(granted), canAllFrom(granted));
+
+  it('gates on the administrative keys, never on read', () => {
+    expect(item().action).toBeUndefined();
+    expect(item().permissions).toEqual([
+      'custom_attribute_definitions.create',
+      'custom_attribute_definitions.update',
+      'custom_attribute_definitions.delete',
+    ]);
+  });
+
+  it('hides the item from an agent holding only the definitions read', () => {
+    expect(isVisible(['conversations.read', 'custom_attribute_definitions.read'])).toBe(false);
+  });
+
+  it.each([
+    'custom_attribute_definitions.create',
+    'custom_attribute_definitions.update',
+    'custom_attribute_definitions.delete',
+  ])('shows the item to a role holding %s', key => {
+    expect(isVisible(['custom_attribute_definitions.read', key])).toBe(true);
+  });
+});

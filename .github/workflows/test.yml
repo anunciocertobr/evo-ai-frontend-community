@@ -77,6 +77,9 @@ jobs:
       #   - CustomAttributesForm (CRM-166): a failed definitions fetch is reported
       #     as a failure with a retry, not as "no attributes". Asserted against the
       #     genuine empty state, which is what keeps the failure cases honest.
+      #   - menuItems (CRM-166): the Settings entries gated on an administrative
+      #     key stay gated on it — Atributos Personalizados above all, whose read
+      #     the agent now holds. Also covers the EVO-1938/CRM-70 gates already there.
       # The whole list runs in ~30s and is deterministic.
       #
       # Running the whole suite here was tried and reverted: 160 jsdom files in
@@ -123,7 +126,8 @@ jobs:
             src/contexts/chat/eventLabels.spec.ts \
             src/components/contacts/ContactNotesCard.spec.tsx \
             src/components/rbac-render-gates.spec.tsx \
-            src/components/customAttributes/CustomAttributesForm.spec.tsx
+            src/components/customAttributes/CustomAttributesForm.spec.tsx \
+            src/components/layout/config/menuItems.spec.ts
 
   # Lint gate scoped to the files the PR touched.
   eslint:

@@ -218,5 +218,83 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       expect(onSubmit).not.toHaveBeenCalled();
       expect(mockGetCustomAttributes).toHaveBeenCalledTimes(2);
     });
+
+    // The remaining ad-hoc controls, same reason as the two cases above: each is a
+    // design-system Button inside ContactForm's <form>. Remove is icon-only, so it is
+    // located by having no accessible name.
+    it('does not submit the surrounding form from the remove, cancel or add controls', async () => {
+      mockGetCustomAttributes.mockResolvedValue(definitions([]));
+      const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+
+      render(
+        <form onSubmit={onSubmit}>
+          <CustomAttributesForm
+            attributeModel="contact_attribute"
+            attributes={{ plano_contratado: 'Pro' }}
+            mode="form"
+            onAttributesChange={vi.fn()}
+          />
+        </form>,
+      );
+
+      await screen.findByText('plano_contratado');
+      const remove = screen.getAllByRole('button').find(button => button.textContent === '');
+      await userEvent.click(remove as HTMLElement);
+
+      await userEvent.click(screen.getByRole('button', { name: /actions.addAttribute/ }));
+      await userEvent.click(screen.getByRole('button', { name: /actions.cancel/ }));
+
+      await userEvent.click(screen.getByRole('button', { name: /actions.addAttribute/ }));
+      await userEvent.type(screen.getByPlaceholderText('fields.attributeKey.placeholder'), 'plano');
+      const values = screen.getAllByPlaceholderText('fields.attributeValue.placeholder');
+      await userEvent.type(values[values.length - 1], 'Pro');
+      await userEvent.click(screen.getByRole('button', { name: /^actions.add$/ }));
+
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+  });
+
+  // The design-system Button sets no `type`, so the HTML default (submit) applies and
+  // no `<form>` in the test tree is needed to catch a regression. Asserted per mode
+  // because each renders a disjoint set of controls.
+  describe('every button opts out of submit', () => {
+    it('form mode, ad-hoc section and add form', async () => {
+      mockGetCustomAttributes.mockResolvedValue(definitions([]));
+
+      render(
+        <CustomAttributesForm
+          attributeModel="contact_attribute"
+          attributes={{ plano_contratado: 'Pro' }}
+          mode="form"
+          onAttributesChange={vi.fn()}
+        />,
+      );
+
+      await userEvent.click(await screen.findByRole('button', { name: /actions.addAttribute/ }));
+
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBeGreaterThan(2);
+      buttons.forEach(button => expect(button).toHaveAttribute('type', 'button'));
+    });
+
+    it('editable mode, including the inline edit controls', async () => {
+      mockGetCustomAttributes.mockResolvedValue(definitions([definition]));
+
+      render(
+        <CustomAttributesForm
+          attributeModel="contact_attribute"
+          attributes={{ plano_contratado: 'Pro' }}
+          mode="editable"
+          onUpdateAttributes={vi.fn()}
+        />,
+      );
+
+      await screen.findByText('Plano contratado');
+      await userEvent.click(screen.getAllByRole('button')[0]);
+
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBeGreaterThan(1);
+      buttons.forEach(button => expect(button).toHaveAttribute('type', 'button'));
+    });
   });
 });
