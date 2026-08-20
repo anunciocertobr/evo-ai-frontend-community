@@ -61,8 +61,7 @@ interface ConfigurationSectionProps {
   onContactEditConfigChange: (config: ContactEditConfig) => void;
   onInstructionSync?: (instruction: string) => void;
   onApiKeysReload: () => void;
-  // CRM-213: lets the pipeline-rules modal persist via the agent's Save without
-  // leaving it (onSave = AgentEditPage#handleSave; resolves false on failure).
+  // Agent save threaded to the config modals (CRM-213); resolves false on failure.
   onSave?: () => Promise<boolean> | boolean | void;
   isSaving?: boolean;
 }
@@ -211,6 +210,8 @@ const ConfigurationSection = ({
       <TransferRulesModal
         open={showTransferRulesModal}
         onOpenChange={setShowTransferRulesModal}
+        onSave={onSave}
+        isSaving={isSaving}
         rules={transferRules}
         onChange={onTransferRulesChange}
         availableUsers={availableUsers}
@@ -230,6 +231,8 @@ const ConfigurationSection = ({
       <ContactEditModal
         open={showContactEditModal}
         onOpenChange={setShowContactEditModal}
+        onSave={onSave}
+        isSaving={isSaving}
         config={contactEditConfig}
         onChange={onContactEditConfigChange}
       />

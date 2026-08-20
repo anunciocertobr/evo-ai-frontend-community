@@ -763,6 +763,11 @@
         "modalTitle": "Règles de Transfert",
         "modalDescription": "Configurez quand et comment l'agent doit transférer des conversations à des humains, d'autres agents ou des équipes."
       },
+      "modalFooter": {
+        "cancel": "Annuler",
+        "save": "Enregistrer",
+        "saving": "Enregistrement..."
+      },
       "pipelineRules": {
         "description": "Configurez les instructions pour que l'agent manipule les pipelines et attribue des conversations à des étapes spécifiques.",
         "selectPipeline": "Sélectionnez le pipeline :",

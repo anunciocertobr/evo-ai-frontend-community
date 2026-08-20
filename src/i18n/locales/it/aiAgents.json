@@ -763,6 +763,11 @@
         "instructionsPlaceholder": "Descrivi le condizioni per trasferire la conversazione (es: quando il cliente chiede di parlare con un umano)...",
         "addRule": "+ Aggiungi regola di trasferimento"
       },
+      "modalFooter": {
+        "cancel": "Annulla",
+        "save": "Salva",
+        "saving": "Salvataggio..."
+      },
       "pipelineRules": {
         "description": "Configura quando e come l'agente deve spostare le conversazioni tra pipeline e fasi.",
         "selectPipeline": "Seleziona Pipeline",
