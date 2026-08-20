@@ -159,5 +159,12 @@
       "retrying": "Nuovo tentativo…",
       "signOut": "Esci"
     }
+  },
+  "customAttributes": {
+    "loadFailed": {
+      "title": "Non è stato possibile caricare gli attributi personalizzati",
+      "description": "Questo non significa che non ce ne siano: il caricamento delle definizioni è fallito. Riprova.",
+      "retry": "Riprova"
+    }
   }
 }

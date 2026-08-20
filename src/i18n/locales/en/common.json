@@ -169,5 +169,12 @@
       "retrying": "Trying again…",
       "signOut": "Sign out"
     }
+  },
+  "customAttributes": {
+    "loadFailed": {
+      "title": "Could not load the custom attributes",
+      "description": "This does not mean there are none — loading the definitions failed. Try again.",
+      "retry": "Try again"
+    }
   }
 }

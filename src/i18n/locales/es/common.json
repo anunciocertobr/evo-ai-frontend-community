@@ -159,5 +159,12 @@
       "retrying": "Intentando de nuevo…",
       "signOut": "Cerrar sesión"
     }
+  },
+  "customAttributes": {
+    "loadFailed": {
+      "title": "No se pudieron cargar los atributos personalizados",
+      "description": "Esto no significa que no haya ninguno: falló la carga de las definiciones. Inténtalo de nuevo.",
+      "retry": "Intentar de nuevo"
+    }
   }
 }
