@@ -61,6 +61,10 @@ interface ConfigurationSectionProps {
   onContactEditConfigChange: (config: ContactEditConfig) => void;
   onInstructionSync?: (instruction: string) => void;
   onApiKeysReload: () => void;
+  // CRM-213: lets the pipeline-rules modal persist via the agent's Save without
+  // leaving it (onSave = AgentEditPage#handleSave; resolves false on failure).
+  onSave?: () => Promise<boolean> | boolean | void;
+  isSaving?: boolean;
 }
 
 const ConfigurationSection = ({
@@ -87,6 +91,8 @@ const ConfigurationSection = ({
   onContactEditConfigChange,
   onInstructionSync,
   onApiKeysReload,
+  onSave,
+  isSaving,
 }: ConfigurationSectionProps) => {
   const { t } = useLanguage('aiAgents');
 
@@ -217,6 +223,8 @@ const ConfigurationSection = ({
         rules={pipelineRules}
         onChange={onPipelineRulesChange}
         availablePipelines={availablePipelines}
+        onSave={onSave}
+        isSaving={isSaving}
       />
 
       <ContactEditModal

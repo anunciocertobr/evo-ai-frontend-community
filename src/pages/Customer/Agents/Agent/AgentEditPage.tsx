@@ -556,8 +556,11 @@ const AgentEditPage = () => {
     [agent?.type, llmConfigData],
   );
 
-  const handleSave = async () => {
-    if (!id || !agent) return;
+  // Returns true on success / false on failure so callers that persist from a nested
+  // surface (CRM-213: the pipeline-rules modal Save) can keep their modal open when the
+  // save is rejected. AgentEditHeader's onSave: () => void ignores the return.
+  const handleSave = async (): Promise<boolean> => {
+    if (!id || !agent) return false;
 
     try {
       setIsSaving(true);
@@ -750,12 +753,14 @@ const AgentEditPage = () => {
 
       toast.success(t('messages.saveSuccess') || 'Agent saved successfully!', { id: toastId });
       setIsDirty(false);
+      return true;
     } catch (error) {
       console.error('Error saving agent:', error);
       const errorMessage = extractBackendErrorMessage(error);
       toast.error(t('messages.saveError') || 'Error saving agent', {
         description: errorMessage,
       });
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -907,6 +912,8 @@ const AgentEditPage = () => {
                     setFormData(prev => ({ ...prev, instruction }));
                   }}
                   onApiKeysReload={loadApiKeys}
+                  onSave={handleSave}
+                  isSaving={isSaving}
                 />
               </TabsContent>
             )}
