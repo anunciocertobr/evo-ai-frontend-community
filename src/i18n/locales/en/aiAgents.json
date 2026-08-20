@@ -776,6 +776,11 @@
         "modalTitle": "Transfer Rules",
         "modalDescription": "Configure when and how the agent should transfer conversations to humans, other agents, or teams."
       },
+      "modalFooter": {
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving..."
+      },
       "pipelineRules": {
         "description": "Configure instructions for the agent to manipulate pipelines and assign conversations to specific stages.",
         "selectPipeline": "Select the pipeline:",

@@ -7,6 +7,8 @@ import {
   DialogDescription,
 } from '@evoapi/design-system';
 import PipelineRules, { PipelineRule } from '@/pages/Customer/Agents/Agent/sections/PipelineRules';
+import { ModalSaveFooter } from './ModalSaveFooter';
+import { useModalSaveClose } from './useModalSaveClose';
 
 interface PipelineRulesModalProps {
   open: boolean;
@@ -18,6 +20,9 @@ interface PipelineRulesModalProps {
     name: string;
     stages: Array<{ id: string; name: string }>;
   }>;
+  // Persists via the agent's save (CRM-213); resolving false keeps the modal open.
+  onSave?: () => Promise<boolean> | boolean | void;
+  isSaving?: boolean;
 }
 
 export const PipelineRulesModal = ({
@@ -26,11 +31,21 @@ export const PipelineRulesModal = ({
   rules,
   onChange,
   availablePipelines,
+  onSave,
+  isSaving = false,
 }: PipelineRulesModalProps) => {
   const { t } = useLanguage('aiAgents');
+  const { handleOpenChange, handleSave } = useModalSaveClose({
+    open,
+    value: rules,
+    onChange,
+    onOpenChange,
+    onSave,
+    isSaving,
+  });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       {/* `sm:max-w-*`/`sm:text-*` and not the plain utilities: tailwind-merge only cancels
           a responsive variant with another responsive variant. */}
       <DialogContent className="max-h-[90vh] gap-3 overflow-y-auto p-5 sm:max-w-[820px]">
@@ -50,6 +65,11 @@ export const PipelineRulesModal = ({
             availablePipelines={availablePipelines}
           />
         </div>
+        <ModalSaveFooter
+          onCancel={() => handleOpenChange(false)}
+          onSave={handleSave}
+          isSaving={isSaving}
+        />
       </DialogContent>
     </Dialog>
   );
