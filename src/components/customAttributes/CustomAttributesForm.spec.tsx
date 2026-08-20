@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CustomAttributesForm from './CustomAttributesForm';
@@ -61,6 +61,19 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       ).not.toBeInTheDocument();
     });
 
+    it('asks for the three loadFailed keys', async () => {
+      mockGetCustomAttributes.mockRejectedValue(new Error('Request failed with status code 403'));
+
+      renderEditable();
+
+      const panel = await screen.findByTestId('custom-attributes-load-failed');
+      expect(within(panel).getByText('customAttributes.loadFailed.title')).toBeInTheDocument();
+      expect(within(panel).getByText('customAttributes.loadFailed.description')).toBeInTheDocument();
+      expect(
+        within(panel).getByRole('button', { name: 'customAttributes.loadFailed.retry' }),
+      ).toBeInTheDocument();
+    });
+
     it('still reports a genuinely empty catalog as the empty state', async () => {
       mockGetCustomAttributes.mockResolvedValue(definitions([]));
 
@@ -117,6 +130,19 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       expect(screen.queryByText('empty.title')).not.toBeInTheDocument();
     });
 
+    it('asks for the three loadFailed keys', async () => {
+      mockGetCustomAttributes.mockRejectedValue(new Error('Request failed with status code 403'));
+
+      renderForm();
+
+      const panel = await screen.findByTestId('custom-attributes-load-failed');
+      expect(within(panel).getByText('customAttributes.loadFailed.title')).toBeInTheDocument();
+      expect(within(panel).getByText('customAttributes.loadFailed.description')).toBeInTheDocument();
+      expect(
+        within(panel).getByRole('button', { name: 'customAttributes.loadFailed.retry' }),
+      ).toBeInTheDocument();
+    });
+
     it('still shows the empty state when the catalog really is empty', async () => {
       mockGetCustomAttributes.mockResolvedValue(definitions([]));
 
@@ -140,6 +166,30 @@ describe('CustomAttributesForm — load failure is not "no attributes" (CRM-166)
       });
       expect(screen.getByText('plano_contratado')).toBeInTheDocument();
       expect(screen.getByDisplayValue('Pro')).toBeInTheDocument();
+    });
+
+    // Every control here renders inside ContactForm's <form>, and the design-system
+    // Button sets no `type` — the HTML default is submit. Reached via the empty state,
+    // the one path where the definitions loaded fine, so it is not a failure-mode case.
+    it('does not submit the surrounding form when opening the add-attribute form', async () => {
+      mockGetCustomAttributes.mockResolvedValue(definitions([]));
+      const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+
+      render(
+        <form onSubmit={onSubmit}>
+          <CustomAttributesForm
+            attributeModel="contact_attribute"
+            attributes={{}}
+            mode="form"
+            onAttributesChange={vi.fn()}
+          />
+        </form>,
+      );
+
+      await userEvent.click(await screen.findByRole('button', { name: /actions.addAttribute/ }));
+
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(screen.getByText('sections.newAttribute')).toBeInTheDocument();
     });
 
     // Needs the surrounding <form>: rendered standalone the component satisfies every

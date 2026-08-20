@@ -136,9 +136,10 @@ export default function CustomAttributesForm({
   };
 
   // CRM-166: the catch only toasted and left `definedAttributes` at [], so a failed
-  // load was indistinguishable from an empty catalog. `cancelled` is for StrictMode's
-  // double-mount: without it the first mount's rejection lands after the second
-  // mount's success and paints the failure panel over loaded attributes.
+  // load was indistinguishable from an empty catalog. Nothing aborts the request, so
+  // `cancelled` is what keeps a late response from writing state the component has
+  // moved on from — unmount (collapsing the sidebar section mid-flight) above all.
+  // Not StrictMode: main.tsx renders <App /> unwrapped, on purpose.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -777,6 +778,7 @@ export default function CustomAttributesForm({
                       </div>
                       {!disabled && (
                         <Button
+                          type="button"
                           variant="ghost"
                           size="sm"
                           onClick={() => handleRemoveAttribute(key)}
@@ -823,6 +825,7 @@ export default function CustomAttributesForm({
                 </div>
                 <div className="flex gap-2">
                   <Button
+                    type="button"
                     size="sm"
                     onClick={handleAddAttribute}
                     disabled={!newAttributeKey.trim() || !newAttributeValue.trim()}
@@ -830,6 +833,7 @@ export default function CustomAttributesForm({
                     {t('actions.add')}
                   </Button>
                   <Button
+                    type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => {
@@ -845,6 +849,7 @@ export default function CustomAttributesForm({
             </Card>
           ) : (
             <Button
+              type="button"
               variant="outline"
               size="sm"
               onClick={() => setShowAddForm(true)}
