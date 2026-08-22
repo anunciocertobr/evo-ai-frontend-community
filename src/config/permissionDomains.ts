@@ -192,7 +192,9 @@ const READ_ACTIONS = new Set([
 //   users.manage            still being defined; left alone on purpose
 const STANDALONE_ACTIONS: Record<string, Set<string>> = {
   conversations: new Set(['read_all']),
-  users: new Set(['manage']),
+  // CRM-210: standalone on the backend too, so the coarse `users.write` never
+  // implies account takeover and the key stays grantable on its own.
+  users: new Set(['manage', 'reset_password']),
   // CRM-70 use-vs-manage: Settings-screen management, own row like users.manage.
   macros: new Set(['manage']),
   message_templates: new Set(['manage']),

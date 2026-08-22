@@ -33,6 +33,7 @@ import {
   BulkInviteModal,
   UsersFilter,
   UserDetails,
+  SetPasswordModal,
 } from '@/components/users';
 import { DEFAULT_PAGE_SIZE } from '@/constants/pagination';
 
@@ -74,6 +75,9 @@ export default function Users() {
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [bulkInviteModalOpen, setBulkInviteModalOpen] = useState(false);
+  // CRM-210
+  const [setPasswordModalOpen, setSetPasswordModalOpen] = useState(false);
+  const [userToSetPassword, setUserToSetPassword] = useState<User | null>(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<BaseFilter[]>([]);
   // EVO-1947: the applied-filter chips are built at apply time and capture a
@@ -326,6 +330,31 @@ export default function Users() {
     setDeleteDialogOpen(true);
   };
 
+  // CRM-210: mirrors the backend gate — users.reset_password (the standalone
+  // key) AND users.manage (administrative).
+  const canSetPassword = can('users', 'reset_password') && can('users', 'manage');
+
+  const callerIsSuperAdmin = currentUser?.role?.key === 'super_admin';
+
+  // Mirrors the backend's target guards (users_controller#set_password) so the
+  // button is never offered for a case it would refuse with a 403.
+  const canSetPasswordFor = (user: User) => {
+    if (!canSetPassword) return false;
+    // currentUserId is stringified; the list may carry a numeric id.
+    if (String(user.id) === currentUserId) return false;
+    if (user.role?.key === 'super_admin' && !callerIsSuperAdmin) return false;
+    return true;
+  };
+
+  const handleSetPassword = (user: User) => {
+    if (!canSetPasswordFor(user)) {
+      toast.error(t('messages.permissionDenied.update'));
+      return;
+    }
+    setUserToSetPassword(user);
+    setSetPasswordModalOpen(true);
+  };
+
   const handleBulkInvite = () => {
     if (!can('users', 'create')) {
       toast.error(t('messages.permissionDenied.invite'));
@@ -514,6 +543,7 @@ export default function Users() {
                 onEdit={handleEditUser}
                 onDelete={handleDeleteUser}
                 canDelete={canDeleteUser(user)}
+                onSetPassword={canSetPasswordFor(user) ? handleSetPassword : undefined}
               />
             ))}
           </div>
@@ -629,6 +659,13 @@ export default function Users() {
         isOpen={bulkInviteModalOpen}
         onClose={() => setBulkInviteModalOpen(false)}
         onSuccess={handleBulkInviteSuccess}
+      />
+
+      {/* CRM-210: admin sets another user's password */}
+      <SetPasswordModal
+        open={setPasswordModalOpen}
+        onOpenChange={setSetPasswordModalOpen}
+        user={userToSetPassword}
       />
 
       {/* Users Filter Modal */}
