@@ -29,7 +29,15 @@ vi.mock('@evoapi/design-system', () => ({
       {children}
     </select>
   ),
-  SelectTrigger: () => null,
+  // An <option>: the only element a test can read the trigger's aria wiring
+  // from while the Select above is a native <select>.
+  SelectTrigger: (props: Record<string, unknown>) => (
+    // Empty children on purpose: <SelectValue /> renders null, and React cannot
+    // infer an option value from a complex child.
+    <option data-testid="select-trigger" {...props}>
+      {null}
+    </option>
+  ),
   SelectValue: () => null,
   SelectContent: ({ children }: { children: ReactNode }) => <>{children}</>,
   // Text children only: the action-type items wrap their label in a <div>,
@@ -169,10 +177,75 @@ describe('MacroActionRow', () => {
   });
 
   describe('assign_agent (select)', () => {
+    const AGENT = { id: '7c9e1a2b-3d4f-4a56-b7c8-9d0e1f2a3b4c', name: 'Ana' };
+    const WARNING = 'actionRow.assignAgentInboxWarning';
+    const LOADED_AGENT = { ...EMPTY_OPTIONS, agents: [AGENT] };
+
     it('says "no agents registered" when the list is empty and not loading', () => {
       renderRow({ actionName: 'assign_agent' });
 
       expect(screen.getByText('actionRow.emptyAgents')).toBeTruthy();
+    });
+
+    it('warns that the assignment only lands on inboxes the agent belongs to', () => {
+      renderRow({ actionName: 'assign_agent', options: LOADED_AGENT });
+
+      expect(screen.getByText(WARNING)).toBeTruthy();
+    });
+
+    // The list stays complete on purpose, so the warning is the only thing
+    // keeping the form from promising an assignment the execution rejects.
+    it('warns without filtering the agent list', () => {
+      renderRow({ actionName: 'assign_agent', options: LOADED_AGENT });
+
+      expect(screen.getByRole('option', { name: AGENT.name })).toBeTruthy();
+    });
+
+    // Naming "this agent" while the select says "loading" / "none registered" /
+    // "failed to load" describes a choice the user cannot have made yet. Each of
+    // these three renders the warning if the guard is reduced to the action name.
+    it.each([
+      ['the list is still loading', { optionsLoading: true, options: EMPTY_OPTIONS }],
+      ['no agent is registered', { options: EMPTY_OPTIONS }],
+      ['the agents source failed', { options: EMPTY_OPTIONS, failedSources: ['agents' as const] }],
+    ])('does not warn while %s', (_label, extra) => {
+      renderRow({ actionName: 'assign_agent', ...extra });
+
+      expect(screen.queryByText(WARNING)).toBeNull();
+    });
+
+    // Reopening the modal refetches over the agents already in state: the
+    // select keeps listing them and stays pickable, so no placeholder is on
+    // screen to carry the message in its place.
+    it('keeps warning while a refetch runs over an already loaded list', () => {
+      renderRow({ actionName: 'assign_agent', options: LOADED_AGENT, optionsLoading: true });
+
+      expect(screen.getByText(WARNING)).toBeTruthy();
+    });
+
+    it('points the select at the warning so a screen reader reaches it', () => {
+      renderRow({ actionName: 'assign_agent', options: LOADED_AGENT });
+
+      const warning = screen.getByText(WARNING);
+      const [, configTrigger] = screen.getAllByTestId('select-trigger');
+      // Both sides asserted present: dropping the id and the attribute together
+      // would otherwise leave this comparing an absent value to an absent one.
+      expect(warning.id).toBeTruthy();
+      expect(configTrigger.getAttribute('aria-describedby')).toBe(warning.id);
+    });
+
+    // change_status shares the `select` branch and carries no source, which is
+    // where a refactor of the switch would most likely leak the warning. The
+    // agent list is loaded on purpose: with it empty these pass on the list
+    // guard alone and say nothing about the action name.
+    it.each([
+      ['assign_team', { ...LOADED_AGENT, teams: [TEAM_DIGIT] }],
+      ['change_status', LOADED_AGENT],
+      ['change_priority', LOADED_AGENT],
+    ])('does not warn on %s', (actionName, options) => {
+      renderRow({ actionName, options });
+
+      expect(screen.queryByText(WARNING)).toBeNull();
     });
   });
 

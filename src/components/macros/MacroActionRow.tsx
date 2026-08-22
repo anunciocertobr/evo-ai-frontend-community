@@ -45,6 +45,11 @@ export default function MacroActionRow({
 
   const selectedActionConfig = MACRO_ACTION_TYPES.find(a => a.key === action.action_name);
 
+  // An empty list renders the placeholder, which owns the message instead. Not
+  // `optionsLoading`: a reopened modal refetches with the old agents pickable.
+  const assignAgentWarningId = `macro-action-${index}-assign-agent-warning`;
+  const showAssignAgentWarning = action.action_name === 'assign_agent' && options.agents.length > 0;
+
   const handleFieldChange = (field: keyof MacroAction, value: string) => {
     const updated = { ...action, [field]: value };
 
@@ -135,7 +140,10 @@ export default function MacroActionRow({
             onValueChange={value => handleParamsChange([value])}
             disabled={disabled}
           >
-            <SelectTrigger className="w-full bg-sidebar border-sidebar-border text-sidebar-foreground">
+            <SelectTrigger
+              className="w-full bg-sidebar border-sidebar-border text-sidebar-foreground"
+              aria-describedby={showAssignAgentWarning ? assignAgentWarningId : undefined}
+            >
               <SelectValue placeholder={t('actionRow.selectPlaceholder')} />
             </SelectTrigger>
             <SelectContent className="bg-sidebar border-sidebar-border">
@@ -399,6 +407,14 @@ export default function MacroActionRow({
           </div>
         )}
       </div>
+
+      {/* Outside the row: inside it, the extra height would push the bottom
+          aligned column off the baseline the other column keeps. */}
+      {showAssignAgentWarning && (
+        <p id={assignAgentWarningId} className="mt-3 text-sm text-sidebar-foreground/70">
+          {t('actionRow.assignAgentInboxWarning')}
+        </p>
+      )}
     </div>
   );
 }
