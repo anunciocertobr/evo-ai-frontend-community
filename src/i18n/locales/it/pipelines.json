@@ -170,6 +170,7 @@
     "namePlaceholder": "Es: Lead Qualificati",
     "descriptionLabel": "Descrizione",
     "descriptionPlaceholder": "Descrivi lo scopo di questa fase...",
+    "characterCount": "{{current}}/{{max}} caratteri",
     "color": "Colore della Fase",
     "colorSelected": "Colore selezionato",
     "stageType": "Tipo di Fase",
