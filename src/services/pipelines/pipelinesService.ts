@@ -19,6 +19,7 @@ import type {
   AvailableContactsResponse,
   PipelineItemResponse,
   ConversationForModal,
+  StageAutomationRule,
 } from '@/types/analytics';
 import { Contact } from '@/types';
 
@@ -120,7 +121,9 @@ class PipelinesService {
       position?: number;
       color?: string;
       stage_type?: string;
-      automation_rules?: { description?: string };
+      // Sent whole: the API merges what arrives over what is stored, so an omitted key is
+      // kept, not cleared. To erase, send the empty value.
+      automation_rules?: { description?: string; rules?: StageAutomationRule[] };
       custom_fields?: Record<string, unknown>;
     },
   ): Promise<PipelineStage> {
