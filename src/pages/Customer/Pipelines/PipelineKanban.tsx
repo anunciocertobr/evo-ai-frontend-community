@@ -50,6 +50,7 @@ import {
   PipelineItem,
   UpdatePipelineData,
   CreateStageData,
+  StageAutomationRule,
 } from '@/types/analytics';
 import EditPipelineModal from '@/components/pipelines/EditPipelineModal';
 import CreateStageModal from '@/components/pipelines/CreateStageModal';
@@ -707,7 +708,7 @@ export default function PipelineKanban() {
     name: string;
     color: string;
     stage_type: string;
-    automation_rules?: { description?: string };
+    automation_rules: { description: string; rules: StageAutomationRule[] };
     custom_fields?: Record<string, unknown>;
   }) => {
     if (!stageToEdit || !pipelineId) return;
