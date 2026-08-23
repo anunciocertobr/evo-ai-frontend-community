@@ -170,6 +170,7 @@
     "namePlaceholder": "Ex : Leads Qualifiés",
     "descriptionLabel": "Description",
     "descriptionPlaceholder": "Décrivez le but de cette étape...",
+    "characterCount": "{{current}}/{{max}} caractères",
     "color": "Couleur de l'Étape",
     "colorSelected": "Couleur sélectionnée",
     "stageType": "Type d'Étape",

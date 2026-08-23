@@ -203,6 +203,7 @@
     "namePlaceholder": "Ex: Leads Qualified",
     "descriptionLabel": "Description",
     "descriptionPlaceholder": "Describe the purpose of this stage...",
+    "characterCount": "{{current}}/{{max}} characters",
     "color": "Stage Color",
     "colorSelected": "Selected Color",
     "stageType": "Stage Type",
