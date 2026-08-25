@@ -152,13 +152,9 @@ const Setup: React.FC = () => {
         }
       }
 
-      // CRM-262: o install terminou e o admin existe — por isso segue no fluxo de
-      // sucesso nos dois casos. Mas quando o provisionamento da conta não completa,
-      // o backend responde `degraded`, e dizer "Configuração concluída!" esconderia
-      // do operador que ainda falta algo (o box fica sem membership, sem a primeira
-      // conta e sem papéis até o job de rede completar). A descrição vem do
-      // servidor, que sabe o que ficou pendente e o que conferir — mesmo padrão já
-      // usado no catch abaixo, que prefere `data.error` à mensagem genérica.
+      // Both paths stay on the success flow: the install finished and the admin
+      // exists. The description comes from the server, which is the side that knows
+      // what is pending and what to check — same preference as the catch below.
       if (result.status === 'degraded') {
         toast.warning(t('degraded.title'), {
           description: result.message || t('degraded.description'),

@@ -252,7 +252,7 @@ describe('Setup wizard', () => {
   // is that "Configuração concluída!" no longer covers a box left without
   // membership, without its first account and without roles.
   describe('when the server reports degraded provisioning (CRM-262)', () => {
-    const degraded = (message: string | null) => {
+    const degraded = (message: string | null, survey_token: string | null = null) => {
       vi.mocked(setupService.getStatus).mockResolvedValue({
         status: 'inactive',
         instance_id: null,
@@ -261,7 +261,7 @@ describe('Setup wizard', () => {
       vi.mocked(setupService.bootstrap).mockResolvedValue({
         status: 'degraded',
         message,
-        survey_token: null,
+        survey_token,
       });
     };
 
@@ -316,6 +316,19 @@ describe('Setup wizard', () => {
       await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true }));
       // The error alert belongs to a failed install; this one succeeded.
       expect(screen.queryByText('error.generic')).not.toBeInTheDocument();
+    });
+
+    // The path a real box takes: the server returns the survey_token on the
+    // degraded response too, so the wizard goes to the survey, not to /login.
+    it('still hands off to the survey when the server sends a token', async () => {
+      degraded('anything', 'tok-123');
+      await submit();
+
+      await waitFor(() =>
+        expect(mockNavigate).toHaveBeenCalledWith('/setup/onboarding', { replace: true }),
+      );
+      expect(sessionStorage.getItem('survey_token')).toBe('tok-123');
+      expect(toast.warning).toHaveBeenCalled();
     });
   });
 
