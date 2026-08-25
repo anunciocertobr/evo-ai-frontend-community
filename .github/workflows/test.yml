@@ -84,6 +84,11 @@ jobs:
       #     there is an agent list to pick from — a reopened modal refetching over
       #     the previous one included — and never on the other select actions.
       #     Also guards the aria wiring from the select to the warning.
+      #   - Setup wizard (CRM-262): a degraded provisioning answer warns instead of
+      #     congratulating, and an ok one still congratulates without warning. The
+      #     paired direction is what keeps it honest — a warning ADDED next to the
+      #     success toast would look right on screen and still tell the operator
+      #     the install is fine.
       #   - i18n-parity (CRM-162): en and pt-BR keep the same key set, catalog-wide.
       #   - macros-parity (CRM-162): es, fr, it and pt are covered nowhere else, so
       #     macros.json is checked against en across all six. A key added to one
@@ -137,6 +142,7 @@ jobs:
             src/components/customAttributes/CustomAttributesForm.spec.tsx \
             src/components/layout/config/menuItems.spec.ts \
             src/components/macros/MacroActionRow.spec.tsx \
+            src/pages/Setup/Setup.spec.tsx \
             src/i18n/locales/i18n-parity.spec.ts \
             src/i18n/locales/macros-parity.spec.ts
 
