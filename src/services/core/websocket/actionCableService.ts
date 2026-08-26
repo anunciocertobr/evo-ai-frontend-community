@@ -47,8 +47,8 @@ class ActionCableService {
           this.handleDisconnection();
         },
 
-        received: (data: any) => {
-          this.handleEventMessage(data);
+        received: (message: any) => {
+          this.handleEventMessage(message);
         },
       },
     );
@@ -66,8 +66,10 @@ class ActionCableService {
   //   // No separate PresenceChannel needed
   // }
 
-  private handleEventMessage(data: any) {
-    const { event, payload } = data;
+  // The Rails side puts `{ event, data }` on the wire (ActionCableBroadcastJob),
+  // so the payload has to be read from `data`, not from a `payload` key.
+  private handleEventMessage(message: any) {
+    const { event, data: payload } = message ?? {};
 
     // Dispatch events based on type
     switch (event) {
@@ -98,8 +100,7 @@ class ActionCableService {
         window.dispatchEvent(new CustomEvent('evolution:presence', { detail: payload }));
         break;
 
-      // Conexao de canal Meta via Evo Hub mudou de estado. A tela que abriu a
-      // aba do Hub escuta para sair do "Aguardando..." sem refresh manual.
+      // Meta channel relayed by the Evo Hub changed connection state.
       case 'hub_channel.connection_changed':
         window.dispatchEvent(new CustomEvent('evolution:hubChannelConnection', { detail: payload }));
         break;
