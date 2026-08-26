@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AgentBotConfigurationForm from './AgentBotConfigurationForm';
 
 vi.mock('@/hooks/useLanguage', () => ({
@@ -121,6 +121,34 @@ describe('AgentBotConfigurationForm', () => {
         allowed_conversation_statuses: ['pending'],
       }),
     );
+  });
+
+  it('blocks the footer save while the bot is being disconnected', async () => {
+    vi.mocked(AgentBotsService.getInboxAgentBot).mockResolvedValue(bot as never);
+    let releaseDisconnect = () => {};
+    vi.mocked(AgentBotsService.disconnectInboxBot).mockReturnValue(
+      new Promise<boolean>(resolve => {
+        releaseDisconnect = () => resolve(true);
+      }) as never,
+    );
+    const registerSave = vi.fn();
+    render(<AgentBotConfigurationForm {...defaultProps} registerSave={registerSave} />);
+
+    await waitFor(() => expect(lastHandle(registerSave)?.canSave).toBe(true));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /settings\.agentBotConfiguration\.buttons\.disconnect$/,
+      }),
+    );
+
+    // setInboxAgentBot and disconnectInboxBot write the same agent_bot_inbox
+    // row, so the footer must stay locked until the disconnect settles.
+    await waitFor(() => expect(lastHandle(registerSave)?.canSave).toBe(false));
+
+    await act(async () => {
+      releaseDisconnect();
+    });
+    expect(AgentBotsService.setInboxAgentBot).not.toHaveBeenCalled();
   });
 
   it('unregisters the handle on unmount', async () => {
