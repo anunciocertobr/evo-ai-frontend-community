@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@evoapi/design-system';
 import { toast } from 'sonner';
 import { Loader2, ExternalLink, CheckCircle2, Link2 } from 'lucide-react';
 import { api } from '@/services/core';
+import { apiErrorMessage } from '@/utils/apiHelpers';
 import { useGlobalConfig } from '@/contexts/GlobalConfigContext';
 import {
   evolutionHubService,
@@ -41,6 +42,14 @@ interface InboxCreateResponse {
   };
 }
 
+interface InboxShowResponse {
+  data: {
+    id: number;
+    connection_state?: string;
+    health_source?: string;
+  };
+}
+
 type Mode = 'new' | 'existing';
 
 const HUB_TYPE_BY_CHANNEL: Record<
@@ -70,6 +79,7 @@ export default function HubConnectButton({
   const [publicLink, setPublicLink] = useState<string | null>(null);
   const [inboxId, setInboxId] = useState<number | null>(null);
   const [linkedDone, setLinkedDone] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'waiting' | 'connected'>('waiting');
 
   const [availableChannels, setAvailableChannels] = useState<HubChannel[]>([]);
   const [loadingChannels, setLoadingChannels] = useState(false);
@@ -110,6 +120,73 @@ export default function HubConnectButton({
     };
   }, [mode, channelType]);
 
+  // Guards the transition so the socket event and the reconciliation below
+  // cannot announce the same connection twice.
+  const alreadyConnected = useRef(false);
+
+  const markConnected = useCallback(() => {
+    if (alreadyConnected.current) return;
+    alreadyConnected.current = true;
+    setConnectionStatus('connected');
+    toast.success('Canal conectado.');
+  }, []);
+
+  // The Hub webhooks the CRM when the operator finishes the Meta signup and the
+  // backend re-emits it on ActionCable; without this the screen only learned
+  // about the connection on a manual refresh.
+  useEffect(() => {
+    if (inboxId === null) return;
+
+    const onConnection = (event: Event) => {
+      const detail = (event as CustomEvent).detail as
+        | { inbox_id?: string | number; connection_status?: string }
+        | undefined;
+      if (!detail) return;
+      // Loose comparison on purpose: the id arrives as a string and the local
+      // state holds a number.
+      if (String(detail.inbox_id) !== String(inboxId)) return;
+
+      if (detail.connection_status === 'connected') {
+        markConnected();
+      } else if (detail.connection_status === 'disconnected') {
+        alreadyConnected.current = false;
+        setConnectionStatus('waiting');
+      }
+    };
+
+    window.addEventListener('evolution:hubChannelConnection', onConnection);
+    return () => window.removeEventListener('evolution:hubChannelConnection', onConnection);
+  }, [inboxId, markConnected]);
+
+  // ActionCable has no replay: a transition broadcast while the socket was down
+  // is lost, and the socket is often still down while the operator sits in the
+  // Hub tab. Re-read the inbox when the tab comes back so the screen settles
+  // anyway. `provider_event` means the Hub actually confirmed the connection —
+  // `stored_flag` is the resolver assuming a configured token channel is live.
+  useEffect(() => {
+    if (inboxId === null || connectionStatus === 'connected') return;
+
+    const reconcile = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const response = await api.get<InboxShowResponse>(`/inboxes/${inboxId}`);
+        const inbox = response.data?.data;
+        if (inbox?.connection_state === 'connected' && inbox?.health_source === 'provider_event') {
+          markConnected();
+        }
+      } catch {
+        // Best effort — the ActionCable event stays the primary path.
+      }
+    };
+
+    document.addEventListener('visibilitychange', reconcile);
+    window.addEventListener('focus', reconcile);
+    return () => {
+      document.removeEventListener('visibilitychange', reconcile);
+      window.removeEventListener('focus', reconcile);
+    };
+  }, [inboxId, connectionStatus, markConnected]);
+
   const handleCreateNew = async () => {
     setSubmitting(true);
     try {
@@ -132,8 +209,10 @@ export default function HubConnectButton({
       toast.success('Inbox criada. Conclua a conexão na aba que foi aberta.');
       onCreated?.({ inboxId: inbox.id, publicLink: link });
     } catch (error: unknown) {
+      // Hub errors arrive structured (PLAN_FORBIDS_SHARED, QUOTA_EXCEEDED);
+      // reading `data.message` raw dropped the translated text.
       const message =
-        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        apiErrorMessage(error) ??
         (error as { message?: string }).message ??
         'Falha ao criar inbox via Evo Hub';
       toast.error(message);
@@ -162,7 +241,7 @@ export default function HubConnectButton({
       onCreated?.({ inboxId: inbox.id });
     } catch (error: unknown) {
       const message =
-        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        apiErrorMessage(error) ??
         (error as { message?: string }).message ??
         'Falha ao linkar inbox ao canal Hub existente';
       toast.error(message);
@@ -186,10 +265,21 @@ export default function HubConnectButton({
   // Estado pós-sucesso: 'criar novo' mostra link pra reabrir aba OAuth;
   // 'linkar existente' só mostra confirmação (canal já está conectado).
   if (publicLink && inboxId !== null) {
+    if (connectionStatus === 'connected') {
+      return (
+        <div className="space-y-2 border rounded-md p-4 bg-muted/30" data-testid="hub-connected">
+          <div className="flex items-center gap-2 text-sm">
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+            <span>Canal conectado no Hub.</span>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="space-y-3 border rounded-md p-4 bg-muted/30">
+      <div className="space-y-3 border rounded-md p-4 bg-muted/30" data-testid="hub-waiting">
         <div className="flex items-center gap-2 text-sm">
-          <CheckCircle2 className="h-5 w-5 text-green-500" />
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           <span>Inbox criada. Aguardando conexão Meta no Hub…</span>
         </div>
         <p className="text-xs text-muted-foreground">
