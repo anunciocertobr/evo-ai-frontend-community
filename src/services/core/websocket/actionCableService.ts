@@ -98,6 +98,12 @@ class ActionCableService {
         window.dispatchEvent(new CustomEvent('evolution:presence', { detail: payload }));
         break;
 
+      // Conexao de canal Meta via Evo Hub mudou de estado. A tela que abriu a
+      // aba do Hub escuta para sair do "Aguardando..." sem refresh manual.
+      case 'hub_channel.connection_changed':
+        window.dispatchEvent(new CustomEvent('evolution:hubChannelConnection', { detail: payload }));
+        break;
+
       default:
         window.dispatchEvent(new CustomEvent('evolution:event', { detail: { event, payload } }));
     }

@@ -3,6 +3,7 @@ import { Button } from '@evoapi/design-system';
 import { toast } from 'sonner';
 import { Loader2, ExternalLink, CheckCircle2, Link2 } from 'lucide-react';
 import { api } from '@/services/core';
+import { apiErrorMessage } from '@/utils/apiHelpers';
 import { useGlobalConfig } from '@/contexts/GlobalConfigContext';
 import {
   evolutionHubService,
@@ -70,6 +71,7 @@ export default function HubConnectButton({
   const [publicLink, setPublicLink] = useState<string | null>(null);
   const [inboxId, setInboxId] = useState<number | null>(null);
   const [linkedDone, setLinkedDone] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'waiting' | 'connected'>('waiting');
 
   const [availableChannels, setAvailableChannels] = useState<HubChannel[]>([]);
   const [loadingChannels, setLoadingChannels] = useState(false);
@@ -110,6 +112,33 @@ export default function HubConnectButton({
     };
   }, [mode, channelType]);
 
+  // O Hub avisa o CRM por webhook quando o operador conclui o signup da Meta, e
+  // o backend reemite no ActionCable. Sem escutar aqui, a tela so descobria a
+  // conexao num refresh manual — a dor que originou o card.
+  useEffect(() => {
+    if (inboxId === null) return;
+
+    const onConnection = (event: Event) => {
+      const detail = (event as CustomEvent).detail as
+        | { inbox_id?: string | number; connection_status?: string }
+        | undefined;
+      if (!detail) return;
+      // Comparacao frouxa de proposito: o id sai do backend como string e o
+      // estado local guarda number.
+      if (String(detail.inbox_id) !== String(inboxId)) return;
+
+      if (detail.connection_status === 'connected') {
+        setConnectionStatus('connected');
+        toast.success('Canal conectado.');
+      } else if (detail.connection_status === 'disconnected') {
+        setConnectionStatus('waiting');
+      }
+    };
+
+    window.addEventListener('evolution:hubChannelConnection', onConnection);
+    return () => window.removeEventListener('evolution:hubChannelConnection', onConnection);
+  }, [inboxId]);
+
   const handleCreateNew = async () => {
     setSubmitting(true);
     try {
@@ -132,8 +161,11 @@ export default function HubConnectButton({
       toast.success('Inbox criada. Conclua a conexão na aba que foi aberta.');
       onCreated?.({ inboxId: inbox.id, publicLink: link });
     } catch (error: unknown) {
+      // O erro do Hub chega estruturado (PLAN_FORBIDS_SHARED, QUOTA_EXCEEDED) e
+      // o client ja traduz. Ler `data.message` cru descartava esse trabalho e
+      // devolvia o texto tecnico ao operador.
       const message =
-        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        apiErrorMessage(error) ??
         (error as { message?: string }).message ??
         'Falha ao criar inbox via Evo Hub';
       toast.error(message);
@@ -162,7 +194,7 @@ export default function HubConnectButton({
       onCreated?.({ inboxId: inbox.id });
     } catch (error: unknown) {
       const message =
-        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        apiErrorMessage(error) ??
         (error as { message?: string }).message ??
         'Falha ao linkar inbox ao canal Hub existente';
       toast.error(message);
@@ -186,10 +218,21 @@ export default function HubConnectButton({
   // Estado pós-sucesso: 'criar novo' mostra link pra reabrir aba OAuth;
   // 'linkar existente' só mostra confirmação (canal já está conectado).
   if (publicLink && inboxId !== null) {
+    if (connectionStatus === 'connected') {
+      return (
+        <div className="space-y-2 border rounded-md p-4 bg-muted/30" data-testid="hub-connected">
+          <div className="flex items-center gap-2 text-sm">
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+            <span>Canal conectado no Hub.</span>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="space-y-3 border rounded-md p-4 bg-muted/30">
+      <div className="space-y-3 border rounded-md p-4 bg-muted/30" data-testid="hub-waiting">
         <div className="flex items-center gap-2 text-sm">
-          <CheckCircle2 className="h-5 w-5 text-green-500" />
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           <span>Inbox criada. Aguardando conexão Meta no Hub…</span>
         </div>
         <p className="text-xs text-muted-foreground">
