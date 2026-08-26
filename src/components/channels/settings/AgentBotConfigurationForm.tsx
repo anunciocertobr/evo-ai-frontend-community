@@ -405,7 +405,7 @@ export default function AgentBotConfigurationForm({
   const hasAvailableBots = agentBots.length > 0;
 
   // Expose the save to the settings sticky footer registry.
-  const canSave = hasSelectedBot && !isUpdating && !isLoading;
+  const canSave = hasSelectedBot && !isUpdating && !isLoading && !isDisconnecting;
   const registerSaveRef = useRef(registerSave);
   registerSaveRef.current = registerSave;
   const handleUpdateRef = useRef(handleUpdateAgentBot);

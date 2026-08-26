@@ -21,7 +21,7 @@ vi.mock('@/services/channels/agentBotsService', () => ({
     getInboxAgentBot: vi.fn(),
     getInboxAgentBotConfiguration: vi.fn(),
     setInboxAgentBot: vi.fn(),
-    removeInboxAgentBot: vi.fn(),
+    disconnectInboxBot: vi.fn(),
   },
 }));
 
@@ -78,12 +78,17 @@ describe('AgentBotConfigurationForm', () => {
     return handles[handles.length - 1];
   };
 
-  it('registers a non-savable handle when no bot is selected', async () => {
+  it('registers a non-savable handle when no bot is selected, even after loading', async () => {
     const registerSave = vi.fn();
     render(<AgentBotConfigurationForm {...defaultProps} registerSave={registerSave} />);
 
-    await waitFor(() => expect(lastHandle(registerSave)).toBeTruthy());
+    // Let the initial load settle so the assertion covers the post-load state,
+    // not just the synchronous mount registration.
+    await waitFor(() => expect(labelsService.getLabels).toHaveBeenCalled());
+    await act(async () => {});
+
     const handle = lastHandle(registerSave);
+    expect(handle).toBeTruthy();
     expect(handle.canSave).toBe(false);
     expect(typeof handle.save).toBe('function');
   });
