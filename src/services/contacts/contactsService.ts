@@ -1,3 +1,5 @@
+import type { AxiosResponse } from 'axios';
+
 import api from '@/services/core/api';
 import { extractData, extractResponse } from '@/utils/apiHelpers';
 import type {
@@ -19,6 +21,18 @@ import type {
   ContactConversation,
   ContactableInboxes,
 } from '@/types/contacts';
+
+// O POST /contacts responde `data: { contact, contact_inbox }` — aninhado —
+// enquanto GET e PATCH respondem o contato na raiz de `data`. Como o
+// `extractData` desembrulha um nivel so, o create devolvia o envelope e o
+// chamador lia `.id` como undefined, navegando para /contacts/undefined.
+// O fallback mantem o create funcionando caso o backend passe a achatar a
+// resposta, sem precisar de deploy casado.
+function unwrapCreatedContact(response: AxiosResponse): Contact {
+  const payload = extractData<Contact | { contact?: Contact }>(response);
+  const nested = (payload as { contact?: Contact })?.contact;
+  return nested ?? (payload as Contact);
+}
 
 class ContactsService {
   // List contacts with pagination and filters
@@ -106,10 +120,10 @@ class ContactsService {
           'Content-Type': 'multipart/form-data',
         },
       });
-      return extractData<Contact>(response);
+      return unwrapCreatedContact(response);
     } else {
       const response = await api.post(`/contacts`, data);
-      return extractData<Contact>(response);
+      return unwrapCreatedContact(response);
     }
   }
 
