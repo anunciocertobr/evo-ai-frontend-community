@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@evoapi/design-system';
 import { toast } from 'sonner';
 import { Loader2, ExternalLink, CheckCircle2, Link2 } from 'lucide-react';
@@ -39,6 +39,14 @@ interface InboxCreateResponse {
       linked?: boolean;
       hub_channel_id?: string;
     };
+  };
+}
+
+interface InboxShowResponse {
+  data: {
+    id: number;
+    connection_state?: string;
+    health_source?: string;
   };
 }
 
@@ -112,9 +120,20 @@ export default function HubConnectButton({
     };
   }, [mode, channelType]);
 
-  // O Hub avisa o CRM por webhook quando o operador conclui o signup da Meta, e
-  // o backend reemite no ActionCable. Sem escutar aqui, a tela so descobria a
-  // conexao num refresh manual — a dor que originou o card.
+  // Guards the transition so the socket event and the reconciliation below
+  // cannot announce the same connection twice.
+  const alreadyConnected = useRef(false);
+
+  const markConnected = useCallback(() => {
+    if (alreadyConnected.current) return;
+    alreadyConnected.current = true;
+    setConnectionStatus('connected');
+    toast.success('Canal conectado.');
+  }, []);
+
+  // The Hub webhooks the CRM when the operator finishes the Meta signup and the
+  // backend re-emits it on ActionCable; without this the screen only learned
+  // about the connection on a manual refresh.
   useEffect(() => {
     if (inboxId === null) return;
 
@@ -123,21 +142,50 @@ export default function HubConnectButton({
         | { inbox_id?: string | number; connection_status?: string }
         | undefined;
       if (!detail) return;
-      // Comparacao frouxa de proposito: o id sai do backend como string e o
-      // estado local guarda number.
+      // Loose comparison on purpose: the id arrives as a string and the local
+      // state holds a number.
       if (String(detail.inbox_id) !== String(inboxId)) return;
 
       if (detail.connection_status === 'connected') {
-        setConnectionStatus('connected');
-        toast.success('Canal conectado.');
+        markConnected();
       } else if (detail.connection_status === 'disconnected') {
+        alreadyConnected.current = false;
         setConnectionStatus('waiting');
       }
     };
 
     window.addEventListener('evolution:hubChannelConnection', onConnection);
     return () => window.removeEventListener('evolution:hubChannelConnection', onConnection);
-  }, [inboxId]);
+  }, [inboxId, markConnected]);
+
+  // ActionCable has no replay: a transition broadcast while the socket was down
+  // is lost, and the socket is often still down while the operator sits in the
+  // Hub tab. Re-read the inbox when the tab comes back so the screen settles
+  // anyway. `provider_event` means the Hub actually confirmed the connection —
+  // `stored_flag` is the resolver assuming a configured token channel is live.
+  useEffect(() => {
+    if (inboxId === null || connectionStatus === 'connected') return;
+
+    const reconcile = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const response = await api.get<InboxShowResponse>(`/inboxes/${inboxId}`);
+        const inbox = response.data?.data;
+        if (inbox?.connection_state === 'connected' && inbox?.health_source === 'provider_event') {
+          markConnected();
+        }
+      } catch {
+        // Best effort — the ActionCable event stays the primary path.
+      }
+    };
+
+    document.addEventListener('visibilitychange', reconcile);
+    window.addEventListener('focus', reconcile);
+    return () => {
+      document.removeEventListener('visibilitychange', reconcile);
+      window.removeEventListener('focus', reconcile);
+    };
+  }, [inboxId, connectionStatus, markConnected]);
 
   const handleCreateNew = async () => {
     setSubmitting(true);
@@ -161,9 +209,8 @@ export default function HubConnectButton({
       toast.success('Inbox criada. Conclua a conexão na aba que foi aberta.');
       onCreated?.({ inboxId: inbox.id, publicLink: link });
     } catch (error: unknown) {
-      // O erro do Hub chega estruturado (PLAN_FORBIDS_SHARED, QUOTA_EXCEEDED) e
-      // o client ja traduz. Ler `data.message` cru descartava esse trabalho e
-      // devolvia o texto tecnico ao operador.
+      // Hub errors arrive structured (PLAN_FORBIDS_SHARED, QUOTA_EXCEEDED);
+      // reading `data.message` raw dropped the translated text.
       const message =
         apiErrorMessage(error) ??
         (error as { message?: string }).message ??
