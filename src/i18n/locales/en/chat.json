@@ -92,6 +92,7 @@
       "statusUnavailableDescription": "The message was sent, but we could not confirm the delivery status.",
       "checkChannelConfig": "Check channel configuration",
       "webhookIssue": "The webhook may be outdated or inactive.",
+      "providerRejected": "The channel provider rejected this message",
       "deliveryStatusUnavailable": "Delivery status unavailable - Click for more details",
       "statusUnavailableText": "Status unavailable",
       "retryInDevelopment": "Retry functionality in development",

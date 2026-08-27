@@ -91,6 +91,7 @@
       "statusUnavailableDescription": "El mensaje fue enviado, pero no pudimos confirmar el estado de entrega.",
       "checkChannelConfig": "Verifique la configuración del canal",
       "webhookIssue": "El webhook puede estar desactualizado o inactivo.",
+      "providerRejected": "El proveedor del canal rechazó este mensaje",
       "deliveryStatusUnavailable": "Estado de entrega no disponible - Haga clic para más detalles",
       "statusUnavailableText": "Estado no disponible",
       "retryInDevelopment": "Funcionalidad de reintento en desarrollo",

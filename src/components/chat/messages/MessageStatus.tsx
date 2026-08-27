@@ -25,6 +25,9 @@ const MessageStatus: React.FC<MessageStatusProps> = ({ message, isOwn, onRetry, 
   const isOnColoredBubble = isOwn && !message.private;
   const timeTextClass = isOnColoredBubble ? 'text-white/70' : 'text-muted-foreground';
 
+  const rawExternalError = message.content_attributes?.external_error;
+  const externalError = typeof rawExternalError === 'string' ? rawExternalError.trim() : '';
+
   const getStatusIcon = () => {
     if (!isOwn) return null;
 
@@ -34,8 +37,6 @@ const MessageStatus: React.FC<MessageStatusProps> = ({ message, isOwn, onRetry, 
       return <Check className="h-3 w-3 text-muted-foreground" />;
     }
 
-    // CORREÇÃO: Em ambiente de desenvolvimento, canais podem não estar configurados
-    // Se for uma mensagem pública com status 'failed', pode ser problema de configuração
     if (message.status === 'failed' && !message.private) {
       return (
         <Button
@@ -46,13 +47,18 @@ const MessageStatus: React.FC<MessageStatusProps> = ({ message, isOwn, onRetry, 
             e.preventDefault();
             e.stopPropagation();
 
-            // Mostrar toast explicativo sobre o problema do webhook
-            toast.warning(t('messages.messageStatus.statusUnavailable'), {
-              description: t('messages.messageStatus.statusUnavailableDescription'),
-            });
-            toast.info(t('messages.messageStatus.checkChannelConfig'), {
-              description: t('messages.messageStatus.webhookIssue'),
-            });
+            if (externalError) {
+              toast.error(t('messages.messageStatus.providerRejected'), {
+                description: externalError,
+              });
+            } else {
+              toast.warning(t('messages.messageStatus.statusUnavailable'), {
+                description: t('messages.messageStatus.statusUnavailableDescription'),
+              });
+              toast.info(t('messages.messageStatus.checkChannelConfig'), {
+                description: t('messages.messageStatus.webhookIssue'),
+              });
+            }
 
             // Se existe função onRetry, também executar (para tentar reenviar)
             if (onRetry) {
