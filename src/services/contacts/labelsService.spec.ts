@@ -17,9 +17,8 @@ function apiResponse(data: unknown): AxiosResponse {
   return { data } as AxiosResponse;
 }
 
-// The backend answers {success, data: <label>}. The service unwraps the envelope,
-// so callers must receive the label itself — typing the return as the envelope made
-// Labels.tsx unwrap twice and inject undefined into the list (CRM-381).
+// The service unwraps the {success, data} envelope, so every write must resolve to
+// the payload itself; only the paginated read keeps the envelope for its meta.
 describe('labelsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -57,12 +56,16 @@ describe('labelsService', () => {
 
   it('getLabels keeps the full envelope for pagination', async () => {
     vi.mocked(api.get).mockResolvedValue(
-      apiResponse({ success: true, data: [{ id: 'l-1', title: 'VIP' }], meta: { total: 1 } }),
+      apiResponse({
+        success: true,
+        data: [{ id: 'l-1', title: 'VIP' }],
+        meta: { pagination: { page: 1, page_size: 20, total: 1, total_pages: 1 } },
+      }),
     );
 
     const response = await labelsService.getLabels();
 
     expect(response.data).toHaveLength(1);
-    expect(response.meta.total).toBe(1);
+    expect(response.meta.pagination.total).toBe(1);
   });
 });

@@ -8,9 +8,8 @@ class LabelsService {
     return extractResponse<Label>(response) as LabelsResponse;
   }
 
-  // create/update/delete return the UNWRAPPED payload (extractData strips the
-  // {success, data} envelope) — typing them as the envelope made callers unwrap
-  // twice and read undefined (CRM-381).
+  // extractData strips the {success, data} envelope, so the write methods below
+  // are typed as the payload — typing them as the envelope makes callers unwrap twice.
   async createLabel(data: {
     title: string;
     description?: string;
