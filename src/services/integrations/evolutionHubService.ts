@@ -82,6 +82,16 @@ class EvolutionHubService {
     await api.post('/integrations/evolution_hub/whatsapp_connect', { inbox_id: inboxId, ...signup });
   }
 
+  /**
+   * Descarta a inbox de uma conexão que não concluiu. O canal do Hub nasce
+   * ANTES do OAuth da Meta, então cancelar sem isso deixa canal órfão
+   * consumindo quota do plano. A rota vive no recurso de inbox porque é a
+   * inbox que ela apaga; o backend recusa canal que já subiu.
+   */
+  async abortConnection(inboxId: string | number): Promise<void> {
+    await api.delete(`/inboxes/${encodeURIComponent(String(inboxId))}/hub_connection`);
+  }
+
   async getPlan(): Promise<HubPlan> {
     const response = await api.get('/integrations/evolution_hub/plan');
     return extractData<HubPlan>(response);
