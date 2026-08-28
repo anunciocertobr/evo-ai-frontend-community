@@ -109,7 +109,9 @@ export default function ReorderStagesModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[80vh] overflow-hidden">
+      {/* flex column with the list as the only scroll area: header/footer stay visible
+          even when 8+ stages would otherwise push past the viewport (CRM-382) */}
+      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t('reorderStages.title')}</DialogTitle>
           <DialogDescription>
@@ -117,7 +119,7 @@ export default function ReorderStagesModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="py-4 overflow-y-auto max-h-[60vh]">
+        <div className="py-4 overflow-y-auto flex-1 min-h-0">
           <div className="space-y-2">
             {orderedStages.map((stage, index) => (
               <div
