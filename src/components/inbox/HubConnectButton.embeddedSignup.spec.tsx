@@ -112,6 +112,7 @@ describe('HubConnectButton — Embedded Signup na própria página', () => {
         waba_id: '222',
         business_id: '333',
         auth_code: 'code-abc',
+        connection_mode: 'meta',
       }),
     );
   });
@@ -127,5 +128,67 @@ describe('HubConnectButton — Embedded Signup na própria página', () => {
 
     expect(toastError).toHaveBeenCalled();
     expect(evolutionHubService.connectWhatsapp).not.toHaveBeenCalled();
+    // A tela tem de SAIR do spinner: o toast some e antes sobrava girando.
+    expect(await screen.findByTestId('hub-failed')).toBeTruthy();
+    expect(screen.queryByTestId('hub-waiting')).toBeNull();
+  });
+
+  it('sai do spinner quando a Meta cancela', async () => {
+    comAppEConfig();
+    await criarInbox();
+    await waitFor(() => expect(fbLogin).toHaveBeenCalled());
+
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          origin: 'https://www.facebook.com',
+          data: JSON.stringify({ type: 'WA_EMBEDDED_SIGNUP', event: 'CANCEL' }),
+        }),
+      );
+    });
+
+    expect(await screen.findByTestId('hub-failed')).toBeTruthy();
+  });
+
+  it('sai do spinner quando o POST no Hub falha', async () => {
+    comAppEConfig();
+    vi.mocked(evolutionHubService.connectWhatsapp).mockRejectedValue(new Error('boom'));
+    await criarInbox();
+    await waitFor(() => expect(fbLogin).toHaveBeenCalled());
+
+    await act(async () => {
+      fbLogin.mock.calls[0][0]({ authResponse: { code: 'code-abc' } });
+    });
+    await concluirNaMeta({ phone_number_id: '111', waba_id: '222', business_id: '333' });
+
+    expect(await screen.findByTestId('hub-failed')).toBeTruthy();
+  });
+
+  it('no caminho em pagina a copy nao fala de aba que abriu', async () => {
+    comAppEConfig();
+    await criarInbox();
+    await waitFor(() => expect(fbLogin).toHaveBeenCalled());
+
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Se a aba n.o abriu/i)).toBeNull();
+    expect(screen.getByText(/janela da Meta/i)).toBeTruthy();
+  });
+
+  it('na queda para a aba do Hub a copy antiga continua valendo', async () => {
+    vi.mocked(evolutionHubService.getConnectInfo).mockResolvedValue({ can_connect: true });
+    await criarInbox();
+
+    await waitFor(() => expect(openSpy).toHaveBeenCalled());
+    expect(screen.getByText(/Se a aba n.o abriu/i)).toBeTruthy();
+  });
+
+  it('mostra o erro estruturado do Hub em vez de cair na aba calado', async () => {
+    vi.mocked(evolutionHubService.getConnectInfo).mockRejectedValue({
+      response: { data: { error: 'Plano nao permite app compartilhado', code: 'PLAN_FORBIDS_SHARED' } },
+    });
+    await criarInbox();
+
+    await waitFor(() => expect(openSpy).toHaveBeenCalled());
+    expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/Plano nao permite/i));
   });
 });

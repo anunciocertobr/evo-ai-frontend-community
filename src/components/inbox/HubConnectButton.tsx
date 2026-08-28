@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@evoapi/design-system';
 import { toast } from 'sonner';
-import { Loader2, ExternalLink, CheckCircle2, Link2 } from 'lucide-react';
+import { Loader2, ExternalLink, CheckCircle2, Link2, AlertCircle } from 'lucide-react';
 import { api } from '@/services/core';
 import { apiErrorMessage } from '@/utils/apiHelpers';
 import { useGlobalConfig } from '@/contexts/GlobalConfigContext';
@@ -61,6 +61,10 @@ interface SignupData {
 
 const META_ORIGINS = ['https://www.facebook.com', 'https://web.facebook.com'];
 
+// The Hub binds connection_mode as required on MetaConnectRequest, and its own
+// public widget always sends this literal for WhatsApp.
+const HUB_CONNECTION_MODE = 'meta';
+
 const HUB_TYPE_BY_CHANNEL: Record<
   HubConnectButtonProps['channelType'],
   HubChannel['type']
@@ -93,6 +97,10 @@ export default function HubConnectButton({
   const { loadSdk, initSdk } = useFacebookSdk();
   const [signupData, setSignupData] = useState<SignupData | null>(null);
   const [authCode, setAuthCode] = useState<string | null>(null);
+  // Drives the post-creation view. Without it a handled failure only produced a
+  // toast and the screen kept spinning on "waiting" forever.
+  const [signupError, setSignupError] = useState<string | null>(null);
+  const [inPageSignup, setInPageSignup] = useState(false);
 
   const [availableChannels, setAvailableChannels] = useState<HubChannel[]>([]);
   const [loadingChannels, setLoadingChannels] = useState(false);
@@ -200,8 +208,15 @@ export default function HubConnectButton({
     };
   }, [inboxId, connectionStatus, markConnected]);
 
-  // Os ids do canal chegam por postMessage e o code pelo callback do FB.login;
-  // só dá para postar no Hub com os dois.
+  const failSignup = useCallback((message: string) => {
+    toast.error(message);
+    setSignupError(message);
+    setSignupData(null);
+    setAuthCode(null);
+  }, []);
+
+  // The channel ids arrive by postMessage and the code by the FB.login callback;
+  // the Hub can only be called with both.
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (!META_ORIGINS.includes(event.origin)) return;
@@ -216,54 +231,55 @@ export default function HubConnectButton({
             business_id: data.data?.business_id ?? '',
           });
         } else if (data.event === 'CANCEL') {
-          toast.error('Conexão cancelada na Meta.');
-          setSubmitting(false);
+          failSignup('Conexão cancelada na Meta.');
         } else if (data.event === 'ERROR') {
-          toast.error(data.data?.error_message || 'A Meta recusou a conexão.');
-          setSubmitting(false);
+          failSignup(data.data?.error_message || 'A Meta recusou a conexão.');
         }
       } catch {
-        // Mensagem da Meta que não é JSON do signup.
+        // A Meta message that is not the signup JSON.
       }
     };
 
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, []);
+  }, [failSignup]);
 
   useEffect(() => {
     if (!signupData || !authCode || inboxId === null) return;
 
     let cancelled = false;
     evolutionHubService
-      .connectWhatsapp(inboxId, { ...signupData, auth_code: authCode })
+      .connectWhatsapp(inboxId, { ...signupData, auth_code: authCode, connection_mode: HUB_CONNECTION_MODE })
       .then(() => {
         if (cancelled) return;
         toast.success('Conexão enviada ao Hub. Aguardando confirmação do canal…');
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        toast.error(apiErrorMessage(error) ?? 'Falha ao concluir a conexão no Hub');
+        failSignup(apiErrorMessage(error) ?? 'Falha ao concluir a conexão no Hub');
       })
       .finally(() => {
         if (cancelled) return;
         setSignupData(null);
         setAuthCode(null);
-        setSubmitting(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [signupData, authCode, inboxId]);
+  }, [signupData, authCode, inboxId, failSignup]);
 
-  // Sem app e config do canal (o caso do app compartilhado hoje) devolve false
-  // e o chamador abre a aba do Hub.
+  // Returns false when the Hub sends no app/config for the channel (today's
+  // shared-app case); the caller then opens the Hub tab.
   const startEmbeddedSignup = async (id: number): Promise<boolean> => {
     let info;
     try {
       info = await evolutionHubService.getConnectInfo(id);
-    } catch {
+    } catch (error: unknown) {
+      // The Hub answers structured (PLAN_FORBIDS_SHARED, QUOTA_EXCEEDED). Falling
+      // back to the tab silently would drop the only message the operator gets.
+      const message = apiErrorMessage(error);
+      if (message) toast.error(message);
       return false;
     }
 
@@ -282,10 +298,9 @@ export default function HubConnectButton({
       (response: unknown) => {
         const code = (response as { authResponse?: { code?: string } })?.authResponse?.code;
         if (!code) {
-          // Domínio não liberado, popup fechado ou permissão negada — o SDK não
-          // distingue, e sem tratar a tela ficava "conectando" para sempre.
-          toast.error('A Meta não concluiu a autorização. Use o link para abrir o fluxo em outra aba.');
-          setSubmitting(false);
+          // Domain not allowed, popup closed or permission denied — the SDK does
+          // not tell them apart, and untreated the screen spun on "connecting" forever.
+          failSignup('A Meta não concluiu a autorização. Use o link para abrir o fluxo em outra aba.');
           return;
         }
         setAuthCode(code);
@@ -321,6 +336,7 @@ export default function HubConnectButton({
       onCreated?.({ inboxId: inbox.id, publicLink: link });
 
       const inPage = channelType === 'whatsapp_cloud' && (await startEmbeddedSignup(inbox.id));
+      setInPageSignup(inPage);
       if (inPage) {
         toast.success('Inbox criada. Conclua a conexão na janela da Meta.');
         return;
@@ -396,6 +412,29 @@ export default function HubConnectButton({
       );
     }
 
+    if (signupError) {
+      return (
+        <div className="space-y-3 border rounded-md p-4 bg-muted/30" data-testid="hub-failed">
+          <div className="flex items-center gap-2 text-sm">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+            <span>A conexão não foi concluída.</span>
+          </div>
+          <p className="text-xs text-muted-foreground">{signupError}</p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setSignupError(null);
+              window.open(publicLink, '_blank', 'noopener,noreferrer');
+            }}
+          >
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Tentar pelo Hub em outra aba
+          </Button>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-3 border rounded-md p-4 bg-muted/30" data-testid="hub-waiting">
         <div className="flex items-center gap-2 text-sm">
@@ -403,7 +442,9 @@ export default function HubConnectButton({
           <span>Inbox criada. Aguardando conexão Meta no Hub…</span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Se a aba não abriu, clique no botão abaixo para reabrir.
+          {inPageSignup
+            ? 'Conclua a autorização na janela da Meta. Se ela não abriu, use o botão abaixo.'
+            : 'Se a aba não abriu, clique no botão abaixo para reabrir.'}
         </p>
         <Button
           type="button"

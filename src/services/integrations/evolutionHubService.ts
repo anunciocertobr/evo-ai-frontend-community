@@ -63,9 +63,11 @@ export interface HubConnectInfo {
 export interface HubWhatsappSignup {
   phone_number_id: string;
   waba_id: string;
-  business_id: string;
-  auth_code: string;
-  connection_mode?: string;
+  /** Optional on the Hub (omitempty); Meta does not always return them. */
+  business_id?: string;
+  auth_code?: string;
+  /** Required by the Hub's MetaConnectRequest binding. */
+  connection_mode: string;
 }
 
 class EvolutionHubService {

@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 
 const SDK_SRC = 'https://connect.facebook.net/en_US/sdk.js';
 const SDK_SCRIPT_ID = 'facebook-jssdk';
+const SDK_LOAD_TIMEOUT_MS = 10_000;
 
 declare global {
   interface Window {
@@ -18,8 +19,8 @@ export interface FacebookSdkInit {
 }
 
 /**
- * Carrega o SDK JS da Meta uma vez por página. O appId só é conhecido em runtime
- * (vem do Hub, por canal), então o init fica com o consumidor.
+ * Loads the Meta JS SDK once per page. The appId is only known at runtime
+ * (it comes from the Hub, per channel), so init stays with the consumer.
  */
 export function useFacebookSdk() {
   const loading = useRef<Promise<void> | null>(null);
@@ -30,20 +31,38 @@ export function useFacebookSdk() {
     if (loading.current) return loading.current;
 
     loading.current = new Promise<void>((resolve, reject) => {
-      const done = () => resolve();
-      const existing = document.getElementById(SDK_SCRIPT_ID) as HTMLScriptElement | null;
+      // Three other components load this same script and overwrite fbAsyncInit
+      // without chaining, so our resolve can be dropped. Poll for window.FB and
+      // time out instead of waiting on a callback that may never fire.
+      const started = Date.now();
+      let timer: ReturnType<typeof setInterval> | null = null;
 
-      if (window.FB) {
-        done();
-        return;
-      }
+      const settle = (error?: Error) => {
+        if (timer) clearInterval(timer);
+        timer = null;
+        if (error) {
+          loading.current = null;
+          reject(error);
+        } else {
+          resolve();
+        }
+      };
+
+      timer = setInterval(() => {
+        if (window.FB) return settle();
+        if (Date.now() - started >= SDK_LOAD_TIMEOUT_MS) settle(new Error('Facebook SDK failed to load'));
+      }, 100);
 
       const previousInit = window.fbAsyncInit;
       window.fbAsyncInit = () => {
         previousInit?.();
-        done();
+        settle();
       };
 
+      // CloudWhatsappForm injects the script without an id, so match on src too
+      // or we would append a second copy of the SDK.
+      const existing =
+        document.getElementById(SDK_SCRIPT_ID) ?? document.querySelector(`script[src="${SDK_SRC}"]`);
       if (existing) return;
 
       const script = document.createElement('script');
@@ -51,10 +70,7 @@ export function useFacebookSdk() {
       script.async = true;
       script.defer = true;
       script.src = SDK_SRC;
-      script.onerror = () => {
-        loading.current = null;
-        reject(new Error('Facebook SDK failed to load'));
-      };
+      script.onerror = () => settle(new Error('Facebook SDK failed to load'));
       document.head.appendChild(script);
     });
 
