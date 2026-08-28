@@ -46,7 +46,6 @@ import type { DashboardApp } from '../../../types/integrations';
 import type { AssignmentOption, AssignmentType } from '@/components/chat/assignment';
 import { labelsService } from '@/services/contacts/labelsService';
 import { useAppDataStore } from '@/store/appDataStore';
-import type { Label } from '@/types/settings';
 import chatService from '@/services/chat/chatService';
 
 const ContactSidebar = React.lazy(() => import('@/components/chat/contact-sidebar/ContactSidebar'));
@@ -713,9 +712,7 @@ const Chat = () => {
     show_on_sidebar?: boolean;
   }): Promise<AssignmentOption> => {
     try {
-      // labelsService.createLabel returns the unwrapped Label (extractData unwraps response.data.data)
-      // despite the declared LabelResponse type — service typing is inconsistent across the codebase.
-      const label = (await labelsService.createLabel(data)) as unknown as Label;
+      const label = await labelsService.createLabel(data);
       if (!label?.id || !label?.title) {
         throw new Error('Invalid label payload returned from API');
       }

@@ -54,6 +54,7 @@ import Teams from '@/pages/Customer/Settings/Teams/Teams';
 import { AddUsers } from '@/pages/Customer/Settings/Teams';
 import Users from '@/pages/Customer/Settings/Users';
 import Labels from '@/pages/Customer/Settings/Labels';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import CustomAttributes from '@/pages/Customer/Settings/CustomAttributes';
 import Segments from '@/pages/Customer/Settings/Segments/Segments';
 import SegmentCreateEdit from '@/pages/Customer/Settings/Segments/SegmentCreateEdit';
@@ -741,7 +742,10 @@ const AppRouter = () => {
                 <CustomerRoute>
                   <MainLayout>
                     <PermissionRoute resource="labels" action="read">
-                      <Labels />
+                      {/* A render crash here used to blank the whole app (CRM-381) */}
+                      <ErrorBoundary>
+                        <Labels />
+                      </ErrorBoundary>
                     </PermissionRoute>
                   </MainLayout>
                 </CustomerRoute>

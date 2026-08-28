@@ -242,11 +242,9 @@ export default function Labels() {
     try {
       if (editingLabel) {
         // Update existing label
-        const response = await labelsService.updateLabel(editingLabel.id, data);
+        const updatedLabel = await labelsService.updateLabel(editingLabel.id, data);
         toast.success(t('messages.updateSuccess'));
 
-        // Update the specific label in the list
-        const updatedLabel = response.data;
         setState(prev => ({
           ...prev,
           labels: prev.labels.map(label => (label.id === editingLabel.id ? updatedLabel : label)),
