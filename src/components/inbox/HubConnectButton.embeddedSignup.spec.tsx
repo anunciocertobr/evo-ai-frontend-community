@@ -133,6 +133,44 @@ describe('HubConnectButton — Embedded Signup na própria página', () => {
     expect(screen.queryByTestId('hub-waiting')).toBeNull();
   });
 
+  it('recusa localmente um FINISH sem waba_id, sem ida ao backend', async () => {
+    comAppEConfig();
+    await criarInbox();
+    await waitFor(() => expect(fbLogin).toHaveBeenCalled());
+
+    await act(async () => {
+      fbLogin.mock.calls[0][0]({ authResponse: { code: 'code-abc' } });
+    });
+    await concluirNaMeta({ phone_number_id: '111', business_id: '333' });
+
+    expect(evolutionHubService.connectWhatsapp).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/waba_id/));
+    expect(await screen.findByTestId('hub-failed')).toBeTruthy();
+  });
+
+  // business_id e omitempty no Hub e a Meta nem sempre devolve: exigir aqui
+  // recriaria a recusa indevida que o backend deixou de fazer.
+  it('aceita um FINISH sem business_id e nao manda a chave vazia', async () => {
+    comAppEConfig();
+    vi.mocked(evolutionHubService.connectWhatsapp).mockResolvedValue(undefined);
+    await criarInbox();
+    await waitFor(() => expect(fbLogin).toHaveBeenCalled());
+
+    await act(async () => {
+      fbLogin.mock.calls[0][0]({ authResponse: { code: 'code-abc' } });
+    });
+    await concluirNaMeta({ phone_number_id: '111', waba_id: '222' });
+
+    await waitFor(() =>
+      expect(evolutionHubService.connectWhatsapp).toHaveBeenCalledWith(INBOX_ID, {
+        phone_number_id: '111',
+        waba_id: '222',
+        auth_code: 'code-abc',
+        connection_mode: 'meta',
+      }),
+    );
+  });
+
   it('sai do spinner quando a Meta cancela', async () => {
     comAppEConfig();
     await criarInbox();

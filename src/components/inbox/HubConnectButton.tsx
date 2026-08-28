@@ -56,7 +56,8 @@ type Mode = 'new' | 'existing';
 interface SignupData {
   phone_number_id: string;
   waba_id: string;
-  business_id: string;
+  // Optional on the Hub (omitempty) and not always in Meta's FINISH payload.
+  business_id?: string;
 }
 
 const META_ORIGINS = ['https://www.facebook.com', 'https://web.facebook.com'];
@@ -225,10 +226,18 @@ export default function HubConnectButton({
         if (data?.type !== 'WA_EMBEDDED_SIGNUP') return;
 
         if (data.event === 'FINISH' || data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
+          // Defaulting a missing id to '' laundered "Meta sent nothing" into
+          // "Meta sent empty" and only surfaced as a generic 400 from the proxy.
+          const missing = (['phone_number_id', 'waba_id'] as const).filter((key) => !data.data?.[key]);
+          if (missing.length) {
+            failSignup(`A Meta não devolveu ${missing.join(' e ')}. Conclua a conexão pela aba do Hub.`);
+            return;
+          }
+
           setSignupData({
-            phone_number_id: data.data?.phone_number_id ?? '',
-            waba_id: data.data?.waba_id ?? '',
-            business_id: data.data?.business_id ?? '',
+            phone_number_id: data.data.phone_number_id,
+            waba_id: data.data.waba_id,
+            ...(data.data.business_id ? { business_id: data.data.business_id } : {}),
           });
         } else if (data.event === 'CANCEL') {
           failSignup('Conexão cancelada na Meta.');
