@@ -92,11 +92,11 @@
       "statusUnavailableDescription": "A mensagem foi enviada, mas não conseguimos confirmar o status de entrega.",
       "checkChannelConfig": "Verifique a configuração do canal",
       "webhookIssue": "O webhook pode estar desatualizado ou inativo.",
-      "providerRejected": "O provedor do canal recusou esta mensagem",
+      "messageNotSent": "A mensagem não foi enviada",
       "deliveryStatusUnavailable": "Status de entrega indisponível - Clique para mais detalhes",
       "statusUnavailableText": "Status indisponível",
-      "retryInDevelopment": "Funcionalidade de reenvio em desenvolvimento",
-      "sendFailed": "Falha no envio - Clique para tentar novamente",
+      "sendFailedText": "Falha no envio",
+      "sendFailed": "Falha no envio - Clique para ver o motivo",
       "tryAgain": "Tentar novamente"
     },
     "replyPreview": {

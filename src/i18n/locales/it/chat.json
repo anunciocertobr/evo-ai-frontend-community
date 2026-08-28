@@ -91,11 +91,11 @@
       "statusUnavailableDescription": "Il messaggio è stato inviato, ma non siamo riusciti a confermare lo stato di consegna.",
       "checkChannelConfig": "Verifica la configurazione del canale",
       "webhookIssue": "Il webhook potrebbe essere obsoleto o inattivo.",
-      "providerRejected": "Il fornitore del canale ha rifiutato questo messaggio",
+      "messageNotSent": "Il messaggio non è stato inviato",
       "deliveryStatusUnavailable": "Stato di consegna non disponibile - Clicca per maggiori dettagli",
       "statusUnavailableText": "Stato non disponibile",
-      "retryInDevelopment": "Funzionalità di nuovo tentativo in sviluppo",
-      "sendFailed": "Invio fallito - Clicca per riprovare",
+      "sendFailedText": "Invio fallito",
+      "sendFailed": "Invio fallito - Clicca per vedere il motivo",
       "tryAgain": "Riprova"
     },
     "replyPreview": {
