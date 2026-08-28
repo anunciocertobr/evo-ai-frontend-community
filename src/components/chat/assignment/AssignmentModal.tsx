@@ -204,7 +204,11 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      {/* sm:max-w-md, not bare max-w-md: cn's twMerge keeps the default sm:max-w-lg,
+          which won on desktop. min-w-0 on the grid items: a child without it inflates
+          the track past the container and the body overflows the modal's right edge
+          (CRM-388). overflow-hidden is the seatbelt. */}
+      <DialogContent className="sm:max-w-md overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {getIcon()}
@@ -213,7 +217,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0 max-w-full">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -290,7 +294,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({
           </div>
         </div>
 
-        <DialogFooter className="flex-col-reverse sm:flex-row gap-3">
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-3 min-w-0 max-w-full">
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             {t('assignmentModal.cancel')}
           </Button>
