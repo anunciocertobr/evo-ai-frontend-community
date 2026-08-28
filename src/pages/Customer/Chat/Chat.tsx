@@ -812,10 +812,10 @@ const Chat = () => {
       case 'label':
         return {
           title: t('assignment.label.title'),
+          // {{name}} is the interlocutor ("conversa com <contato>") — it used to
+          // interpolate the conversation's current label list here (CRM-388)
           description: t('assignment.label.description', {
-            name:
-              conversationToAssign?.labels?.map(label => label.title).join(', ') ||
-              t('assignment.label.contactFallback'),
+            name: conversationToAssign.contact?.name || t('assignment.label.contactFallback'),
           }),
           options: assignmentHandlers.labels.map(
             (label): AssignmentOption => ({
