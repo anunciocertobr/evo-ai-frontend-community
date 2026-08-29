@@ -109,9 +109,9 @@ export default function ReorderStagesModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* flex column with the list as the only scroll area: header/footer stay visible
-          even when 8+ stages would otherwise push past the viewport (CRM-382) */}
-      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col overflow-hidden">
+      {/* The list is the only scroll area so 8+ stages cannot push the footer
+          past the viewport (CRM-382). */}
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t('reorderStages.title')}</DialogTitle>
           <DialogDescription>
@@ -165,7 +165,7 @@ export default function ReorderStagesModal({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
                       onClick={() => moveStage(index, 'up')}
                       disabled={index === 0}
                     >
@@ -176,7 +176,7 @@ export default function ReorderStagesModal({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
                       onClick={() => moveStage(index, 'down')}
                       disabled={index === orderedStages.length - 1}
                     >
@@ -184,7 +184,7 @@ export default function ReorderStagesModal({
                     </Button>
 
                     {/* Drag Handle */}
-                    <div className="cursor-grab active:cursor-grabbing p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="cursor-grab active:cursor-grabbing p-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                       <GripVertical className="w-4 h-4 text-muted-foreground" />
                     </div>
                   </div>
