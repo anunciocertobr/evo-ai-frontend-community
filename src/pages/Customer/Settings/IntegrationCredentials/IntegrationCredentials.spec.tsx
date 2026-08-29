@@ -227,6 +227,9 @@ describe('IntegrationCredentials — creating only static (AC2, AC4)', () => {
     const [payload] = createIntegrationCredential.mock.calls[0];
     expect(payload.kind).toBe('static');
     expect(payload.value).toBe('app-secret-0001');
+    // The page-level button is the account one: without this the row could
+    // silently land at another scope.
+    expect(payload.scope).toBe('account');
   });
 
   it('blocks the save when name, provider or value is missing', async () => {
@@ -422,6 +425,50 @@ describe('IntegrationCredentials — installation scope (2.2 AC8)', () => {
     const [id, payload] = updateIntegrationCredential.mock.calls[0];
     expect(id).toBe('cred-installation');
     expect(payload.scope).toBe('installation');
+  });
+
+  // The whole point of the section: the CREATE carries scope 'installation',
+  // or the row lands on the account and the Evo default stays empty. Updating
+  // an existing row cannot prove this — it inherits the scope it already had.
+  it('lets an installation admin CREATE at that level, carrying the scope', async () => {
+    const user = userEvent.setup();
+    granted = [...ALL_PERMISSIONS, 'installation_configs.manage'];
+    createIntegrationCredential.mockResolvedValue(INSTALLATION_CREDENTIAL);
+    render(<IntegrationCredentials />);
+
+    await findInstallationRow();
+    // The section header's add button is the second one on the page.
+    const addButtons = screen.getAllByText('actions.add');
+    await user.click(addButtons[addButtons.length - 1]);
+
+    await user.type(await screen.findByLabelText('form.labels.name'), 'Nova da casa');
+    await user.type(screen.getByLabelText('form.labels.provider'), 'n8n');
+    await user.type(screen.getByLabelText('form.labels.value'), 'house-secret-0002');
+    await user.click(screen.getByText('actions.save'));
+
+    await waitFor(() => expect(createIntegrationCredential).toHaveBeenCalled());
+    expect(createIntegrationCredential.mock.calls[0][0]).toMatchObject({
+      name: 'Nova da casa',
+      provider: 'n8n',
+      value: 'house-secret-0002',
+      scope: 'installation',
+    });
+  });
+
+  // The scope privilege is ON TOP of ai_integration_credentials.create, not
+  // instead of it: offering the button to someone the server will refuse is a
+  // dead end.
+  it('hides the installation add button without ai_integration_credentials.create', async () => {
+    granted = [
+      ...ALL_PERMISSIONS.filter(
+        permission => permission !== 'ai_integration_credentials.create',
+      ),
+      'installation_configs.manage',
+    ];
+    render(<IntegrationCredentials />);
+
+    await findInstallationRow();
+    expect(screen.queryByText('actions.add')).not.toBeInTheDocument();
   });
 
   it('shows the empty hint when the installation has nothing', async () => {

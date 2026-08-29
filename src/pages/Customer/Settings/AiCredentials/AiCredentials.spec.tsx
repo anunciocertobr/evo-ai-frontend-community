@@ -427,12 +427,53 @@ describe('AiCredentials — installation scope (1.2 AC1, AC2)', () => {
     await user.click(addButtons[addButtons.length - 1]);
 
     await user.type(await screen.findByLabelText('form.labels.name'), 'Nova da casa');
+    await user.click(screen.getByLabelText('form.labels.provider'));
+    await user.click(await screen.findByRole('option', { name: 'OpenAI' }));
     await user.type(screen.getByLabelText('form.labels.key'), 'sk-house-0002');
     await user.click(screen.getByText('actions.save'));
 
-    // Provider is still required, so nothing is sent — the scope plumbing is
-    // asserted by the payload test below.
-    await waitFor(() => expect(createApiKey).not.toHaveBeenCalled());
+    // The whole point of the section: the CREATE carries scope 'installation',
+    // or the row lands on the account and the Evo default stays empty.
+    await waitFor(() => expect(createApiKey).toHaveBeenCalled());
+    expect(createApiKey.mock.calls[0][0]).toMatchObject({
+      name: 'Nova da casa',
+      provider: 'openai',
+      key_value: 'sk-house-0002',
+      scope: 'installation',
+    });
+  });
+
+  it('sends scope account when the add button of the account section is used', async () => {
+    const user = userEvent.setup();
+    granted = [...ALL_PERMISSIONS, 'installation_configs.manage'];
+    createApiKey.mockResolvedValue(OPENAI_KEY);
+    render(<AiCredentials />);
+
+    await findInstallationRow();
+    // The page header's button is the account one, and it comes first.
+    await user.click(screen.getAllByText('actions.add')[0]);
+
+    await user.type(await screen.findByLabelText('form.labels.name'), 'Nova da conta');
+    await user.click(screen.getByLabelText('form.labels.provider'));
+    await user.click(await screen.findByRole('option', { name: 'OpenAI' }));
+    await user.type(screen.getByLabelText('form.labels.key'), 'sk-acct-0003');
+    await user.click(screen.getByText('actions.save'));
+
+    await waitFor(() => expect(createApiKey).toHaveBeenCalled());
+    expect(createApiKey.mock.calls[0][0]).toMatchObject({ scope: 'account' });
+  });
+
+  // The scope privilege is ON TOP of ai_api_keys.create, not instead of it:
+  // offering the button to someone the server will refuse is a dead end.
+  it('hides the installation add button without ai_api_keys.create', async () => {
+    granted = [
+      ...ALL_PERMISSIONS.filter(permission => permission !== 'ai_api_keys.create'),
+      'installation_configs.manage',
+    ];
+    render(<AiCredentials />);
+
+    await findInstallationRow();
+    expect(screen.queryByText('actions.add')).not.toBeInTheDocument();
   });
 
   it('renders installation credentials read-only without installation_configs.manage (AC2)', async () => {
@@ -562,7 +603,7 @@ describe('AiCredentials — in-use panel (1.2 AC9)', () => {
 });
 
 describe('AiCredentials — creating (AC2)', () => {
-  it('sends name, provider and key to the registry', async () => {
+  it('blocks the save when the provider was never picked', async () => {
     const user = userEvent.setup();
     createApiKey.mockResolvedValue(OPENAI_KEY);
     render(<AiCredentials />);
@@ -574,8 +615,30 @@ describe('AiCredentials — creating (AC2)', () => {
     await user.type(screen.getByLabelText('form.labels.key'), 'sk-nova-0001');
     await user.click(screen.getByText('actions.save'));
 
-    // Provider is required, so an untouched select must block the save.
     await waitFor(() => expect(createApiKey).not.toHaveBeenCalled());
+  });
+
+  it('sends name, provider and key to the registry once the form is complete', async () => {
+    const user = userEvent.setup();
+    createApiKey.mockResolvedValue(OPENAI_KEY);
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    await user.click(screen.getByText('actions.add'));
+
+    await user.type(await screen.findByLabelText('form.labels.name'), 'Nova');
+    await user.click(screen.getByLabelText('form.labels.provider'));
+    await user.click(await screen.findByRole('option', { name: 'Anthropic' }));
+    await user.type(screen.getByLabelText('form.labels.key'), 'sk-nova-0001');
+    await user.click(screen.getByText('actions.save'));
+
+    await waitFor(() => expect(createApiKey).toHaveBeenCalled());
+    expect(createApiKey.mock.calls[0][0]).toMatchObject({
+      name: 'Nova',
+      provider: 'anthropic',
+      key_value: 'sk-nova-0001',
+      scope: 'account',
+    });
   });
 });
 

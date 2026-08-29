@@ -247,6 +247,12 @@ export default function AiCredentials() {
   const canWriteScope = (scope: ApiKeyScope) =>
     scope === 'installation' ? canManageInstallation : canUpdate;
 
+  // The scope privilege sits ON TOP of ai_api_keys.create, not instead of it:
+  // an installation admin without create would otherwise get a button the
+  // server rejects.
+  const canCreateInScope = (scope: ApiKeyScope) =>
+    canCreate && (scope === 'installation' ? canManageInstallation : true);
+
   const handleSave = async () => {
     const needsKey = !isEditing;
     if (!draft.name.trim() || !draft.provider || (needsKey && !draft.key_value.trim())) {
@@ -254,7 +260,8 @@ export default function AiCredentials() {
       return;
     }
 
-    if (!canWriteScope(draft.scope)) {
+    const allowed = isEditing ? canWriteScope(draft.scope) : canCreateInScope(draft.scope);
+    if (!allowed) {
       toast.error(t('messages.permissionDenied.installation'));
       return;
     }
@@ -552,7 +559,7 @@ export default function AiCredentials() {
           <h2 className="text-sm font-medium uppercase text-muted-foreground">
             {t('sections.installation')}
           </h2>
-          {canManageInstallation && (
+          {canCreateInScope('installation') && (
             <Button variant="outline" size="sm" onClick={() => openCreateForm('installation')}>
               <Plus className="mr-2 h-4 w-4" />
               {t('actions.add')}
