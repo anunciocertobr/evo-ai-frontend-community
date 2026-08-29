@@ -242,16 +242,16 @@ export default function AiCredentials() {
     setFormOpen(true);
   };
 
-  // Editing an installation credential needs the installation privilege;
-  // account credentials only need ai_api_keys.update.
-  const canWriteScope = (scope: ApiKeyScope) =>
-    scope === 'installation' ? canManageInstallation : canUpdate;
+  // The scope privilege sits ON TOP of the ai_api_keys.* grant, never instead
+  // of it: the server checks BOTH (the route verb and, for the installation
+  // scope, installation_configs.manage), so a control gated on only one is a
+  // dead end. Per verb, because delete does not imply update.
+  const canInScope = (granted: boolean, scope: ApiKeyScope) =>
+    granted && (scope === 'installation' ? canManageInstallation : true);
 
-  // The scope privilege sits ON TOP of ai_api_keys.create, not instead of it:
-  // an installation admin without create would otherwise get a button the
-  // server rejects.
-  const canCreateInScope = (scope: ApiKeyScope) =>
-    canCreate && (scope === 'installation' ? canManageInstallation : true);
+  const canCreateInScope = (scope: ApiKeyScope) => canInScope(canCreate, scope);
+  const canUpdateInScope = (scope: ApiKeyScope) => canInScope(canUpdate, scope);
+  const canDeleteInScope = (scope: ApiKeyScope) => canInScope(canDelete, scope);
 
   const handleSave = async () => {
     const needsKey = !isEditing;
@@ -260,7 +260,7 @@ export default function AiCredentials() {
       return;
     }
 
-    const allowed = isEditing ? canWriteScope(draft.scope) : canCreateInScope(draft.scope);
+    const allowed = isEditing ? canUpdateInScope(draft.scope) : canCreateInScope(draft.scope);
     if (!allowed) {
       toast.error(t('messages.permissionDenied.installation'));
       return;
@@ -399,7 +399,7 @@ export default function AiCredentials() {
   }
 
   const renderCredentialsTable = (rows: ApiKey[], scope: ApiKeyScope) => {
-    const writable = canWriteScope(scope);
+    const writable = canUpdateInScope(scope);
 
     return (
       <div className="overflow-x-auto border rounded-lg">
@@ -458,7 +458,7 @@ export default function AiCredentials() {
                         </span>
                       )
                     )}
-                    {canDelete && writable && (
+                    {canDeleteInScope(scope) && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -485,7 +485,7 @@ export default function AiCredentials() {
           <h1 className="text-2xl font-semibold">{t('title')}</h1>
           <p className="text-muted-foreground">{t('description')}</p>
         </div>
-        {canCreate && (
+        {canCreateInScope('account') && (
           <Button onClick={() => openCreateForm('account')}>
             <Plus className="mr-2 h-4 w-4" />
             {t('actions.add')}
@@ -544,7 +544,7 @@ export default function AiCredentials() {
             title={t('empty.title')}
             description={t('empty.description')}
             action={
-              canCreate
+              canCreateInScope('account')
                 ? { label: t('actions.addFirst'), onClick: () => openCreateForm('account') }
                 : undefined
             }

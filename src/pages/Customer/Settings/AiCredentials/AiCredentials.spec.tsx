@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { toast } from 'sonner';
 import AiCredentials from './AiCredentials';
@@ -401,6 +401,14 @@ describe('AiCredentials — deactivate keeps the row and can be undone (CRM-174)
 describe('AiCredentials — installation scope (1.2 AC1, AC2)', () => {
   const findInstallationRow = () => screen.findByRole('cell', { name: 'Chave da casa' });
 
+  // Scoped to the section instead of indexed into getAllByText: the account's
+  // add button lives in the page header, so an index follows any layout change
+  // to the wrong button.
+  const installationSection = () => screen.getByLabelText('sections.installation');
+  const addInstallationButton = () => within(installationSection()).getByText('actions.add');
+  const addAccountButton = () =>
+    screen.getAllByText('actions.add').find(button => !installationSection().contains(button))!;
+
   beforeEach(() => {
     mockRegistry([OPENAI_KEY, INSTALLATION_KEY]);
   });
@@ -422,9 +430,7 @@ describe('AiCredentials — installation scope (1.2 AC1, AC2)', () => {
     render(<AiCredentials />);
 
     await findInstallationRow();
-    // The section header carries its own add button.
-    const addButtons = screen.getAllByText('actions.add');
-    await user.click(addButtons[addButtons.length - 1]);
+    await user.click(addInstallationButton());
 
     await user.type(await screen.findByLabelText('form.labels.name'), 'Nova da casa');
     await user.click(screen.getByLabelText('form.labels.provider'));
@@ -450,8 +456,7 @@ describe('AiCredentials — installation scope (1.2 AC1, AC2)', () => {
     render(<AiCredentials />);
 
     await findInstallationRow();
-    // The page header's button is the account one, and it comes first.
-    await user.click(screen.getAllByText('actions.add')[0]);
+    await user.click(addAccountButton());
 
     await user.type(await screen.findByLabelText('form.labels.name'), 'Nova da conta');
     await user.click(screen.getByLabelText('form.labels.provider'));
@@ -473,7 +478,35 @@ describe('AiCredentials — installation scope (1.2 AC1, AC2)', () => {
     render(<AiCredentials />);
 
     await findInstallationRow();
-    expect(screen.queryByText('actions.add')).not.toBeInTheDocument();
+    expect(within(installationSection()).queryByText('actions.add')).not.toBeInTheDocument();
+  });
+
+  // The same rule on the update axis: the PUT route demands ai_api_keys.update
+  // whatever the scope, so installation_configs.manage alone must not light up
+  // the edit controls.
+  it('keeps the installation row read-only without ai_api_keys.update', async () => {
+    granted = [
+      ...ALL_PERMISSIONS.filter(permission => permission !== 'ai_api_keys.update'),
+      'installation_configs.manage',
+    ];
+    render(<AiCredentials />);
+
+    await findInstallationRow();
+    expect(screen.queryAllByLabelText('actions.edit')).toHaveLength(0);
+    expect(screen.getByText('inheritedReadOnly')).toBeInTheDocument();
+  });
+
+  // Delete does not travel through update: dropping the update grant must not
+  // take the trash icon with it, on either row.
+  it('keeps the delete control without ai_api_keys.update', async () => {
+    granted = [
+      ...ALL_PERMISSIONS.filter(permission => permission !== 'ai_api_keys.update'),
+      'installation_configs.manage',
+    ];
+    render(<AiCredentials />);
+
+    await findInstallationRow();
+    expect(screen.getAllByLabelText('actions.delete')).toHaveLength(2);
   });
 
   it('renders installation credentials read-only without installation_configs.manage (AC2)', async () => {
@@ -616,6 +649,27 @@ describe('AiCredentials — creating (AC2)', () => {
     await user.click(screen.getByText('actions.save'));
 
     await waitFor(() => expect(createApiKey).not.toHaveBeenCalled());
+  });
+
+  // handleSave used to run every save through the update gate, so a create-only
+  // grant was refused a credential the server would have accepted.
+  it('creates at account scope without ai_api_keys.update', async () => {
+    const user = userEvent.setup();
+    granted = ['ai_api_keys.read', 'ai_api_keys.create'];
+    createApiKey.mockResolvedValue(OPENAI_KEY);
+    render(<AiCredentials />);
+
+    await findAccountRow();
+    await user.click(screen.getByText('actions.add'));
+
+    await user.type(await screen.findByLabelText('form.labels.name'), 'Nova');
+    await user.click(screen.getByLabelText('form.labels.provider'));
+    await user.click(await screen.findByRole('option', { name: 'OpenAI' }));
+    await user.type(screen.getByLabelText('form.labels.key'), 'sk-create-only');
+    await user.click(screen.getByText('actions.save'));
+
+    await waitFor(() => expect(createApiKey).toHaveBeenCalled());
+    expect(createApiKey.mock.calls[0][0]).toMatchObject({ scope: 'account' });
   });
 
   it('sends name, provider and key to the registry once the form is complete', async () => {
