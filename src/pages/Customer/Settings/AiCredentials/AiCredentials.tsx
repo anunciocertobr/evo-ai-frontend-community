@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { usePermissions } from '@/contexts/PermissionsContext';
+import { useCredentialScopePermissions } from '@/hooks/useCredentialScopePermissions';
 import { toast } from 'sonner';
 import {
   Badge,
@@ -58,7 +58,6 @@ const EMPTY_DRAFT: CredentialDraft = {
 
 export default function AiCredentials() {
   const { t } = useLanguage('aiCredentials');
-  const { can, isReady: permissionsReady } = usePermissions();
 
   const [credentials, setCredentials] = useState<ApiKey[]>([]);
   // The server's word on the legacy fallback: 'pending' while a request is in
@@ -75,13 +74,13 @@ export default function AiCredentials() {
   const [credentialToDelete, setCredentialToDelete] = useState<ApiKey | null>(null);
   const [agentsUsingCredential, setAgentsUsingCredential] = useState<string[]>([]);
 
-  const canRead = can('ai_api_keys', 'read');
-  const canCreate = can('ai_api_keys', 'create');
-  const canUpdate = can('ai_api_keys', 'update');
-  const canDelete = can('ai_api_keys', 'delete');
-  // Writing at the installation level is a separate privilege: an account admin
-  // sees the inherited default but cannot change it.
-  const canManageInstallation = can('installation_configs', 'manage');
+  const {
+    permissionsReady,
+    canRead,
+    canCreateInScope,
+    canUpdateInScope,
+    canDeleteInScope,
+  } = useCredentialScopePermissions('ai_api_keys');
 
   const isEditing = Boolean(draft.id);
 
@@ -242,16 +241,6 @@ export default function AiCredentials() {
     setFormOpen(true);
   };
 
-  // The scope privilege sits ON TOP of the ai_api_keys.* grant, never instead
-  // of it: the server checks BOTH (the route verb and, for the installation
-  // scope, installation_configs.manage), so a control gated on only one is a
-  // dead end. Per verb, because delete does not imply update.
-  const canInScope = (granted: boolean, scope: ApiKeyScope) =>
-    granted && (scope === 'installation' ? canManageInstallation : true);
-
-  const canCreateInScope = (scope: ApiKeyScope) => canInScope(canCreate, scope);
-  const canUpdateInScope = (scope: ApiKeyScope) => canInScope(canUpdate, scope);
-  const canDeleteInScope = (scope: ApiKeyScope) => canInScope(canDelete, scope);
 
   const handleSave = async () => {
     const needsKey = !isEditing;

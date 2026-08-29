@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
-import { usePermissions } from '@/contexts/PermissionsContext';
+import { useCredentialScopePermissions } from '@/hooks/useCredentialScopePermissions';
 import { toast } from 'sonner';
 import {
   Badge,
@@ -77,7 +77,6 @@ interface ConsumerInUse {
 
 export default function IntegrationCredentials() {
   const { t } = useLanguage('integrationCredentials');
-  const { can, isReady: permissionsReady } = usePermissions();
 
   const [credentials, setCredentials] = useState<IntegrationCredential[]>([]);
   const [loading, setLoading] = useState(false);
@@ -89,14 +88,14 @@ export default function IntegrationCredentials() {
     useState<IntegrationCredential | null>(null);
   const [consumersInUse, setConsumersInUse] = useState<ConsumerInUse[]>([]);
 
-  const canRead = can('ai_integration_credentials', 'read');
-  const canCreate = can('ai_integration_credentials', 'create');
-  const canUpdate = can('ai_integration_credentials', 'update');
-  const canDelete = can('ai_integration_credentials', 'delete');
-  // Writing at the installation level is a separate privilege: an account admin
-  // sees the inherited default but cannot change it (story 2.2, same rule as
-  // the AI credentials screen).
-  const canManageInstallation = can('installation_configs', 'manage');
+  const {
+    can,
+    permissionsReady,
+    canRead,
+    canCreateInScope,
+    canUpdateInScope,
+    canDeleteInScope,
+  } = useCredentialScopePermissions('ai_integration_credentials');
   // Disconnecting delegates to the agent-integration flow, which the backend
   // gates on ai_agents.update — the vault grants play no part here.
   const canDisconnect = can('ai_agents', 'update');
@@ -228,16 +227,6 @@ export default function IntegrationCredentials() {
     setFormOpen(true);
   };
 
-  // The scope privilege sits ON TOP of the ai_integration_credentials.* grant, never instead
-  // of it: the server checks BOTH (the route verb and, for the installation
-  // scope, installation_configs.manage), so a control gated on only one is a
-  // dead end. Per verb, because delete does not imply update.
-  const canInScope = (granted: boolean, scope: ApiKeyScope) =>
-    granted && (scope === 'installation' ? canManageInstallation : true);
-
-  const canCreateInScope = (scope: ApiKeyScope) => canInScope(canCreate, scope);
-  const canUpdateInScope = (scope: ApiKeyScope) => canInScope(canUpdate, scope);
-  const canDeleteInScope = (scope: ApiKeyScope) => canInScope(canDelete, scope);
 
   const openEditForm = (credential: IntegrationCredential) => {
     setDraft({
