@@ -568,6 +568,13 @@ function useChatIntegration() {
       onConversationLastActivity: (conversationId: string, lastActivityAt: string) => {
         conversations.updateConversationLastActivity(conversationId, lastActivityAt);
       },
+
+      onContactUpdated: contact => {
+        if (!contact || !contact.id) {
+          return;
+        }
+        conversations.updateContactInConversations(contact);
+      },
     });
   }, [websocket, messages, conversations, currentUser, shouldReloadMessageForMissingImageData]);
 

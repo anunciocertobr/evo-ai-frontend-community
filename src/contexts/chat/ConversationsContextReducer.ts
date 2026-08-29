@@ -326,6 +326,19 @@ export function conversationsReducer(
 
         return {
           ...conv,
+          // The chat sidebar/header render `conversation.contact?.name` (not
+          // meta.sender.name), so patching only meta.sender left the visible
+          // name stale until a full REST refresh. Patch `contact` too.
+          contact: conv.contact
+            ? {
+                ...conv.contact,
+                name: updatedContact.name,
+                email: updatedContact.email || conv.contact.email,
+                phone_number: updatedContact.phone_number || conv.contact.phone_number,
+                avatar: updatedContact.avatar || conv.contact.avatar,
+                avatar_url: updatedContact.avatar_url || conv.contact.avatar_url,
+              }
+            : conv.contact,
           meta: {
             ...conv.meta,
             sender: {
@@ -347,6 +360,16 @@ export function conversationsReducer(
       ) {
         updatedSelectedConversationData = {
           ...state.selectedConversationData,
+          contact: state.selectedConversationData.contact
+            ? {
+                ...state.selectedConversationData.contact,
+                name: updatedContact.name,
+                email: updatedContact.email || state.selectedConversationData.contact.email,
+                phone_number: updatedContact.phone_number || state.selectedConversationData.contact.phone_number,
+                avatar: updatedContact.avatar || state.selectedConversationData.contact.avatar,
+                avatar_url: updatedContact.avatar_url || state.selectedConversationData.contact.avatar_url,
+              }
+            : state.selectedConversationData.contact,
           meta: {
             ...state.selectedConversationData.meta,
             sender: {
