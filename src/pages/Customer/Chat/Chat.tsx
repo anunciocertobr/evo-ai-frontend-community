@@ -766,15 +766,19 @@ const Chat = () => {
   }, [conversations.state.selectedConversationId]);
 
   // Prepare assignment modal data
+  // The three `description` phrases read "conversation with {{name}}", so {{name}}
+  // is always the interlocutor — the contact, never what is being assigned.
   const getAssignmentModalData = () => {
     if (!conversationToAssign) return null;
+
+    const contactName = conversationToAssign.contact?.name;
 
     switch (assignmentType) {
       case 'agent':
         return {
           title: t('assignment.agent.title'),
           description: t('assignment.agent.description', {
-            name: conversationToAssign.assignee?.name || t('assignment.agent.contactFallback'),
+            name: contactName || t('assignment.agent.contactFallback'),
           }),
           options: assignmentHandlers.users.map(
             (user): AssignmentOption => ({
@@ -795,7 +799,7 @@ const Chat = () => {
         return {
           title: t('assignment.team.title'),
           description: t('assignment.team.description', {
-            name: conversationToAssign?.team?.name || t('assignment.team.contactFallback'),
+            name: contactName || t('assignment.team.contactFallback'),
           }),
           options: assignmentHandlers.teams.map(
             (team): AssignmentOption => ({
@@ -812,10 +816,8 @@ const Chat = () => {
       case 'label':
         return {
           title: t('assignment.label.title'),
-          // {{name}} is the interlocutor ("conversa com <contato>") — it used to
-          // interpolate the conversation's current label list here (CRM-388)
           description: t('assignment.label.description', {
-            name: conversationToAssign.contact?.name || t('assignment.label.contactFallback'),
+            name: contactName || t('assignment.label.contactFallback'),
           }),
           options: assignmentHandlers.labels.map(
             (label): AssignmentOption => ({
