@@ -875,7 +875,7 @@ const Profile = () => {
             <button
               className={`px-0 reset-base w-full sm:flex-1 rounded-xl outline ${
                 uiSettings.editor_message_key === 'enter'
-                  ? 'outline-green-500/30'
+                  ? 'outline-primary/30'
                   : 'outline-gray-300'
               }`}
               onClick={() => handleHotKeyChange('enter')}
@@ -886,12 +886,12 @@ const Profile = () => {
                   <div
                     className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                       uiSettings.editor_message_key === 'enter'
-                        ? 'border-green-500 bg-green-500'
+                        ? 'border-primary bg-primary'
                         : 'border-gray-300'
                     }`}
                   >
                     {uiSettings.editor_message_key === 'enter' && (
-                      <div className="w-2 h-2 bg-white rounded-full" />
+                      <div className="w-2 h-2 bg-primary-foreground rounded-full" />
                     )}
                   </div>
                 </div>
@@ -908,7 +908,7 @@ const Profile = () => {
             <button
               className={`px-0 reset-base w-full sm:flex-1 rounded-xl outline ${
                 uiSettings.editor_message_key === 'cmd_enter'
-                  ? 'outline-green-500/30'
+                  ? 'outline-primary/30'
                   : 'outline-gray-300'
               }`}
               onClick={() => handleHotKeyChange('cmd_enter')}
@@ -921,12 +921,12 @@ const Profile = () => {
                   <div
                     className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                       uiSettings.editor_message_key === 'cmd_enter'
-                        ? 'border-green-500 bg-green-500'
+                        ? 'border-primary bg-primary'
                         : 'border-gray-300'
                     }`}
                   >
                     {uiSettings.editor_message_key === 'cmd_enter' && (
-                      <div className="w-2 h-2 bg-white rounded-full" />
+                      <div className="w-2 h-2 bg-primary-foreground rounded-full" />
                     )}
                   </div>
                 </div>
