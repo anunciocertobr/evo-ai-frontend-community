@@ -612,11 +612,8 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           );
         }, []),
 
-        // contact.updated carries the resolved/renamed contact (e.g. a WhatsApp
-        // pushName that lands after the conversation was created). Without this
-        // the connector's contact.updated handler was a no-op, so the chat kept
-        // the stale/empty name until a full REST refresh. Map to the domain
-        // Contact and hand off to the external store handler.
+        // Without this handler the connector's contact.updated registration was a
+        // no-op, so a resolved/renamed contact only landed after a REST refresh.
         onContactUpdated: useCallback((data: ContactUpdatedEvent) => {
           if (!data?.id) {
             return;
@@ -627,7 +624,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
             name: data.name ?? '',
             email: data.email ?? null,
             phone_number: data.phone_number ?? null,
-            avatar_url: data.avatar_url ?? null,
+            avatar_url: data.thumbnail ?? null,
             custom_attributes: data.custom_attributes ?? {},
             additional_attributes: data.additional_attributes ?? {},
           };

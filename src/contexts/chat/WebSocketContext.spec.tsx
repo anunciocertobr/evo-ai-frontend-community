@@ -65,6 +65,9 @@ describe('WebSocketContext contact.updated wiring', () => {
       name: 'João Silva',
       email: 'joao@example.com',
       phone_number: '5541999999999',
+      // The frame names the avatar `thumbnail` (Contact#push_event_data); reading
+      // `avatar_url` here silently dropped every avatar change.
+      thumbnail: 'https://cdn.example.com/joao.png',
       account_id: 'account-1',
       custom_attributes: {},
       additional_attributes: {},
@@ -77,6 +80,7 @@ describe('WebSocketContext contact.updated wiring', () => {
         name: 'João Silva',
         email: 'joao@example.com',
         phone_number: '5541999999999',
+        avatar_url: 'https://cdn.example.com/joao.png',
       }),
     );
   });
