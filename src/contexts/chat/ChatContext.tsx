@@ -570,9 +570,6 @@ function useChatIntegration() {
       },
 
       onContactUpdated: contact => {
-        if (!contact || !contact.id) {
-          return;
-        }
         conversations.updateContactInConversations(contact);
       },
     });
