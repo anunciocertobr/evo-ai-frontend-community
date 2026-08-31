@@ -428,7 +428,11 @@
         "no_customer_reply": "Cliente sem responder",
         "stage_stagnation": "Parado na etapa"
       }
-    }
+    },
+    "templatePending": "Aguardando aprovação da Meta",
+    "templatesPendingHint": "Os seus templates ainda aguardam aprovação da Meta.",
+    "noTemplatesHint": "Nenhum template criado ainda.",
+    "manageTemplates": "Abrir Modelos de Mensagem"
   },
   "editStage": {
     "title": "Editar Etapa",

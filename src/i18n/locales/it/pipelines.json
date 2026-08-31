@@ -401,7 +401,11 @@
         "no_customer_reply": "Cliente senza risposta",
         "stage_stagnation": "Fermo nella fase"
       }
-    }
+    },
+    "templatePending": "In attesa di approvazione da Meta",
+    "templatesPendingHint": "I tuoi template sono ancora in attesa di approvazione da Meta.",
+    "noTemplatesHint": "Nessun template creato finora.",
+    "manageTemplates": "Apri Modelli di Messaggio"
   },
   "editStage": {
     "title": "Modifica Fase",
