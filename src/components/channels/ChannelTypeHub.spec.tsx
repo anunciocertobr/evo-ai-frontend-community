@@ -190,11 +190,51 @@ describe('ChannelTypeCard', () => {
     ).toBeInTheDocument();
   });
 
-  it('does not label a type that has no connections yet', () => {
-    render(
+  it('labels a configured type and stays silent on one with no connections', () => {
+    const { unmount } = render(
       <ChannelTypeCard typeStatus={statusFor('whatsapp', [])} onAdd={noop} onOpenInbox={noop} onDelete={noop} />,
     );
-    expect(screen.queryByText('overview.statusLabel.available')).toBeNull();
+    expect(screen.queryByText(/overview\.statusLabel\./)).toBeNull();
+    unmount();
+
+    const configured = statusFor('whatsapp', [
+      inbox({ id: 'w1', name: 'WA', channel_type: 'whatsapp', connection_state: 'connected' }),
+    ]);
+    render(<ChannelTypeCard typeStatus={configured} onAdd={noop} onOpenInbox={noop} onDelete={noop} />);
+    expect(screen.getByText('overview.statusLabel.active')).toBeInTheDocument();
+  });
+
+  it('never claims "active" for a type the backend has no health signal for', () => {
+    // What ConnectionStateResolver's `else` branch serves for Telegram, SMS, API
+    // and Web Widget: unknown state, no source. Reading that as "active" is the
+    // false positive this card was opened for, only written out instead of a dot.
+    const status = statusFor('api', [
+      inbox({
+        id: 'a1',
+        name: 'My API',
+        channel_type: 'Channel::Api',
+        connection_state: 'unknown',
+        health_source: 'none',
+      }),
+    ]);
+    render(<ChannelTypeCard typeStatus={status} onAdd={noop} onOpenInbox={noop} onDelete={noop} />);
+    expect(screen.getByText('overview.statusLabel.unmonitored')).toBeInTheDocument();
+    expect(screen.queryByText('overview.statusLabel.active')).toBeNull();
+    // The accessible name carries the same verdict as the badge.
+    expect(
+      screen.getByRole('button', { name: /overview\.statusLabel\.unmonitored/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps a type active when only some of its connections lack a signal', () => {
+    // One confirmed connection is enough to call the type active; the popover
+    // still shows the per-inbox truth.
+    const status = statusFor('whatsapp', [
+      inbox({ id: 'w1', name: 'WA', channel_type: 'whatsapp', connection_state: 'connected' }),
+      inbox({ id: 'w2', name: 'WA2', channel_type: 'whatsapp', health_source: 'none' }),
+    ]);
+    render(<ChannelTypeCard typeStatus={status} onAdd={noop} onOpenInbox={noop} onDelete={noop} />);
+    expect(screen.getByText('overview.statusLabel.active')).toBeInTheDocument();
   });
 
   it('calls onAdd when the primary action is clicked', () => {
@@ -266,6 +306,33 @@ describe('ChannelConnectionsPopover', () => {
     expect(screen.getByText('overview.statusMeta.live')).toBeInTheDocument();
   });
 
+  it('drops the unmonitored label once the probe confirms the inbox', async () => {
+    const user = userEvent.setup();
+    const target = inbox({
+      id: 'w-live',
+      name: 'Live WA',
+      channel_type: 'whatsapp',
+      connection_state: 'connected',
+      health_source: 'none',
+    });
+    render(
+      <ChannelConnectionsPopover
+        typeStatus={statusFor('whatsapp', [target])}
+        onAdd={noop}
+        onOpenInbox={noop}
+        onDelete={noop}
+        liveVerifiedIds={new Set(['w-live'])}
+      >
+        <button>open</button>
+      </ChannelConnectionsPopover>,
+    );
+    await user.click(screen.getByRole('button', { name: 'open' }));
+    // "Not monitored · Live" contradicts itself: the probe just monitored it.
+    expect(await screen.findByText(/overview\.inboxState\.connected/)).toBeInTheDocument();
+    expect(screen.queryByText(/overview\.inboxState\.unmonitored/)).toBeNull();
+    expect(screen.getByText('overview.statusMeta.live')).toBeInTheDocument();
+  });
+
   it('calls onDelete when the per-row trash is clicked', async () => {
     const user = userEvent.setup();
     const target = inbox({ id: 'w-del', name: 'Del WA', channel_type: 'whatsapp' });
@@ -322,5 +389,23 @@ describe('ChannelConnectionsPopover', () => {
     await user.click(screen.getByRole('button', { name: 'open' }));
     await screen.findByText('WA 0');
     many.forEach(m => expect(screen.getByText(m.name)).toBeInTheDocument());
+  });
+});
+
+// The useLanguage mock above never renders a real i18next template, so a typo in a
+// locale placeholder (`{{qtde}}`) would pass every other test in this file. Assert
+// the contract directly against the shipped JSON.
+describe('channels locale contract', () => {
+  const locales = import.meta.glob<Record<string, unknown>>('../../i18n/locales/*/channels.json', {
+    eager: true,
+    import: 'default',
+  });
+
+  it.each(Object.keys(locales))('%s interpolates manageAria with count and status', path => {
+    const overview = (locales[path] as { overview: { actions: Record<string, string> } }).overview;
+    const template = overview.actions.manageAria;
+    expect(typeof template).toBe('string');
+    const placeholders = [...template.matchAll(/{{\s*(\w+)\s*}}/g)].map(m => m[1]).sort();
+    expect(placeholders).toEqual(['count', 'status']);
   });
 });

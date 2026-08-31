@@ -1681,6 +1681,7 @@
       "active": "Actif",
       "attention": "Attention requise",
       "error": "En erreur",
+      "unmonitored": "Non surveillé",
       "available": "Disponible"
     },
     "summary": {

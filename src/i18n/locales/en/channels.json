@@ -1741,6 +1741,7 @@
       "active": "Active",
       "attention": "Needs attention",
       "error": "Error",
+      "unmonitored": "Not monitored",
       "available": "Available"
     },
     "summary": {

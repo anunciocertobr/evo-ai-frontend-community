@@ -1620,6 +1620,7 @@
       "active": "Attivo",
       "attention": "Richiede attenzione",
       "error": "Con errore",
+      "unmonitored": "Non monitorato",
       "available": "Disponibile"
     },
     "summary": {
