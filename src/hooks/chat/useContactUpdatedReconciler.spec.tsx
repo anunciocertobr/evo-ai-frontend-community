@@ -199,6 +199,64 @@ describe('useContactUpdatedReconciler', () => {
     expect(apply).not.toHaveBeenCalledWith(maskedFrame);
   });
 
+  it('waits out the debounce window before fetching', async () => {
+    const { reconcile } = setup();
+
+    act(() => reconcile(maskedFrame));
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(getContact).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(getContact).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a frame with no contact id', async () => {
+    const { reconcile, apply } = setup();
+
+    act(() => reconcile({ name: 'João Silva' } as Contact));
+    await flush();
+
+    expect(getContact).not.toHaveBeenCalled();
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it('refetches again for a frame that landed while the request was in flight', async () => {
+    let resolveFirst: (value: unknown) => void = () => {};
+    getContact
+      .mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }))
+      .mockResolvedValue(rawRestContact);
+    const { reconcile } = setup();
+
+    act(() => reconcile(maskedFrame));
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(getContact).toHaveBeenCalledTimes(1);
+
+    // Its own timer fires while the request is still open and backs off, so the
+    // second round can only come from the completed request re-arming it.
+    act(() => reconcile({ ...maskedFrame, name: '55******9999' } as Contact));
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(getContact).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFirst(rawRestContact);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(getContact).toHaveBeenCalledTimes(2);
+  });
+
   it('does not touch the store after unmount', async () => {
     const { reconcile, apply, unmount } = setup();
 

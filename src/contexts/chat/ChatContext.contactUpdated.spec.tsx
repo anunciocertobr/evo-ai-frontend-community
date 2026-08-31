@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import React from 'react';
 import type { Conversation } from '@/types/chat/api';
@@ -59,6 +59,11 @@ describe('ChatContext contact.updated end-to-end', () => {
     localStorage.clear();
     getContact.mockReset();
     useAppDataStore.setState({ account: null });
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('a contact.updated frame renames the contact of a REST-loaded conversation', async () => {
@@ -113,7 +118,7 @@ describe('ChatContext contact.updated end-to-end', () => {
         custom_attributes: {},
         additional_attributes: {},
       });
-      await new Promise(resolve => setTimeout(resolve, 300));
+      vi.advanceTimersByTime(300);
     });
 
     expect(getContact).toHaveBeenCalledWith('contact-1', false);
@@ -135,7 +140,7 @@ describe('ChatContext contact.updated end-to-end', () => {
         custom_attributes: {},
         additional_attributes: {},
       });
-      await new Promise(resolve => setTimeout(resolve, 300));
+      vi.advanceTimersByTime(300);
     });
 
     expect(getContact).not.toHaveBeenCalled();

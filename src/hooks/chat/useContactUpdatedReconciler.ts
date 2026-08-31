@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { contactsService } from '@/services/contacts/contactsService';
+import type { Contact as RestContact } from '@/types/contacts';
 import type { Contact, Conversation } from '@/types/chat/api';
 
 const RECONCILE_DEBOUNCE_MS = 250;
@@ -12,21 +13,15 @@ interface ContactUpdatedReconcilerParams {
   apply: (contact: Contact) => void;
 }
 
-interface RestContact {
-  id?: string;
-  name?: string;
-  email?: string | null;
-  phone_number?: string | null;
-  thumbnail?: string | null;
-  avatar_url?: string | null;
-  custom_attributes?: Record<string, unknown>;
-  additional_attributes?: unknown;
-}
-
 const sameId = (a: string | number | null | undefined, b: string): boolean =>
   a !== null && a !== undefined && String(a) === b;
 
-function toStoreContact(id: string, rest: RestContact): Contact {
+function toStoreContact(id: string, rest: Partial<RestContact> | null | undefined): Contact {
+  if (!rest) {
+    throw new Error(`Empty contact payload for ${id}`);
+  }
+
+
   return {
     id: String(rest.id ?? id),
     name: rest.name ?? '',
@@ -56,7 +51,9 @@ export function useContactUpdatedReconciler({
   apply,
 }: ContactUpdatedReconcilerParams): (frameContact: Contact) => void {
   const paramsRef = useRef({ conversations, selectedConversationData, maskingEnabled, apply });
-  paramsRef.current = { conversations, selectedConversationData, maskingEnabled, apply };
+  useEffect(() => {
+    paramsRef.current = { conversations, selectedConversationData, maskingEnabled, apply };
+  }, [conversations, selectedConversationData, maskingEnabled, apply]);
 
   const timersRef = useRef<Record<string, number>>({});
   const inFlightRef = useRef<Set<string>>(new Set());
@@ -86,6 +83,8 @@ export function useContactUpdatedReconciler({
     return list.some(belongs) || belongs(selected);
   }, []);
 
+  const scheduleRef = useRef<(contactId: string) => void>(() => {});
+
   const runRefetch = useCallback((contactId: string) => {
     const frameContact = pendingRef.current[contactId];
     if (!frameContact) {
@@ -99,7 +98,7 @@ export function useContactUpdatedReconciler({
       .getContact(contactId, false)
       .then(rest => {
         if (!mountedRef.current) return;
-        paramsRef.current.apply(toStoreContact(contactId, rest as unknown as RestContact));
+        paramsRef.current.apply(toStoreContact(contactId, rest));
       })
       .catch(err => {
         console.error('[contact.updated] Failed to reconcile contact via REST:', err);
@@ -134,8 +133,9 @@ export function useContactUpdatedReconciler({
     [runRefetch],
   );
 
-  const scheduleRef = useRef(schedule);
-  scheduleRef.current = schedule;
+  useEffect(() => {
+    scheduleRef.current = schedule;
+  }, [schedule]);
 
   return useCallback(
     (frameContact: Contact) => {

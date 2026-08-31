@@ -108,7 +108,7 @@ jobs:
       #     one request per burst, no request for a contact outside the store,
       #     none at all with the flag off — plus the end-to-end hop from the
       #     socket handler to the reducer, which no unit spec reaches.
-      # The whole list runs in ~35s and is deterministic.
+      # The whole list runs in ~40s and is deterministic.
       #
       # Running the whole suite here was tried and reverted: 160 jsdom files in
       # forked workers take ~30min on the runner and flake on worker OOM (the
