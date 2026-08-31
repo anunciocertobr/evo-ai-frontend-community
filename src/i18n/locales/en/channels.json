@@ -1764,6 +1764,8 @@
       "unmonitored": "Not monitored",
       "checking": "Checking..."
     },
+    "needsAttention_one": "{{count}} connection needing attention",
+    "needsAttention_other": "{{count}} connections needing attention",
     "liveCheckFailed": "Live check failed — showing the last known state",
     "moreInboxes": "+{{count}} more inboxes",
     "providersCount": "{{count}} providers",

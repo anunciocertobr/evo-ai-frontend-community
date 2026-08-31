@@ -1685,6 +1685,8 @@
       "unmonitored": "Sin monitoreo",
       "checking": "Verificando..."
     },
+    "needsAttention_one": "{{count}} conexión que necesita atención",
+    "needsAttention_other": "{{count}} conexiones que necesitan atención",
     "liveCheckFailed": "La verificación en vivo falló — mostrando el último estado conocido",
     "moreInboxes": "+{{count}} bandejas más",
     "providersCount": "{{count}} proveedores",

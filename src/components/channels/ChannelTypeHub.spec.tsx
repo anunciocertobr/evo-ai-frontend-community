@@ -100,6 +100,75 @@ describe('ChannelTypeHub', () => {
     expect(within(manageButton).getByText('1')).toBeInTheDocument();
   });
 
+  it('counts channels needing attention on the card face, not only inside the popover', () => {
+    render(
+      <ChannelTypeHub
+        inboxes={[
+          inbox({ channel_type: 'Channel::Whatsapp', connection_state: 'connected', name: 'OK' }),
+          inbox({ id: 'w2', channel_type: 'Channel::Whatsapp', connection_state: 'pending', name: 'Pendente' }),
+        ]}
+        isLoading={false}
+        onAdd={noop}
+        onOpenInbox={noop}
+        onDelete={noop}
+      />,
+    );
+
+    const manageButton = screen.getByRole('button', { name: /overview\.actions\.manageAria/ });
+    expect(within(manageButton).getByText('2')).toBeInTheDocument();
+    expect(within(manageButton).getByTestId('needs-attention-count')).toHaveTextContent('1');
+  });
+
+  it('announces the attention count, which the chip alone never reaches AT with', () => {
+    render(
+      <ChannelTypeHub
+        inboxes={[
+          inbox({ channel_type: 'Channel::Whatsapp', connection_state: 'connected', name: 'OK' }),
+          inbox({ id: 'w2', channel_type: 'Channel::Whatsapp', connection_state: 'pending', name: 'Pendente' }),
+        ]}
+        isLoading={false}
+        onAdd={noop}
+        onOpenInbox={noop}
+        onDelete={noop}
+      />,
+    );
+    // The button's aria-label replaces its contents, so a chip carrying only a
+    // `title` is announced by nothing — the count has to be in the name itself.
+    expect(
+      screen.getByRole('button', { name: /overview\.needsAttention/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('leaves the accessible name without an attention clause when nothing needs it', () => {
+    render(
+      <ChannelTypeHub
+        inboxes={[inbox({ channel_type: 'Channel::Whatsapp', connection_state: 'connected' })]}
+        isLoading={false}
+        onAdd={noop}
+        onOpenInbox={noop}
+        onDelete={noop}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /overview\.needsAttention/ })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /overview\.actions\.manageAria/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('does not show the attention count when every channel is healthy', () => {
+    render(
+      <ChannelTypeHub
+        inboxes={[inbox({ channel_type: 'Channel::Whatsapp', connection_state: 'connected' })]}
+        isLoading={false}
+        onAdd={noop}
+        onOpenInbox={noop}
+        onDelete={noop}
+      />,
+    );
+
+    expect(screen.queryByTestId('needs-attention-count')).toBeNull();
+  });
+
   it('marks a configured type with a disconnected inbox as an error state', () => {
     render(
       <ChannelTypeHub

@@ -50,9 +50,18 @@ export default function ChannelTypeCard({
   disabledReason,
 }: ChannelTypeCardProps) {
   const { t } = useLanguage('channels');
-  const { type, total, status } = typeStatus;
+  const { type, total, status, attentionCount, errorCount } = typeStatus;
+  const needsAttention = attentionCount + errorCount;
   const isConfigured = total > 0;
   const statusLabel = t(`overview.statusLabel.${status}`);
+  // The button's aria-label replaces its contents for assistive tech, so the
+  // attention chip below is announced only if it is folded in here.
+  const manageLabel = [
+    t('overview.actions.manageAria', { count: total, status: statusLabel }),
+    needsAttention > 0 ? t('overview.needsAttention', { count: needsAttention }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   const capabilities = CHANNEL_CAPABILITIES[type.type] ?? [];
   // Only WhatsApp surfaces a provider count pill, sourced from the catalog entry.
   const providerCount = type.type === 'whatsapp' ? type.providers?.length ?? 0 : 0;
@@ -114,11 +123,26 @@ export default function ChannelTypeCard({
             >
               <button
                 type="button"
-                aria-label={t('overview.actions.manageAria', { count: total, status: statusLabel })}
+                aria-label={manageLabel}
                 className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
                 <span className="tabular-nums">{total}</span>
+                {needsAttention > 0 && (
+                  <span
+                    data-testid="needs-attention-count"
+                    title={t('overview.needsAttention', { count: needsAttention })}
+                    aria-hidden="true"
+                    className={cn(
+                      'rounded-full px-1.5 text-[11px] font-semibold tabular-nums',
+                      errorCount > 0
+                        ? 'bg-red-500/15 text-red-600 dark:text-red-400'
+                        : 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+                    )}
+                  >
+                    {needsAttention}
+                  </span>
+                )}
                 <ChevronRight className="h-4 w-4 text-muted-foreground/60" aria-hidden="true" />
               </button>
             </ChannelConnectionsPopover>
