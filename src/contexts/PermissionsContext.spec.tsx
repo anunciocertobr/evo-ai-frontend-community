@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
 import React from 'react';
 import { PermissionsProvider, usePermissions } from './PermissionsContext';
 
@@ -372,16 +372,20 @@ describe('PermissionsContext — an unfetched list is never ready (CRM-494)', ()
     await bootThenAuthenticate(['contacts.read']);
     expect(mockResourceActions).toHaveBeenCalledTimes(1);
 
+    // Unmount before the next user: left mounted, the first provider also sees the
+    // new id, resets and refetches its own catalog — a third call that lands or not
+    // depending on how far its effects had settled.
+    cleanup();
     mockAccountPermissions.mockResolvedValue(['installation_configs.manage']);
     mockUser.mockReturnValue({ id: 'user-2', name: 'Someone Else', role: 'agent' });
     render(tree(false));
 
     await waitFor(() =>
-      expect(screen.getAllByTestId('installation-manage').at(-1)?.textContent).toBe('true'),
+      expect(screen.getByTestId('installation-manage').textContent).toBe('true'),
     );
     // The second user gets their own catalog, and never sees the first user's grants.
     expect(mockResourceActions).toHaveBeenCalledTimes(2);
-    expect(screen.getAllByTestId('contacts-read').at(-1)?.textContent).toBe('false');
+    expect(screen.getByTestId('contacts-read').textContent).toBe('false');
     const premature = renders.filter(r => r.isReady && (r.account === 0 || r.user === 0));
     expect(premature).toEqual([]);
   });
