@@ -64,11 +64,17 @@ export default function PipelinePurchaseWebhookModal({
     try {
       const data = await purchaseWebhooksService.providers();
       setPayload(data);
-      const firstConfigured = data.providers.find((p) => p.configured);
-      if (firstConfigured) setProvider((current) => current || firstConfigured.provider);
+      // A platform whose credential was removed between two openings must not
+      // stay selected: it would look pickable and mint-ready, and only the
+      // backend's 422 would say otherwise.
+      setProvider((current) => {
+        const stillUsable = data.providers.some((p) => p.provider === current && p.configured);
+        return stillUsable ? current : (data.providers.find((p) => p.configured)?.provider ?? '');
+      });
     } catch {
       toast.error(t('purchaseWebhook.loadError'));
       setPayload({ providers: [], destination_secret_configured: false });
+      setProvider('');
     }
   }, [t]);
 
@@ -83,7 +89,7 @@ export default function PipelinePurchaseWebhookModal({
     !!selected?.requires_destination_secret && payload !== null && !payload.destination_secret_configured;
 
   const generate = async () => {
-    if (!pipeline?.id || !provider) return;
+    if (!pipeline?.id || !selected?.configured) return;
     setGenerating(true);
     setResult(null);
     try {
@@ -200,7 +206,7 @@ export default function PipelinePurchaseWebhookModal({
           <div className="flex justify-end">
             <Button
               onClick={generate}
-              disabled={generating || !provider || !pipeline?.id || destinationMissing}
+              disabled={generating || !selected?.configured || !pipeline?.id || destinationMissing}
               className="gap-1.5"
             >
               {generating ? (
