@@ -21,89 +21,54 @@ import { agentsService } from '@/services/agents/agentService';
 const CUSTOM_MODEL_OPTION = '__custom_model__';
 const CUSTOM_OPENAI_PROVIDER = 'custom_openai_compatible';
 
-// Fallback list, used only when the provider has no live listing endpoint (Vertex,
-// Bedrock, Perplexity) or before a key is chosen. A pinned list rots: every entry
-// removed below was a model Google had already retired, and the picker kept offering
-// them until the agent failed on its first turn. Prefer rolling aliases over dated
-// snapshots, and keep the live list (dynamicModels) as the source of truth.
+// Shown before an API key is chosen, and as the fallback when a live listing fails. For
+// the providers with no listing endpoint at all (Vertex, Bedrock, Perplexity) it is the
+// only source there will ever be. Prefer a rolling alias: it is the only entry here that
+// does not rot on its own.
 export const availableModels = [
-  { value: 'openai/gpt-4.1', label: 'GPT-4.1', provider: 'openai' },
-  { value: 'openai/gpt-4.1-nano', label: 'GPT-4.1 Nano', provider: 'openai' },
-  { value: 'openai/gpt-4.1-mini', label: 'GPT-4.1 Mini', provider: 'openai' },
-  { value: 'openai/gpt-4.5-preview', label: 'GPT-4.5 Preview', provider: 'openai' },
-  { value: 'openai/gpt-4', label: 'GPT-4 Turbo', provider: 'openai' },
-  { value: 'openai/gpt-4o', label: 'GPT-4o', provider: 'openai' },
-  { value: 'openai/gpt-4o-mini', label: 'GPT-4o Mini', provider: 'openai' },
-  { value: 'openai/gpt-4-32k', label: 'GPT-4 32K', provider: 'openai' },
-  { value: 'openai/gpt-3.5-turbo', label: 'GPT-3.5 Turbo', provider: 'openai' },
-  { value: 'openai/gpt-3.5-turbo-16k', label: 'GPT-3.5 Turbo 16K', provider: 'openai' },
+  { value: 'openai/gpt-5.6', label: 'GPT-5.6', provider: 'openai' },
+  { value: 'openai/gpt-5.6-terra', label: 'GPT-5.6 Terra', provider: 'openai' },
+  { value: 'openai/gpt-5.6-luna', label: 'GPT-5.6 Luna', provider: 'openai' },
   { value: 'gemini/gemini-flash-latest', label: 'Gemini Flash (latest)', provider: 'gemini' },
   { value: 'gemini/gemini-flash-lite-latest', label: 'Gemini Flash-Lite (latest)', provider: 'gemini' },
   { value: 'gemini/gemini-pro-latest', label: 'Gemini Pro (latest)', provider: 'gemini' },
-  { value: 'gemini/gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'gemini' },
-  { value: 'gemini/gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', provider: 'gemini' },
-  { value: 'gemini/gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'gemini' },
-  { value: 'anthropic/claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet', provider: 'anthropic' },
-  { value: 'anthropic/claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet v2', provider: 'anthropic' },
-  { value: 'anthropic/claude-3-5-sonnet-20240620', label: 'Claude 3.5 Sonnet', provider: 'anthropic' },
-  { value: 'anthropic/claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', provider: 'anthropic' },
-  { value: 'anthropic/claude-3-opus-20240229', label: 'Claude 3 Opus', provider: 'anthropic' },
-  { value: 'anthropic/claude-3-sonnet-20240229', label: 'Claude 3 Sonnet', provider: 'anthropic' },
-  { value: 'anthropic/claude-3-haiku-20240307', label: 'Claude 3 Haiku', provider: 'anthropic' },
-  { value: 'openrouter/meta-llama/llama-3.3-70b-instruct', label: 'Llama 3.3 70B Instruct', provider: 'openrouter' },
-  { value: 'openrouter/meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)', provider: 'openrouter' },
-  { value: 'openrouter/meta-llama/llama-4-maverick', label: 'Llama 4 Maverick', provider: 'openrouter' },
-  { value: 'openrouter/qwen/qwen-2.5-72b-instruct', label: 'Qwen 2.5 72B Instruct', provider: 'openrouter' },
-  { value: 'openrouter/qwen/qwen-2.5-32b-instruct', label: 'Qwen 2.5 32B Instruct', provider: 'openrouter' },
-  { value: 'openrouter/qwen/qwen-2.5-7b-instruct', label: 'Qwen 2.5 7B Instruct', provider: 'openrouter' },
-  { value: 'openrouter/deepseek/deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 Distill Llama 70B', provider: 'openrouter' },
-  { value: 'openrouter/deepseek/deepseek-r1-distill-qwen-32b', label: 'DeepSeek R1 Distill Qwen 32B', provider: 'openrouter' },
-  { value: 'openrouter/openai/gpt-4o', label: 'GPT-4o (OpenRouter)', provider: 'openrouter' },
-  { value: 'openrouter/openai/gpt-4o-mini', label: 'GPT-4o Mini (OpenRouter)', provider: 'openrouter' },
-  { value: 'openrouter/anthropic/claude-3-5-sonnet', label: 'Claude 3.5 Sonnet (OpenRouter)', provider: 'openrouter' },
-  { value: 'openrouter/anthropic/claude-3-5-haiku', label: 'Claude 3.5 Haiku (OpenRouter)', provider: 'openrouter' },
-  { value: 'openrouter/google/gemini-2.5-flash', label: 'Gemini 2.5 Flash (OpenRouter)', provider: 'openrouter' },
-  { value: 'deepseek/deepseek-chat', label: 'DeepSeek Chat', provider: 'deepseek' },
-  { value: 'deepseek/deepseek-coder', label: 'DeepSeek Coder', provider: 'deepseek' },
-  { value: 'deepseek/deepseek-reasoner', label: 'DeepSeek Reasoner (R1)', provider: 'deepseek' },
-  { value: 'together_ai/meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo', label: 'Llama 3.3 70B Instruct Turbo', provider: 'together_ai' },
-  { value: 'together_ai/togethercomputer/llama-2-70b-chat', label: 'Llama 2 70B Chat', provider: 'together_ai' },
-  { value: 'together_ai/togethercomputer/Llama-2-7B-32K-Instruct', label: 'Llama 2 7B 32K Instruct', provider: 'together_ai' },
-  { value: 'together_ai/togethercomputer/CodeLlama-34b-Instruct', label: 'CodeLlama 34B Instruct', provider: 'together_ai' },
-  { value: 'together_ai/WizardLM/WizardCoder-Python-34B-V1.0', label: 'WizardCoder Python 34B', provider: 'together_ai' },
-  { value: 'together_ai/NousResearch/Nous-Hermes-Llama2-13b', label: 'Nous Hermes Llama2 13B', provider: 'together_ai' },
-  { value: 'together_ai/upstage/SOLAR-0-70b-16bit', label: 'SOLAR 70B', provider: 'together_ai' },
-  { value: 'together_ai/WizardLM/WizardLM-70B-V1.0', label: 'WizardLM 70B', provider: 'together_ai' },
-  { value: 'together_ai/Qwen/Qwen2.5-72B-Instruct-Turbo', label: 'Qwen 2.5 72B Instruct Turbo', provider: 'together_ai' },
-  { value: 'fireworks_ai/accounts/fireworks/models/llama-v3p2-90b-vision-instruct', label: 'Llama 3.2 90B Vision', provider: 'fireworks_ai' },
-  { value: 'fireworks_ai/accounts/fireworks/models/llama-v3p2-11b-vision-instruct', label: 'Llama 3.2 11B Vision', provider: 'fireworks_ai' },
-  { value: 'fireworks_ai/accounts/fireworks/models/llama-v3p2-3b-instruct', label: 'Llama 3.2 3B Instruct', provider: 'fireworks_ai' },
-  { value: 'fireworks_ai/accounts/fireworks/models/llama-v3p2-1b-instruct', label: 'Llama 3.2 1B Instruct', provider: 'fireworks_ai' },
-  { value: 'fireworks_ai/accounts/fireworks/models/mixtral-8x7b-instruct', label: 'Mixtral 8x7B Instruct', provider: 'fireworks_ai' },
-  { value: 'fireworks_ai/accounts/fireworks/models/firefunction-v1', label: 'FireFunction v1', provider: 'fireworks_ai' },
-  { value: 'fireworks_ai/accounts/fireworks/models/qwen2p5-coder-7b', label: 'Qwen 2.5 Coder 7B', provider: 'fireworks_ai' },
-  { value: 'fireworks_ai/accounts/fireworks/models/deepseek-v3', label: 'DeepSeek V3', provider: 'fireworks_ai' },
+  { value: 'anthropic/claude-opus-5', label: 'Claude Opus 5', provider: 'anthropic' },
+  { value: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5', provider: 'anthropic' },
+  { value: 'anthropic/claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic' },
+  { value: 'openrouter/anthropic/claude-opus-5', label: 'Claude Opus 5 (OpenRouter)', provider: 'openrouter' },
+  { value: 'openrouter/openai/gpt-5.6-sol', label: 'GPT-5.6 Sol (OpenRouter)', provider: 'openrouter' },
+  { value: 'openrouter/google/gemini-3.7-flash', label: 'Gemini 3.7 Flash (OpenRouter)', provider: 'openrouter' },
+  { value: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro', provider: 'deepseek' },
+  { value: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash', provider: 'deepseek' },
+  { value: 'fireworks_ai/accounts/fireworks/models/deepseek-v4-pro', label: 'DeepSeek V4 Pro (Fireworks)', provider: 'fireworks_ai' },
+  { value: 'fireworks_ai/accounts/fireworks/models/gpt-oss-120b', label: 'GPT-OSS 120B (Fireworks)', provider: 'fireworks_ai' },
+  { value: 'fireworks_ai/accounts/fireworks/models/kimi-k3', label: 'Kimi K3 (Fireworks)', provider: 'fireworks_ai' },
+  // Verified against Together's public serverless catalogue: the old entry failed only
+  // for a `Meta-` prefix Together never used, not for want of a source to check.
+  { value: 'together_ai/deepseek-ai/DeepSeek-V4-Flash-0731', label: 'DeepSeek V4 Flash (Together)', provider: 'together_ai' },
+  { value: 'together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo', label: 'Llama 3.3 70B Instruct Turbo', provider: 'together_ai' },
+  { value: 'together_ai/Qwen/Qwen3.5-9B', label: 'Qwen 3.5 9B', provider: 'together_ai' },
+  // Sonar Chat Completions is supported only until 2026-09-27; past that these ids need
+  // a new integration, not new values.
   { value: 'perplexity/sonar-pro', label: 'Sonar Pro', provider: 'perplexity' },
   { value: 'perplexity/sonar', label: 'Sonar', provider: 'perplexity' },
   { value: 'perplexity/sonar-reasoning-pro', label: 'Sonar Reasoning Pro', provider: 'perplexity' },
-  { value: 'perplexity/sonar-reasoning', label: 'Sonar Reasoning', provider: 'perplexity' },
   { value: 'perplexity/sonar-deep-research', label: 'Sonar Deep Research', provider: 'perplexity' },
-  { value: 'perplexity/r1-1776', label: 'R1-1776', provider: 'perplexity' },
-  { value: 'perplexity/openai/gpt-4o', label: 'GPT-4o (via Perplexity)', provider: 'perplexity' },
-  { value: 'perplexity/anthropic/claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (via Perplexity)', provider: 'perplexity' },
-  { value: 'bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5 (Bedrock)', provider: 'bedrock' },
-  { value: 'bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0', label: 'Claude 3.5 Sonnet (Bedrock)', provider: 'bedrock' },
-  { value: 'bedrock/anthropic.claude-3-haiku-20240307-v1:0', label: 'Claude 3 Haiku (Bedrock)', provider: 'bedrock' },
-  { value: 'bedrock/meta.llama3-1-405b-instruct-v1:0', label: 'Llama 3.1 405B (Bedrock)', provider: 'bedrock' },
-  { value: 'bedrock/meta.llama3-1-70b-instruct-v1:0', label: 'Llama 3.1 70B (Bedrock)', provider: 'bedrock' },
+  // `global.` where Bedrock offers global routing, `us.` only where it does not, so the
+  // picker never pins data residency the deployment did not ask for. Sonnet 4.5 EOL from
+  // 2026-09-29.
+  { value: 'bedrock/global.anthropic.claude-opus-5', label: 'Claude Opus 5 (Bedrock)', provider: 'bedrock' },
+  { value: 'bedrock/global.anthropic.claude-sonnet-5', label: 'Claude Sonnet 5 (Bedrock)', provider: 'bedrock' },
+  { value: 'bedrock/global.anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5 (Bedrock)', provider: 'bedrock' },
+  { value: 'bedrock/us.meta.llama3-1-70b-instruct-v1:0', label: 'Llama 3.1 70B (Bedrock)', provider: 'bedrock' },
   { value: 'bedrock/us.deepseek.r1-v1:0', label: 'DeepSeek R1 (Bedrock)', provider: 'bedrock' },
-  { value: 'bedrock/amazon.titan-text-express-v1', label: 'Titan Text Express (Bedrock)', provider: 'bedrock' },
   { value: 'bedrock/mistral.mistral-7b-instruct-v0:2', label: 'Mistral 7B (Bedrock)', provider: 'bedrock' },
   { value: 'bedrock/amazon.nova-micro-v1:0', label: 'Amazon Nova Micro (Bedrock)', provider: 'bedrock' },
-  // Vertex needs the vendor SDK to list models, so this stays the only source for it.
+  // Vertex has no listing endpoint and no rolling alias, so these are pinned by hand.
+  // Gemini 2.5 retires 2026-10-16; Pro stays on it because 3.1 Pro is still preview.
+  { value: 'vertex_ai/gemini-3.7-flash', label: 'Gemini 3.7 Flash (Vertex)', provider: 'vertex_ai' },
+  { value: 'vertex_ai/gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite (Vertex)', provider: 'vertex_ai' },
   { value: 'vertex_ai/gemini-2.5-pro', label: 'Gemini 2.5 Pro (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/gemini-2.5-flash', label: 'Gemini 2.5 Flash (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite (Vertex)', provider: 'vertex_ai' },
 ];
 
 export interface ModelSelectorProps {
