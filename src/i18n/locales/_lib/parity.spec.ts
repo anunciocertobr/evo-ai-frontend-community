@@ -10,6 +10,16 @@ describe('isIgnorableValue', () => {
     expect(isIgnorableValue(value)).toBe(false);
   });
 
+  // The multi-placeholder rule must not reach across literal words: these are
+  // the shapes it would swallow if the `[^a-zA-Z]` separator ever loosened.
+  it.each([
+    '{{count}} of {{total}}',
+    '{{n}} and {{m}} more',
+    '{{failed}} of {{total}} AI agents could not be deleted',
+  ])('does not excuse copy between placeholders: %s', (value) => {
+    expect(isIgnorableValue(value)).toBe(false);
+  });
+
   it.each([
     '{{count}}/1000',
     '{{progress}}%',
@@ -25,6 +35,14 @@ describe('isIgnorableValue', () => {
     '["text", "image"]',
   ])('excuses JSON and array blobs: %s', (value) => {
     expect(isIgnorableValue(value)).toBe(true);
+  });
+
+  it.each([
+    '{count} providers',
+    '[draft] Welcome message',
+    '{not json at all}',
+  ])('does not excuse brace-shaped copy that is not a blob: %s', (value) => {
+    expect(isIgnorableValue(value)).toBe(false);
   });
 });
 
