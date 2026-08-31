@@ -44,11 +44,11 @@ export function getAtPath(obj: unknown, path: string): unknown {
 }
 
 /**
- * Pure-interpolation values whose only content is a placeholder followed by a
- * numeric/symbolic suffix (e.g. "{{count}}/1000", "{{progress}}%"). These have
- * no translatable language.
+ * Pure-interpolation values built only from placeholders and numeric/symbolic
+ * separators (e.g. "{{count}}/1000", "{{progress}}%", "{{duration}} {{unit}}").
+ * These have no translatable language.
  */
-export const PURE_INTERPOLATION_RE = /^\{\{[a-zA-Z_][a-zA-Z0-9_]*\}\}[^a-zA-Z]*$/;
+export const PURE_INTERPOLATION_RE = /^(?:\{\{[a-zA-Z_][a-zA-Z0-9_]*\}\}[^a-zA-Z]*)+$/;
 
 /**
  * Structurally non-translatable values — identical in every locale by nature,
@@ -63,7 +63,9 @@ export function isIgnorableValue(value: string): boolean {
   if (/^\d+$/.test(v)) return true; // pure number (ports, counts)
   if (/^#[0-9a-fA-F]{3,8}$/.test(v)) return true; // hex color
   if (/^https?:\/\//.test(v)) return true; // URL
-  if (/^[{[]/.test(v)) return true; // JSON / array placeholder blob
+  // JSON / array placeholder blob. `{{` is excluded: a value opening with an
+  // interpolation is ordinary copy and must still be checked for leakage.
+  if (/^(?:\[|\{(?!\{))/.test(v)) return true;
   if (/^ex:\s/i.test(v)) return true; // "Ex: ..." form-field sample placeholder
   if (/^\S+\.\.\.$/.test(v)) return true; // single-token masked sample ("sk-...", "SK...")
   if (!/[a-zA-Z]/.test(v)) return true; // symbol/separator/mask only

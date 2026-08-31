@@ -137,7 +137,9 @@ export const PER_FILE_ALLOWED: Record<string, Set<string>> = {
   'marketplace.json': new Set([
     'AI Assistant Agent', 'Customer Support Bot', 'Data Analysis Agent',
   ]),
-  'pipelines.json': new Set(['Euro (EUR)']),
+  // "lead" is current loanword in the product's pt-BR copy — the bare word is
+  // already in COMMON_ALLOWED; the interpolated form needs its own entry.
+  'pipelines.json': new Set(['Euro (EUR)', '{{count}} leads']),
   // 'SKU-001' is a placeholder example code; 'Euro (EUR)' is the currency's own
   // name in pt-BR (same allowance as pipelines.json above). 'Consumer key/secret'
   // are WooCommerce's own credential-field names (kept as-is in every locale);
