@@ -100,6 +100,14 @@ jobs:
       #     stays ON TOP of the resource grant per verb, and a CREATE keeps
       #     carrying its scope. Both are gates the server also enforces, so a
       #     revert here only shows up as a 403 in the user's face.
+      #   - contact.updated reconciliation (CRM-447): with PII masking on, the
+      #     account-wide broadcast is masked for every audience while REST
+      #     unmasks per request, so the frame is reconciled against the REST
+      #     contact before it reaches the store. Guards the gates that make that
+      #     affordable — the refetch replaces the frame instead of following it,
+      #     one request per burst, no request for a contact outside the store,
+      #     none at all with the flag off — plus the end-to-end hop from the
+      #     socket handler to the reducer, which no unit spec reaches.
       # The whole list runs in ~35s and is deterministic.
       #
       # Running the whole suite here was tried and reverted: 160 jsdom files in
@@ -155,7 +163,9 @@ jobs:
             src/services/contacts/contactsService.createContact.spec.ts \
             src/services/contacts/labelsService.spec.ts \
             src/pages/Customer/Settings/AiCredentials/AiCredentials.spec.tsx \
-            src/pages/Customer/Settings/IntegrationCredentials/IntegrationCredentials.spec.tsx
+            src/pages/Customer/Settings/IntegrationCredentials/IntegrationCredentials.spec.tsx \
+            src/hooks/chat/useContactUpdatedReconciler.spec.tsx \
+            src/contexts/chat/ChatContext.contactUpdated.spec.tsx
 
   # Lint gate scoped to the files the PR touched.
   eslint:
