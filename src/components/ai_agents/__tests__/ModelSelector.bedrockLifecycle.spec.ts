@@ -43,6 +43,25 @@ const modelId = (value: string) => value.replace(/^bedrock\//, '');
 const lifecycleOf = (markdown: string) =>
   markdown.match(/\*\*Model lifecycle:\*\*\s*(.+)/)?.[1].trim();
 
+const eolNoticeOf = (markdown: string) =>
+  markdown.match(/\*\*Model EOL date:\*\*\s*(.+)/)?.[1].trim();
+
+// `Model EOL date` is a FLOOR, not an expiry: "No sooner than 3/1/2025" promises the
+// model will not be retired BEFORE that day, and says nothing about after. Four of the
+// pins here sit past their floor and are served normally, so treating the date as an
+// expiry — `new Date(notice) < new Date()` — fails them all while AWS is still serving
+// them. `Model lifecycle` is the field that actually flips, which is why it is the one
+// asserted on.
+//
+// What the notice is good for is catching a change of vocabulary: these three shapes
+// are what the parse above assumes, and a fourth would mean the field started saying
+// something this spec cannot read.
+const EOL_NOTICE_SHAPES = [
+  /^N\/A$/,
+  /^No sooner than \d{1,2}\/\d{1,2}\/\d{4}$/,
+  /^Legacy: \w+ \d{1,2}, \d{4}$/,
+];
+
 const cards = new Map<string, string>();
 let docsReachable = true;
 
@@ -81,7 +100,7 @@ describe('bedrock axis lifecycle', () => {
     expect(missing).toEqual([]);
   });
 
-  it('keeps every pinned id Active — never Legacy, never past EOL', ctx => {
+  it('keeps every pinned id on an Active lifecycle', ctx => {
     if (!docsReachable) return ctx.skip();
 
     // The lifecycle line is the whole point, so a card that stopped carrying one
@@ -90,5 +109,14 @@ describe('bedrock axis lifecycle', () => {
       .map(id => ({ id, lifecycle: lifecycleOf(cards.get(id) ?? '') }))
       .filter(({ lifecycle }) => lifecycle !== 'Active');
     expect(notActive).toEqual([]);
+  });
+
+  it('reads an EOL notice it still knows how to interpret', ctx => {
+    if (!docsReachable) return ctx.skip();
+
+    const unreadable = Object.keys(MODEL_CARD_BY_ID)
+      .map(id => ({ id, notice: eolNoticeOf(cards.get(id) ?? '') }))
+      .filter(({ notice }) => !notice || !EOL_NOTICE_SHAPES.some(shape => shape.test(notice)));
+    expect(unreadable).toEqual([]);
   });
 });
