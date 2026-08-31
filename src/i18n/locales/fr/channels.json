@@ -1700,7 +1700,6 @@
     "liveCheckFailed": "La vérification en direct a échoué — affichage du dernier état connu",
     "providersCount": "{{count}} fournisseurs",
     "actions": {
-      "add": "Ajouter",
       "manage": "Gérer",
       "manageAria": "Gérer les connexions : {{count}} · {{status}}",
       "connect": "Connecter",

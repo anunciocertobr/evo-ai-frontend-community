@@ -1639,7 +1639,6 @@
     "liveCheckFailed": "La verifica in tempo reale non è riuscita — viene mostrato l'ultimo stato noto",
     "providersCount": "{{count}} provider",
     "actions": {
-      "add": "Aggiungi",
       "manage": "Gestisci",
       "manageAria": "Gestisci connessioni: {{count}} · {{status}}",
       "connect": "Connetti",

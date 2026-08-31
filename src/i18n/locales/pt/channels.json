@@ -1698,7 +1698,6 @@
     "liveCheckFailed": "A verificação ao vivo falhou — a mostrar o último estado conhecido",
     "providersCount": "{{count}} provedores",
     "actions": {
-      "add": "Adicionar",
       "manage": "Gerenciar",
       "manageAria": "Gerenciar conexões: {{count}} · {{status}}",
       "connect": "Conectar",

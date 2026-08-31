@@ -1760,7 +1760,6 @@
     "liveCheckFailed": "Live check failed — showing the last known state",
     "providersCount": "{{count}} providers",
     "actions": {
-      "add": "Add",
       "manage": "Manage",
       "manageAria": "Manage connections: {{count}} · {{status}}",
       "connect": "Connect",
