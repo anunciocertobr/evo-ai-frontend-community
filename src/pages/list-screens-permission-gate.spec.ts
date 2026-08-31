@@ -26,10 +26,18 @@ const GATED_SCREENS = [
   'Customer/Settings/Users/Users.tsx',
 ];
 
-// Matches the readiness flag under both spellings in use: the screens read
-// `isReady` as `permissionsReady`, the shared hook reads it bare.
-const READINESS = /\b(permissionsReady|isReady)\b/;
-const LOAD_ONCE_LATCH = /\b\w*(?:hasLoaded|loaded|hasFetched|fetched)\w*\.current\s*=\s*true/i;
+// The readiness flag under both spellings in use: the screens read `isReady` as
+// `permissionsReady`, the shared hook reads it bare.
+const READINESS = String.raw`(?:permissionsReady|isReady)`;
+
+// The offending SHAPE, not a list of names: an effect gated on readiness whose
+// body latches a boolean ref. Naming the refs instead let `firstRun.current` and
+// friends walk straight past the guard.
+const GATED_EFFECT = new RegExp(
+  String.raw`useEffect\(\s*\(\)\s*=>\s*\{([\s\S]*?)\}\s*,\s*\[([^\]]*)\]\s*\)`,
+  'g',
+);
+const REF_LATCH = /\w+\.current\s*=\s*true/;
 
 const screens = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
@@ -50,7 +58,13 @@ describe('list screens gate their initial load through the shared hook', () => {
     const offenders = screens(PAGES)
       .filter(path => {
         const source = readFileSync(path, 'utf8');
-        return READINESS.test(source) && LOAD_ONCE_LATCH.test(source);
+        GATED_EFFECT.lastIndex = 0;
+        for (const [, body, deps] of source.matchAll(GATED_EFFECT)) {
+          if (new RegExp(String.raw`\b${READINESS}\b`).test(deps) && REF_LATCH.test(body)) {
+            return true;
+          }
+        }
+        return false;
       })
       .map(path => relative(PAGES, path));
 

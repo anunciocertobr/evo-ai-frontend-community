@@ -21,8 +21,8 @@ vi.mock('@/contexts/PermissionsContext', () => ({
 const load = vi.fn();
 const onDenied = vi.fn();
 
-const Screen = () => {
-  usePermissionGatedLoad({ resource: 'pipelines', load, onDenied });
+const Screen = ({ resource = 'pipelines' }: { resource?: string }) => {
+  usePermissionGatedLoad({ resource, load, onDenied });
   return null;
 };
 
@@ -120,6 +120,25 @@ describe('usePermissionGatedLoad', () => {
 
     expect(() => render(<Silent />)).not.toThrow();
     expect(load).not.toHaveBeenCalled();
+  });
+
+  it('re-opens the gate when the resource changes', () => {
+    setPermissions(true, ['pipelines.read']);
+    const { rerender } = render(<Screen />);
+
+    expect(load).toHaveBeenCalledTimes(1);
+
+    // A screen that swapped its resource key would otherwise keep answering with
+    // the previous key's verdict — allowed, and already loaded.
+    rerender(<Screen resource="labels" />);
+
+    expect(onDenied).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledTimes(1);
+
+    grants = ['pipelines.read', 'labels.read'];
+    rerender(<Screen resource="labels" />);
+
+    expect(load).toHaveBeenCalledTimes(2);
   });
 
   it('denies again after a revocation, and reloads when the grant comes back', () => {

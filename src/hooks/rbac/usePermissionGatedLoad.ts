@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { usePermissions } from '@/contexts/PermissionsContext';
 
 interface PermissionGatedLoadArgs {
-  /** Resource key of the read permission. Must stay constant for the component's life. */
+  /** Resource key of the read permission. Changing it re-opens the gate. */
   resource: string;
   /** The screen's initial load. Fired once per allowed verdict, with no arguments. */
   load: () => void;
@@ -31,8 +31,17 @@ export function usePermissionGatedLoad({ resource, load, onDenied }: PermissionG
 
   const loadedRef = useRef(false);
   const deniedRef = useRef(false);
+  const resourceRef = useRef(resource);
 
   useEffect(() => {
+    // Both latches answer for one resource. Keeping them across a change would
+    // carry the old key's verdict onto the new one.
+    if (resourceRef.current !== resource) {
+      resourceRef.current = resource;
+      loadedRef.current = false;
+      deniedRef.current = false;
+    }
+
     if (!isReady) return;
 
     if (allowed) {
@@ -45,10 +54,11 @@ export function usePermissionGatedLoad({ resource, load, onDenied }: PermissionG
     }
 
     // Clearing the load latch is what makes a later grant load instead of staying
-    // empty; a re-grant therefore reloads from the top, as a fresh mount would.
+    // empty. The reload calls `load()` with no arguments, so each screen resumes
+    // from the state it is holding — its current page and filters, not the first.
     loadedRef.current = false;
     if (deniedRef.current) return;
     deniedRef.current = true;
     onDeniedRef.current?.();
-  }, [isReady, allowed]);
+  }, [isReady, allowed, resource]);
 }
