@@ -622,7 +622,8 @@
       "deletePipeline": "Supprimer le Pipeline",
       "private": "Privé",
       "noDescription": "Sans description",
-      "captureForms": "Formulaires de capture"
+      "captureForms": "Formulaires de capture",
+      "purchaseWebhook": "Webhook d'achat"
     },
     "stage": {
       "addStage": "Ajouter une Étape",
@@ -835,6 +836,27 @@
       "delete": "Supprimer le Pipeline",
       "deleting": "Suppression..."
     }
+  },
+  "purchaseWebhook": {
+    "title": "Webhook d'achat",
+    "subtitle": "Un achat approuvé sur une plateforme de paiement devient un lead dans ce pipeline : {{pipeline}}",
+    "platform": "Plateforme de paiement",
+    "platformPlaceholder": "Choisissez la plateforme",
+    "loadingPlatforms": "Chargement des plateformes...",
+    "notConfigured": "aucun identifiant enregistré",
+    "credentialsHint": "Les identifiants des plateformes se trouvent dans l'écran Intégrations du CRM.",
+    "destinationRequired": "L'identifiant de cette plateforme est public — configurez d'abord le « Secret de destination de l'URL » dans les Intégrations du CRM.",
+    "product": "Produit (optionnel)",
+    "productPlaceholder": "Uniquement les achats de ce produit ; vide = tous",
+    "generate": "Générer l'URL",
+    "urlWhitelabel": "URL sur le domaine de votre marque",
+    "urlGlobal": "URL du webhook",
+    "copy": "Copier",
+    "copiedShort": "Copié",
+    "copied": "URL copiée",
+    "regenerateHint": "Collez-la dans le panneau de la plateforme comme destination du webhook d'achat approuvé. Si vous changez l'identifiant ou le secret de destination, générez et enregistrez à nouveau.",
+    "loadError": "Échec du chargement des plateformes",
+    "mintError": "Échec de la génération de l'URL"
   },
   "captureForms": {
     "title": "Formulaires de capture",

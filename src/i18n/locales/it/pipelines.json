@@ -619,7 +619,8 @@
       "deletePipeline": "Elimina Pipeline",
       "private": "Privato",
       "noDescription": "Nessuna descrizione",
-      "captureForms": "Moduli di acquisizione"
+      "captureForms": "Moduli di acquisizione",
+      "purchaseWebhook": "Webhook di acquisto"
     },
     "stage": {
       "addStage": "Aggiungi Fase",
@@ -832,6 +833,27 @@
       "delete": "Elimina Pipeline",
       "deleting": "Eliminazione..."
     }
+  },
+  "purchaseWebhook": {
+    "title": "Webhook di acquisto",
+    "subtitle": "Un acquisto approvato su una piattaforma di pagamento diventa un lead in questa pipeline: {{pipeline}}",
+    "platform": "Piattaforma di pagamento",
+    "platformPlaceholder": "Scegli la piattaforma",
+    "loadingPlatforms": "Caricamento piattaforme...",
+    "notConfigured": "nessuna credenziale salvata",
+    "credentialsHint": "Le credenziali delle piattaforme si trovano nella schermata Integrazioni del CRM.",
+    "destinationRequired": "La credenziale di questa piattaforma è pubblica — configura prima il \"Segreto di destinazione dell'URL\" nelle Integrazioni del CRM.",
+    "product": "Prodotto (opzionale)",
+    "productPlaceholder": "Solo acquisti di questo prodotto; vuoto = tutti",
+    "generate": "Genera URL",
+    "urlWhitelabel": "URL sul dominio del tuo brand",
+    "urlGlobal": "URL del webhook",
+    "copy": "Copia",
+    "copiedShort": "Copiato",
+    "copied": "URL copiata",
+    "regenerateHint": "Incollala nel pannello della piattaforma come destinazione del webhook di acquisto approvato. Se cambi la credenziale o il segreto di destinazione, genera e registra di nuovo.",
+    "loadError": "Errore nel caricamento delle piattaforme",
+    "mintError": "Errore nella generazione dell'URL"
   },
   "captureForms": {
     "title": "Moduli di acquisizione",
