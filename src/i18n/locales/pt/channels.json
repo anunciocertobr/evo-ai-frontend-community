@@ -1707,6 +1707,7 @@
     "actions": {
       "add": "Adicionar",
       "manage": "Gerenciar",
+      "manageAria": "Gerenciar conexões: {{count}} · {{status}}",
       "howToConfigure": "Como configurar",
       "connect": "Conectar",
       "addConnection": "Adicionar conexão",

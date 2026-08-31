@@ -22,8 +22,14 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = () => {};
 });
 
+// Keys pass through untranslated, but interpolation values are appended so a test
+// can assert what a label actually carries (e.g. the status in an aria-label).
 vi.mock('@/hooks/useLanguage', () => ({
-  useLanguage: () => ({ t: (key: string) => key, currentLanguage: 'en' }),
+  useLanguage: () => ({
+    t: (key: string, vars?: Record<string, unknown>) =>
+      vars ? `${key} ${Object.values(vars).join(' ')}` : key,
+    currentLanguage: 'en',
+  }),
 }));
 
 // Icon rendering depends on brand assets; not relevant to the hub logic under test.
@@ -90,7 +96,7 @@ describe('ChannelTypeHub', () => {
     expect(screen.getAllByText('overview.actions.addConnection')).toHaveLength(1);
     // The card no longer lists connections inline — it surfaces the count inside the
     // manage button (the popover trigger) instead of a summary line.
-    const manageButton = screen.getByRole('button', { name: 'overview.actions.manage' });
+    const manageButton = screen.getByRole('button', { name: /overview\.actions\.manageAria/ });
     expect(within(manageButton).getByText('1')).toBeInTheDocument();
   });
 
@@ -104,10 +110,9 @@ describe('ChannelTypeHub', () => {
         onDelete={noop}
       />,
     );
-    // A disconnected inbox pushes the type-level status to error, painting the
-    // manage button's status dot red.
-    const manageButton = screen.getByRole('button', { name: 'overview.actions.manage' });
-    expect(manageButton.querySelector('.bg-red-500')).toBeInTheDocument();
+    // A disconnected inbox pushes the type-level status to error, which the card
+    // spells out instead of relying on a red dot.
+    expect(screen.getByText('overview.statusLabel.error')).toBeInTheDocument();
   });
 
   it('opens the connections popover with the row details when the manage button is clicked', async () => {
@@ -130,7 +135,7 @@ describe('ChannelTypeHub', () => {
     );
     // The popover is closed until the manage button (its trigger) is clicked.
     expect(screen.queryByText('My API')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'overview.actions.manage' }));
+    await user.click(screen.getByRole('button', { name: /overview\.actions\.manageAria/ }));
     // Clicking it opens the popover, which lists the connection and its unmonitored state.
     expect(await screen.findByText('My API')).toBeInTheDocument();
     expect(screen.getByText(/overview\.inboxState\.unmonitored/)).toBeInTheDocument();
@@ -153,8 +158,43 @@ describe('ChannelTypeCard', () => {
       inbox({ id: 'w1', name: 'WA', channel_type: 'whatsapp', connection_state: 'connected' }),
     ]);
     render(<ChannelTypeCard typeStatus={status} onAdd={noop} onOpenInbox={noop} onDelete={noop} />);
-    const manageButton = screen.getByRole('button', { name: 'overview.actions.manage' });
+    const manageButton = screen.getByRole('button', { name: /overview\.actions\.manageAria/ });
     expect(within(manageButton).getByText('1')).toBeInTheDocument();
+  });
+
+  it('states the connection status in words, not only as a colour', () => {
+    const status = statusFor('whatsapp', [
+      inbox({ id: 'w1', name: 'WA', channel_type: 'whatsapp', connection_state: 'connected' }),
+      inbox({ id: 'w2', name: 'WA2', channel_type: 'whatsapp', connection_state: 'pending' }),
+    ]);
+    render(<ChannelTypeCard typeStatus={status} onAdd={noop} onOpenInbox={noop} onDelete={noop} />);
+    expect(screen.getByText('overview.statusLabel.attention')).toBeInTheDocument();
+  });
+
+  it('reads a fully connected type as active, so a pending one is distinguishable', () => {
+    const status = statusFor('whatsapp', [
+      inbox({ id: 'w1', name: 'WA', channel_type: 'whatsapp', connection_state: 'connected' }),
+    ]);
+    render(<ChannelTypeCard typeStatus={status} onAdd={noop} onOpenInbox={noop} onDelete={noop} />);
+    expect(screen.getByText('overview.statusLabel.active')).toBeInTheDocument();
+    expect(screen.queryByText('overview.statusLabel.attention')).toBeNull();
+  });
+
+  it('names the manage button with the status and the count, not just "manage"', () => {
+    const status = statusFor('whatsapp', [
+      inbox({ id: 'w1', name: 'WA', channel_type: 'whatsapp', connection_state: 'pending' }),
+    ]);
+    render(<ChannelTypeCard typeStatus={status} onAdd={noop} onOpenInbox={noop} onDelete={noop} />);
+    expect(
+      screen.getByRole('button', { name: /overview\.statusLabel\.attention/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('does not label a type that has no connections yet', () => {
+    render(
+      <ChannelTypeCard typeStatus={statusFor('whatsapp', [])} onAdd={noop} onOpenInbox={noop} onDelete={noop} />,
+    );
+    expect(screen.queryByText('overview.statusLabel.available')).toBeNull();
   });
 
   it('calls onAdd when the primary action is clicked', () => {
@@ -200,6 +240,30 @@ describe('ChannelConnectionsPopover', () => {
     );
     expect(await screen.findByText(/overview\.statusMeta\.stored/)).toBeInTheDocument();
     expect(screen.queryByText('overview.statusMeta.live')).toBeNull();
+  });
+
+  it('keeps the state label when the probe confirms the inbox, so live never stands alone', async () => {
+    const user = userEvent.setup();
+    const pending = inbox({
+      id: 'w-pending',
+      name: 'Pending WA',
+      channel_type: 'whatsapp',
+      connection_state: 'pending',
+    });
+    render(
+      <ChannelConnectionsPopover
+        typeStatus={statusFor('whatsapp', [pending])}
+        onAdd={noop}
+        onOpenInbox={noop}
+        onDelete={noop}
+        liveVerifiedIds={new Set(['w-pending'])}
+      >
+        <button>open</button>
+      </ChannelConnectionsPopover>,
+    );
+    await user.click(screen.getByRole('button', { name: 'open' }));
+    expect(await screen.findByText(/overview\.inboxState\.pending/)).toBeInTheDocument();
+    expect(screen.getByText('overview.statusMeta.live')).toBeInTheDocument();
   });
 
   it('calls onDelete when the per-row trash is clicked', async () => {

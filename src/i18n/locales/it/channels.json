@@ -1648,6 +1648,7 @@
     "actions": {
       "add": "Aggiungi",
       "manage": "Gestisci",
+      "manageAria": "Gestisci connessioni: {{count}} · {{status}}",
       "howToConfigure": "Come configurare",
       "connect": "Connetti",
       "addConnection": "Aggiungi connessione",

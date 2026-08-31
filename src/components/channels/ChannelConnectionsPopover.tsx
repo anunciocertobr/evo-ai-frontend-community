@@ -124,6 +124,7 @@ export default function ChannelConnectionsPopover({
                           </span>
                         )}
                         <span className="shrink-0">
+                          {stateLabel} ·{' '}
                           {isLiveLoading ? (
                             t('overview.inboxState.checking')
                           ) : isLiveVerified ? (
@@ -134,7 +135,7 @@ export default function ChannelConnectionsPopover({
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span className="cursor-help">
-                                  {stateLabel} · {t('overview.statusMeta.stored')}
+                                  {t('overview.statusMeta.stored')}
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent className="max-w-xs text-xs">
