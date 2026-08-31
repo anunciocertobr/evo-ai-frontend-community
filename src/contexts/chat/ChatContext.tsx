@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { usePersistence } from '@/hooks/chat/usePersistence';
+import { useContactUpdatedReconciler } from '@/hooks/chat/useContactUpdatedReconciler';
 import { MessagesProvider, useMessages as useMessagesOriginal } from '@/contexts/chat/MessagesContext';
 import { ConversationsProvider } from '@/contexts/chat/ConversationsContext';
 import { useConversations as useConversationsOriginal } from '@/hooks/chat/useConversations';
@@ -58,6 +59,13 @@ function useChatIntegration() {
   const processedMessageIdsRef = useRef<Set<string>>(new Set());
   const activeFiltersRef = useRef<ConversationFilter[]>(filters.state.activeFilters);
   const attachmentReloadTimersRef = useRef<Record<string, number>>({});
+  const account = useAppDataStore(state => state.account);
+  const reconcileContactUpdated = useContactUpdatedReconciler({
+    conversations: conversations.state.conversations,
+    selectedConversationData: conversations.state.selectedConversationData,
+    maskingEnabled: account?.settings?.mask_contact_pii === true,
+    apply: conversations.updateContactInConversations,
+  });
   useEffect(() => {
     activeFiltersRef.current = filters.state.activeFilters;
   }, [filters.state.activeFilters]);
@@ -569,11 +577,19 @@ function useChatIntegration() {
         conversations.updateConversationLastActivity(conversationId, lastActivityAt);
       },
 
-      onContactUpdated: contact => {
-        conversations.updateContactInConversations(contact);
-      },
+      // Not applied straight to the store: with PII masking on, the broadcast is
+      // masked for everyone while REST unmasks per request, so the frame has to
+      // be reconciled before it lands. See useContactUpdatedReconciler.
+      onContactUpdated: reconcileContactUpdated,
     });
-  }, [websocket, messages, conversations, currentUser, shouldReloadMessageForMissingImageData]);
+  }, [
+    websocket,
+    messages,
+    conversations,
+    currentUser,
+    shouldReloadMessageForMissingImageData,
+    reconcileContactUpdated,
+  ]);
 
   // Integrated actions
   const loadConversationsWithFilters = useCallback(

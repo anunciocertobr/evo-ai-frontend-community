@@ -22,7 +22,16 @@ vi.mock('@/hooks/useLanguage', () => ({
   useLanguage: () => ({ t: (key: string) => key }),
 }));
 
+const getContact = vi.fn();
+
+vi.mock('@/services/contacts/contactsService', () => ({
+  contactsService: {
+    getContact: (...args: unknown[]) => getContact(...args),
+  },
+}));
+
 import { ChatProvider, useChatContext } from './ChatContext';
+import { useAppDataStore } from '@/store/appDataStore';
 
 // REST payload shape: `contact` present, no `meta` (ConversationSerializer).
 const restConversation = {
@@ -48,6 +57,8 @@ describe('ChatContext contact.updated end-to-end', () => {
   beforeEach(() => {
     capturedHandlers = {};
     localStorage.clear();
+    getContact.mockReset();
+    useAppDataStore.setState({ account: null });
   });
 
   it('a contact.updated frame renames the contact of a REST-loaded conversation', async () => {
@@ -71,6 +82,66 @@ describe('ChatContext contact.updated end-to-end', () => {
       });
     });
 
+    expect(screen.getByTestId('name').textContent).toBe('João Silva');
+  });
+
+  it('with masking on, the store takes the REST contact and never the masked frame', async () => {
+    // The account flag is what makes the broadcast mask itself for every
+    // audience while REST still unmasks for an admin — the divergence this
+    // reconciliation exists to close.
+    useAppDataStore.setState({
+      account: { settings: { mask_contact_pii: true } },
+    } as unknown as Parameters<typeof useAppDataStore.setState>[0]);
+    getContact.mockResolvedValue({
+      id: 'contact-1',
+      name: 'João Silva',
+      thumbnail: null,
+      custom_attributes: {},
+      additional_attributes: {},
+    });
+
+    render(
+      <ChatProvider>
+        <Probe />
+      </ChatProvider>,
+    );
+
+    expect(screen.getByTestId('name').textContent).toBe('553140204020');
+
+    await act(async () => {
+      capturedHandlers.onContactUpdated?.({
+        id: 'contact-1',
+        name: '55******4020',
+        account_id: 'account-1',
+        custom_attributes: {},
+        additional_attributes: {},
+      });
+      await new Promise(resolve => setTimeout(resolve, 300));
+    });
+
+    expect(getContact).toHaveBeenCalledWith('contact-1', false);
+    expect(screen.getByTestId('name').textContent).toBe('João Silva');
+  });
+
+  it('with masking off, the frame is applied without a refetch', async () => {
+    render(
+      <ChatProvider>
+        <Probe />
+      </ChatProvider>,
+    );
+
+    await act(async () => {
+      capturedHandlers.onContactUpdated?.({
+        id: 'contact-1',
+        name: 'João Silva',
+        account_id: 'account-1',
+        custom_attributes: {},
+        additional_attributes: {},
+      });
+      await new Promise(resolve => setTimeout(resolve, 300));
+    });
+
+    expect(getContact).not.toHaveBeenCalled();
     expect(screen.getByTestId('name').textContent).toBe('João Silva');
   });
 });
