@@ -66,6 +66,19 @@ describe('deriveInboxStatus', () => {
   it('treats unmonitored (unknown) channels as active — explicit degrade, not broken', () => {
     expect(deriveInboxStatus(inbox({ connection_state: 'unknown', health_source: 'none' }))).toBe('active');
   });
+
+  it('flags an unknown channel that does have a health source — nothing confirmed the connection', () => {
+    expect(deriveInboxStatus(inbox({ connection_state: 'unknown', health_source: 'stored_flag' }))).toBe(
+      'attention',
+    );
+    expect(deriveInboxStatus(inbox({ connection_state: 'unknown', health_source: 'provider_event' }))).toBe(
+      'attention',
+    );
+  });
+
+  it('keeps pre-EVO-1674 payloads, which carry no health source, on active', () => {
+    expect(deriveInboxStatus(inbox({}))).toBe('active');
+  });
 });
 
 describe('buildChannelTypeStatuses', () => {
@@ -117,6 +130,21 @@ describe('buildChannelTypeStatuses', () => {
 
     expect(sms.inboxStates[0].unmonitored).toBe(true);
     expect(sms.status).toBe('active');
+  });
+
+  it('does not badge a token-based channel green while nothing confirms its connection', () => {
+    const result = buildChannelTypeStatuses(types, [
+      inbox({
+        id: 'w1',
+        channel_type: 'Channel::Whatsapp',
+        connection_state: 'unknown',
+        health_source: 'stored_flag',
+      }),
+    ]);
+    const whatsapp = result.find(r => r.type.type === 'whatsapp')!;
+
+    expect(whatsapp).toMatchObject({ total: 1, activeCount: 0, attentionCount: 1, status: 'attention' });
+    expect(whatsapp.inboxStates[0].unmonitored).toBe(false);
   });
 
   it('ignores inboxes whose type is not in the catalog', () => {
