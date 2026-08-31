@@ -16,6 +16,14 @@ const PROVIDER_PREFIX: Record<string, string> = {
   vertex_ai: 'vertex_ai/',
 };
 
+// Mirrors ProviderSupportsDynamicModels in the core-service
+// (pkg/api_key/service/models_fetcher.go); update both together.
+const LISTS_LIVE = ['openai', 'gemini', 'anthropic', 'openrouter', 'deepseek', 'together_ai', 'fireworks_ai'];
+
+// One current family. The live list wins the moment a key is chosen, so each extra
+// pinned entry is only more surface to rot.
+const MAX_PINNED_WHEN_LISTED_LIVE = 3;
+
 const duplicatesOf = (values: string[]) => {
   const seen = new Set<string>();
   return values.filter(v => {
@@ -47,12 +55,16 @@ describe('availableModels', () => {
   });
 
   it('keeps at most the current family pinned for a provider that lists live', () => {
-    // Mirrors ProviderSupportsDynamicModels in the core-service
-    // (pkg/api_key/service/models_fetcher.go); update both together.
-    const listsLive = ['openai', 'gemini', 'anthropic', 'openrouter', 'deepseek', 'together_ai', 'fireworks_ai'];
-    const oversized = listsLive.filter(
-      p => availableModels.filter(m => m.provider === p).length > 3,
+    const oversized = LISTS_LIVE.filter(
+      p => availableModels.filter(m => m.provider === p).length > MAX_PINNED_WHEN_LISTED_LIVE,
     );
     expect(oversized).toEqual([]);
+  });
+
+  it('pins at least one entry per provider, so a failed listing is never an empty picker', () => {
+    const empty = Object.keys(PROVIDER_PREFIX).filter(
+      p => !availableModels.some(m => m.provider === p),
+    );
+    expect(empty).toEqual([]);
   });
 });

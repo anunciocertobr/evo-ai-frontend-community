@@ -21,9 +21,10 @@ import { agentsService } from '@/services/agents/agentService';
 const CUSTOM_MODEL_OPTION = '__custom_model__';
 const CUSTOM_OPENAI_PROVIDER = 'custom_openai_compatible';
 
-// Shown before an API key is chosen, and again whenever the live listing fails. For the
-// providers with no listing endpoint at all (Vertex, Bedrock, Perplexity) it is the only
-// source there will ever be.
+// Shown before an API key is chosen, and as the fallback when a live listing fails. For
+// the providers with no listing endpoint at all (Vertex, Bedrock, Perplexity) it is the
+// only source there will ever be. Prefer a rolling alias: it is the only entry here that
+// does not rot on its own.
 export const availableModels = [
   { value: 'openai/gpt-5.6', label: 'GPT-5.6', provider: 'openai' },
   { value: 'openai/gpt-5.6-terra', label: 'GPT-5.6 Terra', provider: 'openai' },
@@ -42,17 +43,20 @@ export const availableModels = [
   { value: 'fireworks_ai/accounts/fireworks/models/deepseek-v4-pro', label: 'DeepSeek V4 Pro (Fireworks)', provider: 'fireworks_ai' },
   { value: 'fireworks_ai/accounts/fireworks/models/gpt-oss-120b', label: 'GPT-OSS 120B (Fireworks)', provider: 'fireworks_ai' },
   { value: 'fireworks_ai/accounts/fireworks/models/kimi-k3', label: 'Kimi K3 (Fireworks)', provider: 'fireworks_ai' },
-  // Together publishes no catalogue without a key, so nothing is pinned for it: an
-  // unverified id here is the bug this list already had. The live listing covers it.
+  // Verified against Together's public serverless catalogue: the old entry failed only
+  // for a `Meta-` prefix Together never used, not for want of a source to check.
+  { value: 'together_ai/deepseek-ai/DeepSeek-V4-Flash-0731', label: 'DeepSeek V4 Flash (Together)', provider: 'together_ai' },
+  { value: 'together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo', label: 'Llama 3.3 70B Instruct Turbo', provider: 'together_ai' },
+  { value: 'together_ai/Qwen/Qwen3.5-9B', label: 'Qwen 3.5 9B', provider: 'together_ai' },
   // Sonar Chat Completions is supported only until 2026-09-27; past that these ids need
   // a new integration, not new values.
   { value: 'perplexity/sonar-pro', label: 'Sonar Pro', provider: 'perplexity' },
   { value: 'perplexity/sonar', label: 'Sonar', provider: 'perplexity' },
   { value: 'perplexity/sonar-reasoning-pro', label: 'Sonar Reasoning Pro', provider: 'perplexity' },
   { value: 'perplexity/sonar-deep-research', label: 'Sonar Deep Research', provider: 'perplexity' },
-  // Bedrock ids are global. where Bedrock offers global routing and us. only where it
-  // does not, so the picker never pins data residency that the deployment did not ask
-  // for. Sonnet 4.5 may reach EOL from 2026-09-29.
+  // `global.` where Bedrock offers global routing, `us.` only where it does not, so the
+  // picker never pins data residency the deployment did not ask for. Sonnet 4.5 EOL from
+  // 2026-09-29.
   { value: 'bedrock/global.anthropic.claude-opus-5', label: 'Claude Opus 5 (Bedrock)', provider: 'bedrock' },
   { value: 'bedrock/global.anthropic.claude-sonnet-5', label: 'Claude Sonnet 5 (Bedrock)', provider: 'bedrock' },
   { value: 'bedrock/global.anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5 (Bedrock)', provider: 'bedrock' },
@@ -60,9 +64,11 @@ export const availableModels = [
   { value: 'bedrock/us.deepseek.r1-v1:0', label: 'DeepSeek R1 (Bedrock)', provider: 'bedrock' },
   { value: 'bedrock/mistral.mistral-7b-instruct-v0:2', label: 'Mistral 7B (Bedrock)', provider: 'bedrock' },
   { value: 'bedrock/amazon.nova-micro-v1:0', label: 'Amazon Nova Micro (Bedrock)', provider: 'bedrock' },
+  // Vertex has no listing endpoint and no rolling alias, so these are pinned by hand.
+  // Gemini 2.5 retires 2026-10-16; Pro stays on it because 3.1 Pro is still preview.
+  { value: 'vertex_ai/gemini-3.7-flash', label: 'Gemini 3.7 Flash (Vertex)', provider: 'vertex_ai' },
+  { value: 'vertex_ai/gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite (Vertex)', provider: 'vertex_ai' },
   { value: 'vertex_ai/gemini-2.5-pro', label: 'Gemini 2.5 Pro (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/gemini-2.5-flash', label: 'Gemini 2.5 Flash (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite (Vertex)', provider: 'vertex_ai' },
 ];
 
 export interface ModelSelectorProps {
