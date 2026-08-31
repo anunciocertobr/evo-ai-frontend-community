@@ -440,7 +440,11 @@
       "send_direct_message": "Mensagem direta",
       "send_template": "Enviar template",
       "finalize": "Finalizar atendimento"
-    }
+    },
+    "templatePending": "Aguardando aprovação da Meta",
+    "templatesPendingHint": "Seus templates ainda aguardam aprovação da Meta.",
+    "noTemplatesHint": "Nenhum template criado ainda.",
+    "manageTemplates": "Abrir Modelos de Mensagem"
   },
   "editStage": {
     "title": "Editar Etapa",

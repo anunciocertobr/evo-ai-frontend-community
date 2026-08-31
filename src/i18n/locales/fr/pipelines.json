@@ -402,7 +402,11 @@
         "no_customer_reply": "Client sans réponse",
         "stage_stagnation": "Bloqué dans l'étape"
       }
-    }
+    },
+    "templatePending": "En attente d'approbation de Meta",
+    "templatesPendingHint": "Vos modèles attendent encore l'approbation de Meta.",
+    "noTemplatesHint": "Aucun modèle créé pour le moment.",
+    "manageTemplates": "Ouvrir les Modèles de Message"
   },
   "editStage": {
     "title": "Modifier l'Étape",

@@ -401,7 +401,11 @@
       "send_direct_message": "Mensaje directo",
       "send_template": "Enviar plantilla",
       "finalize": "Finalizar atención"
-    }
+    },
+    "templatePending": "Esperando la aprobación de Meta",
+    "templatesPendingHint": "Tus plantillas aún esperan la aprobación de Meta.",
+    "noTemplatesHint": "Aún no hay plantillas creadas.",
+    "manageTemplates": "Abrir Plantillas de Mensaje"
   },
   "editStage": {
     "title": "Editar Etapa",
