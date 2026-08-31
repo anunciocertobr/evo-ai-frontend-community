@@ -1620,6 +1620,7 @@
       "active": "Attivo",
       "attention": "Richiede attenzione",
       "error": "Con errore",
+      "unmonitored": "Non monitorato",
       "available": "Disponibile"
     },
     "summary": {
@@ -1648,6 +1649,7 @@
     "actions": {
       "add": "Aggiungi",
       "manage": "Gestisci",
+      "manageAria": "Gestisci connessioni: {{count}} · {{status}}",
       "howToConfigure": "Come configurare",
       "connect": "Connetti",
       "addConnection": "Aggiungi connessione",
