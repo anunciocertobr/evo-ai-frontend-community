@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -22,12 +23,22 @@ const renderRules = (minutes: number) => {
   return onChange;
 };
 
+// The real parent (EditStageModal) feeds every onChange back as the new rules
+// prop; the spy above does not, which would hide a value dropped on selection.
+function StatefulRules({ minutes }: { minutes: number }) {
+  const [rules, setRules] = useState([inactivityRule(minutes)]);
+  return <StageAutomationRules rules={rules} onChange={setRules} />;
+}
+
 // The rule row renders several selects (trigger, duration, base, action…);
 // the duration one is the only one whose value carries the minutes/hours label.
-const durationCombobox = () =>
-  screen
+const durationCombobox = () => {
+  const found = screen
     .getAllByRole('combobox')
-    .find(cb => /stageAutomation\.inactivity\.(minutes|hour)/.test(cb.textContent ?? ''))!;
+    .find(cb => /stageAutomation\.inactivity\.(minutes|hour|days)/.test(cb.textContent ?? ''));
+  if (!found) throw new Error('duration combobox not found — did the inactivity label keys change?');
+  return found;
+};
 
 // CRM-467: the duration Select used to be a closed preset list capped at 24h.
 // Values the API accepts (any positive minutes) rendered as an EMPTY select,
@@ -58,9 +69,40 @@ describe('StageAutomationRules — inactivity duration (CRM-467)', () => {
     expect(screen.getByRole('option', { name: '72 stageAutomation.inactivity.hours' })).toBeTruthy();
   });
 
+  it('labels a value of a week or more in days', () => {
+    renderRules(10080);
+    expect(screen.getByText('7 stageAutomation.inactivity.days')).toBeTruthy();
+  });
+
   it('never rewrites an untouched rule (no onChange on mount)', () => {
     const onChange = renderRules(90);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('keeps the API duration when another field of the rule is edited', async () => {
+    const user = userEvent.setup();
+    const onChange = renderRules(2880);
+
+    await user.type(screen.getByPlaceholderText('stageAutomation.directMessagePlaceholder'), '!');
+
+    expect(onChange).toHaveBeenCalledWith([
+      expect.objectContaining({
+        trigger_value: { minutes: 2880, base: 'no_customer_reply' },
+      }),
+    ]);
+  });
+
+  it('keeps an API duration pickable after another one is selected', async () => {
+    const user = userEvent.setup();
+    render(<StatefulRules minutes={90} />);
+
+    await user.click(durationCombobox());
+    await user.click(screen.getByRole('option', { name: '24 stageAutomation.inactivity.hours' }));
+    await user.click(durationCombobox());
+
+    expect(
+      screen.getByRole('option', { name: '90 stageAutomation.inactivity.minutes' }),
+    ).toBeTruthy();
   });
 
   it('emits the picked minutes and keeps the base on change', async () => {

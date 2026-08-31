@@ -419,6 +419,7 @@
       "minutes": "minutos",
       "hour": "hora",
       "hours": "horas",
+      "days": "dias",
       "base": {
         "no_customer_reply": "Cliente sem responder",
         "stage_stagnation": "Parado na etapa"
