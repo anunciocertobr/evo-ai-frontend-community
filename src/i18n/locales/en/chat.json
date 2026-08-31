@@ -92,10 +92,11 @@
       "statusUnavailableDescription": "The message was sent, but we could not confirm the delivery status.",
       "checkChannelConfig": "Check channel configuration",
       "webhookIssue": "The webhook may be outdated or inactive.",
+      "messageNotSent": "The message was not sent",
       "deliveryStatusUnavailable": "Delivery status unavailable - Click for more details",
       "statusUnavailableText": "Status unavailable",
-      "retryInDevelopment": "Retry functionality in development",
-      "sendFailed": "Send failed - Click to try again",
+      "sendFailedText": "Send failed",
+      "sendFailed": "Send failed - Click to see the reason",
       "tryAgain": "Try again"
     },
     "replyPreview": {

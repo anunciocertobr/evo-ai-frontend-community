@@ -6,8 +6,6 @@ import {
   ProductFormData,
   ProductsListParams,
   ProductsResponse,
-  ProductResponse,
-  ProductDeleteResponse,
   ProductVariant,
   ProductVariantFormData,
   PipelineItemProductLink,
@@ -35,7 +33,7 @@ class ProductsService {
 
   async getProduct(id: string): Promise<Product> {
     const response = await api.get(`${this.baseUrl}/${id}`);
-    return extractData<ProductResponse>(response).data;
+    return extractData<Product>(response);
   }
 
   async createProduct(payload: ProductFormData, files?: File[]): Promise<Product> {
@@ -44,11 +42,11 @@ class ProductsService {
       const response = await api.post(this.baseUrl, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      return extractData<ProductResponse>(response).data;
+      return extractData<Product>(response);
     }
 
     const response = await api.post(this.baseUrl, { product: payload });
-    return extractData<ProductResponse>(response).data;
+    return extractData<Product>(response);
   }
 
   async updateProduct(id: string, payload: Partial<ProductFormData>, files?: File[]): Promise<Product> {
@@ -57,11 +55,11 @@ class ProductsService {
       const response = await api.patch(`${this.baseUrl}/${id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      return extractData<ProductResponse>(response).data;
+      return extractData<Product>(response);
     }
 
     const response = await api.patch(`${this.baseUrl}/${id}`, { product: payload });
-    return extractData<ProductResponse>(response).data;
+    return extractData<Product>(response);
   }
 
   /**
@@ -96,9 +94,9 @@ class ProductsService {
     return response.data as ProductImportFetchResponse;
   }
 
-  async deleteProduct(id: string): Promise<ProductDeleteResponse> {
+  async deleteProduct(id: string): Promise<{ id: string }> {
     const response = await api.delete(`${this.baseUrl}/${id}`);
-    return extractData<ProductDeleteResponse>(response);
+    return extractData<{ id: string }>(response);
   }
 
   // ---------- Variants ----------

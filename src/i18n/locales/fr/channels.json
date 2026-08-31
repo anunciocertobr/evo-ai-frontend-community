@@ -1681,6 +1681,7 @@
       "active": "Actif",
       "attention": "Attention requise",
       "error": "En erreur",
+      "unmonitored": "Non surveillé",
       "available": "Disponible"
     },
     "summary": {
@@ -1710,6 +1711,7 @@
     "actions": {
       "add": "Ajouter",
       "manage": "Gérer",
+      "manageAria": "Gérer les connexions : {{count}} · {{status}}",
       "howToConfigure": "Comment configurer",
       "connect": "Connecter",
       "addConnection": "Ajouter une connexion",

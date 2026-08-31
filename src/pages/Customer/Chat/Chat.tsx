@@ -46,7 +46,6 @@ import type { DashboardApp } from '../../../types/integrations';
 import type { AssignmentOption, AssignmentType } from '@/components/chat/assignment';
 import { labelsService } from '@/services/contacts/labelsService';
 import { useAppDataStore } from '@/store/appDataStore';
-import type { Label } from '@/types/settings';
 import chatService from '@/services/chat/chatService';
 
 const ContactSidebar = React.lazy(() => import('@/components/chat/contact-sidebar/ContactSidebar'));
@@ -713,9 +712,7 @@ const Chat = () => {
     show_on_sidebar?: boolean;
   }): Promise<AssignmentOption> => {
     try {
-      // labelsService.createLabel returns the unwrapped Label (extractData unwraps response.data.data)
-      // despite the declared LabelResponse type — service typing is inconsistent across the codebase.
-      const label = (await labelsService.createLabel(data)) as unknown as Label;
+      const label = await labelsService.createLabel(data);
       if (!label?.id || !label?.title) {
         throw new Error('Invalid label payload returned from API');
       }
@@ -766,15 +763,19 @@ const Chat = () => {
   }, [conversations.state.selectedConversationId]);
 
   // Prepare assignment modal data
+  // The three `description` phrases read "conversation with {{name}}", so {{name}}
+  // is always the interlocutor — the contact, never what is being assigned.
   const getAssignmentModalData = () => {
     if (!conversationToAssign) return null;
+
+    const contactName = conversationToAssign.contact?.name;
 
     switch (assignmentType) {
       case 'agent':
         return {
           title: t('assignment.agent.title'),
           description: t('assignment.agent.description', {
-            name: conversationToAssign.assignee?.name || t('assignment.agent.contactFallback'),
+            name: contactName || t('assignment.agent.contactFallback'),
           }),
           options: assignmentHandlers.users.map(
             (user): AssignmentOption => ({
@@ -795,7 +796,7 @@ const Chat = () => {
         return {
           title: t('assignment.team.title'),
           description: t('assignment.team.description', {
-            name: conversationToAssign?.team?.name || t('assignment.team.contactFallback'),
+            name: contactName || t('assignment.team.contactFallback'),
           }),
           options: assignmentHandlers.teams.map(
             (team): AssignmentOption => ({
@@ -813,9 +814,7 @@ const Chat = () => {
         return {
           title: t('assignment.label.title'),
           description: t('assignment.label.description', {
-            name:
-              conversationToAssign?.labels?.map(label => label.title).join(', ') ||
-              t('assignment.label.contactFallback'),
+            name: contactName || t('assignment.label.contactFallback'),
           }),
           options: assignmentHandlers.labels.map(
             (label): AssignmentOption => ({

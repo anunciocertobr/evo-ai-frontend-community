@@ -74,9 +74,13 @@ export default function ChannelConnectionsPopover({
                 const isLiveVerified = liveVerifiedIds?.has(id) ?? false;
                 const liveFailed = liveFailedIds?.has(id) ?? false;
                 const lastSync = formatLastSync(inbox.last_sync, currentLanguage);
-                const stateLabel = unmonitored
-                  ? t('overview.inboxState.unmonitored')
-                  : t(`overview.inboxState.${state}`);
+                // A probe-confirmed inbox IS monitored right now, so the stored
+                // "no health source" flag must not label it — that would read as
+                // "Not monitored · Live" on the same line.
+                const stateLabel =
+                  unmonitored && !isLiveVerified
+                    ? t('overview.inboxState.unmonitored')
+                    : t(`overview.inboxState.${state}`);
                 const providerLabel = (
                   inbox.provider ||
                   inbox.channel_type?.replace('Channel::', '') ||
@@ -124,6 +128,7 @@ export default function ChannelConnectionsPopover({
                           </span>
                         )}
                         <span className="shrink-0">
+                          {stateLabel} ·{' '}
                           {isLiveLoading ? (
                             t('overview.inboxState.checking')
                           ) : isLiveVerified ? (
@@ -134,7 +139,7 @@ export default function ChannelConnectionsPopover({
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span className="cursor-help">
-                                  {stateLabel} · {t('overview.statusMeta.stored')}
+                                  {t('overview.statusMeta.stored')}
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent className="max-w-xs text-xs">
