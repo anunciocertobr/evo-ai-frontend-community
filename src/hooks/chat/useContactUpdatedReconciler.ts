@@ -8,8 +8,8 @@ const RECONCILE_DEBOUNCE_MS = 250;
 interface ContactUpdatedReconcilerParams {
   conversations: Conversation[];
   selectedConversationData: Conversation | null;
-  /** `account.settings.mask_contact_pii`. */
-  maskingEnabled: boolean;
+  /** Account masks PII and this session is not one of the masked audiences. */
+  refetchEnabled: boolean;
   apply: (contact: Contact) => void;
 }
 
@@ -21,7 +21,6 @@ function toStoreContact(id: string, rest: Partial<RestContact> | null | undefine
     throw new Error(`Empty contact payload for ${id}`);
   }
 
-
   return {
     id: String(rest.id ?? id),
     name: rest.name ?? '',
@@ -31,39 +30,44 @@ function toStoreContact(id: string, rest: Partial<RestContact> | null | undefine
     avatar_url: rest.thumbnail ?? rest.avatar_url ?? null,
     custom_attributes: (rest.custom_attributes ?? {}) as Record<string, unknown>,
     additional_attributes: rest.additional_attributes ?? {},
-  } as Contact;
+  };
 }
+
+// The fields the reducer patches. Anything else moving on the contact row —
+// `last_activity_at`, bumped by every inbound message — repeats them.
+const renderedSignature = (contact: Contact): string =>
+  [contact.name, contact.email, contact.phone_number, contact.avatar_url]
+    .map(value => value ?? '')
+    .join('\u0000');
 
 /**
  * Turns a `contact.updated` frame into the contact this session is entitled to
- * see.
- *
- * The broadcast is masked by the account flag alone, because its audience is
- * the whole account token; the REST endpoints mask per request and hand an
- * admin the raw value. Refetching resolves that divergence per session without
- * a per-audience broadcast. It replaces the frame rather than following it, so
- * the masked value never reaches the store even for one paint.
+ * see: the broadcast is masked by the account flag alone, REST masks per
+ * request. The refetch replaces the frame rather than following it, so the
+ * masked value never reaches the store even for one paint.
  */
 export function useContactUpdatedReconciler({
   conversations,
   selectedConversationData,
-  maskingEnabled,
+  refetchEnabled,
   apply,
 }: ContactUpdatedReconcilerParams): (frameContact: Contact) => void {
-  const paramsRef = useRef({ conversations, selectedConversationData, maskingEnabled, apply });
+  const paramsRef = useRef({ conversations, selectedConversationData, refetchEnabled, apply });
   useEffect(() => {
-    paramsRef.current = { conversations, selectedConversationData, maskingEnabled, apply };
-  }, [conversations, selectedConversationData, maskingEnabled, apply]);
+    paramsRef.current = { conversations, selectedConversationData, refetchEnabled, apply };
+  }, [conversations, selectedConversationData, refetchEnabled, apply]);
 
   const timersRef = useRef<Record<string, number>>({});
   const inFlightRef = useRef<Set<string>>(new Set());
   const pendingRef = useRef<Record<string, Contact>>({});
+  const signaturesRef = useRef<Record<string, string>>({});
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
     const timers = timersRef.current;
     const pending = pendingRef.current;
+    const signatures = signaturesRef.current;
     const inFlight = inFlightRef.current;
 
     return () => {
@@ -71,6 +75,7 @@ export function useContactUpdatedReconciler({
       Object.values(timers).forEach(timerId => window.clearTimeout(timerId));
       Object.keys(timers).forEach(key => delete timers[key]);
       Object.keys(pending).forEach(key => delete pending[key]);
+      Object.keys(signatures).forEach(key => delete signatures[key]);
       inFlight.clear();
     };
   }, []);
@@ -145,12 +150,20 @@ export function useContactUpdatedReconciler({
 
       const contactId = String(frameContact.id);
 
-      // A contact outside the store is applied rather than dropped: the reducer
-      // ignores what it cannot match, and this snapshot can be one render behind.
-      if (!paramsRef.current.maskingEnabled || !isInStore(contactId)) {
+      // Applied rather than dropped: the reducer ignores what it cannot match.
+      // The snapshot lags a render, so a contact just added takes this path too.
+      if (!paramsRef.current.refetchEnabled || !isInStore(contactId)) {
         paramsRef.current.apply(frameContact);
         return;
       }
+
+      // Nothing the store renders moved, so it already holds the reconciled
+      // value and the refetch would answer with what is on screen.
+      const signature = renderedSignature(frameContact);
+      if (signature === signaturesRef.current[contactId]) {
+        return;
+      }
+      signaturesRef.current[contactId] = signature;
 
       pendingRef.current[contactId] = frameContact;
       schedule(contactId);

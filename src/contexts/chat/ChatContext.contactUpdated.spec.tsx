@@ -14,8 +14,12 @@ vi.mock('@/hooks/chat/useWebSocket', () => ({
   },
 }));
 
+const auth = vi.hoisted(() => ({
+  user: { id: 'user-1', pubsub_token: 'token-1' } as Record<string, unknown>,
+}));
+
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'user-1', pubsub_token: 'token-1' } }),
+  useAuth: () => auth,
 }));
 
 vi.mock('@/hooks/useLanguage', () => ({
@@ -58,6 +62,7 @@ describe('ChatContext contact.updated end-to-end', () => {
     capturedHandlers = {};
     localStorage.clear();
     getContact.mockReset();
+    auth.user = { id: 'user-1', pubsub_token: 'token-1' };
     useAppDataStore.setState({ account: null });
     vi.useFakeTimers();
   });
@@ -123,6 +128,33 @@ describe('ChatContext contact.updated end-to-end', () => {
 
     expect(getContact).toHaveBeenCalledWith('contact-1', false);
     expect(screen.getByTestId('name').textContent).toBe('João Silva');
+  });
+
+  it('an agent takes the frame without a refetch: REST would mask it the same', async () => {
+    auth.user = { id: 'user-1', pubsub_token: 'token-1', role: { key: 'agent' } };
+    useAppDataStore.setState({
+      account: { settings: { mask_contact_pii: true } },
+    } as unknown as Parameters<typeof useAppDataStore.setState>[0]);
+
+    render(
+      <ChatProvider>
+        <Probe />
+      </ChatProvider>,
+    );
+
+    await act(async () => {
+      capturedHandlers.onContactUpdated?.({
+        id: 'contact-1',
+        name: '55******4020',
+        account_id: 'account-1',
+        custom_attributes: {},
+        additional_attributes: {},
+      });
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(getContact).not.toHaveBeenCalled();
+    expect(screen.getByTestId('name').textContent).toBe('55******4020');
   });
 
   it('with masking off, the frame is applied without a refetch', async () => {

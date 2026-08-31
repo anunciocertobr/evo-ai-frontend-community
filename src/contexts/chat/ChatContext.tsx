@@ -21,6 +21,7 @@ import {
 import { ConversationsContextValue } from '@/types/chat/conversations';
 import { useAppDataStore } from '@/store/appDataStore';
 import { useAuth } from '@/contexts/AuthContext';
+import { isAdminRole } from '@/constants/roles';
 import { playNotificationSound, getAudioSettings } from '@/utils/audioNotificationUtils';
 import { normalizeToUnixSeconds } from '@/utils/time/timeHelpers';
 import { doesConversationMatchFilters } from '@/utils/chat/conversationMatch';
@@ -60,10 +61,14 @@ function useChatIntegration() {
   const activeFiltersRef = useRef<ConversationFilter[]>(filters.state.activeFilters);
   const attachmentReloadTimersRef = useRef<Record<string, number>>({});
   const account = useAppDataStore(state => state.account);
+  // A session the server masks too reads the same values from REST as from the
+  // frame. Unknown role refetches: the cost is a request, the risk is the bug.
+  const roleKey = currentUser?.role?.key;
+  const sessionIsMasked = !!roleKey && !isAdminRole(roleKey);
   const reconcileContactUpdated = useContactUpdatedReconciler({
     conversations: conversations.state.conversations,
     selectedConversationData: conversations.state.selectedConversationData,
-    maskingEnabled: account?.settings?.mask_contact_pii === true,
+    refetchEnabled: account?.settings?.mask_contact_pii === true && !sessionIsMasked,
     apply: conversations.updateContactInConversations,
   });
   useEffect(() => {

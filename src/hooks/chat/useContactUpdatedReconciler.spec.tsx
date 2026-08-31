@@ -41,7 +41,7 @@ function setup(overrides: Partial<Parameters<typeof useContactUpdatedReconciler>
     useContactUpdatedReconciler({
       conversations: [conversation],
       selectedConversationData: null,
-      maskingEnabled: true,
+      refetchEnabled: true,
       apply,
       ...overrides,
     }),
@@ -121,8 +121,8 @@ describe('useContactUpdatedReconciler', () => {
     expect(getContact.mock.calls.map(call => call[0]).sort()).toEqual(['contact-1', 'contact-2']);
   });
 
-  it('applies the frame without fetching when masking is off', async () => {
-    const { reconcile, apply } = setup({ maskingEnabled: false });
+  it('applies the frame without fetching when no refetch is due', async () => {
+    const { reconcile, apply } = setup({ refetchEnabled: false });
 
     act(() => reconcile(maskedFrame));
     await flush();
@@ -212,6 +212,34 @@ describe('useContactUpdatedReconciler', () => {
       vi.advanceTimersByTime(100);
     });
     expect(getContact).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a frame that repeats what the store already reconciled', async () => {
+    const { reconcile, apply } = setup();
+
+    act(() => reconcile(maskedFrame));
+    await flush();
+    expect(getContact).toHaveBeenCalledTimes(1);
+
+    // What an inbound message broadcasts: a last_activity_at bump repeats every
+    // rendered field, and the store already holds the REST answer for them.
+    act(() => reconcile({ ...maskedFrame }));
+    await flush();
+
+    expect(getContact).toHaveBeenCalledTimes(1);
+    expect(apply).toHaveBeenCalledTimes(1);
+  });
+
+  it('refetches again once a rendered field really moves', async () => {
+    const { reconcile } = setup();
+
+    act(() => reconcile(maskedFrame));
+    await flush();
+
+    act(() => reconcile({ ...maskedFrame, email: 'm***@example.com' } as Contact));
+    await flush();
+
+    expect(getContact).toHaveBeenCalledTimes(2);
   });
 
   it('ignores a frame with no contact id', async () => {
