@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { availableModels } from '@/components/ai_agents/ModelSelector';
 
-// Shape checks, not freshness: nothing local can tell that a provider retired a model.
+// Shape checks, not freshness. Freshness needs the provider's own answer, which is
+// why it lives apart: the bedrock axis is checked against the AWS model cards in
+// ModelSelector.bedrockLifecycle.spec.ts, and the axes that list live correct
+// themselves the moment a key is chosen.
 
 const PROVIDER_PREFIX: Record<string, string> = {
   openai: 'openai/',
