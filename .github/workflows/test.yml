@@ -90,6 +90,8 @@ jobs:
       #     success toast would look right on screen and still tell the operator
       #     the install is fine.
       #   - i18n-parity (CRM-162): en and pt-BR keep the same key set, catalog-wide.
+      #   - _lib/parity (CRM-484): the guard's own rules. A clean catalog keeps
+      #     i18n-parity green even with the rule broken; only this spec notices.
       #   - macros-parity (CRM-162): es, fr, it and pt are covered nowhere else, so
       #     macros.json is checked against en across all six. A key added to one
       #     locale only is invisible until someone on another reads the raw key.
@@ -161,6 +163,7 @@ jobs:
             src/components/layout/config/menuItems.spec.ts \
             src/components/macros/MacroActionRow.spec.tsx \
             src/pages/Setup/Setup.spec.tsx \
+            src/i18n/locales/_lib/parity.spec.ts \
             src/i18n/locales/i18n-parity.spec.ts \
             src/i18n/locales/macros-parity.spec.ts \
             src/services/contacts/contactsService.createContact.spec.ts \
