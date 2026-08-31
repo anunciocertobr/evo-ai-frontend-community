@@ -77,8 +77,13 @@ export function resolveInboxConnectionState(
 /**
  * Hub-level status of a single configured inbox. A configured inbox is never
  * `available` nor `unmonitored` — both are TYPE-level verdicts.
- * `unknown` counts as active here so it never inflates `attentionCount` /
- * `errorCount`: no health signal is an explicit degrade, not a fault.
+ *
+ * `unknown` splits by `health_source`: with a real source the backend looked
+ * and found nothing confirming the connection, which must not read as active.
+ * With `none` there is nothing to look at, so it stays active HERE and never
+ * inflates `attentionCount`/`errorCount`; the TYPE downgrades to `unmonitored`
+ * in `buildChannelTypeStatuses`. A payload without `health_source` predates
+ * EVO-1674 and keeps the old benefit of the doubt (CRM-339).
  */
 export function deriveInboxStatus(
   inbox: Inbox,
@@ -87,6 +92,7 @@ export function deriveInboxStatus(
   const state = resolveInboxConnectionState(inbox, live);
   if (state === 'error' || state === 'disconnected') return 'error';
   if (state === 'pending') return 'attention';
+  if (state === 'unknown' && inbox.health_source && inbox.health_source !== 'none') return 'attention';
   return 'active';
 }
 
@@ -113,15 +119,14 @@ export function buildChannelTypeStatuses(
     const activeCount = matched.length - errorCount - attentionCount;
 
     // Types the backend has no health support for (Telegram, SMS, API, Web Widget)
-    // resolve to `unknown`/`none` for every inbox: calling that "active" claims a
-    // health the backend says it does not know. A partial mix stays `active` —
-    // at least one connection is confirmed.
+    // report `health_source: 'none'` on every inbox: calling that "active" claims a
+    // health the backend says it does not know. A partial mix stays `active` — at
+    // least one connection is confirmed.
     let status: ChannelHealthStatus = 'available';
     if (matched.length > 0) {
       if (errorCount > 0) status = 'error';
       else if (attentionCount > 0) status = 'attention';
-      else if (inboxStates.every(info => info.unmonitored || info.state === 'unknown'))
-        status = 'unmonitored';
+      else if (inboxStates.every(info => info.unmonitored)) status = 'unmonitored';
       else status = 'active';
     }
 
