@@ -1674,7 +1674,6 @@
   },
   "overview": {
     "noIntegrationConfigured": "Aucune intégration configurée",
-    "tabLabel": "Aperçu",
     "title": "Aperçu des canaux",
     "subtitle": "Consultez tous les types de canaux, leur statut et comment les configurer.",
     "statusLabel": {
@@ -1683,14 +1682,6 @@
       "error": "En erreur",
       "unmonitored": "Non surveillé",
       "available": "Disponible"
-    },
-    "summary": {
-      "active": "{{count}} actif(s)",
-      "attention": "{{count}} à vérifier",
-      "error": "{{count}} en erreur",
-      "notConfigured": "Non configuré",
-      "connected": "{{count}} connectée(s)",
-      "total": "{{count}} connexions"
     },
     "drawer": {
       "title": "Connexions"
@@ -1707,17 +1698,14 @@
     "needsAttention_one": "{{count}} connexion nécessitant une attention",
     "needsAttention_other": "{{count}} connexions nécessitant une attention",
     "liveCheckFailed": "La vérification en direct a échoué — affichage du dernier état connu",
-    "moreInboxes": "+{{count}} autres boîtes de réception",
     "providersCount": "{{count}} fournisseurs",
     "actions": {
       "add": "Ajouter",
       "manage": "Gérer",
       "manageAria": "Gérer les connexions : {{count}} · {{status}}",
-      "howToConfigure": "Comment configurer",
       "connect": "Connecter",
       "addConnection": "Ajouter une connexion",
-      "deleteConnection": "Supprimer la connexion",
-      "viewAds": "Voir les annonces"
+      "deleteConnection": "Supprimer la connexion"
     },
     "capabilities": {
       "publishing": "Publication",
@@ -1729,16 +1717,6 @@
       "stored": "Déclaré",
       "storedTooltip": "État déclaré par la configuration, non vérifié en direct",
       "lastSync": "Synchronisé {{time}}"
-    },
-    "help": {
-      "website": "Intégrez un widget de chat en direct sur votre site pour échanger avec les visiteurs en temps réel.",
-      "whatsapp": "Connectez WhatsApp via un fournisseur (WhatsApp Cloud, Evolution, Twilio, etc.) pour envoyer et recevoir des messages.",
-      "telegram": "Connectez un bot Telegram à l'aide de son token pour recevoir et répondre aux messages.",
-      "instagram": "Reliez votre compte professionnel Instagram pour gérer les messages directs depuis la boîte de réception.",
-      "facebook": "Reliez une page Facebook pour gérer les conversations Messenger depuis la boîte de réception.",
-      "sms": "Envoyez et recevez des SMS via un fournisseur comme Twilio ou Bandwidth.",
-      "email": "Connectez une boîte mail (Gmail ou Outlook) pour transformer les e-mails en conversations.",
-      "api": "Utilisez l'API de canaux pour intégrer n'importe quel système personnalisé."
     }
   }
 }
