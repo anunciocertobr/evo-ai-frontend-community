@@ -83,10 +83,10 @@ class EvolutionHubService {
   }
 
   /**
-   * Descarta a inbox de uma conexão que não concluiu. O canal do Hub nasce
-   * ANTES do OAuth da Meta, então cancelar sem isso deixa canal órfão
-   * consumindo quota do plano. A rota vive no recurso de inbox porque é a
-   * inbox que ela apaga; o backend recusa canal que já subiu.
+   * Discards the inbox of a connection that never completed. The Hub channel is
+   * created BEFORE Meta's OAuth, so cancelling without this leaves an orphan
+   * burning plan quota. The route lives under the inbox resource because the
+   * inbox is what it deletes; the backend refuses a channel that already came up.
    */
   async abortConnection(inboxId: string | number): Promise<void> {
     await api.delete(`/inboxes/${encodeURIComponent(String(inboxId))}/hub_connection`);

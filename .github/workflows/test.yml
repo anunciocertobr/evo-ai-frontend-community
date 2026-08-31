@@ -131,6 +131,7 @@ jobs:
             src/hooks/channels/useChannelValidation.spec.ts \
             src/utils/channelStatus.spec.ts \
             src/components/channels/ChannelTypeHub.spec.tsx \
+            src/components/inbox/HubConnectButton.spec.tsx \
             src/components/journey/environment-manager/EnvironmentManager.spec.tsx \
             src/components/journey/nodes/actions/add-label/AddLabelNode.spec.tsx \
             src/components/journey/nodes/actions/assign-bot/AssignBotPanel.spec.tsx \

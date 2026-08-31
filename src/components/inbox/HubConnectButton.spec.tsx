@@ -9,8 +9,8 @@ vi.mock('@/services/core', () => ({
   api: { post: vi.fn(), get: vi.fn() },
 }));
 
-// evolutionHubService importa o axios pelo caminho do módulo, não pelo barrel,
-// então o mock acima não o alcança — sem este, o serviço sai batendo na rede.
+// evolutionHubService imports axios by module path, not through the barrel, so
+// the mock above does not reach it — without this one the service hits the network.
 vi.mock('@/services/core/api', () => ({
   default: { post: vi.fn(), get: vi.fn(), delete: vi.fn() },
 }));
@@ -48,8 +48,8 @@ async function emitir(status: string, inboxId: string = INBOX_ID) {
   });
 }
 
-// A Meta devolve o desfecho do signup por postMessage, da origem dela; o
-// componente ignora qualquer outra.
+// Meta reports the signup outcome by postMessage from its own origin; the
+// component ignores every other sender.
 async function emitirMeta(event: string) {
   await act(async () => {
     window.dispatchEvent(
@@ -129,9 +129,9 @@ describe('HubConnectButton — estado real da conexão', () => {
   });
 });
 
-// O canal no Hub nasce antes de o operador chegar na Meta, então uma tentativa
-// que termina em cancelamento ou erro precisa derrubar a inbox: o órfão
-// consome cota do plano e aparece na lista como uma conexão que nunca houve.
+// The Hub channel is created before the operator ever reaches Meta, so an
+// attempt ending in cancel or error has to take the inbox down with it: the
+// orphan burns plan quota and shows up as a connection that never happened.
 describe('HubConnectButton — descarte da conexão que não concluiu', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -155,8 +155,8 @@ describe('HubConnectButton — descarte da conexão que não concluiu', () => {
     expect(hubApi.delete).toHaveBeenCalledWith(`/inboxes/${INBOX_ID}/hub_connection`);
   });
 
-  // O link público morre junto com o canal no Hub: reabri-lo levaria o
-  // operador para uma página que não existe mais.
+  // The public link dies with the Hub channel: reopening it would send the
+  // operator to a page that no longer exists.
   it('oferece recomeçar no lugar do link morto depois do descarte', async () => {
     await criarInbox();
 
@@ -182,8 +182,8 @@ describe('HubConnectButton — descarte da conexão que não concluiu', () => {
 
     await emitirMeta('CANCEL');
 
-    // Segue na tela de falha, com saída: a inbox pendente continua visível e
-    // apagável pela listagem, que roda a mesma limpeza.
+    // Stays on the failure screen with a way out: the pending inbox is still
+    // visible and deletable from the listing, which runs the same cleanup.
     expect(await screen.findByTestId('hub-failed')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /outra aba/i })).toBeInTheDocument();
   });
