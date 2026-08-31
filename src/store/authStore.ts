@@ -87,6 +87,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
     // owns login and only writes the key, so the token read at module load outlives
     // a re-login and signs requests the server already revoked. Impersonation is the
     // one token held only in memory, so it wins while active.
+    // The tradeoff of a shared key: two tabs on one origin cannot hold two
+    // sessions, and a login in either now wins in both.
     getAccessToken: () => {
       const { impersonation, accessToken } = get();
       if (impersonation) return accessToken;
