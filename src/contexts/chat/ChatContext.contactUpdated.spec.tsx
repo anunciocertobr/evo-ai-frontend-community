@@ -86,9 +86,6 @@ describe('ChatContext contact.updated end-to-end', () => {
   });
 
   it('with masking on, the store takes the REST contact and never the masked frame', async () => {
-    // The account flag is what makes the broadcast mask itself for every
-    // audience while REST still unmasks for an admin — the divergence this
-    // reconciliation exists to close.
     useAppDataStore.setState({
       account: { settings: { mask_contact_pii: true } },
     } as unknown as Parameters<typeof useAppDataStore.setState>[0]);

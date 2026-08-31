@@ -12,14 +12,12 @@ vi.mock('@/services/contacts/contactsService', () => ({
 
 import { useContactUpdatedReconciler } from './useContactUpdatedReconciler';
 
-// REST shape: `contact`, no `meta` (ConversationSerializer).
 const conversation = {
   id: 'conv-1',
   contact: { id: 'contact-1', name: 'João Silva' },
 } as unknown as Conversation;
 
-// What the broadcast carries with the account flag on: masked for every
-// audience, admins included.
+// What the broadcast carries with the flag on: masked for every audience.
 const maskedFrame = {
   id: 'contact-1',
   name: '55******4020',
@@ -51,7 +49,6 @@ function setup(overrides: Partial<Parameters<typeof useContactUpdatedReconciler>
   return { reconcile: result.current, apply, unmount };
 }
 
-// Lets the debounce fire and the getContact promise settle.
 async function flush() {
   await act(async () => {
     vi.advanceTimersByTime(300);
@@ -89,7 +86,6 @@ describe('useContactUpdatedReconciler', () => {
       name: '5531984204020',
       email: 'joao@example.com',
       phone_number: '5531984204020',
-      // `thumbnail` is the key the serializer emits; the store reads avatar_url.
       avatar_url: 'https://cdn/avatar.png',
     });
   });
@@ -141,10 +137,6 @@ describe('useContactUpdatedReconciler', () => {
     act(() => reconcile(maskedFrame));
     await flush();
 
-    // No request: contact.updated is an account-wide broadcast, so most frames
-    // are about contacts this client never loaded. The dispatch still goes
-    // through — the reducer ignores what it cannot match, and a store snapshot
-    // one render behind must not swallow a real update.
     expect(getContact).not.toHaveBeenCalled();
     expect(apply).toHaveBeenCalledWith(maskedFrame);
   });
@@ -179,6 +171,32 @@ describe('useContactUpdatedReconciler', () => {
     await flush();
 
     expect(apply).toHaveBeenCalledWith(maskedFrame);
+  });
+
+  it('falls back to the newest frame, not the one the failed request carried', async () => {
+    let rejectFirst: (reason: Error) => void = () => {};
+    getContact
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectFirst = reject; }))
+      .mockResolvedValue(rawRestContact);
+    const { reconcile, apply } = setup();
+
+    act(() => reconcile(maskedFrame));
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(getContact).toHaveBeenCalledTimes(1);
+
+    const newerFrame = { ...maskedFrame, name: '55******9999' } as Contact;
+    act(() => reconcile(newerFrame));
+
+    await act(async () => {
+      rejectFirst(new Error('network down'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(apply).toHaveBeenCalledWith(newerFrame);
+    expect(apply).not.toHaveBeenCalledWith(maskedFrame);
   });
 
   it('does not touch the store after unmount', async () => {

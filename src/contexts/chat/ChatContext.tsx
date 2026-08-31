@@ -577,9 +577,6 @@ function useChatIntegration() {
         conversations.updateConversationLastActivity(conversationId, lastActivityAt);
       },
 
-      // Not applied straight to the store: with PII masking on, the broadcast is
-      // masked for everyone while REST unmasks per request, so the frame has to
-      // be reconciled before it lands. See useContactUpdatedReconciler.
       onContactUpdated: reconcileContactUpdated,
     });
   }, [
