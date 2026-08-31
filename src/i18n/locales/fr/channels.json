@@ -1704,7 +1704,8 @@
       "unmonitored": "Non surveillé",
       "checking": "Vérification..."
     },
-    "needsAttention": "{{count}} connexion(s) nécessitant une attention",
+    "needsAttention_one": "{{count}} connexion nécessitant une attention",
+    "needsAttention_other": "{{count}} connexions nécessitant une attention",
     "liveCheckFailed": "La vérification en direct a échoué — affichage du dernier état connu",
     "moreInboxes": "+{{count}} autres boîtes de réception",
     "providersCount": "{{count}} fournisseurs",
