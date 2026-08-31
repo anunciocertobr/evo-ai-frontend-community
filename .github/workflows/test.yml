@@ -100,7 +100,15 @@ jobs:
       #     stays ON TOP of the resource grant per verb, and a CREATE keeps
       #     carrying its scope. Both are gates the server also enforces, so a
       #     revert here only shows up as a 403 in the user's face.
-      # The whole list runs in ~35s and is deterministic.
+      #   - contact.updated reconciliation (CRM-447): with masking on, the
+      #     account-wide broadcast is masked for every audience while REST
+      #     unmasks per request, so the frame is reconciled against REST before
+      #     it reaches the store. Guards the gates that keep that affordable,
+      #     plus the socket-to-reducer hop no unit spec reaches.
+      #   - ConversationsContext reducer (CRM-445): the contact patch keeps
+      #     reading an empty field as "keep the current value" and keeps matching
+      #     REST-loaded conversations, which carry `contact` and no `meta.sender`.
+      # The whole list runs in ~40s and is deterministic.
       #
       # Running the whole suite here was tried and reverted: 160 jsdom files in
       # forked workers take ~30min on the runner and flake on worker OOM (the
@@ -155,7 +163,10 @@ jobs:
             src/services/contacts/contactsService.createContact.spec.ts \
             src/services/contacts/labelsService.spec.ts \
             src/pages/Customer/Settings/AiCredentials/AiCredentials.spec.tsx \
-            src/pages/Customer/Settings/IntegrationCredentials/IntegrationCredentials.spec.tsx
+            src/pages/Customer/Settings/IntegrationCredentials/IntegrationCredentials.spec.tsx \
+            src/hooks/chat/useContactUpdatedReconciler.spec.tsx \
+            src/contexts/chat/ChatContext.contactUpdated.spec.tsx \
+            src/contexts/chat/ConversationsContext.spec.tsx
 
   # Lint gate scoped to the files the PR touched.
   eslint:
