@@ -1,4 +1,4 @@
-import type { PaginatedResponse, StandardResponse, PaginationMeta } from '@/types/core';
+import type { PaginatedResponse, PaginationMeta } from '@/types/core';
 
 export type ProductKind = 'physical' | 'digital';
 export type ProductStatus = 'active' | 'inactive' | 'draft';
@@ -181,8 +181,6 @@ export interface ProductImportFetchResponse {
 }
 
 export interface ProductsResponse extends PaginatedResponse<Product> {}
-export interface ProductResponse extends StandardResponse<Product> {}
-export interface ProductDeleteResponse extends StandardResponse<{ id: string }> {}
 
 export interface PipelineItemProductLink {
   id: string;

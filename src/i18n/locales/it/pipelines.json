@@ -363,22 +363,44 @@
     "selectAgent": "Seleziona agente...",
     "selectPipeline": "Seleziona pipeline...",
     "selectLabel": "Seleziona etichetta...",
+    "selectAgentBot": "Seleziona agente di IA...",
+    "selectTemplate": "Seleziona modello...",
     "noOtherStages": "Nessun'altra fase disponibile",
     "noOtherPipelines": "Nessun'altra pipeline disponibile",
     "noStagesInPipeline": "Nessuna fase nella pipeline selezionata",
     "noAgents": "Nessun agente disponibile",
+    "noAgentBots": "Nessun agente di IA disponibile",
+    "noTemplates": "Nessun modello disponibile",
     "anyLabel": "Qualsiasi etichetta",
     "noLabels": "Nessuna etichetta disponibile",
+    "aiMessagePlaceholder": "Cosa deve dire l'agente? (facoltativo)",
+    "directMessagePlaceholder": "Messaggio da inviare...",
+    "finalizeMessagePlaceholder": "Messaggio di chiusura (facoltativo)...",
     "triggers": {
       "label_added": "Etichetta aggiunta",
       "conversation_status_changed": "Stato conversazione modificato",
-      "custom_attribute_updated": "Attributo personalizzato aggiornato"
+      "custom_attribute_updated": "Attributo personalizzato aggiornato",
+      "inactivity": "Per inattività"
     },
     "actions": {
       "move_to_stage": "Sposta alla fase",
       "move_to_pipeline": "Sposta in un'altra pipeline",
       "assign_agent": "Assegna agente",
-      "apply_label": "Applica etichetta"
+      "apply_label": "Applica etichetta",
+      "send_ai_message": "Messaggio tramite agente di IA",
+      "send_direct_message": "Messaggio diretto",
+      "send_template": "Invia modello",
+      "finalize": "Termina conversazione"
+    },
+    "inactivity": {
+      "minutes": "minuti",
+      "hour": "ora",
+      "hours": "ore",
+      "days": "giorni",
+      "base": {
+        "no_customer_reply": "Cliente senza risposta",
+        "stage_stagnation": "Fermo nella fase"
+      }
     }
   },
   "editStage": {

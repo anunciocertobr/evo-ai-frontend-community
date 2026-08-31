@@ -1741,6 +1741,7 @@
       "active": "Active",
       "attention": "Needs attention",
       "error": "Error",
+      "unmonitored": "Not monitored",
       "available": "Available"
     },
     "summary": {
@@ -1769,6 +1770,7 @@
     "actions": {
       "add": "Add",
       "manage": "Manage",
+      "manageAria": "Manage connections: {{count}} · {{status}}",
       "howToConfigure": "How to set up",
       "connect": "Connect",
       "addConnection": "Add connection",

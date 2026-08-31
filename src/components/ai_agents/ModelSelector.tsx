@@ -21,6 +21,11 @@ import { agentsService } from '@/services/agents/agentService';
 const CUSTOM_MODEL_OPTION = '__custom_model__';
 const CUSTOM_OPENAI_PROVIDER = 'custom_openai_compatible';
 
+// Fallback list, used only when the provider has no live listing endpoint (Vertex,
+// Bedrock, Perplexity) or before a key is chosen. A pinned list rots: every entry
+// removed below was a model Google had already retired, and the picker kept offering
+// them until the agent failed on its first turn. Prefer rolling aliases over dated
+// snapshots, and keep the live list (dynamicModels) as the source of truth.
 export const availableModels = [
   { value: 'openai/gpt-4.1', label: 'GPT-4.1', provider: 'openai' },
   { value: 'openai/gpt-4.1-nano', label: 'GPT-4.1 Nano', provider: 'openai' },
@@ -32,15 +37,12 @@ export const availableModels = [
   { value: 'openai/gpt-4-32k', label: 'GPT-4 32K', provider: 'openai' },
   { value: 'openai/gpt-3.5-turbo', label: 'GPT-3.5 Turbo', provider: 'openai' },
   { value: 'openai/gpt-3.5-turbo-16k', label: 'GPT-3.5 Turbo 16K', provider: 'openai' },
-  { value: 'gemini/gemini-2.5-pro-preview-05-06', label: 'Gemini 2.5 Pro (Preview)', provider: 'gemini' },
-  { value: 'gemini/gemini-2.5-flash-preview-04-17', label: 'Gemini 2.5 Flash (Preview)', provider: 'gemini' },
-  { value: 'gemini/gemini-2.0-flash', label: 'Gemini 2.0 Flash', provider: 'gemini' },
-  { value: 'gemini/gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash-Lite', provider: 'gemini' },
-  { value: 'gemini/gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash Exp', provider: 'gemini' },
-  { value: 'gemini/gemini-2.0-flash-live-001', label: 'Gemini 2.0 Flash Live', provider: 'gemini' },
-  { value: 'gemini/gemini-1.5-pro', label: 'Gemini 1.5 Pro', provider: 'gemini' },
-  { value: 'gemini/gemini-1.5-flash', label: 'Gemini 1.5 Flash', provider: 'gemini' },
-  { value: 'gemini/gemini-1.5-flash-8b', label: 'Gemini 1.5 Flash-8B', provider: 'gemini' },
+  { value: 'gemini/gemini-flash-latest', label: 'Gemini Flash (latest)', provider: 'gemini' },
+  { value: 'gemini/gemini-flash-lite-latest', label: 'Gemini Flash-Lite (latest)', provider: 'gemini' },
+  { value: 'gemini/gemini-pro-latest', label: 'Gemini Pro (latest)', provider: 'gemini' },
+  { value: 'gemini/gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'gemini' },
+  { value: 'gemini/gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', provider: 'gemini' },
+  { value: 'gemini/gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'gemini' },
   { value: 'anthropic/claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet', provider: 'anthropic' },
   { value: 'anthropic/claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet v2', provider: 'anthropic' },
   { value: 'anthropic/claude-3-5-sonnet-20240620', label: 'Claude 3.5 Sonnet', provider: 'anthropic' },
@@ -60,7 +62,7 @@ export const availableModels = [
   { value: 'openrouter/openai/gpt-4o-mini', label: 'GPT-4o Mini (OpenRouter)', provider: 'openrouter' },
   { value: 'openrouter/anthropic/claude-3-5-sonnet', label: 'Claude 3.5 Sonnet (OpenRouter)', provider: 'openrouter' },
   { value: 'openrouter/anthropic/claude-3-5-haiku', label: 'Claude 3.5 Haiku (OpenRouter)', provider: 'openrouter' },
-  { value: 'openrouter/google/gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash (OpenRouter)', provider: 'openrouter' },
+  { value: 'openrouter/google/gemini-2.5-flash', label: 'Gemini 2.5 Flash (OpenRouter)', provider: 'openrouter' },
   { value: 'deepseek/deepseek-chat', label: 'DeepSeek Chat', provider: 'deepseek' },
   { value: 'deepseek/deepseek-coder', label: 'DeepSeek Coder', provider: 'deepseek' },
   { value: 'deepseek/deepseek-reasoner', label: 'DeepSeek Reasoner (R1)', provider: 'deepseek' },
@@ -89,7 +91,6 @@ export const availableModels = [
   { value: 'perplexity/r1-1776', label: 'R1-1776', provider: 'perplexity' },
   { value: 'perplexity/openai/gpt-4o', label: 'GPT-4o (via Perplexity)', provider: 'perplexity' },
   { value: 'perplexity/anthropic/claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (via Perplexity)', provider: 'perplexity' },
-  { value: 'perplexity/google/gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash (via Perplexity)', provider: 'perplexity' },
   { value: 'bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5 (Bedrock)', provider: 'bedrock' },
   { value: 'bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0', label: 'Claude 3.5 Sonnet (Bedrock)', provider: 'bedrock' },
   { value: 'bedrock/anthropic.claude-3-haiku-20240307-v1:0', label: 'Claude 3 Haiku (Bedrock)', provider: 'bedrock' },
@@ -99,16 +100,10 @@ export const availableModels = [
   { value: 'bedrock/amazon.titan-text-express-v1', label: 'Titan Text Express (Bedrock)', provider: 'bedrock' },
   { value: 'bedrock/mistral.mistral-7b-instruct-v0:2', label: 'Mistral 7B (Bedrock)', provider: 'bedrock' },
   { value: 'bedrock/amazon.nova-micro-v1:0', label: 'Amazon Nova Micro (Bedrock)', provider: 'bedrock' },
+  // Vertex needs the vendor SDK to list models, so this stays the only source for it.
   { value: 'vertex_ai/gemini-2.5-pro', label: 'Gemini 2.5 Pro (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/gemini-2.5-flash-preview-09-2025', label: 'Gemini 2.5 Flash Preview (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/gemini-2.5-flash-lite-preview-09-2025', label: 'Gemini 2.5 Flash Lite (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/gemini-2.5-pro-vision', label: 'Gemini 2.5 Pro Vision (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/gemini-1.5-pro', label: 'Gemini 1.5 Pro (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/gemini-1.5-flash', label: 'Gemini 1.5 Flash (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/text-bison', label: 'Text Bison (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/chat-bison-32k', label: 'Chat Bison 32K (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/codechat-bison', label: 'CodeChat Bison (Vertex)', provider: 'vertex_ai' },
-  { value: 'vertex_ai/code-bison', label: 'Code Bison (Vertex)', provider: 'vertex_ai' },
+  { value: 'vertex_ai/gemini-2.5-flash', label: 'Gemini 2.5 Flash (Vertex)', provider: 'vertex_ai' },
+  { value: 'vertex_ai/gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite (Vertex)', provider: 'vertex_ai' },
 ];
 
 export interface ModelSelectorProps {
@@ -151,9 +146,11 @@ const ModelSelector = ({
 
   const customProviderSelected = selectedApiKey?.provider === CUSTOM_OPENAI_PROVIDER;
 
-  // Dynamic model list fetched from the provider via the backend. Populated
-  // when the user picks an API key for a provider the backend supports. Falls
-  // back to the hardcoded `availableModels` below if this is null or empty.
+  // Live model list fetched from the provider via the backend, or null when the
+  // provider has no listing endpoint and the pinned `availableModels` has to do.
+  // An EMPTY array is a real answer, not a missing one: the provider listed and
+  // offered nothing current, and serving the pinned list there would put the
+  // retired models back on screen — the failure this list was pruned to prevent.
   const [dynamicModels, setDynamicModels] = useState<ApiKeyModelInfo[] | null>(null);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
 
@@ -169,7 +166,7 @@ const ModelSelector = ({
       .listApiKeyModels(apiKeyId)
       .then(res => {
         if (cancelled) return;
-        setDynamicModels(res.supported && res.models.length > 0 ? res.models : null);
+        setDynamicModels(res.supported ? res.models : null);
       })
       .catch(() => {
         if (cancelled) return;
@@ -189,7 +186,7 @@ const ModelSelector = ({
     if (customProviderSelected) {
       return [];
     }
-    if (dynamicModels && dynamicModels.length > 0) {
+    if (dynamicModels) {
       return dynamicModels;
     }
     if (!selectedApiKey) {
