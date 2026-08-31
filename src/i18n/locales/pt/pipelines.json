@@ -399,13 +399,23 @@
     "triggers": {
       "label_added": "Etiqueta adicionada",
       "conversation_status_changed": "Estado da conversa alterado",
-      "custom_attribute_updated": "Atributo personalizado atualizado"
+      "custom_attribute_updated": "Atributo personalizado atualizado",
+      "inactivity": "Por inatividade"
     },
     "actions": {
       "move_to_stage": "Mover para etapa",
       "move_to_pipeline": "Mover para outro pipeline",
       "assign_agent": "Atribuir agente",
       "apply_label": "Aplicar etiqueta"
+    },
+    "inactivity": {
+      "minutes": "minutos",
+      "hour": "hora",
+      "hours": "horas",
+      "base": {
+        "no_customer_reply": "Cliente sem responder",
+        "stage_stagnation": "Parado na etapa"
+      }
     }
   },
   "editStage": {

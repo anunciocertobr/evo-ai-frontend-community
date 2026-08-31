@@ -73,7 +73,7 @@ const makeEmptyRule = (): StageAutomationRule => ({
 });
 
 const CONVERSATION_STATUSES = ['open', 'resolved', 'pending', 'snoozed'] as const;
-const INACTIVITY_MINUTES = [2, 5, 10, 15, 30, 60, 120, 240, 480, 720, 1440] as const;
+const INACTIVITY_MINUTES = [2, 5, 10, 15, 30, 60, 120, 240, 480, 720, 1440, 2880, 4320] as const;
 const INACTIVITY_BASES: InactivityBase[] = ['no_customer_reply', 'stage_stagnation'];
 
 const ANY_VALUE_SENTINEL = '__any__';
@@ -151,6 +151,12 @@ export default function StageAutomationRules({
 
     if (rule.trigger === 'inactivity') {
       const iv = asInactivityValue(rule.trigger_value);
+      // The API accepts any positive minutes, so a rule written by API/copilot
+      // may carry a value outside the preset list — inject it as an option, or
+      // the Select renders empty and a live rule looks timerless (CRM-467).
+      const minuteOptions = (INACTIVITY_MINUTES as readonly number[]).includes(iv.minutes)
+        ? [...INACTIVITY_MINUTES]
+        : [...INACTIVITY_MINUTES, iv.minutes].sort((a, b) => a - b);
       return (
         <div className="flex-1 grid grid-cols-2 gap-2">
           <Select
@@ -164,7 +170,7 @@ export default function StageAutomationRules({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {INACTIVITY_MINUTES.map(m => (
+              {minuteOptions.map(m => (
                 <SelectItem key={m} value={String(m)}>
                   {formatInactivityLabel(m)}
                 </SelectItem>

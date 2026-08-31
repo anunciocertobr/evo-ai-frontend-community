@@ -372,13 +372,23 @@
     "triggers": {
       "label_added": "Etichetta aggiunta",
       "conversation_status_changed": "Stato conversazione modificato",
-      "custom_attribute_updated": "Attributo personalizzato aggiornato"
+      "custom_attribute_updated": "Attributo personalizzato aggiornato",
+      "inactivity": "Per inattività"
     },
     "actions": {
       "move_to_stage": "Sposta alla fase",
       "move_to_pipeline": "Sposta in un'altra pipeline",
       "assign_agent": "Assegna agente",
       "apply_label": "Applica etichetta"
+    },
+    "inactivity": {
+      "minutes": "minuti",
+      "hour": "ora",
+      "hours": "ore",
+      "base": {
+        "no_customer_reply": "Cliente senza risposta",
+        "stage_stagnation": "Fermo nella fase"
+      }
     }
   },
   "editStage": {
