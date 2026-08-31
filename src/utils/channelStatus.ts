@@ -77,8 +77,12 @@ export function resolveInboxConnectionState(
 /**
  * Hub-level status of a single configured inbox. A configured inbox is never
  * `available` — that only applies to a channel TYPE with no inboxes at all.
- * `unknown` counts as active: it means the type has no health signal
- * (explicit degrade), not that the channel is broken.
+ *
+ * `unknown` splits by `health_source`: with `none` the channel type has no
+ * health signal at all (explicit degrade, still active), but with a real
+ * source it means the backend looked and found nothing confirming the
+ * connection — which must not read as active. A payload without
+ * `health_source` predates EVO-1674 and keeps the old benefit of the doubt.
  */
 export function deriveInboxStatus(
   inbox: Inbox,
@@ -87,6 +91,7 @@ export function deriveInboxStatus(
   const state = resolveInboxConnectionState(inbox, live);
   if (state === 'error' || state === 'disconnected') return 'error';
   if (state === 'pending') return 'attention';
+  if (state === 'unknown' && inbox.health_source && inbox.health_source !== 'none') return 'attention';
   return 'active';
 }
 
