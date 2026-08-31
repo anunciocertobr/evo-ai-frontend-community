@@ -46,9 +46,6 @@ export default function ContactDetailPage({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {contact && (
-            // Action CTAs follow the whitelabel primary (CRM-451) — the earlier
-            // WhatsApp-green exception read as an Evolution brand leak on custom-themed
-            // hosts. Semantic greens (status/success) elsewhere stay green.
             <Button
               size="sm"
               onClick={() => onStartConversation(contact)}

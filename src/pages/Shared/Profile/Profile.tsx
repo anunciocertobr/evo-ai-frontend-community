@@ -876,7 +876,7 @@ const Profile = () => {
               className={`px-0 reset-base w-full sm:flex-1 rounded-xl outline ${
                 uiSettings.editor_message_key === 'enter'
                   ? 'outline-primary/30'
-                  : 'outline-gray-300'
+                  : 'outline-border'
               }`}
               onClick={() => handleHotKeyChange('enter')}
             >
@@ -887,7 +887,7 @@ const Profile = () => {
                     className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                       uiSettings.editor_message_key === 'enter'
                         ? 'border-primary bg-primary'
-                        : 'border-gray-300'
+                        : 'border-input'
                     }`}
                   >
                     {uiSettings.editor_message_key === 'enter' && (
@@ -909,7 +909,7 @@ const Profile = () => {
               className={`px-0 reset-base w-full sm:flex-1 rounded-xl outline ${
                 uiSettings.editor_message_key === 'cmd_enter'
                   ? 'outline-primary/30'
-                  : 'outline-gray-300'
+                  : 'outline-border'
               }`}
               onClick={() => handleHotKeyChange('cmd_enter')}
             >
@@ -922,7 +922,7 @@ const Profile = () => {
                     className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                       uiSettings.editor_message_key === 'cmd_enter'
                         ? 'border-primary bg-primary'
-                        : 'border-gray-300'
+                        : 'border-input'
                     }`}
                   >
                     {uiSettings.editor_message_key === 'cmd_enter' && (
