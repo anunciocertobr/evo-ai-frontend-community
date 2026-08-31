@@ -2,10 +2,10 @@ import api from '@/services/core/api';
 import { extractData } from '@/utils/apiHelpers';
 
 /**
- * Superfície de config do webhook de compra (CRM-493): quais plataformas de
- * pagamento estão registradas/configuradas e a URL assinada que o operador
- * registra numa delas. Consome /api/v1/purchase_webhooks (o ingress de entrega
- * em si é outro caminho, não-autenticado).
+ * Config surface of the purchase webhook: which payment platforms are
+ * registered/configured, and the signed URL the operator registers at one.
+ * Hits /api/v1/purchase_webhooks — the delivery ingress is a separate,
+ * unauthenticated path.
  */
 export interface PurchaseWebhookProvider {
   provider: string;

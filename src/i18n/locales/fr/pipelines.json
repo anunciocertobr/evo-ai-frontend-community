@@ -854,6 +854,7 @@
     "copy": "Copier",
     "copiedShort": "Copié",
     "copied": "URL copiée",
+    "copyError": "Copie impossible — copiez l'URL à la main",
     "regenerateHint": "Collez-la dans le panneau de la plateforme comme destination du webhook d'achat approuvé. Si vous changez l'identifiant ou le secret de destination, générez et enregistrez à nouveau.",
     "loadError": "Échec du chargement des plateformes",
     "mintError": "Échec de la génération de l'URL"

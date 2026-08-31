@@ -1638,8 +1638,8 @@ export default function PipelineKanban() {
         allPipelines={allPipelines}
       />
 
-      {/* Purchase webhook URL (CRM-493): a compra aprovada numa plataforma de
-          pagamento vira lead NESTE pipeline — a URL assinada nasce aqui. */}
+      {/* An approved purchase on a payment platform becomes a lead in THIS
+          pipeline — the signed URL for it is minted here. */}
       <PipelinePurchaseWebhookModal
         open={showPurchaseWebhookModal}
         onOpenChange={setShowPurchaseWebhookModal}

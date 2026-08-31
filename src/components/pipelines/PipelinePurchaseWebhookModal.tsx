@@ -52,6 +52,14 @@ export default function PipelinePurchaseWebhookModal({
 
   const providerLabel = (slug: string) => slug.charAt(0).toUpperCase() + slug.slice(1);
 
+  // The URL is signed over provider+pipeline+product; the moment any of them
+  // moves, what is on screen belongs to a different destination. Drop it, or
+  // the operator copies a URL the ingress will 401 with no visible reason.
+  const clearResult = () => {
+    setResult(null);
+    setCopied(false);
+  };
+
   const loadProviders = useCallback(async () => {
     try {
       const data = await purchaseWebhooksService.providers();
@@ -66,8 +74,7 @@ export default function PipelinePurchaseWebhookModal({
 
   useEffect(() => {
     if (!open) return;
-    setResult(null);
-    setCopied(false);
+    clearResult();
     void loadProviders();
   }, [open, loadProviders]);
 
@@ -87,8 +94,12 @@ export default function PipelinePurchaseWebhookModal({
           product: product.trim() || undefined,
         }),
       );
-    } catch {
-      toast.error(t('purchaseWebhook.mintError'));
+    } catch (error: unknown) {
+      // Distinct reasons per refusal (no stages, no credential, destination
+      // secret missing) — the generic fallback leaves the operator stuck.
+      const msg = (error as { response?: { data?: { error?: { message?: string } } } })?.response
+        ?.data?.error?.message;
+      toast.error(msg || t('purchaseWebhook.mintError'));
     } finally {
       setGenerating(false);
     }
@@ -102,7 +113,8 @@ export default function PipelinePurchaseWebhookModal({
       toast.success(t('purchaseWebhook.copied'));
       window.setTimeout(() => setCopied(false), 1500);
     } catch {
-      /* clipboard blocked — the operator copies by hand */
+      // Blocked clipboard (non-secure origin) silently did nothing; say so.
+      toast.error(t('purchaseWebhook.copyError'));
     }
   };
 
@@ -119,7 +131,14 @@ export default function PipelinePurchaseWebhookModal({
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label>{t('purchaseWebhook.platform')}</Label>
-            <Select value={provider} onValueChange={setProvider} disabled={payload === null}>
+            <Select
+              value={provider}
+              onValueChange={(value) => {
+                setProvider(value);
+                clearResult();
+              }}
+              disabled={payload === null}
+            >
               <SelectTrigger>
                 <SelectValue
                   placeholder={
@@ -148,7 +167,10 @@ export default function PipelinePurchaseWebhookModal({
             <Label>{t('purchaseWebhook.product')}</Label>
             <Input
               value={product}
-              onChange={(e) => setProduct(e.target.value)}
+              onChange={(e) => {
+                setProduct(e.target.value);
+                clearResult();
+              }}
               placeholder={t('purchaseWebhook.productPlaceholder')}
             />
           </div>

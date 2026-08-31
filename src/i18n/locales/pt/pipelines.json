@@ -881,6 +881,7 @@
     "copy": "Copiar",
     "copiedShort": "Copiado",
     "copied": "URL copiada",
+    "copyError": "Falha ao copiar — copie a URL manualmente",
     "regenerateHint": "Cole no painel da plataforma como destino do webhook de compra aprovada. Ao trocar a credencial ou o segredo de destino, gere e registre de novo.",
     "loadError": "Falha ao carregar as plataformas",
     "mintError": "Falha ao gerar a URL"

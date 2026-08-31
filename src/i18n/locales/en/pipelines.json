@@ -895,6 +895,7 @@
     "copy": "Copy",
     "copiedShort": "Copied",
     "copied": "URL copied",
+    "copyError": "Could not copy — copy the URL by hand",
     "regenerateHint": "Paste it in the platform's panel as the approved-purchase webhook destination. If you change the credential or the destination secret, generate and register it again.",
     "loadError": "Failed to load the platforms",
     "mintError": "Failed to generate the URL"
