@@ -847,7 +847,7 @@
     "credentialsHint": "Les identifiants des plateformes se trouvent dans l'écran Intégrations du CRM.",
     "destinationRequired": "L'identifiant de cette plateforme est public — configurez d'abord le « Secret de destination de l'URL » dans les Intégrations du CRM.",
     "product": "Produit (optionnel)",
-    "productPlaceholder": "Uniquement les achats de ce produit ; vide = tous",
+    "productPlaceholder": "Étiquette les leads de cette URL avec ce produit ; vide = celui de la plateforme",
     "generate": "Générer l'URL",
     "urlWhitelabel": "URL sur le domaine de votre marque",
     "urlGlobal": "URL du webhook",

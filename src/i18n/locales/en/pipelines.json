@@ -888,7 +888,7 @@
     "credentialsHint": "Platform credentials live on the CRM Integrations screen.",
     "destinationRequired": "This platform's credential is public — configure the \"URL destination secret\" on the CRM Integrations screen first.",
     "product": "Product (optional)",
-    "productPlaceholder": "Only purchases of this product; empty = all",
+    "productPlaceholder": "Labels this URL's leads with this product; empty = the platform's own",
     "generate": "Generate URL",
     "urlWhitelabel": "URL on your brand's domain",
     "urlGlobal": "Webhook URL",

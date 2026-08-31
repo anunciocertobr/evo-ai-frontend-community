@@ -846,7 +846,7 @@
     "credentialsHint": "Las credenciales de las plataformas están en la pantalla de Integraciones del CRM.",
     "destinationRequired": "La credencial de esta plataforma es pública — configura el \"Secreto de destino de la URL\" en Integraciones del CRM antes de generar.",
     "product": "Producto (opcional)",
-    "productPlaceholder": "Solo compras de este producto; vacío = todas",
+    "productPlaceholder": "Etiqueta los leads de esta URL con este producto; vacío = el de la plataforma",
     "generate": "Generar URL",
     "urlWhitelabel": "URL en el dominio de tu marca",
     "urlGlobal": "URL del webhook",
