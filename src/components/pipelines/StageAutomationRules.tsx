@@ -73,8 +73,12 @@ const makeEmptyRule = (): StageAutomationRule => ({
 });
 
 const CONVERSATION_STATUSES = ['open', 'resolved', 'pending', 'snoozed'] as const;
-const INACTIVITY_MINUTES = [2, 5, 10, 15, 30, 60, 120, 240, 480, 720, 1440] as const;
+const INACTIVITY_MINUTES = [2, 5, 10, 15, 30, 60, 120, 240, 480, 720, 1440, 2880, 4320] as const;
+const DEFAULT_INACTIVITY_MINUTES = 5;
 const INACTIVITY_BASES: InactivityBase[] = ['no_customer_reply', 'stage_stagnation'];
+const MINUTES_PER_DAY = 1440;
+// Past a week "10080 minutes" / "168 hours" stops reading as a duration.
+const DAY_LABEL_FROM_MINUTES = 7 * MINUTES_PER_DAY;
 
 const ANY_VALUE_SENTINEL = '__any__';
 const PLACEHOLDER_SENTINEL = '__placeholder__';
@@ -82,9 +86,23 @@ const PLACEHOLDER_SENTINEL = '__placeholder__';
 // trigger_value is an object for the inactivity trigger, a string otherwise.
 function asInactivityValue(value: StageAutomationRule['trigger_value']): InactivityTriggerValue {
   if (value && typeof value === 'object') {
-    return { minutes: value.minutes ?? INACTIVITY_MINUTES[1], base: value.base ?? 'no_customer_reply' };
+    return { minutes: value.minutes ?? DEFAULT_INACTIVITY_MINUTES, base: value.base ?? 'no_customer_reply' };
   }
-  return { minutes: INACTIVITY_MINUTES[1], base: 'no_customer_reply' };
+  return { minutes: DEFAULT_INACTIVITY_MINUTES, base: 'no_customer_reply' };
+}
+
+const isPresetMinutes = (m: number) => (INACTIVITY_MINUTES as readonly number[]).includes(m);
+
+// The API accepts any positive minutes, so a rule written by API/copilot may
+// carry a duration the preset list does not have (CRM-467).
+function outOfListMinutes(rules: StageAutomationRule[]): number[] {
+  const found: number[] = [];
+  for (const rule of rules) {
+    if (rule.trigger !== 'inactivity') continue;
+    const { minutes } = asInactivityValue(rule.trigger_value);
+    if (!isPresetMinutes(minutes) && !found.includes(minutes)) found.push(minutes);
+  }
+  return found;
 }
 
 // Narrow the union to the string form for the non-inactivity triggers (label /
@@ -115,6 +133,18 @@ export default function StageAutomationRules({
   const [keys, setKeys] = useState<string[]>(() => rules.map(() => generateKey()));
   const prevLengthRef = useRef(rules.length);
 
+  // Held in state instead of derived from the rule being rendered: otherwise
+  // picking any preset drops the API-written duration from the list for good.
+  const [extraMinutes, setExtraMinutes] = useState<number[]>(() => outOfListMinutes(rules));
+
+  useEffect(() => {
+    const found = outOfListMinutes(rules);
+    setExtraMinutes(prev => {
+      const added = found.filter(m => !prev.includes(m));
+      return added.length === 0 ? prev : [...prev, ...added];
+    });
+  }, [rules]);
+
   useEffect(() => {
     if (rules.length !== prevLengthRef.current) {
       if (rules.length > prevLengthRef.current) {
@@ -137,8 +167,11 @@ export default function StageAutomationRules({
   const otherStages = stages.filter(s => s.id !== currentStageId);
 
   // Format the inactivity delay label: minutes below 60, hours when a whole
-  // multiple of 60 (the stored value stays in minutes, only the label changes).
+  // multiple of 60, days from a week up (the stored value stays in minutes).
   const formatInactivityLabel = (m: number): string => {
+    if (m >= DAY_LABEL_FROM_MINUTES && m % MINUTES_PER_DAY === 0) {
+      return `${m / MINUTES_PER_DAY} ${t('stageAutomation.inactivity.days')}`;
+    }
     if (m < 60 || m % 60 !== 0) {
       return `${m} ${t('stageAutomation.inactivity.minutes')}`;
     }
@@ -151,6 +184,12 @@ export default function StageAutomationRules({
 
     if (rule.trigger === 'inactivity') {
       const iv = asInactivityValue(rule.trigger_value);
+      // Presets plus every out-of-list duration this form has seen (iv.minutes
+      // covers the render before the effect stores a freshly loaded one), or
+      // the Select renders empty and a live rule looks timerless (CRM-467).
+      const minuteOptions = [...new Set([...INACTIVITY_MINUTES, ...extraMinutes, iv.minutes])].sort(
+        (a, b) => a - b,
+      );
       return (
         <div className="flex-1 grid grid-cols-2 gap-2">
           <Select
@@ -164,7 +203,7 @@ export default function StageAutomationRules({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {INACTIVITY_MINUTES.map(m => (
+              {minuteOptions.map(m => (
                 <SelectItem key={m} value={String(m)}>
                   {formatInactivityLabel(m)}
                 </SelectItem>
@@ -551,7 +590,7 @@ export default function StageAutomationRules({
                       trigger,
                       trigger_value:
                         trigger === 'inactivity'
-                          ? { minutes: INACTIVITY_MINUTES[1], base: 'no_customer_reply' }
+                          ? { minutes: DEFAULT_INACTIVITY_MINUTES, base: 'no_customer_reply' }
                           : '',
                     });
                   }}
