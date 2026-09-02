@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import ModelSelector from '@/components/ai_agents/ModelSelector';
 import type { ApiKey } from '@/types/agents';
 
@@ -66,6 +67,19 @@ describe('a value the list no longer offers', () => {
 
     await waitFor(() => expect(listApiKeyModels).toHaveBeenCalledWith(openAiKey.id));
     await waitFor(() => expect(screen.getByDisplayValue(RETIRED)).toBeInTheDocument());
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('still holds it after the picker is opened on top of it', async () => {
+    const onChange = vi.fn();
+    render(<ModelSelector value={RETIRED} onChange={onChange} apiKeys={[]} />);
+
+    await userEvent.click(screen.getByRole('combobox'));
+
+    // The list rendering is what proves the popover actually opened — without it the
+    // assertions below would pass on a picker that never came up.
+    expect(await screen.findByText('Custom Model')).toBeInTheDocument();
+    expect(screen.getByDisplayValue(RETIRED)).toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
   });
 

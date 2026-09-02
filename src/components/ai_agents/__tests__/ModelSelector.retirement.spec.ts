@@ -30,9 +30,21 @@ const RETIRES_ON: Record<string, string> = {
   'vertex_ai/gemini-2.5-pro': '2026-10-16',
 };
 
-// Compared as calendar days in UTC: a date is reached the moment any timezone is on it,
-// and a guard that fires a few hours early costs nothing next to one that fires late.
-const today = () => new Date().toISOString().slice(0, 10);
+// A date is reached the moment ANY timezone is on it, which UTC is the last to be — up to
+// 14 hours behind Kiribati. Reading the calendar at UTC+14 makes the guard early rather
+// than late, and early costs at most a few hours of a model that still answers.
+const EARLIEST_TZ_OFFSET_MS = 14 * 60 * 60 * 1000;
+
+const today = () => new Date(Date.now() + EARLIEST_TZ_OFFSET_MS).toISOString().slice(0, 10);
+
+// The regex alone accepts 2026-02-31 and 2026-13-01. A month past 12 sorts ABOVE every
+// real date, so the compare above would never fire for that row. Round-tripping through
+// Date rejects the typo instead of leaving it to disarm its own guard.
+const isCalendarDate = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+};
 
 describe('announced retirements', () => {
   it('offers no id whose end-of-service date has arrived', () => {
@@ -50,10 +62,10 @@ describe('announced retirements', () => {
     expect(orphaned).toEqual([]);
   });
 
-  it('reads every date in the shape it compares', () => {
+  it('reads every date as a calendar date, not just as a digit pattern', () => {
     const malformed = Object.entries(RETIRES_ON)
-      .filter(([, date]) => !/^\d{4}-\d{2}-\d{2}$/.test(date))
-      .map(([value]) => value);
+      .filter(([, date]) => !isCalendarDate(date))
+      .map(([value, date]) => `${value} (${date})`);
     expect(malformed).toEqual([]);
   });
 });
