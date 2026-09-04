@@ -134,3 +134,25 @@ export interface IfoodMerchantDetails {
 export interface IfoodAnalytics {
   [key: string]: unknown;
 }
+
+export type IfoodDayOfWeek =
+  | 'MONDAY'
+  | 'TUESDAY'
+  | 'WEDNESDAY'
+  | 'THURSDAY'
+  | 'FRIDAY'
+  | 'SATURDAY'
+  | 'SUNDAY';
+
+export interface IfoodShift {
+  id?: string;
+  dayOfWeek: IfoodDayOfWeek;
+  start: string;
+  duration: number;
+  enabled?: boolean;
+}
+
+export interface IfoodOpeningHours {
+  storeId?: string;
+  shifts: IfoodShift[];
+}
