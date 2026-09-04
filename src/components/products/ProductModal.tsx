@@ -548,6 +548,7 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
             ml_listing_type: product.ml_listing_type ?? 'gold_pro',
             ml_condition: product.ml_condition ?? 'new',
             model: product.model ?? '',
+            brand: product.brand ?? '',
             compatible_brands: product.compatible_brands ?? '',
             accessory_type: product.accessory_type ?? '',
             anatel_number: product.anatel_number ?? '',

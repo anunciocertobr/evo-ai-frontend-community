@@ -1,4 +1,4 @@
-import type { PaginatedResponse, PaginationMeta } from '@/types/core';
+import type { PaginatedResponse, PaginationMeta, StandardResponse } from '@/types/core';
 
 export type ProductKind = 'physical' | 'digital';
 export type ProductItemType = 'produto' | 'produto_ml' | 'servico' | 'insumo' | 'equipamento';
