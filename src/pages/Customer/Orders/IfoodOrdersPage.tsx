@@ -16,6 +16,8 @@ import {
   DoorOpen,
   BarChart3,
   Clock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -108,11 +110,14 @@ function minutesToHHMM(totalMinutes: number): string {
 
 // Shift local pra edição: start/end em HH:MM (o back/iFood usam
 // start + duration em minutos — ver Ifood::Client#update_opening_hours).
+// `enabled: false` fica só no nosso lado (não vai pro iFood) — ver
+// Ifood::OpeningHoursDraft.
 interface EditableShift {
   key: string;
   dayOfWeek: IfoodDayOfWeek;
   start: string;
   end: string;
+  enabled: boolean;
 }
 
 interface ProductFormState {
@@ -193,9 +198,6 @@ export default function IfoodOrdersPage() {
   const [confirmDeleteItem, setConfirmDeleteItem] = useState<IfoodMenuItem | null>(null);
   const [openingShifts, setOpeningShifts] = useState<EditableShift[]>([]);
   const [savingHours, setSavingHours] = useState(false);
-  const [newShiftDay, setNewShiftDay] = useState<IfoodDayOfWeek>('SATURDAY');
-  const [newShiftStart, setNewShiftStart] = useState('10:00');
-  const [newShiftEnd, setNewShiftEnd] = useState('19:00');
 
   const loadStatus = useCallback(async () => {
     try {
@@ -297,11 +299,12 @@ export default function IfoodOrdersPage() {
     try {
       const data = await ifoodService.getOpeningHours();
       setOpeningShifts(
-        (data.shifts || []).map((s) => ({
-          key: s.id || `${s.dayOfWeek}-${s.start}`,
+        (data.shifts || []).map((s, i) => ({
+          key: s.id || `${s.dayOfWeek}-${s.start}-${i}`,
           dayOfWeek: s.dayOfWeek,
           start: s.start.slice(0, 5),
           end: minutesToHHMM(hhmmToMinutes(s.start.slice(0, 5)) + s.duration),
+          enabled: s.enabled ?? true,
         })),
       );
     } catch {
@@ -445,16 +448,10 @@ export default function IfoodOrdersPage() {
     }
   };
 
-  const handleAddShift = () => {
-    const startMin = hhmmToMinutes(newShiftStart);
-    const endMin = hhmmToMinutes(newShiftEnd);
-    if (endMin <= startMin) {
-      toast.error('O horário final precisa ser depois do inicial');
-      return;
-    }
+  const handleAddShiftForDay = (day: IfoodDayOfWeek) => {
     setOpeningShifts((prev) => [
       ...prev,
-      { key: `new-${Date.now()}`, dayOfWeek: newShiftDay, start: newShiftStart, end: newShiftEnd },
+      { key: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, dayOfWeek: day, start: '08:00', end: '18:00', enabled: true },
     ]);
   };
 
@@ -462,12 +459,38 @@ export default function IfoodOrdersPage() {
     setOpeningShifts((prev) => prev.filter((s) => s.key !== key));
   };
 
+  const handleShiftTimeChange = (key: string, field: 'start' | 'end', value: string) => {
+    setOpeningShifts((prev) => prev.map((s) => (s.key === key ? { ...s, [field]: value } : s)));
+  };
+
+  // Ícone ao lado de cada bloco: desativa sem apagar (o horário fica
+  // guardado — ver handleSaveOpeningHours e Ifood::OpeningHoursDraft).
+  const handleToggleShiftEnabled = (key: string) => {
+    setOpeningShifts((prev) => prev.map((s) => (s.key === key ? { ...s, enabled: !s.enabled } : s)));
+  };
+
+  // Ícone ao lado do nome do dia: fecha/reabre todos os blocos daquele dia
+  // de uma vez.
+  const handleToggleDayEnabled = (day: IfoodDayOfWeek) => {
+    setOpeningShifts((prev) => {
+      const dayShifts = prev.filter((s) => s.dayOfWeek === day);
+      if (dayShifts.length === 0) return prev;
+      const nextEnabled = !dayShifts.some((s) => s.enabled);
+      return prev.map((s) => (s.dayOfWeek === day ? { ...s, enabled: nextEnabled } : s));
+    });
+  };
+
   const handleSaveOpeningHours = async () => {
-    // A API do iFood recusa `shifts: []` ("Shifts is not nullable") — não dá
-    // pra fechar a loja todos os dias apagando todos os blocos por aqui.
-    if (openingShifts.length === 0) {
-      toast.error('Adicione pelo menos um bloco de horário antes de salvar (o iFood não aceita a semana vazia).');
+    if (!openingShifts.some((s) => s.enabled)) {
+      toast.error('Deixe pelo menos um bloco ativo — o iFood não aceita a semana toda fechada.');
       return;
+    }
+    for (const s of openingShifts) {
+      if (hhmmToMinutes(s.end) <= hhmmToMinutes(s.start)) {
+        const dayLabel = DAYS_OF_WEEK.find((d) => d.value === s.dayOfWeek)?.label;
+        toast.error(`Horário inválido em ${dayLabel}: o fim precisa ser depois do início.`);
+        return;
+      }
     }
     setSavingHours(true);
     try {
@@ -475,12 +498,14 @@ export default function IfoodOrdersPage() {
         dayOfWeek: s.dayOfWeek,
         start: `${s.start}:00`,
         duration: hhmmToMinutes(s.end) - hhmmToMinutes(s.start),
+        enabled: s.enabled,
       }));
       await ifoodService.updateOpeningHours(shifts);
       toast.success('Horário de funcionamento atualizado no iFood');
       loadOpeningHours();
-    } catch {
-      toast.error('Erro ao salvar horário de funcionamento');
+    } catch (error) {
+      const err = error as { response?: { data?: { errors?: string[] } } };
+      toast.error(err.response?.data?.errors?.[0] || 'Erro ao salvar horário de funcionamento');
     } finally {
       setSavingHours(false);
     }
@@ -973,78 +998,106 @@ export default function IfoodOrdersPage() {
                 <Clock className="w-4 h-4" /> Horário de funcionamento
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                {DAYS_OF_WEEK.map(({ value, label }) => {
-                  const dayShifts = openingShifts.filter((s) => s.dayOfWeek === value);
-                  return (
-                    <div key={value} className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="w-20 font-medium text-foreground">{label}</span>
-                      {dayShifts.length === 0 ? (
-                        <span className="text-muted-foreground">Fechado</span>
-                      ) : (
-                        dayShifts.map((s) => (
-                          <Badge key={s.key} variant="outline" className="gap-2">
-                            {s.start} – {s.end}
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveShift(s.key)}
-                              className="hover:text-destructive"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+            <CardContent className="space-y-3">
+              {DAYS_OF_WEEK.map(({ value, label }) => {
+                const dayShifts = openingShifts.filter((s) => s.dayOfWeek === value);
+                const dayOpen = dayShifts.some((s) => s.enabled);
+                return (
+                  <div key={value} className="border border-border rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          disabled={dayShifts.length === 0}
+                          title={dayOpen ? 'Fechar este dia inteiro' : 'Reabrir este dia'}
+                          onClick={() => handleToggleDayEnabled(value)}
+                        >
+                          {dayOpen ? (
+                            <DoorOpen className="w-4 h-4 text-primary" />
+                          ) : (
+                            <DoorClosed className="w-4 h-4 text-muted-foreground" />
+                          )}
+                        </Button>
+                        <span className="font-medium text-foreground">{label}</span>
+                        {dayShifts.length > 0 && !dayOpen && (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            Fechado
                           </Badge>
-                        ))
-                      )}
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title="Adicionar bloco de horário"
+                        onClick={() => handleAddShiftForDay(value)}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
                     </div>
-                  );
-                })}
-              </div>
 
-              <div className="flex flex-wrap items-end gap-2 pt-2 border-t border-border">
-                <div>
-                  <Label className="text-xs">Dia</Label>
-                  <Select value={newShiftDay} onValueChange={(v) => setNewShiftDay(v as IfoodDayOfWeek)}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DAYS_OF_WEEK.map(({ value, label }) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">Início</Label>
-                  <Input
-                    type="time"
-                    value={newShiftStart}
-                    onChange={(e) => setNewShiftStart(e.target.value)}
-                    className="w-28"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Fim</Label>
-                  <Input
-                    type="time"
-                    value={newShiftEnd}
-                    onChange={(e) => setNewShiftEnd(e.target.value)}
-                    className="w-28"
-                  />
-                </div>
-                <Button size="sm" variant="outline" onClick={handleAddShift}>
-                  <Plus className="w-4 h-4 mr-2" /> Adicionar bloco
-                </Button>
-                <Button size="sm" onClick={handleSaveOpeningHours} disabled={savingHours} className="ml-auto">
+                    {dayShifts.length === 0 ? (
+                      <p className="text-sm text-muted-foreground pl-9">Fechado — nenhum bloco cadastrado</p>
+                    ) : (
+                      <div className="space-y-2 pl-9">
+                        {dayShifts.map((s) => (
+                          <div key={s.key} className="flex items-center gap-2">
+                            <Input
+                              type="time"
+                              value={s.start}
+                              disabled={!s.enabled}
+                              onChange={(e) => handleShiftTimeChange(s.key, 'start', e.target.value)}
+                              className="w-28"
+                            />
+                            <span className="text-sm text-muted-foreground">até</span>
+                            <Input
+                              type="time"
+                              value={s.end}
+                              disabled={!s.enabled}
+                              onChange={(e) => handleShiftTimeChange(s.key, 'end', e.target.value)}
+                              className="w-28"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title={s.enabled ? 'Fechar neste intervalo' : 'Reabrir neste intervalo'}
+                              onClick={() => handleToggleShiftEnabled(s.key)}
+                            >
+                              {s.enabled ? (
+                                <Eye className="w-4 h-4" />
+                              ) : (
+                                <EyeOff className="w-4 h-4 text-muted-foreground" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              title="Excluir este bloco"
+                              onClick={() => handleRemoveShift(s.key)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div className="flex items-center justify-between pt-2 border-t border-border">
+                <p className="text-xs text-muted-foreground max-w-md">
+                  O ícone de olho/porta fecha sem apagar o horário — fica guardado aqui, pronto pra reabrir sem
+                  redigitar. A lixeira apaga o bloco de vez.
+                </p>
+                <Button onClick={handleSaveOpeningHours} disabled={savingHours}>
                   {savingHours ? 'Salvando...' : 'Salvar horários'}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Salvar substitui a semana inteira no iFood pelos blocos listados acima.
-              </p>
             </CardContent>
           </Card>
         </div>

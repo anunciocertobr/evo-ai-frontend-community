@@ -248,11 +248,17 @@ class IfoodService {
     return extractData<IfoodOpeningHours>(response);
   }
 
-  // Manda a semana inteira — o backend/iFood sobrescrevem tudo a cada
-  // chamada (ver nota em Ifood::Client#update_opening_hours).
+  // Manda a semana inteira (ativos e desativados) — o backend guarda o
+  // desenho completo e só repassa os ativos pro iFood (ver nota em
+  // Ifood::OpeningHoursDraft).
   async updateOpeningHours(shifts: IfoodShift[]): Promise<IfoodOpeningHours> {
     const response = await api.put(`${this.baseUrl}/opening_hours`, {
-      shifts: shifts.map((s) => ({ day_of_week: s.dayOfWeek, start: s.start, duration: s.duration })),
+      shifts: shifts.map((s) => ({
+        day_of_week: s.dayOfWeek,
+        start: s.start,
+        duration: s.duration,
+        enabled: s.enabled ?? true,
+      })),
     });
     return extractData<IfoodOpeningHours>(response);
   }
