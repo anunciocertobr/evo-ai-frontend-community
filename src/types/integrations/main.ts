@@ -186,6 +186,19 @@ export interface OpenAIFormData {
   enable_audio_transcription?: boolean;
 }
 
+export interface GeminiConfig {
+  api_key: string;
+}
+
+export interface GeminiHook extends IntegrationHook {
+  app_id: 'gemini';
+  settings: GeminiConfig;
+}
+
+export interface GeminiFormData {
+  api_key: string;
+}
+
 // BMS Integration types
 export interface BMSHook extends IntegrationHook {
   app_id: 'bms';

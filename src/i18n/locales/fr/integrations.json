@@ -54,6 +54,10 @@
       "description": "Configurez l'intégration avec OpenAI pour des suggestions intelligentes",
       "globallyConfigured": "OpenAI est déjà configuré globalement par l'administrateur"
     },
+    "gemini": {
+      "name": "Google Gemini",
+      "description": "Configurez l'intégration Google Gemini pour des fonctionnalités d'IA"
+    },
     "shopify": {
       "name": "Shopify",
       "description": "Intégrez avec Shopify pour synchroniser les données des clients et des commandes"
@@ -613,6 +617,33 @@
       "updateError": "Erreur lors de la mise à jour de l'application OAuth",
       "clientIdCopied": "Client ID copié dans le presse-papiers",
       "clientSecretCopied": "Client Secret copié dans le presse-papiers"
+    }
+  },
+  "gemini": {
+    "modal": {
+      "title": "Configurer l'intégration Google Gemini",
+      "updateTitle": "Mettre à jour l'intégration Google Gemini",
+      "description": "Intégrez Google Gemini pour apporter des fonctionnalités d'IA à votre tableau de bord avec les modèles Gemini.",
+      "apiConfig": "Configuration de l'API",
+      "fields": {
+        "apiKey": {
+          "label": "Clé API Gemini",
+          "placeholder": "AIza...",
+          "hint": "Saisissez votre clé API Google Gemini (Google AI Studio) pour configurer l'intégration",
+          "required": "La clé API est requise"
+        }
+      },
+      "security": {
+        "title": "Sécurité :",
+        "description": "Votre clé API sera stockée de manière sécurisée et chiffrée. Ne partagez jamais votre clé API Google Gemini avec des tiers."
+      },
+      "actions": {
+        "help": "Besoin d'aide ?",
+        "cancel": "Annuler",
+        "configure": "Configurer l'intégration",
+        "update": "Mettre à jour l'intégration",
+        "saving": "Enregistrement..."
+      }
     }
   },
   "openai": {

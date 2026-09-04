@@ -48,9 +48,11 @@ const INTEGRATION_CATEGORY_MAP: Record<string, string> = {
   // Productivity
   linear: 'productivity',
   shopify: 'productivity',
+  google_workspace: 'productivity',
 
   // AI & Automation
   openai: 'ai',
+  gemini: 'ai',
   dialogflow: 'ai',
 
   // Custom
@@ -109,7 +111,7 @@ export default function Integrations() {
           // OAuth integrations have specific delete endpoints
           await integrationsService.deleteIntegration(integration.id);
         } else if (
-          ['openai', 'bms', 'leadsquared', 'google_translate', 'dialogflow'].includes(
+          ['openai', 'gemini', 'google_workspace', 'bms', 'leadsquared', 'google_translate', 'dialogflow'].includes(
             integration.id,
           )
         ) {
