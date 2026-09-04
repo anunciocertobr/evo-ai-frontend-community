@@ -463,6 +463,12 @@ export default function IfoodOrdersPage() {
   };
 
   const handleSaveOpeningHours = async () => {
+    // A API do iFood recusa `shifts: []` ("Shifts is not nullable") — não dá
+    // pra fechar a loja todos os dias apagando todos os blocos por aqui.
+    if (openingShifts.length === 0) {
+      toast.error('Adicione pelo menos um bloco de horário antes de salvar (o iFood não aceita a semana vazia).');
+      return;
+    }
     setSavingHours(true);
     try {
       const shifts: IfoodShift[] = openingShifts.map((s) => ({
