@@ -54,6 +54,10 @@
       "description": "Configure integration with OpenAI for intelligent suggestions",
       "globallyConfigured": "OpenAI is already configured globally by the administrator"
     },
+    "gemini": {
+      "name": "Google Gemini",
+      "description": "Configure the Google Gemini integration for AI-powered features"
+    },
     "shopify": {
       "name": "Shopify",
       "description": "Integrate with Shopify to sync customer and order data"
@@ -632,6 +636,33 @@
       "updateError": "Error updating OAuth application",
       "clientIdCopied": "Client ID copied to clipboard",
       "clientSecretCopied": "Client Secret copied to clipboard"
+    }
+  },
+  "gemini": {
+    "modal": {
+      "title": "Configure Google Gemini Integration",
+      "updateTitle": "Update Google Gemini Integration",
+      "description": "Integrate with Google Gemini to bring AI-powered features to your dashboard using the Gemini models.",
+      "apiConfig": "API Configuration",
+      "fields": {
+        "apiKey": {
+          "label": "Gemini API Key",
+          "placeholder": "AIza...",
+          "hint": "Enter your Google Gemini API key (Google AI Studio) to set up the integration",
+          "required": "API Key is required"
+        }
+      },
+      "security": {
+        "title": "Security:",
+        "description": "Your API key will be stored securely and encrypted. Never share your Google Gemini API key with third parties."
+      },
+      "actions": {
+        "help": "Need Help?",
+        "cancel": "Cancel",
+        "configure": "Configure Integration",
+        "update": "Update Integration",
+        "saving": "Saving..."
+      }
     }
   },
   "openai": {

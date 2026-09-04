@@ -14,6 +14,8 @@ import {
   ProductBulkPayload,
   ProductBulkRealResponse,
   ProductBulkDryRunResponse,
+  ProductSellResponse,
+  ProductUploadResponse,
 } from '@/types/products';
 
 class ProductsService {
@@ -82,6 +84,24 @@ class ProductsService {
   async deleteProduct(id: string): Promise<ProductDeleteResponse> {
     const response = await api.delete(`${this.baseUrl}/${id}`);
     return extractData<ProductDeleteResponse>(response);
+  }
+
+  // ---------- Sales (stock deduction + ingredients) ----------
+
+  async sellProduct(id: string, quantity: number): Promise<ProductSellResponse> {
+    const response = await api.post(`${this.baseUrl}/${id}/sell`, { quantity });
+    return response.data as ProductSellResponse;
+  }
+
+  // ---------- Media upload (images / videos) ----------
+
+  async uploadMediaFile(file: File): Promise<ProductUploadResponse> {
+    const formData = new FormData();
+    formData.append('attachment', file, file.name);
+    const response = await api.post('/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data as ProductUploadResponse;
   }
 
   // ---------- Variants ----------

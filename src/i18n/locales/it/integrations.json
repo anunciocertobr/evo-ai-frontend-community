@@ -54,6 +54,10 @@
       "description": "Configura l'integrazione con OpenAI per suggerimenti intelligenti",
       "globallyConfigured": "OpenAI è già configurato globalmente dall'amministratore"
     },
+    "gemini": {
+      "name": "Google Gemini",
+      "description": "Configura l'integrazione con Google Gemini per funzionalità IA"
+    },
     "shopify": {
       "name": "Shopify",
       "description": "Integra con Shopify per sincronizzare dati di clienti e ordini"
@@ -613,6 +617,33 @@
       "updateError": "Errore durante l'aggiornamento dell'applicazione OAuth",
       "clientIdCopied": "Client ID copiato negli appunti",
       "clientSecretCopied": "Client Secret copiato negli appunti"
+    }
+  },
+  "gemini": {
+    "modal": {
+      "title": "Configura integrazione Google Gemini",
+      "updateTitle": "Aggiorna integrazione Google Gemini",
+      "description": "Integra Google Gemini per portare funzionalità IA nella tua dashboard usando i modelli Gemini.",
+      "apiConfig": "Configurazione API",
+      "fields": {
+        "apiKey": {
+          "label": "Chiave API Gemini",
+          "placeholder": "AIza...",
+          "hint": "Inserisci la tua chiave API di Google Gemini (Google AI Studio) per configurare l'integrazione",
+          "required": "La chiave API è obbligatoria"
+        }
+      },
+      "security": {
+        "title": "Sicurezza:",
+        "description": "La tua chiave API sarà archiviata in modo sicuro e crittografato. Non condividere mai la tua chiave API di Google Gemini con terzi."
+      },
+      "actions": {
+        "help": "Serve aiuto?",
+        "cancel": "Annulla",
+        "configure": "Configura integrazione",
+        "update": "Aggiorna integrazione",
+        "saving": "Salvataggio..."
+      }
     }
   },
   "openai": {
