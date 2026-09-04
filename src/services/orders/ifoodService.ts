@@ -15,6 +15,7 @@ import type {
   IfoodDeliveryQuote,
   IfoodProduct,
   IfoodMenuItem,
+  IfoodMerchant,
   IfoodMerchantDetails,
   IfoodAnalytics,
   IfoodOpeningHours,
@@ -188,6 +189,11 @@ class IfoodService {
     await api.delete(`${this.baseUrl}/menu_items/${itemId}`, {
       params: { category_id: categoryId, product_id: productId },
     });
+  }
+
+  async getMerchants(): Promise<IfoodMerchant[]> {
+    const response = await api.get(`${this.baseUrl}/merchants`);
+    return extractData<IfoodMerchant[]>(response);
   }
 
   async getMerchantDetails(): Promise<IfoodMerchantDetails> {

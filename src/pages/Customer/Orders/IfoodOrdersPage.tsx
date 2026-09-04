@@ -153,6 +153,7 @@ export default function IfoodOrdersPage() {
   const [menuItems, setMenuItems] = useState<IfoodMenuItem[]>([]);
   const [menuSearch, setMenuSearch] = useState('');
   const [merchantDetails, setMerchantDetails] = useState<IfoodMerchantDetails | null>(null);
+  const [merchants, setMerchants] = useState<IfoodMerchant[]>([]);
   const [settlements, setSettlements] = useState<IfoodSettlements | null>(null);
   const [reconciliation, setReconciliation] = useState<IfoodReconciliation | null>(null);
   const [anticipations, setAnticipations] = useState<IfoodAnticipations | null>(null);
@@ -228,6 +229,15 @@ export default function IfoodOrdersPage() {
       setMerchantDetails(await ifoodService.getMerchantDetails());
     } catch {
       toast.error('Erro ao carregar dados cadastrais da loja');
+    }
+  }, []);
+
+  // Cenário 1 de homologação Merchant: "liste todas as lojas vinculadas".
+  const loadMerchants = useCallback(async () => {
+    try {
+      setMerchants(await ifoodService.getMerchants());
+    } catch {
+      toast.error('Erro ao listar lojas vinculadas');
     }
   }, []);
 
@@ -331,6 +341,7 @@ export default function IfoodOrdersPage() {
       loadOrders(),
       loadInterruptions(),
       loadMerchantDetails(),
+      loadMerchants(),
       loadCategories(),
       loadMenuItems(),
       loadSettlements(),
@@ -347,6 +358,7 @@ export default function IfoodOrdersPage() {
     loadOrders,
     loadInterruptions,
     loadMerchantDetails,
+    loadMerchants,
     loadCategories,
     loadMenuItems,
     loadSettlements,
@@ -891,6 +903,31 @@ export default function IfoodOrdersPage() {
 
       {tab === 'status' && (
         <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Store className="w-4 h-4" /> Lojas vinculadas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {merchants.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma loja vinculada encontrada.</p>
+              ) : (
+                merchants.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between text-sm py-1">
+                    <div>
+                      <span className="font-medium text-foreground">{m.name}</span>
+                      {m.corporateName && (
+                        <span className="text-muted-foreground"> — {m.corporateName}</span>
+                      )}
+                    </div>
+                    <span className="font-mono text-xs text-muted-foreground">{m.id}</span>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">

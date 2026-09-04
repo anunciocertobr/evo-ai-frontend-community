@@ -115,6 +115,12 @@ export interface IfoodMenuItem {
   status: string;
 }
 
+export interface IfoodMerchant {
+  id: string;
+  name: string;
+  corporateName?: string;
+}
+
 export interface IfoodMerchantDetails {
   merchant_id: string;
   name: string;
