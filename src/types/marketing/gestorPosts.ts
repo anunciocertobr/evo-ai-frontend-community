@@ -115,3 +115,39 @@ export interface CreateScheduledPostPayload {
   channel_id: string;
   scheduled_for: string;
 }
+
+export type WhatsappStatusType = 'text' | 'image' | 'video' | 'audio';
+
+export interface WhatsappStatusChannelOption {
+  channel_id: string;
+  name: string;
+}
+
+export interface CreateWhatsappStatusPayload {
+  channel_id: string;
+  type: WhatsappStatusType;
+  content?: string;
+  media?: File;
+  caption?: string;
+}
+
+export type YoutubePrivacyStatus = 'public' | 'unlisted' | 'private';
+export type YoutubeUploadStatus = 'pending' | 'uploading' | 'published' | 'failed';
+
+export interface YoutubeUploadItem {
+  id: string;
+  title: string;
+  description?: string;
+  privacy_status: YoutubePrivacyStatus;
+  status: YoutubeUploadStatus;
+  error_message?: string;
+  external_video_id?: string;
+  created_at: string;
+}
+
+export interface CreateYoutubeUploadPayload {
+  title: string;
+  description: string;
+  privacy_status: YoutubePrivacyStatus;
+  video: File;
+}

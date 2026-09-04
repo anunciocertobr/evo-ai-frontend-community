@@ -12,6 +12,10 @@ import type {
   CreateCarouselBatchPayload,
   ScheduledPostItem,
   CreateScheduledPostPayload,
+  WhatsappStatusChannelOption,
+  CreateWhatsappStatusPayload,
+  YoutubeUploadItem,
+  CreateYoutubeUploadPayload,
 } from '@/types/marketing/gestorPosts';
 
 class GestorPostsService {
@@ -115,6 +119,48 @@ class GestorPostsService {
   async retryScheduledPost(id: string): Promise<ScheduledPostItem> {
     const response = await api.post(`${this.baseUrl}/scheduled_posts/${id}/retry`);
     return extractData<ScheduledPostItem>(response);
+  }
+
+  async getWhatsappStatusChannels(): Promise<WhatsappStatusChannelOption[]> {
+    const response = await api.get(`${this.baseUrl}/whatsapp_status/channels`);
+    return extractData<WhatsappStatusChannelOption[]>(response);
+  }
+
+  async createWhatsappStatus(payload: CreateWhatsappStatusPayload): Promise<{ id: string }> {
+    const formData = new FormData();
+    formData.append('channel_id', payload.channel_id);
+    formData.append('type', payload.type);
+    if (payload.content) formData.append('content', payload.content);
+    if (payload.media) formData.append('media', payload.media);
+    if (payload.caption) formData.append('caption', payload.caption);
+
+    const response = await api.post(`${this.baseUrl}/whatsapp_status`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return extractData<{ id: string }>(response);
+  }
+
+  async getYoutubeConnected(): Promise<boolean> {
+    const response = await api.get(`${this.baseUrl}/youtube/connected`);
+    return extractData<{ connected: boolean }>(response).connected;
+  }
+
+  async createYoutubeUpload(payload: CreateYoutubeUploadPayload): Promise<YoutubeUploadItem> {
+    const formData = new FormData();
+    formData.append('title', payload.title);
+    formData.append('description', payload.description);
+    formData.append('privacy_status', payload.privacy_status);
+    formData.append('video', payload.video);
+
+    const response = await api.post(`${this.baseUrl}/youtube`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return extractData<YoutubeUploadItem>(response);
+  }
+
+  async getYoutubeUpload(id: string): Promise<YoutubeUploadItem> {
+    const response = await api.get(`${this.baseUrl}/youtube/${id}`);
+    return extractData<YoutubeUploadItem>(response);
   }
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, Calendar, RotateCcw } from 'lucide-react';
+import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, Calendar, RotateCcw, Phone, Youtube } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, Badge, Card, CardContent } from '@evoapi/design-system';
 import { BaseHeader } from '@/components/base';
@@ -13,12 +13,28 @@ import type {
   PublicationContentType,
   ScheduledPostItem,
   ScheduledPostStatus,
+  WhatsappStatusChannelOption,
+  WhatsappStatusType,
+  YoutubePrivacyStatus,
 } from '@/types/marketing/gestorPosts';
 
 const CONTENT_TYPE_LABELS: Record<PublicationContentType, string> = {
   feed: 'Feed',
   stories: 'Stories',
   reels: 'Reels',
+};
+
+const WHATSAPP_STATUS_TYPE_LABELS: Record<WhatsappStatusType, string> = {
+  text: 'Texto',
+  image: 'Imagem',
+  video: 'Vídeo',
+  audio: 'Áudio',
+};
+
+const YOUTUBE_PRIVACY_LABELS: Record<YoutubePrivacyStatus, string> = {
+  public: 'Público',
+  unlisted: 'Não listado',
+  private: 'Privado',
 };
 
 const SCHEDULED_STATUS_LABELS: Record<ScheduledPostStatus, string> = {
@@ -81,6 +97,29 @@ export default function GestorPostsPage() {
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPostItem[]>([]);
   const [loadingScheduled, setLoadingScheduled] = useState(false);
   const [scheduledActionId, setScheduledActionId] = useState<string | null>(null);
+
+  const [showWhatsappModal, setShowWhatsappModal] = useState(false);
+  const [whatsappChannels, setWhatsappChannels] = useState<WhatsappStatusChannelOption[]>([]);
+  const [loadingWhatsappChannels, setLoadingWhatsappChannels] = useState(false);
+  const [whatsappChannelId, setWhatsappChannelId] = useState('');
+  const [whatsappType, setWhatsappType] = useState<WhatsappStatusType>('text');
+  const [whatsappText, setWhatsappText] = useState('');
+  const [whatsappCaption, setWhatsappCaption] = useState('');
+  const [whatsappFile, setWhatsappFile] = useState<File | null>(null);
+  const [whatsappPreviewUrl, setWhatsappPreviewUrl] = useState<string | null>(null);
+  const [sendingWhatsappStatus, setSendingWhatsappStatus] = useState(false);
+  const whatsappFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [showYoutubeModal, setShowYoutubeModal] = useState(false);
+  const [youtubeConnected, setYoutubeConnected] = useState<boolean | null>(null);
+  const [loadingYoutubeConnected, setLoadingYoutubeConnected] = useState(false);
+  const [youtubeTitle, setYoutubeTitle] = useState('');
+  const [youtubeDescription, setYoutubeDescription] = useState('');
+  const [youtubePrivacy, setYoutubePrivacy] = useState<YoutubePrivacyStatus>('unlisted');
+  const [youtubeFile, setYoutubeFile] = useState<File | null>(null);
+  const [youtubePreviewUrl, setYoutubePreviewUrl] = useState<string | null>(null);
+  const [sendingYoutubeUpload, setSendingYoutubeUpload] = useState(false);
+  const youtubeFileInputRef = useRef<HTMLInputElement>(null);
 
   const availablePlatforms: PublicationPlatform[] =
     selectedChannel?.channel_type === 'Channel::FacebookPage' ? ['instagram', 'facebook'] : ['instagram'];
@@ -164,6 +203,139 @@ export default function GestorPostsPage() {
       toast.error('Erro ao reenviar post agendado.');
     } finally {
       setScheduledActionId(null);
+    }
+  };
+
+  const handleWhatsappFileChange = (file: File | null) => {
+    setWhatsappFile(file);
+    if (whatsappPreviewUrl) URL.revokeObjectURL(whatsappPreviewUrl);
+    setWhatsappPreviewUrl(file ? URL.createObjectURL(file) : null);
+  };
+
+  const resetWhatsappForm = () => {
+    setWhatsappChannelId('');
+    setWhatsappType('text');
+    setWhatsappText('');
+    setWhatsappCaption('');
+    handleWhatsappFileChange(null);
+  };
+
+  const openWhatsappModal = async () => {
+    setShowWhatsappModal(true);
+    setLoadingWhatsappChannels(true);
+    try {
+      const data = await gestorPostsService.getWhatsappStatusChannels();
+      setWhatsappChannels(data);
+      if (data.length > 0) setWhatsappChannelId(data[0].channel_id);
+    } catch {
+      toast.error('Erro ao carregar canais de WhatsApp.');
+    } finally {
+      setLoadingWhatsappChannels(false);
+    }
+  };
+
+  const handleSendWhatsappStatus = async () => {
+    if (!whatsappChannelId) {
+      toast.error('Selecione um canal de WhatsApp.');
+      return;
+    }
+    if (whatsappType === 'text' && !whatsappText.trim()) {
+      toast.error('Escreva o texto do status.');
+      return;
+    }
+    if (whatsappType !== 'text' && !whatsappFile) {
+      toast.error('Selecione um arquivo de mídia.');
+      return;
+    }
+    setSendingWhatsappStatus(true);
+    try {
+      await gestorPostsService.createWhatsappStatus({
+        channel_id: whatsappChannelId,
+        type: whatsappType,
+        content: whatsappType === 'text' ? whatsappText.trim() : undefined,
+        media: whatsappType !== 'text' ? whatsappFile || undefined : undefined,
+        caption: whatsappCaption.trim() || undefined,
+      });
+      toast.success('Status publicado no WhatsApp!');
+      setShowWhatsappModal(false);
+      resetWhatsappForm();
+    } catch {
+      toast.error('Erro ao publicar o status no WhatsApp.');
+    } finally {
+      setSendingWhatsappStatus(false);
+    }
+  };
+
+  const handleYoutubeFileChange = (file: File | null) => {
+    setYoutubeFile(file);
+    if (youtubePreviewUrl) URL.revokeObjectURL(youtubePreviewUrl);
+    setYoutubePreviewUrl(file ? URL.createObjectURL(file) : null);
+  };
+
+  const resetYoutubeForm = () => {
+    setYoutubeTitle('');
+    setYoutubeDescription('');
+    setYoutubePrivacy('unlisted');
+    handleYoutubeFileChange(null);
+  };
+
+  const openYoutubeModal = async () => {
+    setShowYoutubeModal(true);
+    setLoadingYoutubeConnected(true);
+    try {
+      const connected = await gestorPostsService.getYoutubeConnected();
+      setYoutubeConnected(connected);
+    } catch {
+      setYoutubeConnected(false);
+    } finally {
+      setLoadingYoutubeConnected(false);
+    }
+  };
+
+  const pollYoutubeUploadStatus = async (id: string) => {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      try {
+        const upload = await gestorPostsService.getYoutubeUpload(id);
+        if (upload.status === 'published') {
+          toast.success('Vídeo publicado no YouTube!');
+          return;
+        }
+        if (upload.status === 'failed') {
+          toast.error(`Falha ao publicar no YouTube: ${upload.error_message || 'erro desconhecido'}`);
+          return;
+        }
+      } catch {
+        return;
+      }
+    }
+  };
+
+  const handleSendYoutubeUpload = async () => {
+    if (!youtubeTitle.trim()) {
+      toast.error('Escreva um título para o vídeo.');
+      return;
+    }
+    if (!youtubeFile) {
+      toast.error('Selecione um arquivo de vídeo.');
+      return;
+    }
+    setSendingYoutubeUpload(true);
+    try {
+      const upload = await gestorPostsService.createYoutubeUpload({
+        title: youtubeTitle.trim(),
+        description: youtubeDescription.trim(),
+        privacy_status: youtubePrivacy,
+        video: youtubeFile,
+      });
+      toast.success('Vídeo enviado! Publicando no YouTube em segundo plano...');
+      setShowYoutubeModal(false);
+      resetYoutubeForm();
+      pollYoutubeUploadStatus(upload.id);
+    } catch {
+      toast.error('Erro ao enviar o vídeo.');
+    } finally {
+      setSendingYoutubeUpload(false);
     }
   };
 
@@ -402,6 +574,12 @@ export default function GestorPostsPage() {
       <div className="flex items-center justify-between gap-4">
         <BaseHeader title="Gestor de Posts" subtitle="Galeria de criativos, métricas e comentários do Instagram." />
         <div className="flex items-center gap-2 flex-shrink-0">
+          <Button variant="outline" onClick={openYoutubeModal}>
+            <Youtube className="w-4 h-4 mr-1.5" /> Vídeo (YouTube)
+          </Button>
+          <Button variant="outline" onClick={openWhatsappModal}>
+            <Phone className="w-4 h-4 mr-1.5" /> Status do WhatsApp
+          </Button>
           <Button variant="outline" onClick={openScheduledModal}>
             <Calendar className="w-4 h-4 mr-1.5" /> Posts Agendados
           </Button>
@@ -850,6 +1028,292 @@ export default function GestorPostsPage() {
                 ))
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: STATUS DO WHATSAPP --- */}
+      {showWhatsappModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => {
+              if (!sendingWhatsappStatus) setShowWhatsappModal(false);
+            }}
+          />
+          <div className="relative w-full max-w-lg bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+              <h2 className="text-sm font-semibold text-gray-800">Status do WhatsApp</h2>
+              <button
+                onClick={() => {
+                  if (!sendingWhatsappStatus) setShowWhatsappModal(false);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {loadingWhatsappChannels ? (
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-8">
+                <Loader2 className="w-4 h-4 animate-spin" /> Carregando canais...
+              </div>
+            ) : whatsappChannels.length === 0 ? (
+              <div className="p-5 text-sm text-gray-400 text-center">
+                Nenhum canal de WhatsApp com suporte a Status conectado.
+              </div>
+            ) : (
+              <>
+                <div className="overflow-y-auto p-5 space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Canal</p>
+                    <select
+                      className="w-full border border-gray-300 rounded-md text-sm p-2"
+                      value={whatsappChannelId}
+                      onChange={(e) => setWhatsappChannelId(e.target.value)}
+                    >
+                      {whatsappChannels.map((c) => (
+                        <option key={c.channel_id} value={c.channel_id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tipo</p>
+                    <div className="flex gap-2">
+                      {(Object.keys(WHATSAPP_STATUS_TYPE_LABELS) as WhatsappStatusType[]).map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => setWhatsappType(type)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                            whatsappType === type
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                          }`}
+                        >
+                          {WHATSAPP_STATUS_TYPE_LABELS[type]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {whatsappType === 'text' ? (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Texto</p>
+                      <textarea
+                        className="w-full border border-gray-300 rounded-md text-sm p-2.5"
+                        rows={3}
+                        value={whatsappText}
+                        onChange={(e) => setWhatsappText(e.target.value)}
+                        placeholder="Escreva o texto do status..."
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mídia</p>
+                      <input
+                        ref={whatsappFileInputRef}
+                        type="file"
+                        accept={
+                          whatsappType === 'image' ? 'image/*' : whatsappType === 'video' ? 'video/*' : 'audio/*'
+                        }
+                        className="hidden"
+                        onChange={(e) => handleWhatsappFileChange(e.target.files?.[0] || null)}
+                      />
+                      {whatsappFile ? (
+                        <div className="relative">
+                          {whatsappType === 'image' && whatsappPreviewUrl && (
+                            <img src={whatsappPreviewUrl} alt="" className="w-full max-h-64 rounded-lg bg-black/5 object-contain" />
+                          )}
+                          {whatsappType === 'video' && whatsappPreviewUrl && (
+                            <video src={whatsappPreviewUrl} controls className="w-full max-h-64 rounded-lg bg-black/5" />
+                          )}
+                          {whatsappType === 'audio' && whatsappPreviewUrl && (
+                            <audio src={whatsappPreviewUrl} controls className="w-full" />
+                          )}
+                          <button
+                            onClick={() => handleWhatsappFileChange(null)}
+                            className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => whatsappFileInputRef.current?.click()}
+                          className="w-full border-2 border-dashed border-gray-300 rounded-lg py-8 flex flex-col items-center gap-2 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
+                        >
+                          <Upload className="w-6 h-6" />
+                          <span className="text-sm">Selecionar {WHATSAPP_STATUS_TYPE_LABELS[whatsappType].toLowerCase()}</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {whatsappType !== 'text' && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Legenda (opcional)</p>
+                      <textarea
+                        className="w-full border border-gray-300 rounded-md text-sm p-2.5"
+                        rows={2}
+                        value={whatsappCaption}
+                        onChange={(e) => setWhatsappCaption(e.target.value)}
+                        placeholder="Escreva uma legenda..."
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+                  <Button
+                    variant="outline"
+                    disabled={sendingWhatsappStatus}
+                    onClick={() => {
+                      setShowWhatsappModal(false);
+                      resetWhatsappForm();
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button disabled={sendingWhatsappStatus} onClick={handleSendWhatsappStatus}>
+                    {sendingWhatsappStatus ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+                    Publicar
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: VÍDEO PARA O YOUTUBE --- */}
+      {showYoutubeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => {
+              if (!sendingYoutubeUpload) setShowYoutubeModal(false);
+            }}
+          />
+          <div className="relative w-full max-w-lg bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+              <h2 className="text-sm font-semibold text-gray-800">Enviar Vídeo para o YouTube</h2>
+              <button
+                onClick={() => {
+                  if (!sendingYoutubeUpload) setShowYoutubeModal(false);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {loadingYoutubeConnected ? (
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-8">
+                <Loader2 className="w-4 h-4 animate-spin" /> Verificando conexão...
+              </div>
+            ) : !youtubeConnected ? (
+              <div className="p-5 text-sm text-gray-500 text-center space-y-2">
+                <p>Nenhuma conta Google conectada com acesso ao YouTube.</p>
+                <p>
+                  Conecte em <span className="font-medium">Configurações &gt; Integrações &gt; Google</span>{' '}
+                  (se já conectou antes, será preciso reconectar para autorizar o novo acesso).
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-y-auto p-5 space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Vídeo</p>
+                    <input
+                      ref={youtubeFileInputRef}
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
+                      onChange={(e) => handleYoutubeFileChange(e.target.files?.[0] || null)}
+                    />
+                    {youtubeFile && youtubePreviewUrl ? (
+                      <div className="relative">
+                        <video src={youtubePreviewUrl} controls className="w-full max-h-64 rounded-lg bg-black/5" />
+                        <button
+                          onClick={() => handleYoutubeFileChange(null)}
+                          className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => youtubeFileInputRef.current?.click()}
+                        className="w-full border-2 border-dashed border-gray-300 rounded-lg py-8 flex flex-col items-center gap-2 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
+                      >
+                        <Upload className="w-6 h-6" />
+                        <span className="text-sm">Selecionar vídeo</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Título</p>
+                    <input
+                      className="w-full border border-gray-300 rounded-md text-sm p-2.5"
+                      value={youtubeTitle}
+                      onChange={(e) => setYoutubeTitle(e.target.value)}
+                      placeholder="Título do vídeo"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Descrição</p>
+                    <textarea
+                      className="w-full border border-gray-300 rounded-md text-sm p-2.5"
+                      rows={3}
+                      value={youtubeDescription}
+                      onChange={(e) => setYoutubeDescription(e.target.value)}
+                      placeholder="Descrição do vídeo..."
+                    />
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Privacidade</p>
+                    <div className="flex gap-2">
+                      {(Object.keys(YOUTUBE_PRIVACY_LABELS) as YoutubePrivacyStatus[]).map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => setYoutubePrivacy(status)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                            youtubePrivacy === status
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                          }`}
+                        >
+                          {YOUTUBE_PRIVACY_LABELS[status]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+                  <Button
+                    variant="outline"
+                    disabled={sendingYoutubeUpload}
+                    onClick={() => {
+                      setShowYoutubeModal(false);
+                      resetYoutubeForm();
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button disabled={sendingYoutubeUpload} onClick={handleSendYoutubeUpload}>
+                    {sendingYoutubeUpload ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+                    Enviar
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
