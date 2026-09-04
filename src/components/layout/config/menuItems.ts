@@ -203,6 +203,12 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
     subItems: [
       { name: 'GTM', href: '/marketing/gtm', icon: Tag },
       { name: 'Gestor de Posts', href: '/marketing/gestor-posts', icon: Image },
+      // Conteúdo HTML personalizado (menu_configs, scope "editor-menus") — os
+      // mesmos itens que já existiam em "Meu Espaço", linkados aqui também
+      // via a rota genérica /editor/content/:nodeId.
+      { name: 'Relatórios', href: '/editor/content/mtlsot4v-cf6f9s', icon: PieChart },
+      { name: 'Painel Tráfego', href: '/editor/content/mtlsqe9g-44xt89', icon: Filter },
+      { name: 'Setup Marketing (Meta/GA4/Ads)', href: '/editor/content/setupbm-36c48c9d', icon: Settings },
     ],
   },
   {
