@@ -42,6 +42,7 @@ import {
   Image,
   AudioWaveform,
   Video,
+  Navigation,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -231,6 +232,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
       { name: 'iFood', href: '/orders/ifood', icon: UtensilsCrossed, resource: 'products', action: 'read' },
       { name: '99 Delivery', href: '/orders/99delivery', icon: Bike, resource: 'products', action: 'read' },
       { name: 'Esteira de Pedidos (iFood)', href: '/editor/content/ordens-esteirapedidos', icon: Route },
+      { name: 'Logística de Motoboys', href: '/editor/content/ordens-logisticamotoboys', icon: Navigation },
     ],
   },
   {

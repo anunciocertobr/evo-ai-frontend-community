@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Download,
   Building2,
+  Settings,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -46,7 +47,7 @@ import {
 import { BaseHeader } from '@/components/base';
 import { contactsService } from '@/services/contacts/contactsService';
 import { productsService } from '@/services/products/productsService';
-import { workOrdersService } from '@/services/orders/workOrdersService';
+import { workOrdersService, WorkOrderPipelineConfig } from '@/services/orders/workOrdersService';
 import type { Product } from '@/types/products';
 import {
   WorkOrder,
@@ -336,6 +337,12 @@ export default function OrdersPage() {
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(() => loadCompanyProfile());
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
   const [companyDraft, setCompanyDraft] = useState<CompanyProfile>(emptyCompanyProfile());
+  const [pipelineConfigOpen, setPipelineConfigOpen] = useState(false);
+  const [pipelineConfig, setPipelineConfig] = useState<WorkOrderPipelineConfig | null>(null);
+  const [loadingPipelineConfig, setLoadingPipelineConfig] = useState(false);
+  const [savingPipelineConfig, setSavingPipelineConfig] = useState(false);
+  const [draftPipelineId, setDraftPipelineId] = useState<string>('none');
+  const [draftStageId, setDraftStageId] = useState<string>('none');
   const clientSearchTimer = useRef<number | null>(null);
 
   const addProductByCode = async (code: string) => {
@@ -476,6 +483,46 @@ export default function OrdersPage() {
       setLoading(false);
     }
   }, [search, statusFilter]);
+
+  const openPipelineConfig = async () => {
+    setPipelineConfigOpen(true);
+    setLoadingPipelineConfig(true);
+    try {
+      const config = await workOrdersService.getPipelineConfig();
+      setPipelineConfig(config);
+      setDraftPipelineId(config.pipeline_id || 'none');
+      setDraftStageId(config.pipeline_stage_id || 'none');
+    } catch {
+      toast.error('Erro ao carregar configuração de pipeline');
+    } finally {
+      setLoadingPipelineConfig(false);
+    }
+  };
+
+  const draftStages = useMemo(
+    () => pipelineConfig?.pipelines.find((p) => p.id === draftPipelineId)?.stages || [],
+    [pipelineConfig, draftPipelineId],
+  );
+
+  const handleSavePipelineConfig = async () => {
+    setSavingPipelineConfig(true);
+    try {
+      const pipelineId = draftPipelineId === 'none' ? null : draftPipelineId;
+      const stageId = draftStageId === 'none' ? null : draftStageId;
+      const config = await workOrdersService.updatePipelineConfig(pipelineId, stageId);
+      setPipelineConfig(config);
+      toast.success(
+        pipelineId
+          ? 'Configuração salva — novas ordens vão gerar card no pipeline escolhido.'
+          : 'Configuração removida — novas ordens não vão mais gerar card em nenhum pipeline.',
+      );
+      setPipelineConfigOpen(false);
+    } catch {
+      toast.error('Erro ao salvar configuração de pipeline');
+    } finally {
+      setSavingPipelineConfig(false);
+    }
+  };
 
   const filteredOrders = useMemo(() => {
     if (!onlyOpen) return orders;
@@ -1151,6 +1198,14 @@ export default function OrdersPage() {
       <BaseHeader
         title="Ordens de Serviço"
         subtitle="Registre e acompanhe ordens de serviço de assistência técnica."
+        secondaryActions={[
+          {
+            label: 'Configurar Pipeline',
+            icon: <Settings className="h-4 w-4" />,
+            onClick: openPipelineConfig,
+            tooltip: 'Escolher em qual pipeline/etapa novas ordens viram card automaticamente',
+          },
+        ]}
       />
 
       <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
@@ -1258,6 +1313,72 @@ export default function OrdersPage() {
               }}
             >
               Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pipelineConfigOpen} onOpenChange={setPipelineConfigOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configurar Pipeline de Ordens</DialogTitle>
+            <DialogDescription>
+              Toda ordem nova cria automaticamente um card nesse pipeline/etapa. Deixe em "Nenhum" pra desativar.
+            </DialogDescription>
+          </DialogHeader>
+          {loadingPipelineConfig ? (
+            <p className="text-sm text-muted-foreground py-4">Carregando...</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Pipeline</Label>
+                <Select
+                  value={draftPipelineId}
+                  onValueChange={(value) => {
+                    setDraftPipelineId(value);
+                    setDraftStageId('none');
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum (desativado)</SelectItem>
+                    {pipelineConfig?.pipelines.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Etapa</Label>
+                <Select
+                  value={draftStageId}
+                  onValueChange={setDraftStageId}
+                  disabled={draftPipelineId === 'none'}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Selecione uma etapa</SelectItem>
+                    {draftStages.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPipelineConfigOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSavePipelineConfig}
+              disabled={savingPipelineConfig || loadingPipelineConfig || (draftPipelineId !== 'none' && draftStageId === 'none')}
+            >
+              {savingPipelineConfig ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>
         </DialogContent>

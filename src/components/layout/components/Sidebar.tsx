@@ -81,8 +81,6 @@ export default function Sidebar({
   const companyName = t('sidebar.footer.brand');
   const supportWhatsappUrl = 'https://api.whatsapp.com/send/?phone=553196219989&text=Ol%C3%A1%21+Preciso+de+suporte.&type=phone_number&app_absent=0';
 
-  const totalUnanswered = useUnansweredConversationsStore((state) => state.totalUnanswered);
-
   // activeSubmenu guarda a referência do item no momento do clique; quando o
   // menu é recomputado (ex.: links do submenu Sites alterados), o objeto fica
   // obsoleto. Resolve sempre o item atual pelo nome/href.
@@ -94,6 +92,8 @@ export default function Sidebar({
       ) ?? activeSubmenu
     );
   }, [activeSubmenu, menuItems]);
+
+  const totalUnanswered = useUnansweredConversationsStore((state) => state.totalUnanswered);
 
   // --- Gerenciamento do site padrão (override simples de nome/URL) ---
   const [siteDialogOpen, setSiteDialogOpen] = useState(false);

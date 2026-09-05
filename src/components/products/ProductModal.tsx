@@ -1301,6 +1301,75 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
                 </div>
               </div>
             )}
+
+            {/* Segunda seção da aba Mídia: biblioteca/galeria e mídia por URL
+               (complementar ao upload por arquivo acima; usa o campo `media`,
+               enviado à parte do multipart `images`). */}
+            <div className="flex flex-wrap gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                className="hidden"
+                onChange={(e) => handleMediaFiles(e.target.files)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {uploading ? 'Enviando...' : 'Subir arquivo'}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={openGallery}>
+                <ImagePlus className="h-4 w-4 mr-2" />
+                Escolher das existentes
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={mediaKind} onValueChange={(v) => setMediaKind(v as ProductMediaKind)}>
+                <SelectTrigger className="w-auto min-w-[110px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="image">Imagem</SelectItem>
+                  <SelectItem value="video">Vídeo</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                className="flex-1 min-w-[220px]"
+                value={mediaUrl}
+                onChange={(e) => setMediaUrl(e.target.value)}
+                placeholder="https://exemplo.com/imagem.jpg"
+              />
+              <Button type="button" variant="outline" size="sm" onClick={handleAddMediaUrl}>
+                <Plus className="h-4 w-4 mr-1" />
+                <Link2 className="h-4 w-4 mr-2" />
+                Adicionar Link
+              </Button>
+            </div>
+
+            {media.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center border border-dashed rounded">
+                Nenhuma imagem ou vídeo adicionado. Use as opções acima.
+              </p>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {media.map((item, idx) => (
+                  <MediaItem
+                    key={item.id ?? `m-${idx}`}
+                    item={item}
+                    onRemove={() =>
+                      setMedia((prev) => prev.filter((_, i) => i !== idx))
+                    }
+                  />
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="variants" className="space-y-3 overflow-y-auto pt-4">
