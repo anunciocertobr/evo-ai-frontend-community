@@ -39,6 +39,8 @@ import {
   UtensilsCrossed,
   Bike,
   Image,
+  AudioWaveform,
+  Video,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -197,6 +199,11 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
     subItems: [
       { name: 'GTM', href: '/marketing/gtm', icon: Tag },
       { name: 'Gestor de Posts', href: '/marketing/gestor-posts', icon: Image },
+      { name: 'Copy de Tráfego (Meta)', href: '/editor/content/mktia-copytrafego', icon: PenTool },
+      { name: 'Gerar Áudio (ElevenLabs)', href: '/editor/content/mktia-audioeleven', icon: AudioWaveform },
+      { name: 'Gerar Imagem e Identidade Visual', href: '/editor/content/mktia-gerarimagem', icon: Wand },
+      { name: 'Roteiro de Vídeo', href: '/editor/content/mktia-roteirovideo', icon: Video },
+      { name: 'Suíte de Mídia', href: '/editor/content/mktia-suitemidia', icon: Layers },
     ],
   },
   {

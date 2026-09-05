@@ -102,6 +102,10 @@ import LeadSquaredPage from '../pages/Customer/Settings/Integrations/LeadSquared
 import HubSpotPage from '../pages/Customer/Settings/Integrations/HubSpotPage';
 import ShopifyPage from '../pages/Customer/Settings/Integrations/ShopifyPage';
 import LinearPage from '../pages/Customer/Settings/Integrations/LinearPage';
+import GroqPage from '../pages/Customer/Settings/Integrations/GroqPage';
+import GoogleAdsPage from '../pages/Customer/Settings/Integrations/GoogleAdsPage';
+import ElevenLabsPage from '../pages/Customer/Settings/Integrations/ElevenLabsPage';
+import HuggingFacePage from '../pages/Customer/Settings/Integrations/HuggingFacePage';
 import DashboardAppPage from '../pages/Customer/DashboardApp';
 
 // PÃƒÂ¡ginas admin
@@ -1406,6 +1410,62 @@ const AppRouter = () => {
                   <MainLayout>
                     <PermissionRoute resource="integrations" action="read">
                       <LinearPage />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/settings/integrations/groq"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="integrations" action="read">
+                      <GroqPage />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/settings/integrations/google_ads"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="integrations" action="read">
+                      <GoogleAdsPage />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/settings/integrations/elevenlabs"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="integrations" action="read">
+                      <ElevenLabsPage />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/settings/integrations/huggingface"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="integrations" action="read">
+                      <HuggingFacePage />
                     </PermissionRoute>
                   </MainLayout>
                 </CustomerRoute>

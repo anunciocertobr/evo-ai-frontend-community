@@ -48,11 +48,15 @@ const INTEGRATION_CATEGORY_MAP: Record<string, string> = {
   linear: 'productivity',
   shopify: 'productivity',
   google_workspace: 'productivity',
+  google_ads: 'productivity',
 
   // AI & Automation
   openai: 'ai',
   gemini: 'ai',
   dialogflow: 'ai',
+  groq: 'ai',
+  elevenlabs: 'ai',
+  huggingface: 'ai',
 
   // Custom
   webhook: 'custom',

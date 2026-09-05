@@ -104,6 +104,10 @@ export interface EditorMenu {
   items: EditorNode[];
   icon?: string;
   iconUrl?: string;
+  /** Guarda conteúdo pra ser referenciado por link direto (ex.: um submenu
+   * nativo apontando pra /editor/content/:id) sem também virar sua própria
+   * entrada solta na sidebar. */
+  hidden?: boolean;
 }
 
 export const EDITOR_MENUS_EVENT = 'editor-menus-changed';
@@ -256,6 +260,7 @@ export function editorMenuToMenuItem(m: EditorMenu): MenuItem {
 export function injectEditorMenus(items: MenuItem[]): MenuItem[] {
   const result = [...items];
   for (const menu of getEditorMenus()) {
+    if (menu.hidden) continue;
     const built = editorMenuToMenuItem(menu);
     const anchorIdx = result.findIndex(
       (i) => i.name.trim().toLowerCase() === menu.anchorName.trim().toLowerCase(),
