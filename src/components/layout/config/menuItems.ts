@@ -206,6 +206,8 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
     subItems: [
       { name: 'GTM', href: '/marketing/gtm', icon: Tag },
       { name: 'Gestor de Posts', href: '/marketing/gestor-posts', icon: Image },
+      { name: 'Painel Tráfego', href: '/editor/content/mtlsqe9g-44xt89', icon: Megaphone },
+      { name: 'Setup Marketing (Meta/GA4/Ads)', href: '/editor/content/setupbm-36c48c9d', icon: Settings },
       { name: 'Copy de Tráfego (Meta)', href: '/editor/content/mktia-copytrafego', icon: PenTool },
       { name: 'Gerar Áudio (ElevenLabs)', href: '/editor/content/mktia-audioeleven', icon: AudioWaveform },
       { name: 'Gerar Imagem e Identidade Visual', href: '/editor/content/mktia-gerarimagem', icon: Wand },
