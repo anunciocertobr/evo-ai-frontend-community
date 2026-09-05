@@ -73,6 +73,7 @@ export interface CreatePublicationPayload {
   platforms: PublicationPlatform[];
   content_type: PublicationContentType;
   media: File;
+  thumbnail?: File;
   channel_type: SocialChannelType;
   channel_id: string;
 }
@@ -120,6 +121,7 @@ export interface CreateScheduledPostPayload {
   platforms: PublicationPlatform[];
   content_type: PublicationContentType;
   media: File;
+  thumbnail?: File;
   channel_type: SocialChannelType;
   channel_id: string;
   scheduled_for: string;

@@ -78,6 +78,7 @@ class GestorPostsService {
     formData.append('channel_id', payload.channel_id);
     payload.platforms.forEach((p) => formData.append('platforms[]', p));
     formData.append('media', payload.media);
+    if (payload.thumbnail) formData.append('thumb', payload.thumbnail);
 
     const response = await api.post(`${this.baseUrl}/publications`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -118,6 +119,7 @@ class GestorPostsService {
     formData.append('scheduled_for', payload.scheduled_for);
     payload.platforms.forEach((p) => formData.append('platforms[]', p));
     formData.append('media', payload.media);
+    if (payload.thumbnail) formData.append('thumb', payload.thumbnail);
 
     const response = await api.post(`${this.baseUrl}/scheduled_posts`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

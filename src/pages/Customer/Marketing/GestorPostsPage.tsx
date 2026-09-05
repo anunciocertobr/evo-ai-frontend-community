@@ -146,6 +146,11 @@ export default function GestorPostsPage() {
   // "Tipo de Mídia" — Imagem/Vídeo/Carrossel, escolha única.
   const [mediaType, setMediaType] = useState<'image' | 'video' | 'carousel' | ''>('');
   const [newIsCarousel, setNewIsCarousel] = useState(false);
+  // Thumbnail customizada — só aparece pra Tipo de Mídia = Vídeo, igual ao
+  // modelo original ("Subir Thumbnail"). Vira cover_url num Reels do
+  // Instagram; ignorada silenciosamente pros outros formatos/plataformas.
+  const [thumbFile, setThumbFile] = useState<File | null>(null);
+  const thumbInputRef = useRef<HTMLInputElement>(null);
   const [newIsScheduled, setNewIsScheduled] = useState(false);
   const [newScheduledFor, setNewScheduledFor] = useState('');
   const [creating, setCreating] = useState(false);
@@ -257,6 +262,7 @@ export default function GestorPostsPage() {
   const selectMediaType = (type: 'image' | 'video' | 'carousel') => {
     setMediaType(type);
     setNewIsCarousel(type === 'carousel');
+    if (type !== 'video') setThumbFile(null);
   };
 
   // Preview de cada arquivo enviado se regenera sozinho sempre que a lista
@@ -332,6 +338,7 @@ export default function GestorPostsPage() {
     setDestFacebookIds([]);
     setDestWhatsappIds([]);
     setDestYoutube(false);
+    setThumbFile(null);
 
     const isMedia = (f: File) => f.type.startsWith('image/') || f.type.startsWith('video/');
     const matched = files
@@ -500,6 +507,7 @@ export default function GestorPostsPage() {
     setMediaType('');
     setNewIsCarousel(false);
     setUploadedFiles([]);
+    setThumbFile(null);
     setCreateProgress(null);
     setNewIsScheduled(false);
     setNewScheduledFor('');
@@ -773,6 +781,7 @@ export default function GestorPostsPage() {
         platforms,
         content_type: format,
         media: file,
+        thumbnail: thumbFile || undefined,
         channel_type: channel.channel_type,
         channel_id: channel.channel_id,
         scheduled_for: new Date(newScheduledFor).toISOString(),
@@ -784,6 +793,7 @@ export default function GestorPostsPage() {
       platforms,
       content_type: format,
       media: file,
+      thumbnail: thumbFile || undefined,
       channel_type: channel.channel_type,
       channel_id: channel.channel_id,
     });
@@ -1877,6 +1887,28 @@ export default function GestorPostsPage() {
                   ))}
                 </div>
               </div>
+
+              {mediaType === 'video' && (
+                <div>
+                  <input
+                    ref={thumbInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => setThumbFile(e.target.files?.[0] || null)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => thumbInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    <ImageIcon className="w-4 h-4" /> Subir Thumbnail
+                  </button>
+                  {thumbFile && (
+                    <p className="text-xs text-gray-500 text-center mt-1">{thumbFile.name}</p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Legenda</p>
