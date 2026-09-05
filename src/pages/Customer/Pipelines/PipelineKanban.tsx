@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { getContactColor } from '@/utils/avatar';
+import { pipelineDeleteErrorKey } from '@/utils/pipelineDeleteError';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -40,6 +41,7 @@ import {
   MessageSquare,
   FileText,
   CheckSquare,
+  Link2,
 } from 'lucide-react';
 
 import { pipelinesService } from '@/services/pipelines';
@@ -50,6 +52,7 @@ import {
   PipelineItem,
   UpdatePipelineData,
   CreateStageData,
+  StageAutomationRule,
 } from '@/types/analytics';
 import EditPipelineModal from '@/components/pipelines/EditPipelineModal';
 import CreateStageModal from '@/components/pipelines/CreateStageModal';
@@ -61,6 +64,7 @@ import DeleteStageModal from '@/components/pipelines/DeleteStageModal';
 import DeletePipelineModal from '@/components/pipelines/DeletePipelineModal';
 import ReorderStagesModal from '@/components/pipelines/ReorderStagesModal';
 import PipelineCaptureFormsModal from '@/components/pipelines/PipelineCaptureFormsModal';
+import PipelinePurchaseWebhookModal from '@/components/pipelines/PipelinePurchaseWebhookModal';
 import { ScheduleActionModal } from '@/components/scheduledActions';
 
 // Status/priority badge styles use the design system's semantic Tailwind classes
@@ -187,6 +191,7 @@ export default function PipelineKanban() {
   const [showDeletePipelineModal, setShowDeletePipelineModal] = useState(false);
   const [showReorderStagesModal, setShowReorderStagesModal] = useState(false);
   const [showCaptureFormsModal, setShowCaptureFormsModal] = useState(false);
+  const [showPurchaseWebhookModal, setShowPurchaseWebhookModal] = useState(false);
   const [isDeletingPipeline, setIsDeletingPipeline] = useState(false);
   const [isReorderingStages, setIsReorderingStages] = useState(false);
   const [scheduleActionOpen, setScheduleActionOpen] = useState(false);
@@ -575,7 +580,7 @@ export default function PipelineKanban() {
       navigate('/pipelines');
     } catch (error) {
       console.error('Error deleting pipeline:', error);
-      toast.error(t('messages.deleteError'));
+      toast.error(t(pipelineDeleteErrorKey(error)));
     } finally {
       setIsDeletingPipeline(false);
     }
@@ -717,7 +722,7 @@ export default function PipelineKanban() {
     name: string;
     color: string;
     stage_type: string;
-    automation_rules?: { description?: string };
+    automation_rules: { description: string; rules: StageAutomationRule[] };
     custom_fields?: Record<string, unknown>;
   }) => {
     if (!stageToEdit || !pipelineId) return;
@@ -912,6 +917,10 @@ export default function PipelineKanban() {
                     <DropdownMenuItem onClick={() => setShowCaptureFormsModal(true)}>
                       <FileText className="h-4 w-4 mr-2" />
                       {t('kanban.header.captureForms')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowPurchaseWebhookModal(true)}>
+                      <Link2 className="h-4 w-4 mr-2" />
+                      {t('kanban.header.purchaseWebhook')}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="text-destructive" onClick={handleDeletePipeline}>
@@ -1696,6 +1705,14 @@ export default function PipelineKanban() {
         pipeline={pipeline}
         stages={stages}
         allPipelines={allPipelines}
+      />
+
+      {/* An approved purchase on a payment platform becomes a lead in THIS
+          pipeline — the signed URL for it is minted here. */}
+      <PipelinePurchaseWebhookModal
+        open={showPurchaseWebhookModal}
+        onOpenChange={setShowPurchaseWebhookModal}
+        pipeline={pipeline}
       />
     </div>
   );

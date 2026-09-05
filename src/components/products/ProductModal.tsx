@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { assetUrl } from '@/utils/assetUrl';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,7 @@ import {
   FolderPlus,
   ChevronDown,
   ImagePlus,
+  ImageIcon,
   Link2,
   X,
   Search,
@@ -105,6 +107,15 @@ const CURRENCIES: ProductCurrency[] = ['BRL', 'USD', 'EUR'];
 const URL_REGEX = /^https?:\/\/.+/i;
 const VIDEO_RE = /^video\//i;
 
+// Kept in step with Products::ImagePolicy on the API side.
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGES_PER_PRODUCT = 10;
+
+type RejectedFile = { name: string; reason: 'invalidType' | 'tooLarge' | 'tooMany' };
+
+// Empty input → null; non-numeric input (e.g. a pasted string) → null instead of NaN,
+// which would otherwise leak into the payload and bypass form validation.
 function toNumberOrNull(value: string): number | null {
   if (value.trim() === '') return null;
   const parsed = Number(value);
@@ -472,6 +483,15 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
+  // EVO-2226: raw image files picked in the Media tab, uploaded on submit.
+  const [files, setFiles] = useState<File[]>([]);
+  const [rejectedFiles, setRejectedFiles] = useState<RejectedFile[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Object URLs for previewing pending picks; revoked when the set changes/unmounts.
+  const filePreviews = useMemo(() => files.map((file) => ({ file, url: URL.createObjectURL(file) })), [files]);
+  useEffect(() => () => filePreviews.forEach((p) => URL.revokeObjectURL(p.url)), [filePreviews]);
 
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [categoryName, setCategoryName] = useState('');
@@ -490,6 +510,7 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
   const [gallerySearch, setGallerySearch] = useState('');
 
   const isEdit = useMemo(() => Boolean(product?.id), [product]);
+  const existingImageCount = product?.images?.length ?? 0;
   const isPhysical = form.kind === 'physical';
   const isServico = form.item_type === 'servico';
 
@@ -552,6 +573,8 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
     );
     setMediaUrl('');
     setMediaKind('image');
+    setFiles([]);
+    setRejectedFiles([]);
     setTouched({});
     setSubmitAttempted(false);
     setActiveTab('general');
@@ -775,7 +798,40 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
             })),
     };
 
-    await onSubmit(payload);
+    await onSubmit(payload, files.length ? files : undefined);
+  };
+
+  // Mirrors Products::ImagePolicy. Not a security control: it exists so a refused file
+  // says why, instead of the product saving without the image.
+  const handleFilesPicked = (list: FileList | null) => {
+    if (!list) return;
+
+    const rejected: RejectedFile[] = [];
+    const accepted: File[] = [];
+    let slots = MAX_IMAGES_PER_PRODUCT - (existingImageCount + files.length);
+
+    Array.from(list).forEach((file) => {
+      if (!file.type.startsWith('image/') || !ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+        rejected.push({ name: file.name, reason: 'invalidType' });
+      } else if (file.size > MAX_IMAGE_BYTES) {
+        rejected.push({ name: file.name, reason: 'tooLarge' });
+      } else if (slots <= 0) {
+        rejected.push({ name: file.name, reason: 'tooMany' });
+      } else {
+        accepted.push(file);
+        slots -= 1;
+      }
+    });
+
+    if (accepted.length) setFiles((prev) => [...prev, ...accepted]);
+    setRejectedFiles(rejected);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    handleFilesPicked(event.dataTransfer?.files ?? null);
   };
 
   const numInput = (
@@ -835,10 +891,15 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
+          {/*
+            EVO-2226: Media tab restored. The backend (products_controller#attach_images)
+            now accepts raw multipart uploads (validated type + size), which is what
+            productsService.buildFormData already sends as product[images][].
+          */}
           <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full">
             <TabsTrigger value="general">{t('modal.tabs.general')}</TabsTrigger>
+            <TabsTrigger value="media">{t('modal.tabs.media')}</TabsTrigger>
             <TabsTrigger value="variants">{t('modal.tabs.variants')}</TabsTrigger>
-            <TabsTrigger value="media">Mídia</TabsTrigger>
             <TabsTrigger value="ingredients">Insumos</TabsTrigger>
             <TabsTrigger value="details">Detalhes</TabsTrigger>
             <TabsTrigger value="labels">{t('modal.tabs.labels')}</TabsTrigger>
@@ -1144,6 +1205,164 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
             </div>
           </TabsContent>
 
+          <TabsContent value="media" className="space-y-4 overflow-y-auto pt-4">
+            <div
+              data-testid="product-image-dropzone"
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              className={`rounded-lg border border-dashed p-6 text-center transition-colors ${
+                dragging ? 'border-primary bg-primary/5' : ''
+              }`}
+            >
+              <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground" />
+              <p className="mt-2 text-sm text-muted-foreground">{t('media.uploadHint')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('media.limits', { max: MAX_IMAGES_PER_PRODUCT, size: MAX_IMAGE_BYTES / (1024 * 1024) })}
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                multiple
+                className="hidden"
+                data-testid="product-image-input"
+                onChange={(e) => handleFilesPicked(e.target.files)}
+              />
+              <Button type="button" variant="outline" className="mt-3" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4 mr-2" />
+                {t('media.selectFiles')}
+              </Button>
+            </div>
+
+            {rejectedFiles.length > 0 && (
+              <ul className="space-y-1 text-xs text-destructive" data-testid="product-image-rejections">
+                {rejectedFiles.map((rejected) => (
+                  <li key={`${rejected.name}-${rejected.reason}`}>
+                    {t(`media.rejected.${rejected.reason}`, {
+                      name: rejected.name,
+                      max: MAX_IMAGES_PER_PRODUCT,
+                      size: MAX_IMAGE_BYTES / (1024 * 1024),
+                    })}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {isEdit && (product?.images?.length ?? 0) > 0 && (
+              <div className="space-y-2">
+                <Label>{t('media.existing')}</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {product!.images.map((img) => (
+                    <img
+                      key={img.id}
+                      src={assetUrl(img.url)}
+                      alt={img.filename}
+                      className="aspect-square w-full rounded border object-cover"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {filePreviews.length > 0 && (
+              <div className="space-y-2">
+                <Label>{t('media.pending')}</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {filePreviews.map((preview, index) => (
+                    <div key={`${preview.file.name}-${preview.file.size}-${index}`} className="relative">
+                      <img
+                        src={preview.url}
+                        alt={preview.file.name}
+                        className="aspect-square w-full rounded border object-cover"
+                      />
+                      <button
+                        type="button"
+                        aria-label={t('actions.delete')}
+                        onClick={() => setFiles((prev) => prev.filter((_, i) => i !== index))}
+                        className="absolute -right-1.5 -top-1.5 rounded-full bg-destructive p-0.5 text-white"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Segunda seção da aba Mídia: biblioteca/galeria e mídia por URL
+               (complementar ao upload por arquivo acima; usa o campo `media`,
+               enviado à parte do multipart `images`). */}
+            <div className="flex flex-wrap gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                className="hidden"
+                onChange={(e) => handleMediaFiles(e.target.files)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {uploading ? 'Enviando...' : 'Subir arquivo'}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={openGallery}>
+                <ImagePlus className="h-4 w-4 mr-2" />
+                Escolher das existentes
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={mediaKind} onValueChange={(v) => setMediaKind(v as ProductMediaKind)}>
+                <SelectTrigger className="w-auto min-w-[110px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="image">Imagem</SelectItem>
+                  <SelectItem value="video">Vídeo</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                className="flex-1 min-w-[220px]"
+                value={mediaUrl}
+                onChange={(e) => setMediaUrl(e.target.value)}
+                placeholder="https://exemplo.com/imagem.jpg"
+              />
+              <Button type="button" variant="outline" size="sm" onClick={handleAddMediaUrl}>
+                <Plus className="h-4 w-4 mr-1" />
+                <Link2 className="h-4 w-4 mr-2" />
+                Adicionar Link
+              </Button>
+            </div>
+
+            {media.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center border border-dashed rounded">
+                Nenhuma imagem ou vídeo adicionado. Use as opções acima.
+              </p>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {media.map((item, idx) => (
+                  <MediaItem
+                    key={item.id ?? `m-${idx}`}
+                    item={item}
+                    onRemove={() =>
+                      setMedia((prev) => prev.filter((_, i) => i !== idx))
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
           <TabsContent value="variants" className="space-y-3 overflow-y-auto pt-4">
             {!isPhysical && <p className="text-xs text-muted-foreground">{t('variants.digitalHint')}</p>}
 
@@ -1230,73 +1449,6 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
             )}
           </TabsContent>
 
-          <TabsContent value="media" className="space-y-4 overflow-y-auto pt-4">
-            <div className="flex flex-wrap gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                className="hidden"
-                onChange={(e) => handleMediaFiles(e.target.files)}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={uploading}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                {uploading ? 'Enviando...' : 'Subir arquivo'}
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={openGallery}>
-                <ImagePlus className="h-4 w-4 mr-2" />
-                Escolher das existentes
-              </Button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={mediaKind} onValueChange={(v) => setMediaKind(v as ProductMediaKind)}>
-                <SelectTrigger className="w-auto min-w-[110px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="image">Imagem</SelectItem>
-                  <SelectItem value="video">Vídeo</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                className="flex-1 min-w-[220px]"
-                value={mediaUrl}
-                onChange={(e) => setMediaUrl(e.target.value)}
-                placeholder="https://exemplo.com/imagem.jpg"
-              />
-              <Button type="button" variant="outline" size="sm" onClick={handleAddMediaUrl}>
-                <Plus className="h-4 w-4 mr-1" />
-                <Link2 className="h-4 w-4 mr-2" />
-                Adicionar Link
-              </Button>
-            </div>
-
-            {media.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-6 text-center border border-dashed rounded">
-                Nenhuma imagem ou vídeo adicionado. Use as opções acima.
-              </p>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {media.map((item, idx) => (
-                  <MediaItem
-                    key={item.id ?? `m-${idx}`}
-                    item={item}
-                    onRemove={() =>
-                      setMedia((prev) => prev.filter((_, i) => i !== idx))
-                    }
-                  />
-                ))}
-              </div>
-            )}
-          </TabsContent>
 
           <TabsContent value="ingredients" className="space-y-3 overflow-y-auto pt-4">
             {isServico ? (
