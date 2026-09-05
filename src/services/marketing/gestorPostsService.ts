@@ -16,6 +16,10 @@ import type {
   CreateWhatsappStatusPayload,
   YoutubeUploadItem,
   CreateYoutubeUploadPayload,
+  FacebookAccountInfo,
+  FacebookPost,
+  YoutubeChannelInfo,
+  YoutubeVideoItem,
 } from '@/types/marketing/gestorPosts';
 
 class GestorPostsService {
@@ -161,6 +165,26 @@ class GestorPostsService {
   async getYoutubeUpload(id: string): Promise<YoutubeUploadItem> {
     const response = await api.get(`${this.baseUrl}/youtube/${id}`);
     return extractData<YoutubeUploadItem>(response);
+  }
+
+  async getFacebookAccountInfo(channel: SocialChannelOption): Promise<FacebookAccountInfo> {
+    const response = await api.get(`${this.baseUrl}/gallery/facebook_account_info`, { params: channelParams(channel) });
+    return extractData<FacebookAccountInfo>(response);
+  }
+
+  async getFacebookMedia(channel: SocialChannelOption, limit = 25): Promise<FacebookPost[]> {
+    const response = await api.get(`${this.baseUrl}/gallery/facebook_media`, { params: { ...channelParams(channel), limit } });
+    return extractData<FacebookPost[]>(response);
+  }
+
+  async getYoutubeAccountInfo(): Promise<YoutubeChannelInfo> {
+    const response = await api.get(`${this.baseUrl}/youtube/account_info`);
+    return extractData<YoutubeChannelInfo>(response);
+  }
+
+  async getYoutubeVideos(limit = 25): Promise<YoutubeVideoItem[]> {
+    const response = await api.get(`${this.baseUrl}/youtube/videos`, { params: { limit } });
+    return extractData<YoutubeVideoItem[]>(response);
   }
 }
 

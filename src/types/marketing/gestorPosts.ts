@@ -151,3 +151,45 @@ export interface CreateYoutubeUploadPayload {
   privacy_status: YoutubePrivacyStatus;
   video: File;
 }
+
+export interface FacebookAccountInfo {
+  name?: string;
+  fan_count?: number;
+  picture?: { data?: { url?: string } };
+  link?: string;
+  about?: string;
+}
+
+export interface FacebookPostAttachment {
+  media_type?: string;
+  media?: { image?: { src?: string } };
+  url?: string;
+}
+
+export interface FacebookPost {
+  id: string;
+  message?: string;
+  created_time?: string;
+  permalink_url?: string;
+  full_picture?: string;
+  attachments?: { data: FacebookPostAttachment[] };
+  likes?: { summary?: { total_count?: number } };
+  comments?: { summary?: { total_count?: number } };
+}
+
+export interface YoutubeChannelInfo {
+  snippet?: { title?: string; description?: string; thumbnails?: { default?: { url?: string } } };
+  statistics?: { subscriberCount?: string; videoCount?: string; viewCount?: string };
+}
+
+export interface YoutubeVideoItem {
+  id?: string;
+  snippet?: {
+    title?: string;
+    description?: string;
+    publishedAt?: string;
+    thumbnails?: { medium?: { url?: string }; high?: { url?: string }; default?: { url?: string } };
+  };
+  contentDetails?: { videoId?: string };
+  statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
+}

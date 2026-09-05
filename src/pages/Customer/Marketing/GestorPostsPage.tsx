@@ -17,7 +17,13 @@ import type {
   WhatsappStatusChannelOption,
   WhatsappStatusType,
   YoutubePrivacyStatus,
+  FacebookAccountInfo,
+  FacebookPost,
+  YoutubeChannelInfo,
+  YoutubeVideoItem,
 } from '@/types/marketing/gestorPosts';
+
+type GalleryPlatform = 'instagram' | 'facebook' | 'youtube';
 
 const CONTENT_TYPE_LABELS: Record<PublicationContentType, string> = {
   feed: 'Feed',
@@ -174,6 +180,18 @@ export default function GestorPostsPage() {
   const youtubeFileInputRef = useRef<HTMLInputElement>(null);
 
   const facebookChannels = channels.filter((c) => c.channel_type === ('Channel::FacebookPage' as SocialChannelType));
+
+  const [galleryPlatform, setGalleryPlatform] = useState<GalleryPlatform>('instagram');
+
+  const [selectedFacebookChannel, setSelectedFacebookChannel] = useState<SocialChannelOption | null>(null);
+  const [facebookAccountInfo, setFacebookAccountInfo] = useState<FacebookAccountInfo | null>(null);
+  const [facebookMedia, setFacebookMedia] = useState<FacebookPost[]>([]);
+  const [loadingFacebookGallery, setLoadingFacebookGallery] = useState(false);
+
+  const [youtubeAccountInfo, setYoutubeAccountInfo] = useState<YoutubeChannelInfo | null>(null);
+  const [youtubeVideos, setYoutubeVideos] = useState<YoutubeVideoItem[]>([]);
+  const [loadingYoutubeGallery, setLoadingYoutubeGallery] = useState(false);
+  const [youtubeGalleryError, setYoutubeGalleryError] = useState<string | null>(null);
 
   const toggleInDest = (list: string[], id: string) =>
     list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
@@ -682,6 +700,57 @@ export default function GestorPostsPage() {
     loadGallery();
   }, [loadGallery]);
 
+  useEffect(() => {
+    if (!selectedFacebookChannel && facebookChannels.length > 0) {
+      setSelectedFacebookChannel(facebookChannels[0]);
+    }
+  }, [facebookChannels, selectedFacebookChannel]);
+
+  const loadFacebookGallery = useCallback(async () => {
+    if (!selectedFacebookChannel) return;
+    setLoadingFacebookGallery(true);
+    try {
+      const [info, posts] = await Promise.all([
+        gestorPostsService.getFacebookAccountInfo(selectedFacebookChannel),
+        gestorPostsService.getFacebookMedia(selectedFacebookChannel, 25),
+      ]);
+      setFacebookAccountInfo(info);
+      setFacebookMedia(posts);
+    } catch {
+      toast.error('Erro ao carregar a galeria do Facebook.');
+    } finally {
+      setLoadingFacebookGallery(false);
+    }
+  }, [selectedFacebookChannel]);
+
+  useEffect(() => {
+    if (galleryPlatform === 'facebook') loadFacebookGallery();
+  }, [galleryPlatform, loadFacebookGallery]);
+
+  const loadYoutubeGallery = useCallback(async () => {
+    setLoadingYoutubeGallery(true);
+    setYoutubeGalleryError(null);
+    try {
+      const [info, videos] = await Promise.all([
+        gestorPostsService.getYoutubeAccountInfo(),
+        gestorPostsService.getYoutubeVideos(25),
+      ]);
+      setYoutubeAccountInfo(info);
+      setYoutubeVideos(videos);
+    } catch (err) {
+      const message =
+        (err as { response?: { data?: { errors?: string[] } } })?.response?.data?.errors?.[0] ||
+        'Erro ao carregar a galeria do YouTube.';
+      setYoutubeGalleryError(message);
+    } finally {
+      setLoadingYoutubeGallery(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (galleryPlatform === 'youtube') loadYoutubeGallery();
+  }, [galleryPlatform, loadYoutubeGallery]);
+
   const openMedia = async (item: InstagramMedia) => {
     setSelectedMedia(item);
     setComments([]);
@@ -757,25 +826,49 @@ export default function GestorPostsPage() {
         </div>
       </div>
 
-      {channels.length > 1 && (
-        <div className="flex gap-2 flex-wrap">
-          {channels.map((c) => (
-            <button
-              key={`${c.channel_type}-${c.channel_id}`}
-              onClick={() => setSelectedChannel(c)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                selectedChannel?.channel_id === c.channel_id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/70'
-              }`}
-            >
-              @{c.username}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex gap-2">
+        {(
+          [
+            { id: 'instagram' as const, label: 'Instagram', icon: Instagram },
+            { id: 'facebook' as const, label: 'Facebook', icon: Facebook },
+            { id: 'youtube' as const, label: 'YouTube', icon: Youtube },
+          ]
+        ).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setGalleryPlatform(id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              galleryPlatform === id
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/70'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" /> {label}
+          </button>
+        ))}
+      </div>
 
-      {loadingGallery ? (
+      {galleryPlatform === 'instagram' && (
+        <>
+          {channels.length > 1 && (
+            <div className="flex gap-2 flex-wrap">
+              {channels.map((c) => (
+                <button
+                  key={`${c.channel_type}-${c.channel_id}`}
+                  onClick={() => setSelectedChannel(c)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    selectedChannel?.channel_id === c.channel_id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                  }`}
+                >
+                  @{c.username}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {loadingGallery ? (
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-16">
           <Loader2 className="w-4 h-4 animate-spin" /> Carregando galeria...
         </div>
@@ -831,6 +924,178 @@ export default function GestorPostsPage() {
                 </button>
               ))}
             </div>
+          )}
+        </>
+          )}
+        </>
+      )}
+
+      {galleryPlatform === 'facebook' && (
+        <>
+          {facebookChannels.length > 1 && (
+            <div className="flex gap-2 flex-wrap">
+              {facebookChannels.map((c) => (
+                <button
+                  key={c.channel_id}
+                  onClick={() => setSelectedFacebookChannel(c)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    selectedFacebookChannel?.channel_id === c.channel_id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                  }`}
+                >
+                  @{c.username}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {facebookChannels.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                Nenhuma página do Facebook conectada.
+              </CardContent>
+            </Card>
+          ) : loadingFacebookGallery ? (
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-16">
+              <Loader2 className="w-4 h-4 animate-spin" /> Carregando galeria...
+            </div>
+          ) : (
+            <>
+              {facebookAccountInfo && (
+                <Card>
+                  <CardContent className="py-4 flex flex-wrap items-center gap-6">
+                    {facebookAccountInfo.picture?.data?.url && (
+                      <img src={facebookAccountInfo.picture.data.url} alt="" className="w-14 h-14 rounded-full object-cover" />
+                    )}
+                    <div>
+                      <p className="font-semibold text-foreground">{facebookAccountInfo.name}</p>
+                      {facebookAccountInfo.about && (
+                        <p className="text-xs text-muted-foreground max-w-md">{facebookAccountInfo.about}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground ml-auto">
+                      <span className="flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5" /> {formatNumber(facebookAccountInfo.fan_count)} seguidores
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {facebookMedia.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-sm text-muted-foreground">Nenhum post encontrado.</CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {facebookMedia.map((post) => {
+                    const thumb = post.full_picture || post.attachments?.data?.[0]?.media?.image?.src;
+                    return (
+                      <a
+                        key={post.id}
+                        href={post.permalink_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group relative aspect-square rounded-lg overflow-hidden bg-muted border border-border block"
+                      >
+                        {thumb ? (
+                          <img src={thumb} alt={post.message || ''} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center p-3 text-xs text-muted-foreground text-center">
+                            {post.message?.slice(0, 120) || 'Post sem imagem'}
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
+                          <span className="text-white text-xs flex items-center gap-1">
+                            <Heart className="w-3.5 h-3.5" /> {formatNumber(post.likes?.summary?.total_count)}
+                          </span>
+                          <span className="text-white text-xs flex items-center gap-1">
+                            <MessageCircle className="w-3.5 h-3.5" /> {formatNumber(post.comments?.summary?.total_count)}
+                          </span>
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {galleryPlatform === 'youtube' && (
+        <>
+          {loadingYoutubeGallery ? (
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-16">
+              <Loader2 className="w-4 h-4 animate-spin" /> Carregando galeria...
+            </div>
+          ) : youtubeGalleryError ? (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">{youtubeGalleryError}</CardContent>
+            </Card>
+          ) : (
+            <>
+              {youtubeAccountInfo && (
+                <Card>
+                  <CardContent className="py-4 flex flex-wrap items-center gap-6">
+                    {youtubeAccountInfo.snippet?.thumbnails?.default?.url && (
+                      <img
+                        src={youtubeAccountInfo.snippet.thumbnails.default.url}
+                        alt=""
+                        className="w-14 h-14 rounded-full object-cover"
+                      />
+                    )}
+                    <div>
+                      <p className="font-semibold text-foreground">{youtubeAccountInfo.snippet?.title}</p>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground ml-auto">
+                      <span className="flex items-center gap-1">
+                        <ImageIcon className="w-3.5 h-3.5" /> {formatNumber(Number(youtubeAccountInfo.statistics?.videoCount))} vídeos
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5" /> {formatNumber(Number(youtubeAccountInfo.statistics?.subscriberCount))} inscritos
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {youtubeVideos.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-sm text-muted-foreground">Nenhum vídeo encontrado.</CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {youtubeVideos.map((video, index) => {
+                    const videoId = video.contentDetails?.videoId;
+                    const thumb =
+                      video.snippet?.thumbnails?.high?.url ||
+                      video.snippet?.thumbnails?.medium?.url ||
+                      video.snippet?.thumbnails?.default?.url;
+                    return (
+                      <a
+                        key={videoId || index}
+                        href={videoId ? `https://www.youtube.com/watch?v=${videoId}` : undefined}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group relative aspect-square rounded-lg overflow-hidden bg-muted border border-border block"
+                      >
+                        {thumb && <img src={thumb} alt={video.snippet?.title || ''} className="w-full h-full object-cover" />}
+                        <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-xs p-1.5 line-clamp-2">
+                          {video.snippet?.title}
+                        </div>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
+                          <span className="text-white text-xs flex items-center gap-1">
+                            <ImageIcon className="w-3.5 h-3.5" /> {formatNumber(Number(video.statistics?.viewCount))}
+                          </span>
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </>
       )}
