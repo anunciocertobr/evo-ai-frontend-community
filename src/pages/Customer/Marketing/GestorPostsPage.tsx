@@ -23,6 +23,7 @@ import type {
   FacebookAccountInfo,
   FacebookPost,
   FacebookAccessiblePage,
+  FacebookStory,
   YoutubeChannelInfo,
   YoutubeVideoItem,
 } from '@/types/marketing/gestorPosts';
@@ -552,6 +553,9 @@ export default function GestorPostsPage() {
   const [facebookAccountInfo, setFacebookAccountInfo] = useState<FacebookAccountInfo | null>(null);
   const [facebookMedia, setFacebookMedia] = useState<FacebookPost[]>([]);
   const [loadingFacebookGallery, setLoadingFacebookGallery] = useState(false);
+  const [facebookView, setFacebookView] = useState<'posts' | 'stories'>('posts');
+  const [facebookStories, setFacebookStories] = useState<FacebookStory[]>([]);
+  const [loadingFacebookStories, setLoadingFacebookStories] = useState(false);
 
   const [youtubeAccountInfo, setYoutubeAccountInfo] = useState<YoutubeChannelInfo | null>(null);
   const [youtubeVideos, setYoutubeVideos] = useState<YoutubeVideoItem[]>([]);
@@ -1327,8 +1331,25 @@ export default function GestorPostsPage() {
   }, [selectedFacebookChannel]);
 
   useEffect(() => {
-    if (galleryPlatform === 'facebook') loadFacebookGallery();
-  }, [galleryPlatform, loadFacebookGallery]);
+    if (galleryPlatform === 'facebook' && facebookView === 'posts') loadFacebookGallery();
+  }, [galleryPlatform, facebookView, loadFacebookGallery]);
+
+  const loadFacebookStories = useCallback(async () => {
+    if (!selectedFacebookChannel) return;
+    setLoadingFacebookStories(true);
+    try {
+      const data = await gestorPostsService.getFacebookStories(selectedFacebookChannel);
+      setFacebookStories(data);
+    } catch {
+      toast.error('Erro ao carregar os Stories ativos do Facebook. A página pode não ter a permissão necessária.');
+    } finally {
+      setLoadingFacebookStories(false);
+    }
+  }, [selectedFacebookChannel]);
+
+  useEffect(() => {
+    if (galleryPlatform === 'facebook' && facebookView === 'stories') loadFacebookStories();
+  }, [galleryPlatform, facebookView, loadFacebookStories]);
 
   const loadYoutubeGallery = useCallback(async () => {
     setLoadingYoutubeGallery(true);
@@ -1862,64 +1883,144 @@ export default function GestorPostsPage() {
                   : 'Selecione uma página acima pra ver a galeria.'}
               </CardContent>
             </Card>
-          ) : loadingFacebookGallery ? (
-            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-16">
-              <Loader2 className="w-4 h-4 animate-spin" /> Carregando galeria...
-            </div>
           ) : (
             <>
-              {facebookAccountInfo && (
-                <Card>
-                  <CardContent className="py-4 flex flex-wrap items-center gap-6">
-                    {facebookAccountInfo.picture?.data?.url && (
-                      <img src={facebookAccountInfo.picture.data.url} alt="" className="w-14 h-14 rounded-full object-cover" />
-                    )}
-                    <div>
-                      <p className="font-semibold text-foreground">{facebookAccountInfo.name}</p>
-                      {facebookAccountInfo.about && (
-                        <p className="text-xs text-muted-foreground max-w-md">{facebookAccountInfo.about}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground ml-auto">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3.5 h-3.5" /> {formatNumber(facebookAccountInfo.fan_count)} seguidores
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              <div className="flex gap-2">
+                {(
+                  [
+                    { id: 'posts' as const, label: 'Posts' },
+                    { id: 'stories' as const, label: 'Stories (24h)' },
+                  ]
+                ).map(({ id, label }) => (
+                  <button
+                    key={id}
+                    onClick={() => setFacebookView(id)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                      facebookView === id
+                        ? 'bg-slate-700 text-white'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-              {facebookMedia.length === 0 ? (
+              {facebookView === 'posts' ? (
+                loadingFacebookGallery ? (
+                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-16">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Carregando galeria...
+                  </div>
+                ) : (
+                  <>
+                    {facebookAccountInfo && (
+                      <Card>
+                        <CardContent className="py-4 flex flex-wrap items-center gap-6">
+                          {facebookAccountInfo.picture?.data?.url && (
+                            <img
+                              src={facebookAccountInfo.picture.data.url}
+                              alt=""
+                              className="w-14 h-14 rounded-full object-cover"
+                            />
+                          )}
+                          <div>
+                            <p className="font-semibold text-foreground">{facebookAccountInfo.name}</p>
+                            {facebookAccountInfo.about && (
+                              <p className="text-xs text-muted-foreground max-w-md">{facebookAccountInfo.about}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground ml-auto">
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3.5 h-3.5" /> {formatNumber(facebookAccountInfo.fan_count)} seguidores
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {facebookMedia.length === 0 ? (
+                      <Card>
+                        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                          Nenhum post encontrado.
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                        {facebookMedia.map((post) => {
+                          const thumb = post.full_picture || post.attachments?.data?.[0]?.media?.image?.src;
+                          return (
+                            <button
+                              key={post.id}
+                              type="button"
+                              onClick={() => setSelectedFacebookPost(post)}
+                              className="group relative aspect-square rounded-lg overflow-hidden bg-muted border border-border block"
+                            >
+                              {thumb ? (
+                                <img src={thumb} alt={post.message || ''} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center p-3 text-xs text-muted-foreground text-center">
+                                  {post.message?.slice(0, 120) || 'Post sem imagem'}
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
+                                <span className="text-white text-xs flex items-center gap-1">
+                                  <Heart className="w-3.5 h-3.5" /> {formatNumber(post.likes?.summary?.total_count)}
+                                </span>
+                                <span className="text-white text-xs flex items-center gap-1">
+                                  <MessageCircle className="w-3.5 h-3.5" /> {formatNumber(post.comments?.summary?.total_count)}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                )
+              ) : loadingFacebookStories ? (
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-16">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Carregando Stories...
+                </div>
+              ) : facebookStories.length === 0 ? (
                 <Card>
-                  <CardContent className="py-8 text-center text-sm text-muted-foreground">Nenhum post encontrado.</CardContent>
+                  <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                    Nenhum Story ativo no momento (a página precisa da permissão pages_read_engagement, e Stories somem
+                    da API 24h depois de postados).
+                  </CardContent>
                 </Card>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                  {facebookMedia.map((post) => {
-                    const thumb = post.full_picture || post.attachments?.data?.[0]?.media?.image?.src;
+                  {facebookStories.map((story) => {
+                    const isVideo = story.media_type?.toLowerCase() === 'video';
+                    const StoryIcon = isVideo ? Play : ImageIcon;
                     return (
-                      <button
-                        key={post.id}
-                        type="button"
-                        onClick={() => setSelectedFacebookPost(post)}
-                        className="group relative aspect-square rounded-lg overflow-hidden bg-muted border border-border block"
+                      <a
+                        key={story.post_id}
+                        href={story.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group relative aspect-[9/16] rounded-lg overflow-hidden bg-muted border border-border block"
                       >
-                        {thumb ? (
-                          <img src={thumb} alt={post.message || ''} className="w-full h-full object-cover" />
+                        {story.media_url ? (
+                          isVideo ? (
+                            <video src={story.media_url} className="w-full h-full object-cover" muted />
+                          ) : (
+                            <img src={story.media_url} alt="" className="w-full h-full object-cover" />
+                          )
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center p-3 text-xs text-muted-foreground text-center">
-                            {post.message?.slice(0, 120) || 'Post sem imagem'}
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                            <StoryIcon className="w-6 h-6" />
+                            {story.creation_time && (
+                              <span className="text-[11px]">
+                                {new Date(story.creation_time * 1000).toLocaleTimeString('pt-BR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            )}
                           </div>
                         )}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
-                          <span className="text-white text-xs flex items-center gap-1">
-                            <Heart className="w-3.5 h-3.5" /> {formatNumber(post.likes?.summary?.total_count)}
-                          </span>
-                          <span className="text-white text-xs flex items-center gap-1">
-                            <MessageCircle className="w-3.5 h-3.5" /> {formatNumber(post.comments?.summary?.total_count)}
-                          </span>
-                        </div>
-                      </button>
+                      </a>
                     );
                   })}
                 </div>

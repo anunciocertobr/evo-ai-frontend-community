@@ -20,6 +20,7 @@ import type {
   FacebookAccountInfo,
   FacebookPost,
   FacebookAccessiblePage,
+  FacebookStory,
   YoutubeChannelInfo,
   YoutubeVideoItem,
 } from '@/types/marketing/gestorPosts';
@@ -203,6 +204,11 @@ class GestorPostsService {
   async getFacebookMedia(channel: SocialChannelOption, limit = 25): Promise<FacebookPost[]> {
     const response = await api.get(`${this.baseUrl}/gallery/facebook_media`, { params: { ...channelParams(channel), limit } });
     return extractData<FacebookPost[]>(response);
+  }
+
+  async getFacebookStories(channel?: SocialChannelOption): Promise<FacebookStory[]> {
+    const response = await api.get(`${this.baseUrl}/gallery/facebook_stories`, { params: channelParams(channel) });
+    return extractData<FacebookStory[]>(response);
   }
 
   async deleteFacebookMedia(postId: string, channel?: SocialChannelOption): Promise<void> {

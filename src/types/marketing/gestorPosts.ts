@@ -195,6 +195,16 @@ export interface FacebookAccessiblePage {
   connected: boolean;
 }
 
+export interface FacebookStory {
+  post_id?: string;
+  status?: string;
+  creation_time?: number;
+  media_type?: string;
+  media_id?: string;
+  url?: string;
+  media_url?: string | null;
+}
+
 export interface YoutubeChannelInfo {
   snippet?: { title?: string; description?: string; thumbnails?: { default?: { url?: string } } };
   statistics?: { subscriberCount?: string; videoCount?: string; viewCount?: string };
