@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, FolderOpen, Calendar, CalendarDays, RotateCcw, Phone, Youtube, Instagram, Facebook, Trash2, Settings as SettingsIcon, Bookmark, Target, Share2, Eye, UserPlus, Clock, Play, Layers, ExternalLink } from 'lucide-react';
+import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, FolderOpen, Calendar, CalendarDays, RotateCcw, Phone, Youtube, Instagram, Facebook, Trash2, Settings as SettingsIcon, Bookmark, Target, Share2, Eye, UserPlus, Clock, Play, Layers, ExternalLink, MapPin, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import flatpickr from 'flatpickr';
 import { Portuguese } from 'flatpickr/dist/l10n/pt.js';
@@ -26,9 +26,16 @@ import type {
   FacebookStory,
   YoutubeChannelInfo,
   YoutubeVideoItem,
+  BusinessLocation,
+  BusinessLocationDetail,
+  BusinessCategory,
+  BusinessCategoryRef,
+  BusinessLocalPost,
+  BusinessHoursPeriod,
+  BusinessSpecialHourPeriod,
 } from '@/types/marketing/gestorPosts';
 
-type GalleryPlatform = 'instagram' | 'facebook' | 'youtube';
+type GalleryPlatform = 'instagram' | 'facebook' | 'youtube' | 'business_profile';
 type MediaTypeChoice = 'image' | 'video' | 'carousel' | 'text' | 'audio' | '';
 
 const CONTENT_TYPE_LABELS: Record<PublicationContentType, string> = {
@@ -201,6 +208,464 @@ function DestinationChecklist({ title, icon, items, selected, onToggle, emptyLab
   );
 }
 
+const CTA_ACTION_LABELS: Record<string, string> = {
+  BOOK: 'Reservar',
+  ORDER: 'Pedir',
+  SHOP: 'Comprar',
+  LEARN_MORE: 'Saiba mais',
+  SIGN_UP: 'Cadastrar-se',
+  CALL: 'Ligar',
+};
+
+const inputClass = 'w-full border border-gray-300 rounded-md text-sm p-2';
+const sectionClass = 'space-y-3 border border-gray-200 rounded-lg p-4';
+const labelClass = 'block text-xs font-medium text-gray-500 mb-1';
+
+interface BusinessProfileEditFormProps {
+  detail: BusinessLocationDetail;
+  saving: string | null;
+  onSave: (sectionKey: string, fields: Record<string, unknown>, updateMask: string[]) => void;
+  categoryQuery: string;
+  setCategoryQuery: (q: string) => void;
+  categoryResults: BusinessCategory[];
+  searchingCategories: boolean;
+}
+
+// Formulário de edição do perfil do Google Meu Negócio, em seções salvas
+// independentemente (uma falha numa seção não perde edições já salvas de
+// outra). Estado local é semeado uma vez a partir de `detail` — o pai
+// remonta este componente (via `key`) sempre que a localização selecionada
+// muda, então não precisa sincronizar manualmente.
+function BusinessProfileEditForm({
+  detail,
+  saving,
+  onSave,
+  categoryQuery,
+  setCategoryQuery,
+  categoryResults,
+  searchingCategories,
+}: BusinessProfileEditFormProps) {
+  const [title, setTitle] = useState(detail.title || '');
+  const [phone, setPhone] = useState(detail.phoneNumbers?.primaryPhone || '');
+  const [website, setWebsite] = useState(detail.websiteUri || '');
+  const [description, setDescription] = useState(detail.profile?.description || '');
+
+  const [addressLine, setAddressLine] = useState(detail.storefrontAddress?.addressLines?.[0] || '');
+  const [locality, setLocality] = useState(detail.storefrontAddress?.locality || '');
+  const [region, setRegion] = useState(detail.storefrontAddress?.administrativeArea || '');
+  const [postalCode, setPostalCode] = useState(detail.storefrontAddress?.postalCode || '');
+  const [regionCode, setRegionCode] = useState(detail.storefrontAddress?.regionCode || 'BR');
+
+  const [primaryCategory, setPrimaryCategory] = useState<BusinessCategoryRef | null>(
+    detail.categories?.primaryCategory || null,
+  );
+  const [additionalCategories, setAdditionalCategories] = useState<BusinessCategoryRef[]>(
+    detail.categories?.additionalCategories || [],
+  );
+
+  const [periods, setPeriods] = useState<BusinessHoursPeriod[]>(detail.regularHours?.periods || []);
+  const [specialPeriods, setSpecialPeriods] = useState<BusinessSpecialHourPeriod[]>(
+    detail.specialHours?.specialHourPeriods || [],
+  );
+  const [serviceItems, setServiceItems] = useState<{ category: string; label: string; description: string }[]>(
+    (detail.serviceItems || []).map((item) => ({
+      category: item.freeFormServiceItem?.category || '',
+      label: item.freeFormServiceItem?.label?.displayName || '',
+      description: item.freeFormServiceItem?.label?.description || '',
+    })),
+  );
+  const [businessType, setBusinessType] = useState(
+    detail.serviceArea?.businessType || 'CUSTOMER_LOCATION_ONLY',
+  );
+  const existingPlaces = detail.serviceArea?.places?.placeInfos || [];
+
+  const weekDays = [
+    { value: 'MONDAY', label: 'Segunda' },
+    { value: 'TUESDAY', label: 'Terça' },
+    { value: 'WEDNESDAY', label: 'Quarta' },
+    { value: 'THURSDAY', label: 'Quinta' },
+    { value: 'FRIDAY', label: 'Sexta' },
+    { value: 'SATURDAY', label: 'Sábado' },
+    { value: 'SUNDAY', label: 'Domingo' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className={sectionClass}>
+        <h3 className="text-sm font-semibold text-gray-800">Básico</h3>
+        <div>
+          <label className={labelClass}>Nome do negócio</label>
+          <input className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>Telefone</label>
+            <input className={inputClass} value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelClass}>Site</label>
+            <input className={inputClass} value={website} onChange={(e) => setWebsite(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className={labelClass}>Descrição</label>
+          <textarea className={inputClass} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+        </div>
+        <Button
+          size="sm"
+          disabled={saving === 'basic'}
+          onClick={() =>
+            onSave(
+              'basic',
+              { title, phoneNumbers: { primaryPhone: phone }, websiteUri: website, profile: { description } },
+              ['title', 'phoneNumbers', 'websiteUri', 'profile'],
+            )
+          }
+        >
+          {saving === 'basic' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+          Salvar
+        </Button>
+      </div>
+
+      <div className={sectionClass}>
+        <h3 className="text-sm font-semibold text-gray-800">Categoria</h3>
+        <div>
+          <label className={labelClass}>Categoria principal</label>
+          {primaryCategory ? (
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">{primaryCategory.displayName}</Badge>
+              <button className="text-xs text-red-600 hover:underline" onClick={() => setPrimaryCategory(null)}>
+                Remover
+              </button>
+            </div>
+          ) : (
+            <input
+              className={inputClass}
+              placeholder="Buscar categoria (ex.: Restaurante)..."
+              value={categoryQuery}
+              onChange={(e) => setCategoryQuery(e.target.value)}
+            />
+          )}
+          {!primaryCategory && categoryQuery.trim().length >= 2 && (
+            <div className="mt-1 border border-gray-200 rounded-md max-h-32 overflow-y-auto">
+              {searchingCategories ? (
+                <p className="text-xs text-gray-400 p-2">Buscando...</p>
+              ) : categoryResults.length === 0 ? (
+                <p className="text-xs text-gray-400 p-2">Nenhuma categoria encontrada.</p>
+              ) : (
+                categoryResults.map((cat) => (
+                  <button
+                    key={cat.name}
+                    className="block w-full text-left text-sm px-2 py-1 hover:bg-gray-50"
+                    onClick={() => {
+                      setPrimaryCategory(cat);
+                      setCategoryQuery('');
+                    }}
+                  >
+                    {cat.displayName}
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className={labelClass}>Categorias adicionais</label>
+          <div className="flex flex-wrap gap-1.5">
+            {additionalCategories.map((cat) => (
+              <Badge key={cat.name} variant="outline" className="flex items-center gap-1">
+                {cat.displayName}
+                <button
+                  onClick={() => setAdditionalCategories((prev) => prev.filter((c) => c.name !== cat.name))}
+                  className="text-gray-400 hover:text-red-600"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        </div>
+        <Button
+          size="sm"
+          disabled={saving === 'categories' || !primaryCategory}
+          onClick={() =>
+            onSave(
+              'categories',
+              { categories: { primaryCategory, additionalCategories } },
+              ['categories'],
+            )
+          }
+        >
+          {saving === 'categories' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+          Salvar
+        </Button>
+      </div>
+
+      <div className={sectionClass}>
+        <h3 className="text-sm font-semibold text-gray-800">Endereço</h3>
+        <input
+          className={inputClass}
+          placeholder="Rua, número"
+          value={addressLine}
+          onChange={(e) => setAddressLine(e.target.value)}
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <input className={inputClass} placeholder="Cidade" value={locality} onChange={(e) => setLocality(e.target.value)} />
+          <input className={inputClass} placeholder="Estado" value={region} onChange={(e) => setRegion(e.target.value)} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <input className={inputClass} placeholder="CEP" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
+          <input
+            className={inputClass}
+            placeholder="País (código, ex.: BR)"
+            value={regionCode}
+            onChange={(e) => setRegionCode(e.target.value)}
+          />
+        </div>
+        <Button
+          size="sm"
+          disabled={saving === 'address'}
+          onClick={() =>
+            onSave(
+              'address',
+              {
+                storefrontAddress: {
+                  addressLines: [addressLine].filter(Boolean),
+                  locality,
+                  administrativeArea: region,
+                  postalCode,
+                  regionCode,
+                },
+              },
+              ['storefrontAddress'],
+            )
+          }
+        >
+          {saving === 'address' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+          Salvar
+        </Button>
+      </div>
+
+      <div className={sectionClass}>
+        <h3 className="text-sm font-semibold text-gray-800">Horário Regular</h3>
+        {periods.map((period, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <select
+              className={inputClass}
+              value={period.openDay}
+              onChange={(e) =>
+                setPeriods((prev) => prev.map((p, i) => (i === index ? { ...p, openDay: e.target.value, closeDay: e.target.value } : p)))
+              }
+            >
+              {weekDays.map((d) => (
+                <option key={d.value} value={d.value}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+            <input
+              type="time"
+              className={inputClass}
+              value={period.openTime}
+              onChange={(e) => setPeriods((prev) => prev.map((p, i) => (i === index ? { ...p, openTime: e.target.value } : p)))}
+            />
+            <span className="text-gray-400">-</span>
+            <input
+              type="time"
+              className={inputClass}
+              value={period.closeTime}
+              onChange={(e) => setPeriods((prev) => prev.map((p, i) => (i === index ? { ...p, closeTime: e.target.value } : p)))}
+            />
+            <button onClick={() => setPeriods((prev) => prev.filter((_, i) => i !== index))} className="text-gray-400 hover:text-red-600">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={() =>
+            setPeriods((prev) => [...prev, { openDay: 'MONDAY', openTime: '09:00', closeDay: 'MONDAY', closeTime: '18:00' }])
+          }
+          className="text-xs text-blue-600 hover:underline"
+        >
+          + Adicionar período
+        </button>
+        <div>
+          <Button
+            size="sm"
+            disabled={saving === 'hours'}
+            onClick={() => onSave('hours', { regularHours: { periods } }, ['regularHours'])}
+          >
+            {saving === 'hours' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+            Salvar
+          </Button>
+        </div>
+      </div>
+
+      <div className={sectionClass}>
+        <h3 className="text-sm font-semibold text-gray-800">Horários Especiais (feriados/exceções)</h3>
+        {specialPeriods.map((period, index) => (
+          <div key={index} className="flex items-center gap-2 flex-wrap">
+            <input
+              type="date"
+              className={inputClass}
+              value={
+                period.startDate
+                  ? `${period.startDate.year}-${String(period.startDate.month).padStart(2, '0')}-${String(period.startDate.day).padStart(2, '0')}`
+                  : ''
+              }
+              onChange={(e) => {
+                const [year, month, day] = e.target.value.split('-').map(Number);
+                setSpecialPeriods((prev) => prev.map((p, i) => (i === index ? { ...p, startDate: { year, month, day } } : p)));
+              }}
+            />
+            <label className="flex items-center gap-1.5 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                checked={!!period.closed}
+                onChange={(e) => setSpecialPeriods((prev) => prev.map((p, i) => (i === index ? { ...p, closed: e.target.checked } : p)))}
+              />
+              Fechado
+            </label>
+            {!period.closed && (
+              <>
+                <input
+                  type="time"
+                  className={inputClass}
+                  value={period.openTime || ''}
+                  onChange={(e) => setSpecialPeriods((prev) => prev.map((p, i) => (i === index ? { ...p, openTime: e.target.value } : p)))}
+                />
+                <input
+                  type="time"
+                  className={inputClass}
+                  value={period.closeTime || ''}
+                  onChange={(e) => setSpecialPeriods((prev) => prev.map((p, i) => (i === index ? { ...p, closeTime: e.target.value } : p)))}
+                />
+              </>
+            )}
+            <button
+              onClick={() => setSpecialPeriods((prev) => prev.filter((_, i) => i !== index))}
+              className="text-gray-400 hover:text-red-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={() => {
+            const today = new Date();
+            setSpecialPeriods((prev) => [
+              ...prev,
+              { startDate: { year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() }, closed: true },
+            ]);
+          }}
+          className="text-xs text-blue-600 hover:underline"
+        >
+          + Adicionar exceção
+        </button>
+        <div>
+          <Button
+            size="sm"
+            disabled={saving === 'special_hours'}
+            onClick={() => onSave('special_hours', { specialHours: { specialHourPeriods: specialPeriods } }, ['specialHours'])}
+          >
+            {saving === 'special_hours' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+            Salvar
+          </Button>
+        </div>
+      </div>
+
+      <div className={sectionClass}>
+        <h3 className="text-sm font-semibold text-gray-800">Itens de Serviço</h3>
+        {serviceItems.map((item, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <input
+              className={inputClass}
+              placeholder="Categoria (opcional)"
+              value={item.category}
+              onChange={(e) => setServiceItems((prev) => prev.map((it, i) => (i === index ? { ...it, category: e.target.value } : it)))}
+            />
+            <input
+              className={inputClass}
+              placeholder="Nome do serviço"
+              value={item.label}
+              onChange={(e) => setServiceItems((prev) => prev.map((it, i) => (i === index ? { ...it, label: e.target.value } : it)))}
+            />
+            <button
+              onClick={() => setServiceItems((prev) => prev.filter((_, i) => i !== index))}
+              className="text-gray-400 hover:text-red-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={() => setServiceItems((prev) => [...prev, { category: '', label: '', description: '' }])}
+          className="text-xs text-blue-600 hover:underline"
+        >
+          + Adicionar serviço
+        </button>
+        <div>
+          <Button
+            size="sm"
+            disabled={saving === 'service_items'}
+            onClick={() =>
+              onSave(
+                'service_items',
+                {
+                  serviceItems: serviceItems
+                    .filter((it) => it.label.trim())
+                    .map((it) => ({
+                      freeFormServiceItem: {
+                        category: it.category || undefined,
+                        label: { displayName: it.label, description: it.description || undefined, languageCode: 'pt-BR' },
+                      },
+                    })),
+                },
+                ['serviceItems'],
+              )
+            }
+          >
+            {saving === 'service_items' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+            Salvar
+          </Button>
+        </div>
+      </div>
+
+      <div className={sectionClass}>
+        <h3 className="text-sm font-semibold text-gray-800">Área de Atendimento</h3>
+        <select className={inputClass} value={businessType} onChange={(e) => setBusinessType(e.target.value as typeof businessType)}>
+          <option value="CUSTOMER_LOCATION_ONLY">Atende só no endereço do cliente</option>
+          <option value="CUSTOMER_AND_BUSINESS_LOCATION">Atende no endereço próprio e do cliente</option>
+        </select>
+        {existingPlaces.length > 0 && (
+          <div>
+            <p className={labelClass}>Lugares atendidos (somente leitura)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {existingPlaces.map((place) => (
+                <Badge key={place.placeId} variant="outline">
+                  {place.placeName}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+        <p className="text-xs text-gray-400">
+          Adicionar/remover lugares específicos exige a Places API do Google, que ainda não está habilitada nesta conta —
+          só o tipo de atendimento acima é editável por aqui.
+        </p>
+        <Button
+          size="sm"
+          disabled={saving === 'service_area'}
+          onClick={() => onSave('service_area', { serviceArea: { businessType } }, ['serviceArea.businessType'])}
+        >
+          {saving === 'service_area' ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
+          Salvar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function GestorPostsPage() {
   const [channels, setChannels] = useState<SocialChannelOption[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<SocialChannelOption | null>(null);
@@ -272,6 +737,10 @@ export default function GestorPostsPage() {
   const [destFacebookIds, setDestFacebookIds] = useState<string[]>([]);
   const [destWhatsappIds, setDestWhatsappIds] = useState<string[]>([]);
   const [destYoutube, setDestYoutube] = useState(false);
+  // Chave composta "account_name|location_id", igual ao page_id do Facebook.
+  const [destBusinessLocationIds, setDestBusinessLocationIds] = useState<string[]>([]);
+  const [newCtaActionType, setNewCtaActionType] = useState('');
+  const [newCtaUrl, setNewCtaUrl] = useState('');
   // Passo "Plataforma(s)" do modelo original: liga/desliga a visibilidade da
   // lista de contas de cada rede — desligar uma plataforma limpa as contas
   // selecionadas nela.
@@ -280,6 +749,7 @@ export default function GestorPostsPage() {
     facebook: false,
     whatsapp: false,
     youtube: false,
+    business_profile: false,
   });
 
   const [showScheduledModal, setShowScheduledModal] = useState(false);
@@ -298,6 +768,23 @@ export default function GestorPostsPage() {
   // teve upload de YouTube na tela principal) — sempre publica como
   // "não listado", igual ao padrão que já era usado antes.
   const youtubePrivacy: YoutubePrivacyStatus = 'unlisted';
+
+  // Google Meu Negócio — mesma conexão "Conectar com Google" do YouTube/GTM
+  // (escopo business.manage). Sem passo de "conectar localização": a lista
+  // de localizações acessíveis é buscada ao vivo a cada abertura da aba.
+  const [businessProfileConnected, setBusinessProfileConnected] = useState<boolean | null>(null);
+  const [businessLocations, setBusinessLocations] = useState<BusinessLocation[]>([]);
+  const [loadingBusinessLocations, setLoadingBusinessLocations] = useState(false);
+  const [selectedBusinessLocation, setSelectedBusinessLocation] = useState<BusinessLocation | null>(null);
+  const [businessView, setBusinessView] = useState<'posts' | 'edit'>('posts');
+  const [businessPosts, setBusinessPosts] = useState<BusinessLocalPost[]>([]);
+  const [loadingBusinessPosts, setLoadingBusinessPosts] = useState(false);
+  const [businessLocationDetail, setBusinessLocationDetail] = useState<BusinessLocationDetail | null>(null);
+  const [loadingBusinessDetail, setLoadingBusinessDetail] = useState(false);
+  const [savingBusinessSection, setSavingBusinessSection] = useState<string | null>(null);
+  const [categoryQuery, setCategoryQuery] = useState('');
+  const [categoryResults, setCategoryResults] = useState<BusinessCategory[]>([]);
+  const [searchingCategories, setSearchingCategories] = useState(false);
 
   // Lista dedicada (não um filtro de `channels`) porque inclui TODAS as
   // páginas do Facebook já conectadas aqui, mesmo sem Instagram vinculado —
@@ -569,7 +1056,7 @@ export default function GestorPostsPage() {
     setNewFormats((prev) => ({ ...prev, [format]: !prev[format] }));
   };
 
-  const togglePlatformEnabled = (key: 'instagram' | 'facebook' | 'whatsapp' | 'youtube') => {
+  const togglePlatformEnabled = (key: 'instagram' | 'facebook' | 'whatsapp' | 'youtube' | 'business_profile') => {
     setPlatformEnabled((prev) => {
       const next = { ...prev, [key]: !prev[key] };
       if (!next[key]) {
@@ -577,6 +1064,7 @@ export default function GestorPostsPage() {
         if (key === 'facebook') setDestFacebookIds([]);
         if (key === 'whatsapp') setDestWhatsappIds([]);
         if (key === 'youtube') setDestYoutube(false);
+        if (key === 'business_profile') setDestBusinessLocationIds([]);
       }
       return next;
     });
@@ -643,7 +1131,7 @@ export default function GestorPostsPage() {
       config[parts[0].trim().toLowerCase()] = parts.slice(1).join(':').trim();
     });
 
-    const enabled = { instagram: false, facebook: false, whatsapp: false, youtube: false };
+    const enabled = { instagram: false, facebook: false, whatsapp: false, youtube: false, business_profile: false };
     (Object.keys(enabled) as Array<keyof typeof enabled>).forEach((key) => {
       if ((config[key] || '').toLowerCase() === 'sim') enabled[key] = true;
     });
@@ -661,7 +1149,7 @@ export default function GestorPostsPage() {
     setNewFormats({ feed: false, stories: false, reels: false });
     setNewIsScheduled(false);
     setNewScheduledFor('');
-    setPlatformEnabled({ instagram: false, facebook: false, whatsapp: false, youtube: false });
+    setPlatformEnabled({ instagram: false, facebook: false, whatsapp: false, youtube: false, business_profile: false });
     setDestInstagramIds([]);
     setDestFacebookIds([]);
     setDestWhatsappIds([]);
@@ -831,7 +1319,10 @@ export default function GestorPostsPage() {
     setDestFacebookIds([]);
     setDestWhatsappIds([]);
     setDestYoutube(false);
-    setPlatformEnabled({ instagram: false, facebook: false, whatsapp: false, youtube: false });
+    setDestBusinessLocationIds([]);
+    setNewCtaActionType('');
+    setNewCtaUrl('');
+    setPlatformEnabled({ instagram: false, facebook: false, whatsapp: false, youtube: false, business_profile: false });
     setMediaType('');
     setNewIsCarousel(false);
     setUploadedFiles([]);
@@ -860,6 +1351,9 @@ export default function GestorPostsPage() {
       .getYoutubeConnected()
       .then(setYoutubeConnected)
       .catch(() => setYoutubeConnected(false));
+    if (businessProfileConnected && businessLocations.length === 0) {
+      loadBusinessLocations();
+    }
   };
 
   const loadScheduledPosts = useCallback(async () => {
@@ -1047,15 +1541,30 @@ export default function GestorPostsPage() {
     pollYoutubeUploadStatus(upload.id);
   };
 
+  const publishBusinessProfileJob = async (compositeId: string) => {
+    const [accountName, locationId] = compositeId.split('|');
+    const file = uploadedFiles[0];
+    if (!file) return;
+    await gestorPostsService.createBusinessPost({
+      media: file,
+      summary: newCaption.trim(),
+      account_name: accountName,
+      location_id: locationId,
+      cta_action_type: newCtaActionType || undefined,
+      cta_url: newCtaActionType && newCtaActionType !== 'CALL' ? newCtaUrl.trim() || undefined : undefined,
+    });
+  };
+
   const handleCreatePost = async () => {
     const formats = (Object.keys(newFormats) as PublicationContentType[]).filter((f) => newFormats[f]);
     const hasMeta = destInstagramIds.length > 0 || destFacebookIds.length > 0;
     const hasWhatsapp = destWhatsappIds.length > 0;
     const hasYoutube = destYoutube;
+    const hasBusinessProfile = destBusinessLocationIds.length > 0;
 
-    const whatsappOnly = hasWhatsapp && !hasMeta && !hasYoutube;
+    const whatsappOnly = hasWhatsapp && !hasMeta && !hasYoutube && !hasBusinessProfile;
 
-    if (!hasMeta && !hasWhatsapp && !hasYoutube) {
+    if (!hasMeta && !hasWhatsapp && !hasYoutube && !hasBusinessProfile) {
       toast.error('Selecione ao menos uma plataforma e uma conta de destino.');
       return;
     }
@@ -1093,8 +1602,18 @@ export default function GestorPostsPage() {
       toast.error('Para postar no YouTube, selecione um único arquivo de vídeo (sem carrossel).');
       return;
     }
-    if (newIsScheduled && (hasWhatsapp || hasYoutube)) {
-      toast.error('Agendamento ainda não é suportado para WhatsApp ou YouTube — desmarque-os ou desative o agendamento.');
+    if (hasBusinessProfile && (newIsCarousel || !uploadedFiles[0]?.type.startsWith('image/'))) {
+      toast.error('Para postar no Google Meu Negócio, selecione uma única imagem (sem carrossel).');
+      return;
+    }
+    if (hasBusinessProfile && !newCaption.trim()) {
+      toast.error('Escreva a legenda do post do Google Meu Negócio.');
+      return;
+    }
+    if (newIsScheduled && (hasWhatsapp || hasYoutube || hasBusinessProfile)) {
+      toast.error(
+        'Agendamento ainda não é suportado para WhatsApp, YouTube ou Google Meu Negócio — desmarque-os ou desative o agendamento.',
+      );
       return;
     }
     if (newIsScheduled && !newScheduledFor) {
@@ -1152,6 +1671,14 @@ export default function GestorPostsPage() {
       jobs.push({ label: 'YouTube', run: publishYoutubeJob });
     }
 
+    destBusinessLocationIds.forEach((compositeId) => {
+      const location = businessLocations.find((l) => `${l.account_name}|${l.location_id}` === compositeId);
+      jobs.push({
+        label: `Google Meu Negócio (${location?.title || compositeId})`,
+        run: () => publishBusinessProfileJob(compositeId),
+      });
+    });
+
     setCreating(true);
     let successCount = 0;
     let failureCount = 0;
@@ -1205,7 +1732,99 @@ export default function GestorPostsPage() {
   useEffect(() => {
     loadChannels();
     loadFacebookChannelsList();
+    gestorPostsService
+      .getBusinessProfileConnected()
+      .then(setBusinessProfileConnected)
+      .catch(() => setBusinessProfileConnected(false));
   }, [loadChannels, loadFacebookChannelsList]);
+
+  const loadBusinessLocations = useCallback(async () => {
+    setLoadingBusinessLocations(true);
+    try {
+      const data = await gestorPostsService.getBusinessLocations();
+      setBusinessLocations(data);
+      setSelectedBusinessLocation((prev) => prev || data[0] || null);
+    } catch {
+      toast.error('Erro ao carregar localizações do Google Meu Negócio.');
+    } finally {
+      setLoadingBusinessLocations(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (galleryPlatform === 'business_profile' && businessProfileConnected) loadBusinessLocations();
+  }, [galleryPlatform, businessProfileConnected, loadBusinessLocations]);
+
+  const loadBusinessPosts = useCallback(async () => {
+    if (!selectedBusinessLocation) return;
+    setLoadingBusinessPosts(true);
+    try {
+      const data = await gestorPostsService.getBusinessPosts(
+        selectedBusinessLocation.account_name,
+        selectedBusinessLocation.location_id,
+      );
+      setBusinessPosts(data);
+    } catch {
+      toast.error('Erro ao carregar os posts do Google Meu Negócio.');
+    } finally {
+      setLoadingBusinessPosts(false);
+    }
+  }, [selectedBusinessLocation]);
+
+  useEffect(() => {
+    if (galleryPlatform === 'business_profile' && businessView === 'posts') loadBusinessPosts();
+  }, [galleryPlatform, businessView, loadBusinessPosts]);
+
+  const loadBusinessLocationDetail = useCallback(async () => {
+    if (!selectedBusinessLocation) return;
+    setLoadingBusinessDetail(true);
+    try {
+      const data = await gestorPostsService.getBusinessLocation(selectedBusinessLocation.name);
+      setBusinessLocationDetail(data);
+    } catch {
+      toast.error('Erro ao carregar os dados do perfil.');
+    } finally {
+      setLoadingBusinessDetail(false);
+    }
+  }, [selectedBusinessLocation]);
+
+  useEffect(() => {
+    if (galleryPlatform === 'business_profile' && businessView === 'edit') loadBusinessLocationDetail();
+  }, [galleryPlatform, businessView, loadBusinessLocationDetail]);
+
+  useEffect(() => {
+    if (categoryQuery.trim().length < 2) {
+      setCategoryResults([]);
+      return;
+    }
+    setSearchingCategories(true);
+    const timeout = setTimeout(() => {
+      gestorPostsService
+        .getBusinessCategories(categoryQuery.trim())
+        .then(setCategoryResults)
+        .catch(() => setCategoryResults([]))
+        .finally(() => setSearchingCategories(false));
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [categoryQuery]);
+
+  const saveBusinessLocationSection = async (
+    sectionKey: string,
+    fields: Record<string, unknown>,
+    updateMask: string[],
+  ) => {
+    if (!selectedBusinessLocation) return;
+    setSavingBusinessSection(sectionKey);
+    try {
+      const updated = await gestorPostsService.updateBusinessLocation(selectedBusinessLocation.name, fields, updateMask);
+      setBusinessLocationDetail((prev) => ({ ...prev, ...updated }));
+      toast.success('Alterações salvas no Google Meu Negócio!');
+    } catch {
+      toast.error('Não foi possível salvar essa seção.');
+    } finally {
+      setSavingBusinessSection(null);
+    }
+  };
 
   // Busca em segundo plano, sem modal — a lista de páginas acessíveis já
   // entra direto no seletor e no Criar Post, então carregamos assim que a
@@ -1605,6 +2224,7 @@ export default function GestorPostsPage() {
             { id: 'instagram' as const, label: 'Instagram', icon: Instagram },
             { id: 'facebook' as const, label: 'Facebook', icon: Facebook },
             { id: 'youtube' as const, label: 'YouTube', icon: Youtube },
+            { id: 'business_profile' as const, label: 'Google Meu Negócio', icon: MapPin },
           ]
         ).map(({ id, label, icon: Icon }) => (
           <button
@@ -2101,6 +2721,135 @@ export default function GestorPostsPage() {
                   })}
                 </div>
               )}
+            </>
+          )}
+        </>
+      )}
+
+      {galleryPlatform === 'business_profile' && (
+        <>
+          {businessProfileConnected === false ? (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                Google Meu Negócio não conectado. Conecte em Configurações &gt; Integrações &gt; Google (mesma conexão do
+                YouTube/GTM) e volte aqui.
+              </CardContent>
+            </Card>
+          ) : loadingBusinessLocations ? (
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-16">
+              <Loader2 className="w-4 h-4 animate-spin" /> Carregando localizações...
+            </div>
+          ) : businessLocations.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                Nenhuma localização encontrada nessa conta do Google Meu Negócio.
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {businessLocations.length > 1 && (
+                <div className="flex gap-2 flex-wrap">
+                  {businessLocations.map((loc) => (
+                    <button
+                      key={loc.name}
+                      onClick={() => setSelectedBusinessLocation(loc)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        selectedBusinessLocation?.name === loc.name
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                      }`}
+                    >
+                      <Building2 className="w-3.5 h-3.5" /> {loc.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                {(
+                  [
+                    { id: 'posts' as const, label: 'Posts' },
+                    { id: 'edit' as const, label: 'Editar Perfil' },
+                  ]
+                ).map(({ id, label }) => (
+                  <button
+                    key={id}
+                    onClick={() => setBusinessView(id)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                      businessView === id ? 'bg-slate-700 text-white' : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {businessView === 'posts' ? (
+                loadingBusinessPosts ? (
+                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-16">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Carregando posts...
+                  </div>
+                ) : businessPosts.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8 text-center text-sm text-muted-foreground">Nenhum post encontrado.</CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {businessPosts.map((post, index) => {
+                      const thumb = post.media?.[0]?.googleUrl || post.media?.[0]?.sourceUrl;
+                      return (
+                        <div
+                          key={post.name || index}
+                          className="group relative aspect-square rounded-lg overflow-hidden bg-muted border border-border"
+                        >
+                          {thumb ? (
+                            <img src={thumb} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center p-3 text-xs text-muted-foreground text-center">
+                              <MapPin className="w-6 h-6" />
+                            </div>
+                          )}
+                          <div className="absolute inset-x-0 bottom-0 bg-black/70 text-white text-[11px] p-1.5 line-clamp-2">
+                            {post.summary}
+                          </div>
+                          {post.name && (
+                            <button
+                              onClick={async () => {
+                                if (!confirm('Excluir este post do Google Meu Negócio?')) return;
+                                try {
+                                  await gestorPostsService.deleteBusinessPost(post.name!);
+                                  toast.success('Post excluído!');
+                                  loadBusinessPosts();
+                                } catch {
+                                  toast.error('Não foi possível excluir o post.');
+                                }
+                              }}
+                              className="absolute top-1 right-1 bg-white/90 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              ) : loadingBusinessDetail ? (
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-16">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Carregando dados do perfil...
+                </div>
+              ) : businessLocationDetail ? (
+                <BusinessProfileEditForm
+                  key={selectedBusinessLocation?.name}
+                  detail={businessLocationDetail}
+                  saving={savingBusinessSection}
+                  onSave={saveBusinessLocationSection}
+                  categoryQuery={categoryQuery}
+                  setCategoryQuery={setCategoryQuery}
+                  categoryResults={categoryResults}
+                  searchingCategories={searchingCategories}
+                />
+              ) : null}
             </>
           )}
         </>
@@ -2666,20 +3415,29 @@ export default function GestorPostsPage() {
               {/* Plataforma(s) */}
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Plataforma(s)</p>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-5 gap-2">
                   {(
                     [
                       { id: 'instagram' as const, label: 'Instagram', icon: Instagram },
                       { id: 'facebook' as const, label: 'Facebook', icon: Facebook },
                       { id: 'whatsapp' as const, label: 'WhatsApp', icon: Phone },
                       { id: 'youtube' as const, label: 'YouTube', icon: Youtube },
+                      { id: 'business_profile' as const, label: 'Google Meu Negócio', icon: MapPin },
                     ]
                   ).map(({ id, label, icon: Icon }) => (
                     <button
                       key={id}
                       type="button"
                       onClick={() => togglePlatformEnabled(id)}
-                      disabled={id === 'whatsapp' ? mediaType === 'carousel' : id === 'youtube' ? mediaType === 'carousel' || !youtubeConnected : false}
+                      disabled={
+                        id === 'whatsapp'
+                          ? mediaType === 'carousel'
+                          : id === 'youtube'
+                            ? mediaType === 'carousel' || !youtubeConnected
+                            : id === 'business_profile'
+                              ? mediaType === 'carousel' || !businessProfileConnected
+                              : false
+                      }
                       className={`flex flex-col items-center gap-1 py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none ${
                         platformEnabled[id]
                           ? 'bg-primary text-primary-foreground'
@@ -2730,6 +3488,44 @@ export default function GestorPostsPage() {
                   <Checkbox checked={destYoutube} onCheckedChange={() => setDestYoutube((v) => !v)} />
                   <Youtube className="w-3.5 h-3.5" /> Canal do YouTube conectado
                 </label>
+              )}
+
+              {platformEnabled.business_profile && (
+                <>
+                  <DestinationChecklist
+                    title="Localizações do Google Meu Negócio"
+                    icon={<MapPin className="w-3.5 h-3.5" />}
+                    items={businessLocations.map((loc) => ({
+                      id: `${loc.account_name}|${loc.location_id}`,
+                      label: loc.title || loc.location_id,
+                    }))}
+                    selected={destBusinessLocationIds}
+                    onToggle={(id) => setDestBusinessLocationIds((prev) => toggleInDest(prev, id))}
+                    emptyLabel="Nenhuma localização encontrada."
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      className="border border-gray-300 rounded-md text-sm p-2"
+                      value={newCtaActionType}
+                      onChange={(e) => setNewCtaActionType(e.target.value)}
+                    >
+                      <option value="">Sem botão de ação</option>
+                      {Object.entries(CTA_ACTION_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    {newCtaActionType && newCtaActionType !== 'CALL' && (
+                      <input
+                        className="border border-gray-300 rounded-md text-sm p-2"
+                        placeholder="URL do botão"
+                        value={newCtaUrl}
+                        onChange={(e) => setNewCtaUrl(e.target.value)}
+                      />
+                    )}
+                  </div>
+                </>
               )}
 
               {/* Formato(s) — só relevante pra Instagram/Facebook */}

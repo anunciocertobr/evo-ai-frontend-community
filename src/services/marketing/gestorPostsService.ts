@@ -21,6 +21,11 @@ import type {
   FacebookPost,
   FacebookAccessiblePage,
   FacebookStory,
+  BusinessLocation,
+  BusinessLocationDetail,
+  BusinessCategory,
+  BusinessLocalPost,
+  CreateBusinessPostPayload,
   YoutubeChannelInfo,
   YoutubeVideoItem,
 } from '@/types/marketing/gestorPosts';
@@ -223,6 +228,66 @@ class GestorPostsService {
   async getYoutubeVideos(limit = 25): Promise<YoutubeVideoItem[]> {
     const response = await api.get(`${this.baseUrl}/youtube/videos`, { params: { limit } });
     return extractData<YoutubeVideoItem[]>(response);
+  }
+
+  async getBusinessProfileConnected(): Promise<boolean> {
+    const response = await api.get(`${this.baseUrl}/business_profile/connected`);
+    return extractData<{ connected: boolean }>(response).connected;
+  }
+
+  async getBusinessLocations(): Promise<BusinessLocation[]> {
+    const response = await api.get(`${this.baseUrl}/business_profile/locations`);
+    return extractData<BusinessLocation[]>(response);
+  }
+
+  async getBusinessLocation(locationName: string): Promise<BusinessLocationDetail> {
+    const response = await api.get(`${this.baseUrl}/business_profile/location`, { params: { location_name: locationName } });
+    return extractData<BusinessLocationDetail>(response);
+  }
+
+  async updateBusinessLocation(
+    locationName: string,
+    fields: Record<string, unknown>,
+    updateMask: string[],
+  ): Promise<BusinessLocationDetail> {
+    const response = await api.patch(`${this.baseUrl}/business_profile/location`, {
+      location_name: locationName,
+      fields,
+      update_mask: updateMask,
+    });
+    return extractData<BusinessLocationDetail>(response);
+  }
+
+  async getBusinessCategories(query: string): Promise<BusinessCategory[]> {
+    const response = await api.get(`${this.baseUrl}/business_profile/categories`, { params: { query } });
+    return extractData<BusinessCategory[]>(response);
+  }
+
+  async getBusinessPosts(accountName: string, locationId: string): Promise<BusinessLocalPost[]> {
+    const response = await api.get(`${this.baseUrl}/business_profile/posts`, {
+      params: { account_name: accountName, location_id: locationId },
+    });
+    return extractData<BusinessLocalPost[]>(response);
+  }
+
+  async createBusinessPost(payload: CreateBusinessPostPayload): Promise<{ id: string; status: string }> {
+    const formData = new FormData();
+    formData.append('media', payload.media);
+    formData.append('summary', payload.summary);
+    formData.append('account_name', payload.account_name);
+    formData.append('location_id', payload.location_id);
+    if (payload.location_title) formData.append('location_title', payload.location_title);
+    if (payload.cta_action_type) formData.append('cta_action_type', payload.cta_action_type);
+    if (payload.cta_url) formData.append('cta_url', payload.cta_url);
+
+    const response = await api.post(`${this.baseUrl}/business_profile/posts`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return extractData<{ id: string; status: string }>(response);
+  }
+
+  async deleteBusinessPost(postName: string): Promise<void> {
+    await api.delete(`${this.baseUrl}/business_profile/posts`, { params: { post_name: postName } });
   }
 }
 

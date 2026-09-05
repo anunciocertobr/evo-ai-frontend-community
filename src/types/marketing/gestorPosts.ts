@@ -205,6 +205,92 @@ export interface FacebookStory {
   media_url?: string | null;
 }
 
+export interface BusinessPhoneNumbers {
+  primaryPhone?: string;
+  additionalPhones?: string[];
+}
+
+export interface BusinessAddress {
+  addressLines?: string[];
+  locality?: string;
+  administrativeArea?: string;
+  postalCode?: string;
+  regionCode?: string;
+}
+
+export interface BusinessHoursPeriod {
+  openDay: string;
+  openTime: string;
+  closeDay: string;
+  closeTime: string;
+}
+
+export interface BusinessSpecialHourPeriod {
+  startDate: { year: number; month: number; day: number };
+  endDate?: { year: number; month: number; day: number };
+  openTime?: string;
+  closeTime?: string;
+  closed?: boolean;
+}
+
+export interface BusinessCategoryRef {
+  name: string;
+  displayName?: string;
+}
+
+export interface BusinessServiceItem {
+  freeFormServiceItem?: { category?: string; label?: { displayName: string; description?: string; languageCode?: string } };
+}
+
+export interface BusinessLocation {
+  name: string;
+  account_name: string;
+  location_id: string;
+  title?: string;
+  phoneNumbers?: BusinessPhoneNumbers;
+  websiteUri?: string;
+  storefrontAddress?: BusinessAddress;
+  openInfo?: { status?: string };
+}
+
+export interface BusinessLocationDetail {
+  title?: string;
+  phoneNumbers?: BusinessPhoneNumbers;
+  websiteUri?: string;
+  storefrontAddress?: BusinessAddress;
+  regularHours?: { periods?: BusinessHoursPeriod[] };
+  specialHours?: { specialHourPeriods?: BusinessSpecialHourPeriod[] };
+  categories?: { primaryCategory?: BusinessCategoryRef; additionalCategories?: BusinessCategoryRef[] };
+  serviceItems?: BusinessServiceItem[];
+  serviceArea?: { businessType?: 'CUSTOMER_LOCATION_ONLY' | 'CUSTOMER_AND_BUSINESS_LOCATION'; places?: { placeInfos?: { placeId: string; placeName: string }[] } };
+  profile?: { description?: string };
+}
+
+export interface BusinessCategory {
+  name: string;
+  displayName?: string;
+}
+
+export interface BusinessLocalPost {
+  name?: string;
+  languageCode?: string;
+  summary?: string;
+  callToAction?: { actionType?: string; url?: string };
+  media?: { mediaFormat?: string; googleUrl?: string; sourceUrl?: string }[];
+  state?: string;
+  createTime?: string;
+}
+
+export interface CreateBusinessPostPayload {
+  media: File;
+  summary: string;
+  account_name: string;
+  location_id: string;
+  location_title?: string;
+  cta_action_type?: string;
+  cta_url?: string;
+}
+
 export interface YoutubeChannelInfo {
   snippet?: { title?: string; description?: string; thumbnails?: { default?: { url?: string } } };
   statistics?: { subscriberCount?: string; videoCount?: string; viewCount?: string };
