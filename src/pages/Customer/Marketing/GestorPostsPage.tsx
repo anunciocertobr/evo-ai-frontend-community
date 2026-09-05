@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, Calendar, RotateCcw, Phone, Youtube } from 'lucide-react';
+import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, FolderOpen, Calendar, RotateCcw, Phone, Youtube, Instagram, Facebook } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, Badge, Card, CardContent } from '@evoapi/design-system';
+import { Button, Badge, Card, CardContent, Checkbox } from '@evoapi/design-system';
 import { BaseHeader } from '@/components/base';
 import { gestorPostsService } from '@/services/marketing/gestorPostsService';
 import type {
   SocialChannelOption,
+  SocialChannelType,
   InstagramAccountInfo,
   InstagramMedia,
   InstagramComment,
@@ -61,6 +62,41 @@ function insightValue(media: InstagramMedia, name: string): number | null {
   return insight?.values?.[0]?.value ?? null;
 }
 
+interface DestinationChecklistProps {
+  title: string;
+  icon: React.ReactNode;
+  items: { id: string; label: string }[];
+  selected: string[];
+  onToggle: (id: string) => void;
+  emptyLabel: string;
+  disabled?: boolean;
+}
+
+function DestinationChecklist({ title, icon, items, selected, onToggle, emptyLabel, disabled }: DestinationChecklistProps) {
+  return (
+    <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+        {icon} {title}
+      </p>
+      {items.length === 0 ? (
+        <p className="text-xs text-gray-400">{emptyLabel}</p>
+      ) : (
+        <div className="space-y-1.5 max-h-32 overflow-y-auto">
+          {items.map((item) => (
+            <label
+              key={item.id}
+              className={`flex items-center gap-2 text-sm cursor-pointer select-none ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+            >
+              <Checkbox checked={selected.includes(item.id)} onCheckedChange={() => onToggle(item.id)} disabled={disabled} />
+              {item.label}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GestorPostsPage() {
   const [channels, setChannels] = useState<SocialChannelOption[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<SocialChannelOption | null>(null);
@@ -79,19 +115,35 @@ export default function GestorPostsPage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newCaption, setNewCaption] = useState('');
-  const [newContentType, setNewContentType] = useState<PublicationContentType>('feed');
-  const [newPlatforms, setNewPlatforms] = useState<PublicationPlatform[]>(['instagram']);
+  const [newFormats, setNewFormats] = useState<Record<PublicationContentType, boolean>>({
+    feed: true,
+    stories: false,
+    reels: false,
+  });
   const [newFile, setNewFile] = useState<File | null>(null);
   const [newPreviewUrl, setNewPreviewUrl] = useState<string | null>(null);
   const [newIsCarousel, setNewIsCarousel] = useState(false);
   const [carouselFiles, setCarouselFiles] = useState<File[]>([]);
   const [carouselPreviewUrls, setCarouselPreviewUrls] = useState<string[]>([]);
-  const [carouselProgress, setCarouselProgress] = useState<string | null>(null);
   const [newIsScheduled, setNewIsScheduled] = useState(false);
   const [newScheduledFor, setNewScheduledFor] = useState('');
   const [creating, setCreating] = useState(false);
+  const [createProgress, setCreateProgress] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const carouselInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
+  // Destinos do post: quais contas/instâncias/canais devem receber a
+  // publicação — cada lista aceita múltiplas seleções, igual ao painel
+  // original (galeria de criativos.txt), pra permitir publicar em várias
+  // contas do Instagram, páginas do Facebook e instâncias do WhatsApp de
+  // uma vez só (o YouTube ainda só suporta uma conta Google conectada por
+  // vez nesta versão do CRM).
+  const [destInstagramIds, setDestInstagramIds] = useState<string[]>([]);
+  const [destFacebookIds, setDestFacebookIds] = useState<string[]>([]);
+  const [destWhatsappIds, setDestWhatsappIds] = useState<string[]>([]);
+  const [destYoutube, setDestYoutube] = useState(false);
+  const [newYoutubeTitle, setNewYoutubeTitle] = useState('');
 
   const [showScheduledModal, setShowScheduledModal] = useState(false);
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPostItem[]>([]);
@@ -121,11 +173,13 @@ export default function GestorPostsPage() {
   const [sendingYoutubeUpload, setSendingYoutubeUpload] = useState(false);
   const youtubeFileInputRef = useRef<HTMLInputElement>(null);
 
-  const availablePlatforms: PublicationPlatform[] =
-    selectedChannel?.channel_type === 'Channel::FacebookPage' ? ['instagram', 'facebook'] : ['instagram'];
+  const facebookChannels = channels.filter((c) => c.channel_type === ('Channel::FacebookPage' as SocialChannelType));
 
-  const togglePlatform = (platform: PublicationPlatform) => {
-    setNewPlatforms((prev) => (prev.includes(platform) ? prev.filter((p) => p !== platform) : [...prev, platform]));
+  const toggleInDest = (list: string[], id: string) =>
+    list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+
+  const toggleFormat = (format: PublicationContentType) => {
+    setNewFormats((prev) => ({ ...prev, [format]: !prev[format] }));
   };
 
   const handleFileChange = (file: File | null) => {
@@ -134,9 +188,10 @@ export default function GestorPostsPage() {
     setNewPreviewUrl(file ? URL.createObjectURL(file) : null);
   };
 
-  const addCarouselFiles = (files: FileList | null) => {
+  const addCarouselFiles = (files: FileList | File[] | null) => {
     if (!files) return;
-    const next = [...carouselFiles, ...Array.from(files)].slice(0, 10);
+    const incoming = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    const next = [...carouselFiles, ...incoming].slice(0, 10);
     setCarouselFiles(next);
     carouselPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
     setCarouselPreviewUrls(next.map((f) => URL.createObjectURL(f)));
@@ -149,18 +204,58 @@ export default function GestorPostsPage() {
     setCarouselPreviewUrls(next.map((f) => URL.createObjectURL(f)));
   };
 
+  // Selecionar uma pasta inteira (ou vários arquivos de uma vez) — se vier
+  // mais de uma imagem, liga automaticamente o modo carrossel; se vier um
+  // único arquivo, usa como post único.
+  const handleBulkFilesSelect = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList).filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/'));
+    if (files.length === 0) return;
+
+    if (newIsCarousel) {
+      addCarouselFiles(files);
+      return;
+    }
+
+    const images = files.filter((f) => f.type.startsWith('image/'));
+    if (images.length > 1) {
+      setNewIsCarousel(true);
+      addCarouselFiles(images);
+    } else {
+      handleFileChange(files[0]);
+    }
+  };
+
   const resetCreateForm = () => {
     setNewCaption('');
-    setNewContentType('feed');
-    setNewPlatforms(['instagram']);
+    setNewFormats({ feed: true, stories: false, reels: false });
+    setDestInstagramIds([]);
+    setDestFacebookIds([]);
+    setDestWhatsappIds([]);
+    setDestYoutube(false);
+    setNewYoutubeTitle('');
     setNewIsCarousel(false);
     setCarouselFiles([]);
     carouselPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
     setCarouselPreviewUrls([]);
-    setCarouselProgress(null);
+    setCreateProgress(null);
     setNewIsScheduled(false);
     setNewScheduledFor('');
     handleFileChange(null);
+  };
+
+  const openCreateModal = () => {
+    setShowCreateModal(true);
+    // Pré-carrega instâncias de WhatsApp e status do YouTube pra já mostrar
+    // os destinos disponíveis assim que o usuário marcar essas plataformas.
+    gestorPostsService
+      .getWhatsappStatusChannels()
+      .then(setWhatsappChannels)
+      .catch(() => setWhatsappChannels([]));
+    gestorPostsService
+      .getYoutubeConnected()
+      .then(setYoutubeConnected)
+      .catch(() => setYoutubeConnected(false));
   };
 
   const loadScheduledPosts = useCallback(async () => {
@@ -345,7 +440,6 @@ export default function GestorPostsPage() {
       try {
         const publication = await gestorPostsService.getPublication(id);
         if (publication.status === 'published') {
-          toast.success('Post publicado com sucesso!');
           loadGallery();
           return;
         }
@@ -365,7 +459,6 @@ export default function GestorPostsPage() {
       try {
         const batch = await gestorPostsService.getCarouselBatch(id);
         if (batch.status === 'published') {
-          toast.success('Carrossel publicado com sucesso!');
           loadGallery();
           return;
         }
@@ -379,106 +472,181 @@ export default function GestorPostsPage() {
     }
   };
 
-  const handleCreateCarouselPost = async () => {
-    if (!selectedChannel) return;
-    if (carouselFiles.length < 2) {
-      toast.error('Selecione ao menos 2 imagens para o carrossel.');
-      return;
-    }
-    if (newPlatforms.length === 0) {
-      toast.error('Selecione ao menos uma plataforma.');
-      return;
-    }
-    setCreating(true);
-    try {
+  // Publica (ou agenda) numa única conta Instagram/Facebook. Chamada uma vez
+  // por conta selecionada x formato marcado (Feed/Stories/Reels) — é assim
+  // que a versão original conseguia postar em várias contas e formatos ao
+  // mesmo tempo: disparando uma chamada por combinação em vez de uma única
+  // chamada "faz tudo".
+  const publishMetaJob = async (
+    channel: SocialChannelOption,
+    platforms: PublicationPlatform[],
+    format: PublicationContentType,
+  ) => {
+    if (newIsCarousel) {
       const batch = await gestorPostsService.createCarouselBatch({
         caption: newCaption,
-        platforms: newPlatforms,
+        platforms,
         total_cards: carouselFiles.length,
-        channel_type: selectedChannel.channel_type,
-        channel_id: selectedChannel.channel_id,
+        channel_type: channel.channel_type,
+        channel_id: channel.channel_id,
       });
-
-      for (let i = 0; i < carouselFiles.length; i += 1) {
-        setCarouselProgress(`Enviando imagem ${i + 1} de ${carouselFiles.length}...`);
-        await gestorPostsService.addCarouselCard(batch.id, carouselFiles[i]);
+      for (const file of carouselFiles) {
+        await gestorPostsService.addCarouselCard(batch.id, file);
       }
-
-      toast.success('Carrossel enviado! Publicando em segundo plano...');
-      setShowCreateModal(false);
-      resetCreateForm();
       pollCarouselStatus(batch.id);
-    } catch {
-      toast.error('Erro ao criar o carrossel.');
-    } finally {
-      setCreating(false);
-      setCarouselProgress(null);
-    }
-  };
-
-  const handleScheduleSinglePost = async () => {
-    if (!selectedChannel || !newFile) return;
-    if (!newScheduledFor) {
-      toast.error('Escolha a data e hora do agendamento.');
       return;
     }
-    setCreating(true);
-    try {
+    if (!newFile) return;
+    if (newIsScheduled) {
       await gestorPostsService.createScheduledPost({
         caption: newCaption,
-        platforms: newPlatforms,
-        content_type: newContentType,
+        platforms,
+        content_type: format,
         media: newFile,
-        channel_type: selectedChannel.channel_type,
-        channel_id: selectedChannel.channel_id,
+        channel_type: channel.channel_type,
+        channel_id: channel.channel_id,
         scheduled_for: new Date(newScheduledFor).toISOString(),
       });
-      toast.success('Post agendado com sucesso!');
-      setShowCreateModal(false);
-      resetCreateForm();
-    } catch {
-      toast.error('Erro ao agendar o post.');
-    } finally {
-      setCreating(false);
+      return;
     }
+    const { id } = await gestorPostsService.createPublication({
+      caption: newCaption,
+      platforms,
+      content_type: format,
+      media: newFile,
+      channel_type: channel.channel_type,
+      channel_id: channel.channel_id,
+    });
+    pollPublicationStatus(id);
+  };
+
+  const publishWhatsappJob = async (channelId: string) => {
+    if (!newFile) return;
+    const type: WhatsappStatusType = newFile.type.startsWith('video/') ? 'video' : 'image';
+    await gestorPostsService.createWhatsappStatus({
+      channel_id: channelId,
+      type,
+      media: newFile,
+      caption: newCaption.trim() || undefined,
+    });
+  };
+
+  const publishYoutubeJob = async () => {
+    if (!newFile) return;
+    const upload = await gestorPostsService.createYoutubeUpload({
+      title: newYoutubeTitle.trim() || newCaption.trim() || 'Vídeo publicado via CRM',
+      description: newCaption,
+      privacy_status: youtubePrivacy,
+      video: newFile,
+    });
+    pollYoutubeUploadStatus(upload.id);
   };
 
   const handleCreatePost = async () => {
-    if (newIsCarousel) {
-      await handleCreateCarouselPost();
+    const formats = (Object.keys(newFormats) as PublicationContentType[]).filter((f) => newFormats[f]);
+    const hasMeta = destInstagramIds.length > 0 || destFacebookIds.length > 0;
+    const hasWhatsapp = destWhatsappIds.length > 0;
+    const hasYoutube = destYoutube;
+
+    if (!hasMeta && !hasWhatsapp && !hasYoutube) {
+      toast.error('Selecione ao menos um destino (Instagram, Facebook, WhatsApp ou YouTube).');
       return;
     }
-    if (!selectedChannel) return;
-    if (!newFile) {
+    if (hasMeta && !newIsCarousel && formats.length === 0) {
+      toast.error('Selecione ao menos um formato (Feed, Stories ou Reels).');
+      return;
+    }
+    if (newIsCarousel) {
+      if (carouselFiles.length < 2) {
+        toast.error('Selecione ao menos 2 imagens para o carrossel.');
+        return;
+      }
+      if (hasWhatsapp || hasYoutube) {
+        toast.error('Carrossel só é suportado para Instagram/Facebook. Desmarque WhatsApp/YouTube ou desative o carrossel.');
+        return;
+      }
+    } else if (!newFile) {
       toast.error('Selecione um arquivo de mídia.');
       return;
     }
-    if (newPlatforms.length === 0) {
-      toast.error('Selecione ao menos uma plataforma.');
+    if (hasYoutube && (newIsCarousel || !newFile?.type.startsWith('video/'))) {
+      toast.error('Para postar no YouTube, selecione um único arquivo de vídeo (sem carrossel).');
       return;
     }
-    if (newIsScheduled) {
-      await handleScheduleSinglePost();
+    if (newIsScheduled && (hasWhatsapp || hasYoutube)) {
+      toast.error('Agendamento ainda não é suportado para WhatsApp ou YouTube — desmarque-os ou desative o agendamento.');
       return;
     }
+    if (newIsScheduled && !newScheduledFor) {
+      toast.error('Escolha a data e hora do agendamento.');
+      return;
+    }
+
+    const jobs: { label: string; run: () => Promise<void> }[] = [];
+
+    destInstagramIds.forEach((id) => {
+      const channel = channels.find((c) => c.channel_id === id);
+      if (!channel) return;
+      if (newIsCarousel) {
+        jobs.push({ label: `Instagram (@${channel.username})`, run: () => publishMetaJob(channel, ['instagram'], 'feed') });
+      } else {
+        formats.forEach((format) => {
+          jobs.push({
+            label: `Instagram (@${channel.username}) - ${CONTENT_TYPE_LABELS[format]}`,
+            run: () => publishMetaJob(channel, ['instagram'], format),
+          });
+        });
+      }
+    });
+
+    destFacebookIds.forEach((id) => {
+      const channel = facebookChannels.find((c) => c.channel_id === id);
+      if (!channel) return;
+      if (newIsCarousel) {
+        jobs.push({ label: `Facebook (@${channel.username})`, run: () => publishMetaJob(channel, ['facebook'], 'feed') });
+      } else {
+        formats.forEach((format) => {
+          jobs.push({
+            label: `Facebook (@${channel.username}) - ${CONTENT_TYPE_LABELS[format]}`,
+            run: () => publishMetaJob(channel, ['facebook'], format),
+          });
+        });
+      }
+    });
+
+    destWhatsappIds.forEach((id) => {
+      const wa = whatsappChannels.find((c) => c.channel_id === id);
+      jobs.push({ label: `WhatsApp (${wa?.name || id})`, run: () => publishWhatsappJob(id) });
+    });
+
+    if (hasYoutube) {
+      jobs.push({ label: 'YouTube', run: publishYoutubeJob });
+    }
+
     setCreating(true);
-    try {
-      const { id } = await gestorPostsService.createPublication({
-        caption: newCaption,
-        platforms: newPlatforms,
-        content_type: newContentType,
-        media: newFile,
-        channel_type: selectedChannel.channel_type,
-        channel_id: selectedChannel.channel_id,
-      });
-      toast.success('Post enviado! Publicando em segundo plano...');
+    let successCount = 0;
+    let failureCount = 0;
+    for (const [index, job] of jobs.entries()) {
+      setCreateProgress(`(${index + 1}/${jobs.length}) Publicando: ${job.label}...`);
+      try {
+        await job.run();
+        successCount += 1;
+      } catch {
+        failureCount += 1;
+        toast.error(`Falha em: ${job.label}`);
+      }
+    }
+    setCreateProgress(null);
+    setCreating(false);
+
+    if (failureCount === 0) {
+      toast.success(
+        newIsScheduled ? 'Post agendado com sucesso!' : `Publicado com sucesso em ${successCount} destino(s)!`,
+      );
       setShowCreateModal(false);
       resetCreateForm();
-      pollPublicationStatus(id);
-    } catch {
-      toast.error('Erro ao criar o post.');
-    } finally {
-      setCreating(false);
+    } else if (successCount > 0) {
+      toast.error(`${successCount} publicado(s) com sucesso, ${failureCount} falharam.`);
     }
   };
 
@@ -583,7 +751,7 @@ export default function GestorPostsPage() {
           <Button variant="outline" onClick={openScheduledModal}>
             <Calendar className="w-4 h-4 mr-1.5" /> Posts Agendados
           </Button>
-          <Button onClick={() => setShowCreateModal(true)} disabled={!selectedChannel}>
+          <Button onClick={openCreateModal}>
             <Plus className="w-4 h-4 mr-1.5" /> Criar Post
           </Button>
         </div>
@@ -792,9 +960,18 @@ export default function GestorPostsPage() {
 
               {newIsCarousel ? (
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                    Imagens ({carouselFiles.length}/10)
-                  </p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Imagens ({carouselFiles.length}/10)
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => folderInputRef.current?.click()}
+                      className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5" /> Subir pasta
+                    </button>
+                  </div>
                   <input
                     ref={carouselInputRef}
                     type="file"
@@ -828,105 +1005,170 @@ export default function GestorPostsPage() {
                       </button>
                     )}
                   </div>
-                  {carouselProgress && <p className="text-xs text-muted-foreground mt-2">{carouselProgress}</p>}
                 </div>
               ) : (
-                <>
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mídia</p>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*,video/*"
-                      className="hidden"
-                      onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
-                    />
-                    {newPreviewUrl ? (
-                      <div className="relative">
-                        {newFile?.type.startsWith('video/') ? (
-                          <video src={newPreviewUrl} controls className="w-full max-h-64 rounded-lg bg-black/5 object-contain" />
-                        ) : (
-                          <img src={newPreviewUrl} alt="" className="w-full max-h-64 rounded-lg bg-black/5 object-contain" />
-                        )}
-                        <button
-                          onClick={() => handleFileChange(null)}
-                          className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Mídia</p>
+                    {!newPreviewUrl && (
                       <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full border-2 border-dashed border-gray-300 rounded-lg py-8 flex flex-col items-center gap-2 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
+                        type="button"
+                        onClick={() => folderInputRef.current?.click()}
+                        className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                       >
-                        <Upload className="w-6 h-6" />
-                        <span className="text-sm">Selecionar imagem ou vídeo</span>
+                        <FolderOpen className="w-3.5 h-3.5" /> Subir pasta
                       </button>
                     )}
                   </div>
-
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tipo</p>
-                    <div className="flex gap-2">
-                      {(Object.keys(CONTENT_TYPE_LABELS) as PublicationContentType[]).map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => setNewContentType(type)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                            newContentType === type
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-muted-foreground hover:bg-muted/70'
-                          }`}
-                        >
-                          {CONTENT_TYPE_LABELS[type]}
-                        </button>
-                      ))}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    className="hidden"
+                    onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+                  />
+                  {newPreviewUrl ? (
+                    <div className="relative">
+                      {newFile?.type.startsWith('video/') ? (
+                        <video src={newPreviewUrl} controls className="w-full max-h-64 rounded-lg bg-black/5 object-contain" />
+                      ) : (
+                        <img src={newPreviewUrl} alt="" className="w-full max-h-64 rounded-lg bg-black/5 object-contain" />
+                      )}
+                      <button
+                        onClick={() => handleFileChange(null)}
+                        className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                  </div>
+                  ) : (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full border-2 border-dashed border-gray-300 rounded-lg py-8 flex flex-col items-center gap-2 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
+                    >
+                      <Upload className="w-6 h-6" />
+                      <span className="text-sm">Selecionar imagem ou vídeo</span>
+                    </button>
+                  )}
+                </div>
+              )}
 
-                  <div>
-                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none mb-2">
-                      <input
-                        type="checkbox"
-                        checked={newIsScheduled}
-                        onChange={(e) => {
-                          setNewIsScheduled(e.target.checked);
-                          if (e.target.checked && !newScheduledFor) setNewScheduledFor(toDatetimeLocalMin());
-                        }}
-                      />
-                      Agendar para depois
-                    </label>
-                    {newIsScheduled && (
-                      <input
-                        type="datetime-local"
-                        className="w-full border border-gray-300 rounded-md text-sm p-2"
-                        value={newScheduledFor}
-                        min={toDatetimeLocalMin()}
-                        onChange={(e) => setNewScheduledFor(e.target.value)}
-                      />
-                    )}
+              {/* Input escondido único de "pasta" reaproveitado pelos dois modos acima */}
+              <input
+                ref={folderInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                {...({ webkitdirectory: 'true' } as React.InputHTMLAttributes<HTMLInputElement>)}
+                onChange={(e) => {
+                  handleBulkFilesSelect(e.target.files);
+                  if (folderInputRef.current) folderInputRef.current.value = '';
+                }}
+              />
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Destinos</p>
+
+                <DestinationChecklist
+                  title="Instagram"
+                  icon={<Instagram className="w-3.5 h-3.5" />}
+                  items={channels.map((c) => ({ id: c.channel_id, label: `@${c.username}` }))}
+                  selected={destInstagramIds}
+                  onToggle={(id) => setDestInstagramIds((prev) => toggleInDest(prev, id))}
+                  emptyLabel="Nenhuma conta do Instagram conectada."
+                />
+
+                <DestinationChecklist
+                  title="Facebook"
+                  icon={<Facebook className="w-3.5 h-3.5" />}
+                  items={facebookChannels.map((c) => ({ id: c.channel_id, label: `@${c.username}` }))}
+                  selected={destFacebookIds}
+                  onToggle={(id) => setDestFacebookIds((prev) => toggleInDest(prev, id))}
+                  emptyLabel="Nenhuma página do Facebook conectada."
+                />
+
+                <DestinationChecklist
+                  title="WhatsApp"
+                  icon={<Phone className="w-3.5 h-3.5" />}
+                  items={whatsappChannels.map((c) => ({ id: c.channel_id, label: c.name }))}
+                  selected={destWhatsappIds}
+                  onToggle={(id) => setDestWhatsappIds((prev) => toggleInDest(prev, id))}
+                  emptyLabel="Nenhuma instância de WhatsApp com suporte a Status."
+                  disabled={newIsCarousel}
+                />
+
+                <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                  <label
+                    className={`flex items-center gap-2 text-sm cursor-pointer select-none ${
+                      newIsCarousel || !youtubeConnected ? 'opacity-50 pointer-events-none' : ''
+                    }`}
+                  >
+                    <Checkbox checked={destYoutube} onCheckedChange={() => setDestYoutube((v) => !v)} disabled={newIsCarousel || !youtubeConnected} />
+                    <Youtube className="w-3.5 h-3.5" />
+                    {youtubeConnected ? 'Canal do YouTube conectado' : 'Nenhum canal do YouTube conectado'}
+                  </label>
+                </div>
+              </div>
+
+              {destYoutube && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Título (YouTube)</p>
+                  <input
+                    className="w-full border border-gray-300 rounded-md text-sm p-2"
+                    value={newYoutubeTitle}
+                    onChange={(e) => setNewYoutubeTitle(e.target.value)}
+                    placeholder="Se vazio, usa a legenda como título"
+                  />
+                </div>
+              )}
+
+              {!newIsCarousel && (destInstagramIds.length > 0 || destFacebookIds.length > 0) && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Formato(s)</p>
+                  <div className="flex gap-2">
+                    {(Object.keys(CONTENT_TYPE_LABELS) as PublicationContentType[]).map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => toggleFormat(type)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          newFormats[type]
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                        }`}
+                      >
+                        {CONTENT_TYPE_LABELS[type]}
+                      </button>
+                    ))}
                   </div>
-                </>
+                </div>
               )}
 
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Plataformas</p>
-                <div className="flex gap-2">
-                  {availablePlatforms.map((platform) => (
-                    <button
-                      key={platform}
-                      onClick={() => togglePlatform(platform)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${
-                        newPlatforms.includes(platform)
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/70'
-                      }`}
-                    >
-                      {platform === 'instagram' ? 'Instagram' : 'Facebook'}
-                    </button>
-                  ))}
-                </div>
+                <label
+                  className={`flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none mb-2 ${
+                    destWhatsappIds.length > 0 || destYoutube ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={newIsScheduled}
+                    disabled={destWhatsappIds.length > 0 || destYoutube}
+                    onChange={(e) => {
+                      setNewIsScheduled(e.target.checked);
+                      if (e.target.checked && !newScheduledFor) setNewScheduledFor(toDatetimeLocalMin());
+                    }}
+                  />
+                  Agendar para depois (só Instagram/Facebook)
+                </label>
+                {newIsScheduled && (
+                  <input
+                    type="datetime-local"
+                    className="w-full border border-gray-300 rounded-md text-sm p-2"
+                    value={newScheduledFor}
+                    min={toDatetimeLocalMin()}
+                    onChange={(e) => setNewScheduledFor(e.target.value)}
+                  />
+                )}
               </div>
 
               <div>
@@ -939,6 +1181,8 @@ export default function GestorPostsPage() {
                   placeholder="Escreva a legenda do post..."
                 />
               </div>
+
+              {createProgress && <p className="text-xs text-muted-foreground">{createProgress}</p>}
             </div>
 
             <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
@@ -954,7 +1198,7 @@ export default function GestorPostsPage() {
               </Button>
               <Button disabled={creating} onClick={handleCreatePost}>
                 {creating ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
-                {!newIsCarousel && newIsScheduled ? 'Agendar' : 'Publicar'}
+                {newIsScheduled ? 'Agendar' : 'Publicar'}
               </Button>
             </div>
           </div>
