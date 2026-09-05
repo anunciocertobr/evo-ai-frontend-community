@@ -189,6 +189,10 @@ class GestorPostsService {
     return extractData<FacebookPost[]>(response);
   }
 
+  async deleteFacebookMedia(postId: string, channel?: SocialChannelOption): Promise<void> {
+    await api.delete(`${this.baseUrl}/gallery/facebook_media/${postId}`, { params: channelParams(channel) });
+  }
+
   async getYoutubeAccountInfo(): Promise<YoutubeChannelInfo> {
     const response = await api.get(`${this.baseUrl}/youtube/account_info`);
     return extractData<YoutubeChannelInfo>(response);

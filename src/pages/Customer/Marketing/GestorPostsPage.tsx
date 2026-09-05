@@ -1293,14 +1293,21 @@ export default function GestorPostsPage() {
   };
 
   const handleDeleteMedia = async () => {
-    if (!selectedMedia) return;
     setDeletingMedia(true);
     try {
-      await gestorPostsService.deleteMedia(selectedMedia.id, selectedChannel || undefined);
-      toast.success('Post excluído com sucesso!');
-      setConfirmDeleteMediaOpen(false);
-      setSelectedMedia(null);
-      loadGallery();
+      if (selectedFacebookPost) {
+        await gestorPostsService.deleteFacebookMedia(selectedFacebookPost.id, selectedFacebookChannel || undefined);
+        toast.success('Post excluído com sucesso!');
+        setConfirmDeleteMediaOpen(false);
+        setSelectedFacebookPost(null);
+        loadFacebookGallery();
+      } else if (selectedMedia) {
+        await gestorPostsService.deleteMedia(selectedMedia.id, selectedChannel || undefined);
+        toast.success('Post excluído com sucesso!');
+        setConfirmDeleteMediaOpen(false);
+        setSelectedMedia(null);
+        loadGallery();
+      }
     } catch {
       toast.error('Não foi possível excluir o post. Contas conectadas via Login direto do Instagram não suportam exclusão pela API.');
     } finally {
@@ -2010,9 +2017,18 @@ export default function GestorPostsPage() {
           <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
               <h2 className="text-sm font-semibold text-gray-800">Post do Facebook</h2>
-              <button onClick={() => setSelectedFacebookPost(null)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setConfirmDeleteMediaOpen(true)}
+                  className="text-gray-400 hover:text-red-600"
+                  title="Excluir post"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+                <button onClick={() => setSelectedFacebookPost(null)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div className="overflow-y-auto p-5 space-y-4">
               {(selectedFacebookPost.full_picture || selectedFacebookPost.attachments?.data?.[0]?.media?.image?.src) && (
