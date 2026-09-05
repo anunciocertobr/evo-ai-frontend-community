@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, FolderOpen, Calendar, CalendarDays, RotateCcw, Phone, Youtube, Instagram, Facebook, Trash2, Settings as SettingsIcon, Bookmark, Target, Share2, Eye, UserPlus, Clock, Play, Layers } from 'lucide-react';
+import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, FolderOpen, Calendar, CalendarDays, RotateCcw, Phone, Youtube, Instagram, Facebook, Trash2, Settings as SettingsIcon, Bookmark, Target, Share2, Eye, UserPlus, Clock, Play, Layers, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
+import flatpickr from 'flatpickr';
+import { Portuguese } from 'flatpickr/dist/l10n/pt.js';
+import 'flatpickr/dist/flatpickr.min.css';
 import { Button, Badge, Card, CardContent, Checkbox } from '@evoapi/design-system';
 import { BaseHeader } from '@/components/base';
 import { gestorPostsService } from '@/services/marketing/gestorPostsService';
@@ -102,6 +105,36 @@ const MONTH_LABELS = [
   'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
 ];
 
+// Chaves booleanas de gallerySettings — igual ao modelo original, os botões
+// "Ativar Todos"/"Ativar Tudo" alternam (liga tudo se algo estiver desligado,
+// desliga tudo se já estiver tudo ligado) em vez de simplesmente forçar true.
+type BooleanSettingKey =
+  | 'isAudioEnabled'
+  | 'isInfoVisible'
+  | 'isDateVisible'
+  | 'isLikesVisible'
+  | 'isCommentsVisible'
+  | 'isReachVisible'
+  | 'isSavedVisible'
+  | 'isInteractionsVisible'
+  | 'isSharesVisible'
+  | 'isVisitsVisible'
+  | 'isFollowsVisible'
+  | 'isWatchTimeVisible';
+
+const VISUALIZATION_KEYS: BooleanSettingKey[] = ['isAudioEnabled', 'isInfoVisible', 'isDateVisible'];
+const METRIC_KEYS: BooleanSettingKey[] = [
+  'isLikesVisible',
+  'isCommentsVisible',
+  'isReachVisible',
+  'isSavedVisible',
+  'isInteractionsVisible',
+  'isSharesVisible',
+  'isVisitsVisible',
+  'isFollowsVisible',
+  'isWatchTimeVisible',
+];
+
 const SCHEDULED_STATUS_LABELS: Record<ScheduledPostStatus, string> = {
   scheduled: 'Agendado',
   executing: 'Publicando',
@@ -177,6 +210,7 @@ export default function GestorPostsPage() {
   const [loadingGallery, setLoadingGallery] = useState(false);
 
   const [selectedMedia, setSelectedMedia] = useState<InstagramMedia | null>(null);
+  const [selectedFacebookPost, setSelectedFacebookPost] = useState<FacebookPost | null>(null);
   const [comments, setComments] = useState<InstagramComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [replyText, setReplyText] = useState('');
@@ -294,6 +328,17 @@ export default function GestorPostsPage() {
     setGallerySettings((prev) => ({ ...prev, [key]: value }));
   };
 
+  const toggleAllSettings = (keys: BooleanSettingKey[]) => {
+    setGallerySettings((prev) => {
+      const allChecked = keys.every((k) => prev[k]);
+      const next = { ...prev };
+      keys.forEach((k) => {
+        next[k] = !allChecked;
+      });
+      return next;
+    });
+  };
+
   // Filtro por data (ícone de calendário) — período rápido, mês do ano
   // corrente, ou intervalo específico.
   const [showDateFilterModal, setShowDateFilterModal] = useState(false);
@@ -351,6 +396,45 @@ export default function GestorPostsPage() {
     setDateRangeEnd('');
     setShowDateFilterModal(false);
   };
+
+  // Calendário inline (flatpickr) — igual ao modelo original: só os dias com
+  // posts ficam selecionáveis/destacados ("has-posts"), clicar num dia filtra
+  // pra aquele dia exato e fecha o modal.
+  const calendarContainerRef = useRef<HTMLDivElement>(null);
+  const postDates = useMemo(
+    () => Array.from(new Set(media.map((m) => m.timestamp?.slice(0, 10)).filter((d): d is string => Boolean(d)))),
+    [media],
+  );
+
+  useEffect(() => {
+    if (!showDateFilterModal || !calendarContainerRef.current || postDates.length === 0) return;
+
+    const instance = flatpickr(calendarContainerRef.current, {
+      inline: true,
+      enable: postDates,
+      dateFormat: 'Y-m-d',
+      locale: Portuguese,
+      monthSelectorType: 'static',
+      onDayCreate: (_selectedDates, _dateStr, _fp, dayElem) => {
+        const d = dayElem.dateObj;
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        if (postDates.includes(key)) dayElem.classList.add('has-posts');
+      },
+      onChange: (selectedDates) => {
+        const selected = selectedDates[0];
+        if (!selected) return;
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const key = `${selected.getFullYear()}-${pad(selected.getMonth() + 1)}-${pad(selected.getDate())}`;
+        setActiveMonthFilter(null);
+        setDateRangeStart(key);
+        setDateRangeEnd(key);
+        setShowDateFilterModal(false);
+      },
+    });
+
+    return () => instance.destroy();
+  }, [showDateFilterModal, postDates]);
 
   const filteredSortedMedia = useMemo(() => {
     let list = [...media];
@@ -1253,23 +1337,7 @@ export default function GestorPostsPage() {
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-gray-800">Opções</h3>
                     <button
-                      onClick={() =>
-                        setGallerySettings({
-                          ...gallerySettings,
-                          isAudioEnabled: true,
-                          isInfoVisible: true,
-                          isDateVisible: true,
-                          isLikesVisible: true,
-                          isCommentsVisible: true,
-                          isReachVisible: true,
-                          isSavedVisible: true,
-                          isInteractionsVisible: true,
-                          isSharesVisible: true,
-                          isVisitsVisible: true,
-                          isFollowsVisible: true,
-                          isWatchTimeVisible: true,
-                        })
-                      }
+                      onClick={() => toggleAllSettings([...VISUALIZATION_KEYS, ...METRIC_KEYS])}
                       className="text-xs text-blue-600 hover:underline font-semibold"
                     >
                       Ativar Tudo
@@ -1277,7 +1345,15 @@ export default function GestorPostsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <p className="font-semibold text-gray-600 text-xs border-b border-gray-200 pb-1">Visualização</p>
+                    <div className="flex items-center justify-between border-b border-gray-200 pb-1">
+                      <p className="font-semibold text-gray-600 text-xs">Visualização</p>
+                      <button
+                        onClick={() => toggleAllSettings(VISUALIZATION_KEYS)}
+                        className="text-xs text-blue-600 hover:underline font-semibold"
+                      >
+                        Ativar Todos
+                      </button>
+                    </div>
                     {(
                       [
                         { key: 'isAudioEnabled' as const, label: 'Áudio nos vídeos' },
@@ -1297,7 +1373,15 @@ export default function GestorPostsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <p className="font-semibold text-gray-600 text-xs border-b border-gray-200 pb-1">Exibir Métricas</p>
+                    <div className="flex items-center justify-between border-b border-gray-200 pb-1">
+                      <p className="font-semibold text-gray-600 text-xs">Exibir Métricas</p>
+                      <button
+                        onClick={() => toggleAllSettings(METRIC_KEYS)}
+                        className="text-xs text-blue-600 hover:underline font-semibold"
+                      >
+                        Ativar Todos
+                      </button>
+                    </div>
                     {(
                       [
                         { key: 'isLikesVisible' as const, label: 'Curtidas' },
@@ -1681,11 +1765,10 @@ export default function GestorPostsPage() {
                   {facebookMedia.map((post) => {
                     const thumb = post.full_picture || post.attachments?.data?.[0]?.media?.image?.src;
                     return (
-                      <a
+                      <button
                         key={post.id}
-                        href={post.permalink_url}
-                        target="_blank"
-                        rel="noreferrer"
+                        type="button"
+                        onClick={() => setSelectedFacebookPost(post)}
                         className="group relative aspect-square rounded-lg overflow-hidden bg-muted border border-border block"
                       >
                         {thumb ? (
@@ -1703,7 +1786,7 @@ export default function GestorPostsPage() {
                             <MessageCircle className="w-3.5 h-3.5" /> {formatNumber(post.comments?.summary?.total_count)}
                           </span>
                         </div>
-                      </a>
+                      </button>
                     );
                   })}
                 </div>
@@ -1835,6 +1918,17 @@ export default function GestorPostsPage() {
                 )}
               </div>
 
+              {selectedMedia.permalink && (
+                <a
+                  href={selectedMedia.permalink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Ver no Instagram
+                </a>
+              )}
+
               <div className="border-t border-gray-100 pt-3 space-y-3">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Comentários</p>
                 {loadingComments ? (
@@ -1886,6 +1980,56 @@ export default function GestorPostsPage() {
         </div>
       )}
 
+      {/* --- MODAL: DETALHE DO POST (FACEBOOK) --- */}
+      {selectedFacebookPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedFacebookPost(null)} />
+          <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+              <h2 className="text-sm font-semibold text-gray-800">Post do Facebook</h2>
+              <button onClick={() => setSelectedFacebookPost(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-5 space-y-4">
+              {(selectedFacebookPost.full_picture || selectedFacebookPost.attachments?.data?.[0]?.media?.image?.src) && (
+                <img
+                  src={selectedFacebookPost.full_picture || selectedFacebookPost.attachments?.data?.[0]?.media?.image?.src}
+                  alt=""
+                  className="w-full max-h-72 object-contain rounded-lg bg-black/5"
+                />
+              )}
+              {selectedFacebookPost.message && (
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedFacebookPost.message}</p>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">
+                  <Heart className="w-3 h-3 mr-1" /> {formatNumber(selectedFacebookPost.likes?.summary?.total_count)}
+                </Badge>
+                <Badge variant="outline">
+                  <MessageCircle className="w-3 h-3 mr-1" /> {formatNumber(selectedFacebookPost.comments?.summary?.total_count)}
+                </Badge>
+                {selectedFacebookPost.created_time && (
+                  <Badge variant="outline">{new Date(selectedFacebookPost.created_time).toLocaleString('pt-BR')}</Badge>
+                )}
+              </div>
+
+              {selectedFacebookPost.permalink_url && (
+                <a
+                  href={selectedFacebookPost.permalink_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Ver no Facebook
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- MODAL: CONFIRMAR EXCLUSÃO DO POST --- */}
       {confirmDeleteMediaOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -1912,7 +2056,7 @@ export default function GestorPostsPage() {
       {showDateFilterModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowDateFilterModal(false)} />
-          <div className="relative w-full max-w-md bg-white rounded-lg shadow-2xl p-6">
+          <div className="relative w-full max-w-lg bg-white rounded-lg shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800">Filtrar por Data</h2>
               <button onClick={() => setShowDateFilterModal(false)} className="text-gray-400 hover:text-gray-600">
@@ -1922,6 +2066,14 @@ export default function GestorPostsPage() {
 
             <div className="space-y-4">
               <div>
+                {postDates.length > 0 ? (
+                  <div ref={calendarContainerRef} className="gestor-posts-datepicker flex justify-center" />
+                ) : (
+                  <p className="text-xs text-gray-400 text-center py-4">Nenhuma data de postagem disponível.</p>
+                )}
+              </div>
+
+              <div className="border-t border-gray-200 pt-4">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mês</p>
                 <div className="grid grid-cols-4 gap-1.5">
                   <button
@@ -1996,6 +2148,14 @@ export default function GestorPostsPage() {
               </div>
             </div>
           </div>
+          <style>{`
+            .gestor-posts-datepicker .flatpickr-calendar { box-shadow: none; border: 1px solid #e5e7eb; }
+            .gestor-posts-datepicker .flatpickr-day.has-posts { border: 1px solid var(--primary); font-weight: 600; }
+            .gestor-posts-datepicker .flatpickr-day.has-posts:hover { background: color-mix(in srgb, var(--primary) 15%, white); }
+            .gestor-posts-datepicker .flatpickr-day.selected,
+            .gestor-posts-datepicker .flatpickr-day.selected:hover { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+            .gestor-posts-datepicker .flatpickr-day.flatpickr-disabled { border: none; opacity: 0.25; }
+          `}</style>
         </div>
       )}
 
