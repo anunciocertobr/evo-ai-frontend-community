@@ -441,16 +441,21 @@ export default function IfoodOrdersPage() {
   }, [interruptions]);
 
   const handleCloseStore = async () => {
-    if (!pauseReason.trim()) {
+    const reason = pauseReason.trim();
+    if (!reason) {
       toast.error('Informe o motivo do fechamento');
       return;
     }
     setTogglingStore(true);
     try {
-      await ifoodService.closeStore(pauseReason.trim());
+      await ifoodService.closeStore(reason);
       toast.success('Loja fechada');
       setPauseReason('');
       setCloseDialogOpen(false);
+      // Atualiza a tela na hora — a API do iFood demora alguns segundos pra
+      // refletir a pausa em /status, então esperar o loadStatus() reload
+      // fazia parecer que o botão "não funcionava".
+      setStatus((prev) => (prev ? { ...prev, available: false, status_message: `Pausada: ${reason}` } : prev));
       loadInterruptions();
       loadStatus();
     } catch {
@@ -527,11 +532,14 @@ export default function IfoodOrdersPage() {
     setTogglingStore(true);
     try {
       await ifoodService.openStore();
-      toast.success('Loja reaberta');
+      toast.success('Loja aberta');
+      // Mesma lógica do fechamento: atualiza na hora em vez de esperar o
+      // /status do iFood propagar a remoção da pausa.
+      setStatus((prev) => (prev ? { ...prev, available: true, status_message: undefined } : prev));
       loadInterruptions();
       loadStatus();
     } catch {
-      toast.error('Erro ao reabrir a loja');
+      toast.error('Erro ao abrir a loja');
     } finally {
       setTogglingStore(false);
     }
@@ -807,7 +815,7 @@ export default function IfoodOrdersPage() {
               </Button>
             ) : (
               <Button size="sm" disabled={togglingStore} onClick={handleOpenStore}>
-                <DoorOpen className="w-4 h-4 mr-2" /> Reabrir loja
+                <DoorOpen className="w-4 h-4 mr-2" /> Abrir loja
               </Button>
             )}
           </div>
