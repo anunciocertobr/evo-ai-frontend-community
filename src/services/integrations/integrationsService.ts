@@ -312,22 +312,20 @@ class IntegrationsService {
   // Google Workspace (Drive/GTM read-only login) — separate OAuth callback
   // from the Gmail-inbox flow (/google/callback), stores tokens as a
   // 'google_workspace' Integrations::Hook instead of creating a channel.
-  async handleGoogleWorkspaceCallback(code: string, state: string): Promise<{ email: string | null }> {
+  // Atende tanto o login do google_workspace quanto o do google_ads — os
+  // dois reaproveitam esta MESMA redirect_uri (ver
+  // Api::V1::Integrations::GoogleWorkspaceAuthorizationsController), então
+  // `app_id` na resposta diz qual dos dois acabou de logar, pro chamador
+  // decidir pra onde navegar em seguida.
+  async handleGoogleWorkspaceCallback(
+    code: string,
+    state: string,
+  ): Promise<{ email: string | null; app_id?: 'google_workspace' | 'google_ads' }> {
     // Top-level path (not under /integrations/) on purpose: the production
     // gateway routes /api/v1/integrations/*/callback to a different backend
     // service (AI-agent tool OAuth callbacks), which would swallow this request.
     const response = await api.post('/google_workspace/callback', { code, state });
-    return extractData<{ email: string | null }>(response);
-  }
-
-  // Google Ads (login com Google + escolha da conta de anúncios) — mesmo
-  // motivo do google_workspace acima pro path do callback ficar fora de
-  // /integrations/. accessible_customers/select_customer não são callbacks
-  // de OAuth de ferramenta de agente, então não colidem com o gateway, mas
-  // ficam ao lado por consistência de rota.
-  async handleGoogleAdsCallback(code: string, state: string): Promise<{ email: string | null }> {
-    const response = await api.post('/google_ads/callback', { code, state });
-    return extractData<{ email: string | null }>(response);
+    return extractData<{ email: string | null; app_id?: 'google_workspace' | 'google_ads' }>(response);
   }
 
   async getGoogleAdsAccessibleCustomers(): Promise<GoogleAdsAccessibleCustomer[]> {

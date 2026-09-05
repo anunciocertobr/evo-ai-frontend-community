@@ -37,14 +37,15 @@ export default function GoogleWorkspaceCallback() {
 
       try {
         const response = await integrationsService.handleGoogleWorkspaceCallback(code, state);
+        const isGoogleAds = response.app_id === 'google_ads';
         setStatus('success');
-        setMessage(
-          response.email
-            ? `Conta ${response.email} conectada com sucesso!`
-            : 'Conta Google conectada com sucesso!',
-        );
+        const who = response.email ? `Conta ${response.email} conectada` : 'Conta Google conectada';
+        setMessage(isGoogleAds ? `${who}! Agora escolha a conta de anúncios.` : `${who} com sucesso!`);
         toast.success('Login com Google concluído!');
-        setTimeout(() => navigate('/settings/integrations'), 2000);
+        setTimeout(
+          () => navigate(isGoogleAds ? '/settings/integrations/google_ads' : '/settings/integrations'),
+          isGoogleAds ? 1500 : 2000,
+        );
       } catch (err) {
         setStatus('error');
         const errorMessage =
