@@ -2056,7 +2056,7 @@ export default function GestorPostsPage() {
       {showDateFilterModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowDateFilterModal(false)} />
-          <div className="relative w-full max-w-lg bg-white rounded-lg shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
+          <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800">Filtrar por Data</h2>
               <button onClick={() => setShowDateFilterModal(false)} className="text-gray-400 hover:text-gray-600">
@@ -2064,97 +2064,138 @@ export default function GestorPostsPage() {
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
+            <div className="flex flex-col sm:flex-row gap-6">
+              {/* Coluna de Mês — igual ao modelo original: lista vertical à esquerda */}
+              <div className="w-full sm:w-1/4 flex-shrink-0 space-y-1">
+                <button
+                  onClick={() => applyMonthFilter(null)}
+                  className={`gestor-posts-month-btn ${activeMonthFilter === null ? 'active' : ''}`}
+                >
+                  Todos
+                </button>
+                {MONTH_LABELS.map((label, index) => (
+                  <button
+                    key={label}
+                    onClick={() => applyMonthFilter(index)}
+                    className={`gestor-posts-month-btn ${activeMonthFilter === index ? 'active' : ''}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Coluna do Calendário — igual ao modelo original: calendário
+                  flatpickr à direita, seguido do período rápido e intervalo. */}
+              <div className="w-full sm:w-3/4 space-y-4">
                 {postDates.length > 0 ? (
-                  <div ref={calendarContainerRef} className="gestor-posts-datepicker flex justify-center" />
+                  <div ref={calendarContainerRef} className="gestor-posts-datepicker" />
                 ) : (
                   <p className="text-xs text-gray-400 text-center py-4">Nenhuma data de postagem disponível.</p>
                 )}
-              </div>
 
-              <div className="border-t border-gray-200 pt-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mês</p>
-                <div className="grid grid-cols-4 gap-1.5">
-                  <button
-                    onClick={() => applyMonthFilter(null)}
-                    className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
-                      activeMonthFilter === null ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70'
-                    }`}
-                  >
-                    Todos
-                  </button>
-                  {MONTH_LABELS.map((label, index) => (
-                    <button
-                      key={label}
-                      onClick={() => applyMonthFilter(index)}
-                      className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
-                        activeMonthFilter === index ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Período Rápido</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(
+                      [
+                        { id: 'today' as const, label: 'Hoje' },
+                        { id: 'yesterday' as const, label: 'Ontem' },
+                        { id: 'week' as const, label: 'Semana' },
+                        { id: 'month' as const, label: 'Mês' },
+                        { id: 'year' as const, label: 'Ano' },
+                        { id: 'all' as const, label: 'Todos' },
+                      ]
+                    ).map(({ id, label }) => (
+                      <button key={id} onClick={() => applyQuickDateRange(id)} className="gestor-posts-date-filter-btn">
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <div className="border-t border-gray-200 pt-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Período Rápido</p>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {(
-                    [
-                      { id: 'today' as const, label: 'Hoje' },
-                      { id: 'yesterday' as const, label: 'Ontem' },
-                      { id: 'week' as const, label: 'Semana' },
-                      { id: 'month' as const, label: 'Mês' },
-                      { id: 'year' as const, label: 'Ano' },
-                      { id: 'all' as const, label: 'Todos' },
-                    ]
-                  ).map(({ id, label }) => (
-                    <button
-                      key={id}
-                      onClick={() => applyQuickDateRange(id)}
-                      className="px-2 py-1.5 rounded-md text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/70 transition-colors"
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Intervalo Específico</p>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    className="flex-1 border border-gray-300 rounded-md text-sm p-2"
-                    value={dateRangeStart}
-                    onChange={(e) => {
-                      setActiveMonthFilter(null);
-                      setDateRangeStart(e.target.value);
-                    }}
-                  />
-                  <span className="text-gray-400">-</span>
-                  <input
-                    type="date"
-                    className="flex-1 border border-gray-300 rounded-md text-sm p-2"
-                    value={dateRangeEnd}
-                    onChange={(e) => {
-                      setActiveMonthFilter(null);
-                      setDateRangeEnd(e.target.value);
-                    }}
-                  />
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Intervalo Específico</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      className="flex-1 border border-gray-300 rounded-md text-sm p-2"
+                      value={dateRangeStart}
+                      onChange={(e) => {
+                        setActiveMonthFilter(null);
+                        setDateRangeStart(e.target.value);
+                      }}
+                    />
+                    <span className="text-gray-400">-</span>
+                    <input
+                      type="date"
+                      className="flex-1 border border-gray-300 rounded-md text-sm p-2"
+                      value={dateRangeEnd}
+                      onChange={(e) => {
+                        setActiveMonthFilter(null);
+                        setDateRangeEnd(e.target.value);
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
           <style>{`
-            .gestor-posts-datepicker .flatpickr-calendar { box-shadow: none; border: 1px solid #e5e7eb; }
-            .gestor-posts-datepicker .flatpickr-day.has-posts { border: 1px solid var(--primary); font-weight: 600; }
-            .gestor-posts-datepicker .flatpickr-day.has-posts:hover { background: color-mix(in srgb, var(--primary) 15%, white); }
+            /* Cores exatas do modelo original (galeria de criativos). */
+            .gestor-posts-month-btn {
+              background-color: #334155;
+              color: #cbd5e1;
+              width: 100%;
+              text-align: center;
+              padding: 5px 4px;
+              border-radius: 4px;
+              font-size: 0.75rem;
+              font-weight: 500;
+              transition: all 0.2s ease-in-out;
+            }
+            .gestor-posts-month-btn:hover { background-color: #475569; color: #e2e8f0; }
+            .gestor-posts-month-btn.active { background-color: #38bdf8; color: #0f172a; font-weight: bold; }
+
+            .gestor-posts-date-filter-btn {
+              background-color: #334155;
+              color: #cbd5e1;
+              padding: 0.4rem 0.25rem;
+              border-radius: 0.375rem;
+              font-size: 0.75rem;
+              font-weight: 500;
+              transition: background-color 0.2s;
+            }
+            .gestor-posts-date-filter-btn:hover { background-color: #475569; }
+
+            .gestor-posts-datepicker { width: 100%; }
+            .gestor-posts-datepicker .flatpickr-calendar {
+              background: #1e293b;
+              border: 1px solid #334155;
+              width: 100% !important;
+              max-width: none !important;
+              box-shadow: none;
+            }
+            .gestor-posts-datepicker .flatpickr-months .flatpickr-month,
+            .gestor-posts-datepicker .flatpickr-weekday,
+            .gestor-posts-datepicker .flatpickr-weekdays { color: #cbd5e1; background: transparent; fill: #cbd5e1; }
+            .gestor-posts-datepicker .flatpickr-months .flatpickr-prev-month,
+            .gestor-posts-datepicker .flatpickr-months .flatpickr-next-month { fill: #cbd5e1; }
+            .gestor-posts-datepicker .flatpickr-day { color: #cbd5e1; }
+            .gestor-posts-datepicker .flatpickr-day:hover { background: #334155; }
             .gestor-posts-datepicker .flatpickr-day.selected,
-            .gestor-posts-datepicker .flatpickr-day.selected:hover { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
-            .gestor-posts-datepicker .flatpickr-day.flatpickr-disabled { border: none; opacity: 0.25; }
+            .gestor-posts-datepicker .flatpickr-day.today:not(.selected) {
+              background: #38bdf8; border-color: #38bdf8; color: #0f172a;
+            }
+            .gestor-posts-datepicker .flatpickr-day.flatpickr-disabled,
+            .gestor-posts-datepicker .flatpickr-day.flatpickr-disabled:hover { color: #475569; background: transparent; }
+            .gestor-posts-datepicker .flatpickr-day.has-posts {
+              background: rgba(56, 189, 248, 0.15);
+              border: 1px solid rgba(56, 189, 248, 0.6);
+              color: #e0f2fe;
+              font-weight: bold;
+            }
+            .gestor-posts-datepicker .flatpickr-day.has-posts:hover { background: rgba(56, 189, 248, 0.35); }
+            .gestor-posts-datepicker .numInputWrapper span:hover { background: #334155; }
           `}</style>
         </div>
       )}
