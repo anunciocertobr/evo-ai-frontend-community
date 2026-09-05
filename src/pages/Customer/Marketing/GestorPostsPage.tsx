@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, FolderOpen, Calendar, RotateCcw, Phone, Youtube, Instagram, Facebook } from 'lucide-react';
+import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, FolderOpen, Calendar, RotateCcw, Phone, Youtube, Instagram, Facebook, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, Badge, Card, CardContent, Checkbox } from '@evoapi/design-system';
 import { BaseHeader } from '@/components/base';
@@ -31,6 +31,9 @@ const CONTENT_TYPE_LABELS: Record<PublicationContentType, string> = {
   stories: 'Stories',
   reels: 'Reels',
 };
+
+// Ordem igual ao modelo original: Stories, Feed, Reels.
+const FORMAT_ORDER: PublicationContentType[] = ['stories', 'feed', 'reels'];
 
 const WHATSAPP_STATUS_TYPE_LABELS: Record<WhatsappStatusType, string> = {
   text: 'Texto',
@@ -81,22 +84,28 @@ interface DestinationChecklistProps {
 
 function DestinationChecklist({ title, icon, items, selected, onToggle, emptyLabel, disabled }: DestinationChecklistProps) {
   return (
-    <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
-      <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+    <div className="space-y-1.5">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
         {icon} {title}
       </p>
       {items.length === 0 ? (
         <p className="text-xs text-gray-400">{emptyLabel}</p>
       ) : (
-        <div className="space-y-1.5 max-h-32 overflow-y-auto">
+        <div className="flex flex-wrap gap-1.5 bg-gray-50 border border-gray-200 rounded-lg p-2 max-h-28 overflow-y-auto">
           {items.map((item) => (
-            <label
+            <button
               key={item.id}
-              className={`flex items-center gap-2 text-sm cursor-pointer select-none ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+              type="button"
+              disabled={disabled}
+              onClick={() => onToggle(item.id)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none ${
+                selected.includes(item.id)
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-100'
+              }`}
             >
-              <Checkbox checked={selected.includes(item.id)} onCheckedChange={() => onToggle(item.id)} disabled={disabled} />
               {item.label}
-            </label>
+            </button>
           ))}
         </div>
       )}
@@ -119,6 +128,8 @@ export default function GestorPostsPage() {
   const [replyText, setReplyText] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [sendingReply, setSendingReply] = useState(false);
+  const [confirmDeleteMediaOpen, setConfirmDeleteMediaOpen] = useState(false);
+  const [deletingMedia, setDeletingMedia] = useState(false);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newCaption, setNewCaption] = useState('');
@@ -130,6 +141,11 @@ export default function GestorPostsPage() {
   const [newFile, setNewFile] = useState<File | null>(null);
   const [newPreviewUrl, setNewPreviewUrl] = useState<string | null>(null);
   const [newIsCarousel, setNewIsCarousel] = useState(false);
+  // "Tipo de Mídia" — igual ao modelo original: Imagem/Vídeo/Carrossel é uma
+  // escolha única que decide o modo de upload (newIsCarousel é só o reflexo
+  // interno de "mediaType === 'carousel'", mantido pra não mexer no resto da
+  // lógica de publicação que já usava esse booleano).
+  const [mediaType, setMediaType] = useState<'image' | 'video' | 'carousel' | ''>('');
   const [carouselFiles, setCarouselFiles] = useState<File[]>([]);
   const [carouselPreviewUrls, setCarouselPreviewUrls] = useState<string[]>([]);
   const [newIsScheduled, setNewIsScheduled] = useState(false);
@@ -150,7 +166,15 @@ export default function GestorPostsPage() {
   const [destFacebookIds, setDestFacebookIds] = useState<string[]>([]);
   const [destWhatsappIds, setDestWhatsappIds] = useState<string[]>([]);
   const [destYoutube, setDestYoutube] = useState(false);
-  const [newYoutubeTitle, setNewYoutubeTitle] = useState('');
+  // Passo "Plataforma(s)" do modelo original: liga/desliga a visibilidade da
+  // lista de contas de cada rede — desligar uma plataforma limpa as contas
+  // selecionadas nela.
+  const [platformEnabled, setPlatformEnabled] = useState({
+    instagram: false,
+    facebook: false,
+    whatsapp: false,
+    youtube: false,
+  });
 
   const [showScheduledModal, setShowScheduledModal] = useState(false);
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPostItem[]>([]);
@@ -208,6 +232,31 @@ export default function GestorPostsPage() {
     setNewFormats((prev) => ({ ...prev, [format]: !prev[format] }));
   };
 
+  const togglePlatformEnabled = (key: 'instagram' | 'facebook' | 'whatsapp' | 'youtube') => {
+    setPlatformEnabled((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      if (!next[key]) {
+        if (key === 'instagram') setDestInstagramIds([]);
+        if (key === 'facebook') setDestFacebookIds([]);
+        if (key === 'whatsapp') setDestWhatsappIds([]);
+        if (key === 'youtube') setDestYoutube(false);
+      }
+      return next;
+    });
+  };
+
+  const selectMediaType = (type: 'image' | 'video' | 'carousel') => {
+    setMediaType(type);
+    setNewIsCarousel(type === 'carousel');
+    if (type === 'carousel') {
+      handleFileChange(null);
+    } else {
+      setCarouselFiles([]);
+      carouselPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+      setCarouselPreviewUrls([]);
+    }
+  };
+
   const handleFileChange = (file: File | null) => {
     setNewFile(file);
     if (newPreviewUrl) URL.revokeObjectURL(newPreviewUrl);
@@ -245,9 +294,11 @@ export default function GestorPostsPage() {
 
     const images = files.filter((f) => f.type.startsWith('image/'));
     if (images.length > 1) {
+      setMediaType('carousel');
       setNewIsCarousel(true);
       addCarouselFiles(images);
     } else {
+      setMediaType(files[0].type.startsWith('video/') ? 'video' : 'image');
       handleFileChange(files[0]);
     }
   };
@@ -259,7 +310,8 @@ export default function GestorPostsPage() {
     setDestFacebookIds([]);
     setDestWhatsappIds([]);
     setDestYoutube(false);
-    setNewYoutubeTitle('');
+    setPlatformEnabled({ instagram: false, facebook: false, whatsapp: false, youtube: false });
+    setMediaType('');
     setNewIsCarousel(false);
     setCarouselFiles([]);
     carouselPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -560,7 +612,7 @@ export default function GestorPostsPage() {
   const publishYoutubeJob = async () => {
     if (!newFile) return;
     const upload = await gestorPostsService.createYoutubeUpload({
-      title: newYoutubeTitle.trim() || newCaption.trim() || 'Vídeo publicado via CRM',
+      title: newCaption.trim() || 'Vídeo publicado via CRM',
       description: newCaption,
       privacy_status: youtubePrivacy,
       video: newFile,
@@ -575,7 +627,11 @@ export default function GestorPostsPage() {
     const hasYoutube = destYoutube;
 
     if (!hasMeta && !hasWhatsapp && !hasYoutube) {
-      toast.error('Selecione ao menos um destino (Instagram, Facebook, WhatsApp ou YouTube).');
+      toast.error('Selecione ao menos uma plataforma e uma conta de destino.');
+      return;
+    }
+    if (!mediaType) {
+      toast.error('Selecione o Tipo de Mídia (Imagem, Vídeo ou Carrossel).');
       return;
     }
     if (hasMeta && !newIsCarousel && formats.length === 0) {
@@ -806,6 +862,22 @@ export default function GestorPostsPage() {
       toast.error('Erro ao enviar resposta.');
     } finally {
       setSendingReply(false);
+    }
+  };
+
+  const handleDeleteMedia = async () => {
+    if (!selectedMedia) return;
+    setDeletingMedia(true);
+    try {
+      await gestorPostsService.deleteMedia(selectedMedia.id, selectedChannel || undefined);
+      toast.success('Post excluído com sucesso!');
+      setConfirmDeleteMediaOpen(false);
+      setSelectedMedia(null);
+      loadGallery();
+    } catch {
+      toast.error('Não foi possível excluir o post. Contas conectadas via Login direto do Instagram não suportam exclusão pela API.');
+    } finally {
+      setDeletingMedia(false);
     }
   };
 
@@ -1198,9 +1270,18 @@ export default function GestorPostsPage() {
           <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
               <h2 className="text-sm font-semibold text-gray-800">{selectedMedia.media_type}</h2>
-              <button onClick={() => setSelectedMedia(null)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setConfirmDeleteMediaOpen(true)}
+                  className="text-gray-400 hover:text-red-600"
+                  title="Excluir post"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+                <button onClick={() => setSelectedMedia(null)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div className="overflow-y-auto p-5 space-y-4">
               <img
@@ -1279,6 +1360,28 @@ export default function GestorPostsPage() {
         </div>
       )}
 
+      {/* --- MODAL: CONFIRMAR EXCLUSÃO DO POST --- */}
+      {confirmDeleteMediaOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => !deletingMedia && setConfirmDeleteMediaOpen(false)} />
+          <div className="relative w-full max-w-sm bg-white rounded-lg shadow-2xl p-6 text-center">
+            <h2 className="text-lg font-bold text-gray-800 mb-2">Confirmar Exclusão</h2>
+            <p className="text-sm text-gray-500 mb-6">
+              Tem certeza de que deseja excluir este post? Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex justify-center gap-3">
+              <Button variant="outline" disabled={deletingMedia} onClick={() => setConfirmDeleteMediaOpen(false)}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" disabled={deletingMedia} onClick={handleDeleteMedia}>
+                {deletingMedia ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+                Excluir
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- MODAL: CRIAR POST --- */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1302,32 +1405,53 @@ export default function GestorPostsPage() {
             </div>
 
             <div className="overflow-y-auto p-5 space-y-4">
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={newIsCarousel}
-                  onChange={(e) => {
-                    setNewIsCarousel(e.target.checked);
-                    handleFileChange(null);
-                  }}
-                />
-                Publicar como carrossel (2 a 10 imagens)
-              </label>
+              {/* Upload: pasta ou arquivos — igual ao modelo original, os dois
+                  aceitam múltiplos arquivos de uma vez. */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => folderInputRef.current?.click()}
+                  className="flex-1 flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  <FolderOpen className="w-4 h-4" /> Subir Pasta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1 flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  <Upload className="w-4 h-4" /> Subir Arquivos
+                </button>
+              </div>
+              <input
+                ref={folderInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                {...({ webkitdirectory: 'true' } as React.InputHTMLAttributes<HTMLInputElement>)}
+                onChange={(e) => {
+                  handleBulkFilesSelect(e.target.files);
+                  if (folderInputRef.current) folderInputRef.current.value = '';
+                }}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={(e) => {
+                  handleBulkFilesSelect(e.target.files);
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+              />
 
-              {newIsCarousel ? (
+              {/* Prévia */}
+              {mediaType === 'carousel' ? (
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Imagens ({carouselFiles.length}/10)
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => folderInputRef.current?.click()}
-                      className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                    >
-                      <FolderOpen className="w-3.5 h-3.5" /> Subir pasta
-                    </button>
-                  </div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    Imagens ({carouselFiles.length}/10)
+                  </p>
                   <input
                     ref={carouselInputRef}
                     type="file"
@@ -1362,129 +1486,107 @@ export default function GestorPostsPage() {
                     )}
                   </div>
                 </div>
-              ) : (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Mídia</p>
-                    {!newPreviewUrl && (
-                      <button
-                        type="button"
-                        onClick={() => folderInputRef.current?.click()}
-                        className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                      >
-                        <FolderOpen className="w-3.5 h-3.5" /> Subir pasta
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*,video/*"
-                    className="hidden"
-                    onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
-                  />
-                  {newPreviewUrl ? (
-                    <div className="relative">
-                      {newFile?.type.startsWith('video/') ? (
-                        <video src={newPreviewUrl} controls className="w-full max-h-64 rounded-lg bg-black/5 object-contain" />
-                      ) : (
-                        <img src={newPreviewUrl} alt="" className="w-full max-h-64 rounded-lg bg-black/5 object-contain" />
-                      )}
-                      <button
-                        onClick={() => handleFileChange(null)}
-                        className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+              ) : newPreviewUrl ? (
+                <div className="relative">
+                  {newFile?.type.startsWith('video/') ? (
+                    <video src={newPreviewUrl} controls className="w-full max-h-64 rounded-lg bg-black/5 object-contain" />
                   ) : (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full border-2 border-dashed border-gray-300 rounded-lg py-8 flex flex-col items-center gap-2 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
-                    >
-                      <Upload className="w-6 h-6" />
-                      <span className="text-sm">Selecionar imagem ou vídeo</span>
-                    </button>
+                    <img src={newPreviewUrl} alt="" className="w-full max-h-64 rounded-lg bg-black/5 object-contain" />
                   )}
+                  <button
+                    onClick={() => {
+                      handleFileChange(null);
+                      setMediaType('');
+                    }}
+                    className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg py-6 flex items-center justify-center text-xs text-gray-400">
+                  Nenhuma mídia selecionada ainda.
                 </div>
               )}
 
-              {/* Input escondido único de "pasta" reaproveitado pelos dois modos acima */}
-              <input
-                ref={folderInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                {...({ webkitdirectory: 'true' } as React.InputHTMLAttributes<HTMLInputElement>)}
-                onChange={(e) => {
-                  handleBulkFilesSelect(e.target.files);
-                  if (folderInputRef.current) folderInputRef.current.value = '';
-                }}
-              />
+              {/* Plataforma(s) */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Plataforma(s)</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {(
+                    [
+                      { id: 'instagram' as const, label: 'Instagram', icon: Instagram },
+                      { id: 'facebook' as const, label: 'Facebook', icon: Facebook },
+                      { id: 'whatsapp' as const, label: 'WhatsApp', icon: Phone },
+                      { id: 'youtube' as const, label: 'YouTube', icon: Youtube },
+                    ]
+                  ).map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => togglePlatformEnabled(id)}
+                      disabled={id === 'whatsapp' ? mediaType === 'carousel' : id === 'youtube' ? mediaType === 'carousel' || !youtubeConnected : false}
+                      className={`flex flex-col items-center gap-1 py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none ${
+                        platformEnabled[id]
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" /> {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Destinos</p>
-
+              {platformEnabled.instagram && (
                 <DestinationChecklist
-                  title="Instagram"
+                  title="Contas do Instagram"
                   icon={<Instagram className="w-3.5 h-3.5" />}
                   items={channels.map((c) => ({ id: c.channel_id, label: `@${c.username}` }))}
                   selected={destInstagramIds}
                   onToggle={(id) => setDestInstagramIds((prev) => toggleInDest(prev, id))}
                   emptyLabel="Nenhuma conta do Instagram conectada."
                 />
+              )}
 
+              {platformEnabled.facebook && (
                 <DestinationChecklist
-                  title="Facebook"
+                  title="Páginas do Facebook"
                   icon={<Facebook className="w-3.5 h-3.5" />}
                   items={facebookChannels.map((c) => ({ id: c.channel_id, label: `@${c.username}` }))}
                   selected={destFacebookIds}
                   onToggle={(id) => setDestFacebookIds((prev) => toggleInDest(prev, id))}
                   emptyLabel="Nenhuma página do Facebook conectada."
                 />
+              )}
 
+              {platformEnabled.whatsapp && (
                 <DestinationChecklist
-                  title="WhatsApp"
+                  title="Instâncias do WhatsApp"
                   icon={<Phone className="w-3.5 h-3.5" />}
                   items={whatsappChannels.map((c) => ({ id: c.channel_id, label: c.name }))}
                   selected={destWhatsappIds}
                   onToggle={(id) => setDestWhatsappIds((prev) => toggleInDest(prev, id))}
                   emptyLabel="Nenhuma instância de WhatsApp com suporte a Status."
-                  disabled={newIsCarousel}
                 />
-
-                <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                  <label
-                    className={`flex items-center gap-2 text-sm cursor-pointer select-none ${
-                      newIsCarousel || !youtubeConnected ? 'opacity-50 pointer-events-none' : ''
-                    }`}
-                  >
-                    <Checkbox checked={destYoutube} onCheckedChange={() => setDestYoutube((v) => !v)} disabled={newIsCarousel || !youtubeConnected} />
-                    <Youtube className="w-3.5 h-3.5" />
-                    {youtubeConnected ? 'Canal do YouTube conectado' : 'Nenhum canal do YouTube conectado'}
-                  </label>
-                </div>
-              </div>
-
-              {destYoutube && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Título (YouTube)</p>
-                  <input
-                    className="w-full border border-gray-300 rounded-md text-sm p-2"
-                    value={newYoutubeTitle}
-                    onChange={(e) => setNewYoutubeTitle(e.target.value)}
-                    placeholder="Se vazio, usa a legenda como título"
-                  />
-                </div>
               )}
 
-              {!newIsCarousel && (destInstagramIds.length > 0 || destFacebookIds.length > 0) && (
+              {platformEnabled.youtube && (
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <Checkbox checked={destYoutube} onCheckedChange={() => setDestYoutube((v) => !v)} />
+                  <Youtube className="w-3.5 h-3.5" /> Canal do YouTube conectado
+                </label>
+              )}
+
+              {/* Formato(s) — só relevante pra Instagram/Facebook */}
+              {(platformEnabled.instagram || platformEnabled.facebook) && mediaType !== 'carousel' && (
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Formato(s)</p>
-                  <div className="flex gap-2">
-                    {(Object.keys(CONTENT_TYPE_LABELS) as PublicationContentType[]).map((type) => (
+                  <div className="grid grid-cols-3 gap-2">
+                    {FORMAT_ORDER.map((type) => (
                       <button
                         key={type}
+                        type="button"
                         onClick={() => toggleFormat(type)}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                           newFormats[type]
@@ -1498,6 +1600,44 @@ export default function GestorPostsPage() {
                   </div>
                 </div>
               )}
+
+              {/* Tipo de Mídia */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tipo de Mídia</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      { id: 'image' as const, label: 'Imagem' },
+                      { id: 'video' as const, label: 'Vídeo' },
+                      { id: 'carousel' as const, label: 'Carrossel' },
+                    ]
+                  ).map(({ id, label }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => selectMediaType(id)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        mediaType === id
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Legenda</p>
+                <textarea
+                  className="w-full border border-gray-300 rounded-md text-sm p-2.5"
+                  rows={3}
+                  value={newCaption}
+                  onChange={(e) => setNewCaption(e.target.value)}
+                  placeholder="Escreva a legenda do post..."
+                />
+              </div>
 
               <div>
                 <label
@@ -1514,7 +1654,7 @@ export default function GestorPostsPage() {
                       if (e.target.checked && !newScheduledFor) setNewScheduledFor(toDatetimeLocalMin());
                     }}
                   />
-                  Agendar para depois (só Instagram/Facebook)
+                  Agendar Publicação (só Instagram/Facebook)
                 </label>
                 {newIsScheduled && (
                   <input
@@ -1525,17 +1665,6 @@ export default function GestorPostsPage() {
                     onChange={(e) => setNewScheduledFor(e.target.value)}
                   />
                 )}
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Legenda</p>
-                <textarea
-                  className="w-full border border-gray-300 rounded-md text-sm p-2.5"
-                  rows={3}
-                  value={newCaption}
-                  onChange={(e) => setNewCaption(e.target.value)}
-                  placeholder="Escreva a legenda do post..."
-                />
               </div>
 
               {createProgress && <p className="text-xs text-muted-foreground">{createProgress}</p>}

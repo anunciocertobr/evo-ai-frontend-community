@@ -46,6 +46,10 @@ class GestorPostsService {
     return extractData<InstagramStory[]>(response);
   }
 
+  async deleteMedia(mediaId: string, channel?: SocialChannelOption): Promise<void> {
+    await api.delete(`${this.baseUrl}/gallery/media/${mediaId}`, { params: channelParams(channel) });
+  }
+
   async getComments(postId: string, channel?: SocialChannelOption): Promise<InstagramComment[]> {
     const response = await api.get(`${this.baseUrl}/comments`, { params: { ...channelParams(channel), post_id: postId } });
     return extractData<InstagramComment[]>(response);
