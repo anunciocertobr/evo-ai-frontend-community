@@ -399,19 +399,33 @@ export default function GestorPostsPage() {
 
   // Calendário inline (flatpickr) — igual ao modelo original: só os dias com
   // posts ficam selecionáveis/destacados ("has-posts"), clicar num dia filtra
-  // pra aquele dia exato e fecha o modal.
+  // pra aquele dia exato e fecha o modal. Estendido (não existia no modelo
+  // original, onde publicados e agendados eram views mutuamente exclusivas):
+  // dias com posts agendados ganham a classe "has-scheduled", numa cor
+  // diferente, e um dia pode ter as duas classes ao mesmo tempo.
   const calendarContainerRef = useRef<HTMLDivElement>(null);
   const postDates = useMemo(
     () => Array.from(new Set(media.map((m) => m.timestamp?.slice(0, 10)).filter((d): d is string => Boolean(d)))),
     [media],
   );
+  const scheduledDates = useMemo(
+    () =>
+      Array.from(
+        new Set(scheduledPosts.map((p) => p.scheduled_for?.slice(0, 10)).filter((d): d is string => Boolean(d))),
+      ),
+    [scheduledPosts],
+  );
+  const calendarEnabledDates = useMemo(
+    () => Array.from(new Set([...postDates, ...scheduledDates])),
+    [postDates, scheduledDates],
+  );
 
   useEffect(() => {
-    if (!showDateFilterModal || !calendarContainerRef.current || postDates.length === 0) return;
+    if (!showDateFilterModal || !calendarContainerRef.current || calendarEnabledDates.length === 0) return;
 
     const instance = flatpickr(calendarContainerRef.current, {
       inline: true,
-      enable: postDates,
+      enable: calendarEnabledDates,
       dateFormat: 'Y-m-d',
       locale: Portuguese,
       monthSelectorType: 'static',
@@ -420,6 +434,7 @@ export default function GestorPostsPage() {
         const pad = (n: number) => String(n).padStart(2, '0');
         const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
         if (postDates.includes(key)) dayElem.classList.add('has-posts');
+        if (scheduledDates.includes(key)) dayElem.classList.add('has-scheduled');
       },
       onChange: (selectedDates) => {
         const selected = selectedDates[0];
@@ -434,7 +449,7 @@ export default function GestorPostsPage() {
     });
 
     return () => instance.destroy();
-  }, [showDateFilterModal, postDates]);
+  }, [showDateFilterModal, calendarEnabledDates, postDates, scheduledDates]);
 
   const filteredSortedMedia = useMemo(() => {
     let list = [...media];
@@ -1323,7 +1338,15 @@ export default function GestorPostsPage() {
           <Button variant="outline" onClick={openScheduledModal}>
             <Calendar className="w-4 h-4 mr-1.5" /> Posts Agendados
           </Button>
-          <Button variant="outline" size="icon" onClick={() => setShowDateFilterModal(true)} title="Filtrar por data">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              setShowDateFilterModal(true);
+              loadScheduledPosts();
+            }}
+            title="Filtrar por data"
+          >
             <CalendarDays className="w-4 h-4" />
           </Button>
           <div className="relative">
@@ -2087,8 +2110,20 @@ export default function GestorPostsPage() {
               {/* Coluna do Calendário — igual ao modelo original: calendário
                   flatpickr à direita, seguido do período rápido e intervalo. */}
               <div className="w-full sm:w-3/4 space-y-4">
-                {postDates.length > 0 ? (
-                  <div ref={calendarContainerRef} className="gestor-posts-datepicker" />
+                {calendarEnabledDates.length > 0 ? (
+                  <>
+                    <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
+                      <span className="flex items-center gap-1.5">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: '#38bdf8' }} />
+                        Publicado
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: '#fbbf24' }} />
+                        Agendado
+                      </span>
+                    </div>
+                    <div ref={calendarContainerRef} className="gestor-posts-datepicker" />
+                  </>
                 ) : (
                   <p className="text-xs text-gray-400 text-center py-4">Nenhuma data de postagem disponível.</p>
                 )}
@@ -2195,6 +2230,21 @@ export default function GestorPostsPage() {
               font-weight: bold;
             }
             .gestor-posts-datepicker .flatpickr-day.has-posts:hover { background: rgba(56, 189, 248, 0.35); }
+            .gestor-posts-datepicker .flatpickr-day.has-scheduled {
+              background: rgba(251, 191, 36, 0.15);
+              border: 1px solid rgba(251, 191, 36, 0.7);
+              color: #fef3c7;
+              font-weight: bold;
+            }
+            .gestor-posts-datepicker .flatpickr-day.has-scheduled:hover { background: rgba(251, 191, 36, 0.35); }
+            .gestor-posts-datepicker .flatpickr-day.has-posts.has-scheduled {
+              background: linear-gradient(135deg, rgba(56, 189, 248, 0.3) 50%, rgba(251, 191, 36, 0.3) 50%);
+              border: 1px solid #e2e8f0;
+              color: #f8fafc;
+            }
+            .gestor-posts-datepicker .flatpickr-day.has-posts.has-scheduled:hover {
+              background: linear-gradient(135deg, rgba(56, 189, 248, 0.5) 50%, rgba(251, 191, 36, 0.5) 50%);
+            }
             .gestor-posts-datepicker .numInputWrapper span:hover { background: #334155; }
           `}</style>
         </div>
