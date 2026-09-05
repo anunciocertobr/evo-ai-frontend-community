@@ -188,6 +188,13 @@ export interface FacebookPost {
   comments?: { summary?: { total_count?: number } };
 }
 
+export interface FacebookAccessiblePage {
+  page_id: string;
+  name: string;
+  instagram?: { id: string; username?: string; profile_picture_url?: string } | null;
+  connected: boolean;
+}
+
 export interface YoutubeChannelInfo {
   snippet?: { title?: string; description?: string; thumbnails?: { default?: { url?: string } } };
   statistics?: { subscriberCount?: string; videoCount?: string; viewCount?: string };

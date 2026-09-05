@@ -9,7 +9,6 @@ import { BaseHeader } from '@/components/base';
 import { gestorPostsService } from '@/services/marketing/gestorPostsService';
 import type {
   SocialChannelOption,
-  SocialChannelType,
   InstagramAccountInfo,
   InstagramMedia,
   InstagramStory,
@@ -23,6 +22,7 @@ import type {
   YoutubePrivacyStatus,
   FacebookAccountInfo,
   FacebookPost,
+  FacebookAccessiblePage,
   YoutubeChannelInfo,
   YoutubeVideoItem,
 } from '@/types/marketing/gestorPosts';
@@ -298,7 +298,15 @@ export default function GestorPostsPage() {
   // "não listado", igual ao padrão que já era usado antes.
   const youtubePrivacy: YoutubePrivacyStatus = 'unlisted';
 
-  const facebookChannels = channels.filter((c) => c.channel_type === ('Channel::FacebookPage' as SocialChannelType));
+  // Lista dedicada (não um filtro de `channels`) porque inclui TODAS as
+  // páginas do Facebook já conectadas aqui, mesmo sem Instagram vinculado —
+  // `channels` só traz páginas com Instagram, usado pelo seletor de conta
+  // do Instagram.
+  const [facebookChannels, setFacebookChannels] = useState<SocialChannelOption[]>([]);
+  const [showFacebookPagePicker, setShowFacebookPagePicker] = useState(false);
+  const [accessiblePages, setAccessiblePages] = useState<FacebookAccessiblePage[]>([]);
+  const [loadingAccessiblePages, setLoadingAccessiblePages] = useState(false);
+  const [connectingPageId, setConnectingPageId] = useState<string | null>(null);
   // WhatsApp é o único destino marcado — só nesse caso faz sentido oferecer
   // Texto/Áudio no Tipo de Mídia (Status do WhatsApp aceita os dois; os
   // outros destinos, não).
@@ -1159,16 +1167,70 @@ export default function GestorPostsPage() {
     }
   };
 
-  useEffect(() => {
-    gestorPostsService
-      .getChannels()
-      .then((data) => {
-        setChannels(data);
-        if (data.length > 0) setSelectedChannel(data[0]);
-      })
-      .catch(() => toast.error('Erro ao carregar contas conectadas.'))
-      .finally(() => setLoadingChannels(false));
+  const loadChannels = useCallback(async () => {
+    try {
+      const data = await gestorPostsService.getChannels();
+      setChannels(data);
+      setSelectedChannel((prev) => prev || data[0] || null);
+    } catch {
+      toast.error('Erro ao carregar contas conectadas.');
+    } finally {
+      setLoadingChannels(false);
+    }
   }, []);
+
+  const loadFacebookChannelsList = useCallback(async () => {
+    try {
+      const data = await gestorPostsService.getFacebookChannels();
+      setFacebookChannels(data);
+      return data;
+    } catch {
+      toast.error('Erro ao carregar páginas do Facebook conectadas.');
+      return [];
+    }
+  }, []);
+
+  useEffect(() => {
+    loadChannels();
+    loadFacebookChannelsList();
+  }, [loadChannels, loadFacebookChannelsList]);
+
+  const openFacebookPagePicker = async () => {
+    setShowFacebookPagePicker(true);
+    setLoadingAccessiblePages(true);
+    try {
+      const data = await gestorPostsService.getAccessibleFacebookPages();
+      setAccessiblePages(data);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao buscar páginas do Facebook.');
+    } finally {
+      setLoadingAccessiblePages(false);
+    }
+  };
+
+  const handlePickFacebookPage = async (page: FacebookAccessiblePage) => {
+    if (page.connected) {
+      const existing = facebookChannels.find((c) => c.page_id === page.page_id);
+      if (existing) {
+        setSelectedFacebookChannel(existing);
+        setShowFacebookPagePicker(false);
+        return;
+      }
+    }
+
+    setConnectingPageId(page.page_id);
+    try {
+      const channel = await gestorPostsService.connectFacebookPage(page.page_id);
+      await Promise.all([loadFacebookChannelsList(), loadChannels()]);
+      setSelectedFacebookChannel(channel);
+      toast.success(`Página "${page.name}" conectada!`);
+      setShowFacebookPagePicker(false);
+    } catch {
+      toast.error('Não foi possível conectar essa página.');
+    } finally {
+      setConnectingPageId(null);
+    }
+  };
 
   const loadGallery = useCallback(async () => {
     if (!selectedChannel) return;
@@ -1735,28 +1797,32 @@ export default function GestorPostsPage() {
 
       {galleryPlatform === 'facebook' && (
         <>
-          {facebookChannels.length > 1 && (
-            <div className="flex gap-2 flex-wrap">
-              {facebookChannels.map((c) => (
-                <button
-                  key={c.channel_id}
-                  onClick={() => setSelectedFacebookChannel(c)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    selectedFacebookChannel?.channel_id === c.channel_id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:bg-muted/70'
-                  }`}
-                >
-                  @{c.username}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex gap-2 flex-wrap items-center">
+            {facebookChannels.map((c) => (
+              <button
+                key={c.channel_id}
+                onClick={() => setSelectedFacebookChannel(c)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  selectedFacebookChannel?.channel_id === c.channel_id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                }`}
+              >
+                @{c.username}
+              </button>
+            ))}
+            <button
+              onClick={openFacebookPagePicker}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium border border-dashed border-border text-muted-foreground hover:bg-muted/70 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Outras páginas
+            </button>
+          </div>
 
           {facebookChannels.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                Nenhuma página do Facebook conectada.
+                Nenhuma página do Facebook conectada ainda. Clique em "Outras páginas" acima pra escolher uma.
               </CardContent>
             </Card>
           ) : loadingFacebookGallery ? (
@@ -2063,6 +2129,58 @@ export default function GestorPostsPage() {
                 >
                   <ExternalLink className="w-3.5 h-3.5" /> Ver no Facebook
                 </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: SELECIONAR PÁGINA DO FACEBOOK --- */}
+      {showFacebookPagePicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowFacebookPagePicker(false)} />
+          <div className="relative w-full max-w-lg bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+              <h2 className="text-sm font-semibold text-gray-800">Páginas do Facebook</h2>
+              <button onClick={() => setShowFacebookPagePicker(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-5 space-y-2">
+              <p className="text-xs text-gray-500 mb-2">
+                Todas as páginas que seu login do Facebook administra — escolha qualquer uma pra ver a galeria e publicar nela.
+              </p>
+              {loadingAccessiblePages ? (
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-8">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Carregando páginas...
+                </div>
+              ) : accessiblePages.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">Nenhuma página encontrada.</p>
+              ) : (
+                accessiblePages.map((page) => (
+                  <button
+                    key={page.page_id}
+                    onClick={() => handlePickFacebookPage(page)}
+                    disabled={connectingPageId === page.page_id}
+                    className="w-full flex items-center justify-between gap-3 border border-gray-200 rounded-lg p-3 text-left hover:bg-gray-50 transition-colors disabled:opacity-60"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Facebook className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{page.name}</p>
+                        {page.instagram?.username && (
+                          <p className="text-xs text-gray-500 flex items-center gap-1">
+                            <Instagram className="w-3 h-3" /> @{page.instagram.username}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {page.connected && <Badge variant="outline">Conectada</Badge>}
+                      {connectingPageId === page.page_id && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                    </div>
+                  </button>
+                ))
               )}
             </div>
           </div>

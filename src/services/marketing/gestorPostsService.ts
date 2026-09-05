@@ -19,6 +19,7 @@ import type {
   CreateYoutubeUploadPayload,
   FacebookAccountInfo,
   FacebookPost,
+  FacebookAccessiblePage,
   YoutubeChannelInfo,
   YoutubeVideoItem,
 } from '@/types/marketing/gestorPosts';
@@ -29,6 +30,21 @@ class GestorPostsService {
   async getChannels(): Promise<SocialChannelOption[]> {
     const response = await api.get(`${this.baseUrl}/channels`);
     return extractData<SocialChannelOption[]>(response);
+  }
+
+  async getFacebookChannels(): Promise<SocialChannelOption[]> {
+    const response = await api.get(`${this.baseUrl}/facebook_channels`);
+    return extractData<SocialChannelOption[]>(response);
+  }
+
+  async getAccessibleFacebookPages(): Promise<FacebookAccessiblePage[]> {
+    const response = await api.get(`${this.baseUrl}/facebook_pages/accessible`);
+    return extractData<FacebookAccessiblePage[]>(response);
+  }
+
+  async connectFacebookPage(pageId: string): Promise<SocialChannelOption> {
+    const response = await api.post(`${this.baseUrl}/facebook_pages/connect`, { page_id: pageId });
+    return extractData<SocialChannelOption>(response);
   }
 
   async getAccountInfo(channel?: SocialChannelOption): Promise<InstagramAccountInfo> {
