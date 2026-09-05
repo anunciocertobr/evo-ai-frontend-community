@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, FolderOpen, Calendar, RotateCcw, Phone, Youtube, Instagram, Facebook, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, FolderOpen, Calendar, CalendarDays, RotateCcw, Phone, Youtube, Instagram, Facebook, Trash2, Settings as SettingsIcon, Bookmark, Target, Share2, Eye, UserPlus, Clock, Play, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, Badge, Card, CardContent, Checkbox } from '@evoapi/design-system';
 import { BaseHeader } from '@/components/base';
@@ -25,6 +25,7 @@ import type {
 } from '@/types/marketing/gestorPosts';
 
 type GalleryPlatform = 'instagram' | 'facebook' | 'youtube';
+type MediaTypeChoice = 'image' | 'video' | 'carousel' | 'text' | 'audio' | '';
 
 const CONTENT_TYPE_LABELS: Record<PublicationContentType, string> = {
   feed: 'Feed',
@@ -35,18 +36,71 @@ const CONTENT_TYPE_LABELS: Record<PublicationContentType, string> = {
 // Ordem igual ao modelo original: Stories, Feed, Reels.
 const FORMAT_ORDER: PublicationContentType[] = ['stories', 'feed', 'reels'];
 
-const WHATSAPP_STATUS_TYPE_LABELS: Record<WhatsappStatusType, string> = {
-  text: 'Texto',
-  image: 'Imagem',
-  video: 'Vídeo',
-  audio: 'Áudio',
+// Menu de Opções (engrenagem) do modelo original — quais métricas aparecem
+// no grid, ordenação e filtro por tipo de mídia. Persistido no
+// localStorage (o original usava cookie).
+const GALLERY_SETTINGS_STORAGE_KEY = 'gestorPostsGallerySettings';
+
+interface GallerySettings {
+  isAudioEnabled: boolean;
+  isInfoVisible: boolean;
+  isDateVisible: boolean;
+  isLikesVisible: boolean;
+  isCommentsVisible: boolean;
+  isReachVisible: boolean;
+  isSavedVisible: boolean;
+  isInteractionsVisible: boolean;
+  isSharesVisible: boolean;
+  isVisitsVisible: boolean;
+  isFollowsVisible: boolean;
+  isWatchTimeVisible: boolean;
+  sortOrder: string;
+  mediaTypeFilter: 'all' | 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM';
+}
+
+const DEFAULT_GALLERY_SETTINGS: GallerySettings = {
+  isAudioEnabled: false,
+  isInfoVisible: false,
+  isDateVisible: false,
+  isLikesVisible: false,
+  isCommentsVisible: false,
+  isReachVisible: false,
+  isSavedVisible: false,
+  isInteractionsVisible: false,
+  isSharesVisible: false,
+  isVisitsVisible: false,
+  isFollowsVisible: false,
+  isWatchTimeVisible: false,
+  sortOrder: 'date-desc',
+  mediaTypeFilter: 'all',
 };
 
-const YOUTUBE_PRIVACY_LABELS: Record<YoutubePrivacyStatus, string> = {
-  public: 'Público',
-  unlisted: 'Não listado',
-  private: 'Privado',
-};
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'date-desc', label: 'Mais recentes' },
+  { value: 'date-asc', label: 'Mais antigos' },
+  { value: 'likes-desc', label: 'Mais curtidas' },
+  { value: 'likes-asc', label: 'Menos curtidas' },
+  { value: 'comments-desc', label: 'Mais comentários' },
+  { value: 'comments-asc', label: 'Menos comentários' },
+  { value: 'reach-desc', label: 'Maior alcance' },
+  { value: 'reach-asc', label: 'Menor alcance' },
+  { value: 'saved-desc', label: 'Mais salvos' },
+  { value: 'saved-asc', label: 'Menos salvos' },
+  { value: 'interactions-desc', label: 'Mais interações' },
+  { value: 'interactions-asc', label: 'Menos interações' },
+  { value: 'shares-desc', label: 'Mais compartilhamentos' },
+  { value: 'shares-asc', label: 'Menos compartilhamentos' },
+  { value: 'visits-desc', label: 'Mais visitas ao perfil' },
+  { value: 'visits-asc', label: 'Menos visitas ao perfil' },
+  { value: 'follows-desc', label: 'Mais seguidores' },
+  { value: 'follows-asc', label: 'Menos seguidores' },
+  { value: 'watch_time-desc', label: 'Maior tempo médio' },
+  { value: 'watch_time-asc', label: 'Menor tempo médio' },
+];
+
+const MONTH_LABELS = [
+  'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
+];
 
 const SCHEDULED_STATUS_LABELS: Record<ScheduledPostStatus, string> = {
   scheduled: 'Agendado',
@@ -143,8 +197,10 @@ export default function GestorPostsPage() {
   // quanto carrossel (todos), com reordenar/remover individual.
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [uploadedPreviewUrls, setUploadedPreviewUrls] = useState<string[]>([]);
-  // "Tipo de Mídia" — Imagem/Vídeo/Carrossel, escolha única.
-  const [mediaType, setMediaType] = useState<'image' | 'video' | 'carousel' | ''>('');
+  // "Tipo de Mídia" — Imagem/Vídeo/Carrossel, escolha única. Texto/Áudio só
+  // aparecem quando WhatsApp é o único destino marcado (Status do WhatsApp
+  // aceita esses dois formatos além de imagem/vídeo).
+  const [mediaType, setMediaType] = useState<MediaTypeChoice>('');
   const [newIsCarousel, setNewIsCarousel] = useState(false);
   // Thumbnail customizada — só aparece pra Tipo de Mídia = Vídeo, igual ao
   // modelo original ("Subir Thumbnail"). Vira cover_url num Reels do
@@ -157,6 +213,7 @@ export default function GestorPostsPage() {
   const [createProgress, setCreateProgress] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   // "Subir Pasta" com estrutura Cliente/Data/Post/Formato — igual ao modelo
   // original: filtra por data, agrupa por cliente e por post, e cada post
@@ -195,30 +252,186 @@ export default function GestorPostsPage() {
   const [loadingScheduled, setLoadingScheduled] = useState(false);
   const [scheduledActionId, setScheduledActionId] = useState<string | null>(null);
 
-  const [showWhatsappModal, setShowWhatsappModal] = useState(false);
+  // WhatsApp/YouTube não têm mais modais próprios no menu principal — viraram
+  // destinos selecionáveis dentro do "Criar Post" (igual ao modelo original,
+  // que só tem "Criar Post" e "Calendário" na tela principal). Esses estados
+  // continuam porque a checklist de destinos e o publishWhatsappJob/
+  // publishYoutubeJob do Criar Post dependem deles.
   const [whatsappChannels, setWhatsappChannels] = useState<WhatsappStatusChannelOption[]>([]);
-  const [loadingWhatsappChannels, setLoadingWhatsappChannels] = useState(false);
-  const [whatsappChannelId, setWhatsappChannelId] = useState('');
-  const [whatsappType, setWhatsappType] = useState<WhatsappStatusType>('text');
-  const [whatsappText, setWhatsappText] = useState('');
-  const [whatsappCaption, setWhatsappCaption] = useState('');
-  const [whatsappFile, setWhatsappFile] = useState<File | null>(null);
-  const [whatsappPreviewUrl, setWhatsappPreviewUrl] = useState<string | null>(null);
-  const [sendingWhatsappStatus, setSendingWhatsappStatus] = useState(false);
-  const whatsappFileInputRef = useRef<HTMLInputElement>(null);
-
-  const [showYoutubeModal, setShowYoutubeModal] = useState(false);
   const [youtubeConnected, setYoutubeConnected] = useState<boolean | null>(null);
-  const [loadingYoutubeConnected, setLoadingYoutubeConnected] = useState(false);
-  const [youtubeTitle, setYoutubeTitle] = useState('');
-  const [youtubeDescription, setYoutubeDescription] = useState('');
-  const [youtubePrivacy, setYoutubePrivacy] = useState<YoutubePrivacyStatus>('unlisted');
-  const [youtubeFile, setYoutubeFile] = useState<File | null>(null);
-  const [youtubePreviewUrl, setYoutubePreviewUrl] = useState<string | null>(null);
-  const [sendingYoutubeUpload, setSendingYoutubeUpload] = useState(false);
-  const youtubeFileInputRef = useRef<HTMLInputElement>(null);
+  // Sem seletor de privacidade no Criar Post unificado (o original nunca
+  // teve upload de YouTube na tela principal) — sempre publica como
+  // "não listado", igual ao padrão que já era usado antes.
+  const youtubePrivacy: YoutubePrivacyStatus = 'unlisted';
 
   const facebookChannels = channels.filter((c) => c.channel_type === ('Channel::FacebookPage' as SocialChannelType));
+  // WhatsApp é o único destino marcado — só nesse caso faz sentido oferecer
+  // Texto/Áudio no Tipo de Mídia (Status do WhatsApp aceita os dois; os
+  // outros destinos, não).
+  const whatsappOnlySelected =
+    platformEnabled.whatsapp && !platformEnabled.instagram && !platformEnabled.facebook && !platformEnabled.youtube;
+
+  const [gallerySettings, setGallerySettings] = useState<GallerySettings>(() => {
+    try {
+      const raw = localStorage.getItem(GALLERY_SETTINGS_STORAGE_KEY);
+      if (raw) return { ...DEFAULT_GALLERY_SETTINGS, ...JSON.parse(raw) };
+    } catch {
+      // localStorage indisponível ou JSON inválido — usa os padrões.
+    }
+    return DEFAULT_GALLERY_SETTINGS;
+  });
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(GALLERY_SETTINGS_STORAGE_KEY, JSON.stringify(gallerySettings));
+    } catch {
+      // ignora — não é crítico persistir preferências de visualização.
+    }
+  }, [gallerySettings]);
+
+  const updateGallerySetting = <K extends keyof GallerySettings>(key: K, value: GallerySettings[K]) => {
+    setGallerySettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // Filtro por data (ícone de calendário) — período rápido, mês do ano
+  // corrente, ou intervalo específico.
+  const [showDateFilterModal, setShowDateFilterModal] = useState(false);
+  const [dateRangeStart, setDateRangeStart] = useState('');
+  const [dateRangeEnd, setDateRangeEnd] = useState('');
+  const [activeMonthFilter, setActiveMonthFilter] = useState<number | null>(null);
+
+  const applyQuickDateRange = (range: 'today' | 'yesterday' | 'week' | 'month' | 'year' | 'all') => {
+    setActiveMonthFilter(null);
+    const now = new Date();
+    let start: Date | null = null;
+    let end: Date | null = null;
+    switch (range) {
+      case 'today':
+        start = new Date();
+        end = new Date();
+        break;
+      case 'yesterday':
+        start = new Date(now);
+        start.setDate(start.getDate() - 1);
+        end = new Date(start);
+        break;
+      case 'week': {
+        const day = now.getDay() === 0 ? 6 : now.getDay() - 1;
+        start = new Date(now);
+        start.setDate(start.getDate() - day);
+        end = new Date();
+        break;
+      }
+      case 'month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        break;
+      case 'year':
+        start = new Date(now.getFullYear(), 0, 1);
+        end = new Date(now.getFullYear(), 11, 31);
+        break;
+      case 'all':
+      default:
+        start = null;
+        end = null;
+    }
+    const toInputDate = (d: Date) => {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    };
+    setDateRangeStart(start ? toInputDate(start) : '');
+    setDateRangeEnd(end ? toInputDate(end) : '');
+    setShowDateFilterModal(false);
+  };
+
+  const applyMonthFilter = (month: number | null) => {
+    setActiveMonthFilter(month);
+    setDateRangeStart('');
+    setDateRangeEnd('');
+    setShowDateFilterModal(false);
+  };
+
+  const filteredSortedMedia = useMemo(() => {
+    let list = [...media];
+
+    if (gallerySettings.mediaTypeFilter !== 'all') {
+      list = list.filter((m) => m.media_type === gallerySettings.mediaTypeFilter);
+    }
+
+    if (dateRangeStart && dateRangeEnd) {
+      const start = new Date(dateRangeStart);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(dateRangeEnd);
+      end.setHours(23, 59, 59, 999);
+      list = list.filter((m) => {
+        if (!m.timestamp) return false;
+        const d = new Date(m.timestamp);
+        return d >= start && d <= end;
+      });
+    } else if (activeMonthFilter !== null) {
+      list = list.filter((m) => {
+        if (!m.timestamp) return false;
+        return new Date(m.timestamp).getMonth() === activeMonthFilter;
+      });
+    }
+
+    const [sortKey, sortDir] = gallerySettings.sortOrder.split('-');
+    const order = sortDir === 'desc' ? -1 : 1;
+    list.sort((a, b) => {
+      let valA = 0;
+      let valB = 0;
+      switch (sortKey) {
+        case 'date':
+          valA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          valB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          break;
+        case 'likes':
+          valA = a.like_count || 0;
+          valB = b.like_count || 0;
+          break;
+        case 'comments':
+          valA = a.comments_count || 0;
+          valB = b.comments_count || 0;
+          break;
+        case 'reach':
+          valA = insightValue(a, 'reach') || 0;
+          valB = insightValue(b, 'reach') || 0;
+          break;
+        case 'saved':
+          valA = insightValue(a, 'saved') || 0;
+          valB = insightValue(b, 'saved') || 0;
+          break;
+        case 'interactions':
+          valA = insightValue(a, 'total_interactions') || 0;
+          valB = insightValue(b, 'total_interactions') || 0;
+          break;
+        case 'shares':
+          valA = insightValue(a, 'shares') || 0;
+          valB = insightValue(b, 'shares') || 0;
+          break;
+        case 'visits':
+          valA = insightValue(a, 'profile_visits') || 0;
+          valB = insightValue(b, 'profile_visits') || 0;
+          break;
+        case 'follows':
+          valA = insightValue(a, 'follows') || 0;
+          valB = insightValue(b, 'follows') || 0;
+          break;
+        case 'watch_time':
+          valA = insightValue(a, 'ig_reels_avg_watch_time') || 0;
+          valB = insightValue(b, 'ig_reels_avg_watch_time') || 0;
+          break;
+        default:
+          return 0;
+      }
+      if (valA < valB) return -1 * order;
+      if (valA > valB) return 1 * order;
+      return 0;
+    });
+
+    return list;
+  }, [media, gallerySettings.mediaTypeFilter, gallerySettings.sortOrder, dateRangeStart, dateRangeEnd, activeMonthFilter]);
 
   const [galleryPlatform, setGalleryPlatform] = useState<GalleryPlatform>('instagram');
 
@@ -259,10 +472,15 @@ export default function GestorPostsPage() {
     });
   };
 
-  const selectMediaType = (type: 'image' | 'video' | 'carousel') => {
+  const selectMediaType = (type: MediaTypeChoice) => {
     setMediaType(type);
     setNewIsCarousel(type === 'carousel');
     if (type !== 'video') setThumbFile(null);
+    if (type === 'text' || type === 'audio') setUploadedFiles([]);
+  };
+
+  const handleAudioFileSelect = (file: File | null) => {
+    setUploadedFiles(file ? [file] : []);
   };
 
   // Preview de cada arquivo enviado se regenera sozinho sempre que a lista
@@ -577,92 +795,6 @@ export default function GestorPostsPage() {
     }
   };
 
-  const handleWhatsappFileChange = (file: File | null) => {
-    setWhatsappFile(file);
-    if (whatsappPreviewUrl) URL.revokeObjectURL(whatsappPreviewUrl);
-    setWhatsappPreviewUrl(file ? URL.createObjectURL(file) : null);
-  };
-
-  const resetWhatsappForm = () => {
-    setWhatsappChannelId('');
-    setWhatsappType('text');
-    setWhatsappText('');
-    setWhatsappCaption('');
-    handleWhatsappFileChange(null);
-  };
-
-  const openWhatsappModal = async () => {
-    setShowWhatsappModal(true);
-    setLoadingWhatsappChannels(true);
-    try {
-      const data = await gestorPostsService.getWhatsappStatusChannels();
-      setWhatsappChannels(data);
-      if (data.length > 0) setWhatsappChannelId(data[0].channel_id);
-    } catch {
-      toast.error('Erro ao carregar canais de WhatsApp.');
-    } finally {
-      setLoadingWhatsappChannels(false);
-    }
-  };
-
-  const handleSendWhatsappStatus = async () => {
-    if (!whatsappChannelId) {
-      toast.error('Selecione um canal de WhatsApp.');
-      return;
-    }
-    if (whatsappType === 'text' && !whatsappText.trim()) {
-      toast.error('Escreva o texto do status.');
-      return;
-    }
-    if (whatsappType !== 'text' && !whatsappFile) {
-      toast.error('Selecione um arquivo de mídia.');
-      return;
-    }
-    setSendingWhatsappStatus(true);
-    try {
-      await gestorPostsService.createWhatsappStatus({
-        channel_id: whatsappChannelId,
-        type: whatsappType,
-        content: whatsappType === 'text' ? whatsappText.trim() : undefined,
-        media: whatsappType !== 'text' ? whatsappFile || undefined : undefined,
-        caption: whatsappCaption.trim() || undefined,
-      });
-      toast.success('Status publicado no WhatsApp!');
-      setShowWhatsappModal(false);
-      resetWhatsappForm();
-    } catch {
-      toast.error('Erro ao publicar o status no WhatsApp.');
-    } finally {
-      setSendingWhatsappStatus(false);
-    }
-  };
-
-  const handleYoutubeFileChange = (file: File | null) => {
-    setYoutubeFile(file);
-    if (youtubePreviewUrl) URL.revokeObjectURL(youtubePreviewUrl);
-    setYoutubePreviewUrl(file ? URL.createObjectURL(file) : null);
-  };
-
-  const resetYoutubeForm = () => {
-    setYoutubeTitle('');
-    setYoutubeDescription('');
-    setYoutubePrivacy('unlisted');
-    handleYoutubeFileChange(null);
-  };
-
-  const openYoutubeModal = async () => {
-    setShowYoutubeModal(true);
-    setLoadingYoutubeConnected(true);
-    try {
-      const connected = await gestorPostsService.getYoutubeConnected();
-      setYoutubeConnected(connected);
-    } catch {
-      setYoutubeConnected(false);
-    } finally {
-      setLoadingYoutubeConnected(false);
-    }
-  };
-
   const pollYoutubeUploadStatus = async (id: string) => {
     for (let attempt = 0; attempt < 60; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -679,34 +811,6 @@ export default function GestorPostsPage() {
       } catch {
         return;
       }
-    }
-  };
-
-  const handleSendYoutubeUpload = async () => {
-    if (!youtubeTitle.trim()) {
-      toast.error('Escreva um título para o vídeo.');
-      return;
-    }
-    if (!youtubeFile) {
-      toast.error('Selecione um arquivo de vídeo.');
-      return;
-    }
-    setSendingYoutubeUpload(true);
-    try {
-      const upload = await gestorPostsService.createYoutubeUpload({
-        title: youtubeTitle.trim(),
-        description: youtubeDescription.trim(),
-        privacy_status: youtubePrivacy,
-        video: youtubeFile,
-      });
-      toast.success('Vídeo enviado! Publicando no YouTube em segundo plano...');
-      setShowYoutubeModal(false);
-      resetYoutubeForm();
-      pollYoutubeUploadStatus(upload.id);
-    } catch {
-      toast.error('Erro ao enviar o vídeo.');
-    } finally {
-      setSendingYoutubeUpload(false);
     }
   };
 
@@ -801,9 +905,18 @@ export default function GestorPostsPage() {
   };
 
   const publishWhatsappJob = async (channelId: string) => {
+    if (mediaType === 'text') {
+      await gestorPostsService.createWhatsappStatus({
+        channel_id: channelId,
+        type: 'text',
+        content: newCaption.trim(),
+      });
+      return;
+    }
     const file = uploadedFiles[0];
     if (!file) return;
-    const type: WhatsappStatusType = file.type.startsWith('video/') ? 'video' : 'image';
+    const type: WhatsappStatusType =
+      mediaType === 'audio' ? 'audio' : file.type.startsWith('video/') ? 'video' : 'image';
     await gestorPostsService.createWhatsappStatus({
       channel_id: channelId,
       type,
@@ -830,19 +943,30 @@ export default function GestorPostsPage() {
     const hasWhatsapp = destWhatsappIds.length > 0;
     const hasYoutube = destYoutube;
 
+    const whatsappOnly = hasWhatsapp && !hasMeta && !hasYoutube;
+
     if (!hasMeta && !hasWhatsapp && !hasYoutube) {
       toast.error('Selecione ao menos uma plataforma e uma conta de destino.');
       return;
     }
     if (!mediaType) {
-      toast.error('Selecione o Tipo de Mídia (Imagem, Vídeo ou Carrossel).');
+      toast.error(
+        whatsappOnly
+          ? 'Selecione o Tipo de Mídia (Imagem, Vídeo, Carrossel, Texto ou Áudio).'
+          : 'Selecione o Tipo de Mídia (Imagem, Vídeo ou Carrossel).',
+      );
       return;
     }
     if (hasMeta && !newIsCarousel && formats.length === 0) {
       toast.error('Selecione ao menos um formato (Feed, Stories ou Reels).');
       return;
     }
-    if (newIsCarousel) {
+    if (whatsappOnly && mediaType === 'text') {
+      if (!newCaption.trim()) {
+        toast.error('Escreva o texto do status.');
+        return;
+      }
+    } else if (newIsCarousel) {
       if (uploadedFiles.length < 2) {
         toast.error('Selecione ao menos 2 imagens para o carrossel.');
         return;
@@ -852,7 +976,7 @@ export default function GestorPostsPage() {
         return;
       }
     } else if (uploadedFiles.length === 0) {
-      toast.error('Selecione um arquivo de mídia.');
+      toast.error(mediaType === 'audio' ? 'Selecione um arquivo de áudio.' : 'Selecione um arquivo de mídia.');
       return;
     }
     if (hasYoutube && (newIsCarousel || !uploadedFiles[0]?.type.startsWith('video/'))) {
@@ -1109,18 +1233,136 @@ export default function GestorPostsPage() {
 
   return (
     <div className="flex flex-col min-h-full bg-background p-6 space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 relative">
         <BaseHeader title="Gestor de Posts" subtitle="Galeria de criativos, métricas e comentários do Instagram." />
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button variant="outline" onClick={openYoutubeModal}>
-            <Youtube className="w-4 h-4 mr-1.5" /> Vídeo (YouTube)
-          </Button>
-          <Button variant="outline" onClick={openWhatsappModal}>
-            <Phone className="w-4 h-4 mr-1.5" /> Status do WhatsApp
-          </Button>
           <Button variant="outline" onClick={openScheduledModal}>
             <Calendar className="w-4 h-4 mr-1.5" /> Posts Agendados
           </Button>
+          <Button variant="outline" size="icon" onClick={() => setShowDateFilterModal(true)} title="Filtrar por data">
+            <CalendarDays className="w-4 h-4" />
+          </Button>
+          <div className="relative">
+            <Button variant="outline" size="icon" onClick={() => setShowSettingsMenu((v) => !v)} title="Opções">
+              <SettingsIcon className="w-4 h-4" />
+            </Button>
+            {showSettingsMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowSettingsMenu(false)} />
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-2xl p-4 space-y-4 z-50 max-h-[75vh] overflow-y-auto text-sm">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-gray-800">Opções</h3>
+                    <button
+                      onClick={() =>
+                        setGallerySettings({
+                          ...gallerySettings,
+                          isAudioEnabled: true,
+                          isInfoVisible: true,
+                          isDateVisible: true,
+                          isLikesVisible: true,
+                          isCommentsVisible: true,
+                          isReachVisible: true,
+                          isSavedVisible: true,
+                          isInteractionsVisible: true,
+                          isSharesVisible: true,
+                          isVisitsVisible: true,
+                          isFollowsVisible: true,
+                          isWatchTimeVisible: true,
+                        })
+                      }
+                      className="text-xs text-blue-600 hover:underline font-semibold"
+                    >
+                      Ativar Tudo
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="font-semibold text-gray-600 text-xs border-b border-gray-200 pb-1">Visualização</p>
+                    {(
+                      [
+                        { key: 'isAudioEnabled' as const, label: 'Áudio nos vídeos' },
+                        { key: 'isInfoVisible' as const, label: 'Exibir legendas' },
+                        { key: 'isDateVisible' as const, label: 'Exibir data' },
+                      ]
+                    ).map(({ key, label }) => (
+                      <label key={key} className="flex items-center justify-between cursor-pointer select-none">
+                        {label}
+                        <input
+                          type="checkbox"
+                          checked={gallerySettings[key]}
+                          onChange={(e) => updateGallerySetting(key, e.target.checked)}
+                        />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="font-semibold text-gray-600 text-xs border-b border-gray-200 pb-1">Exibir Métricas</p>
+                    {(
+                      [
+                        { key: 'isLikesVisible' as const, label: 'Curtidas' },
+                        { key: 'isCommentsVisible' as const, label: 'Comentários' },
+                        { key: 'isReachVisible' as const, label: 'Alcance' },
+                        { key: 'isSavedVisible' as const, label: 'Salvos' },
+                        { key: 'isInteractionsVisible' as const, label: 'Interações' },
+                        { key: 'isSharesVisible' as const, label: 'Compart.' },
+                        { key: 'isVisitsVisible' as const, label: 'Visitas Perfil' },
+                        { key: 'isFollowsVisible' as const, label: 'Seguidores' },
+                        { key: 'isWatchTimeVisible' as const, label: 'Tempo Médio' },
+                      ]
+                    ).map(({ key, label }) => (
+                      <label key={key} className="flex items-center justify-between cursor-pointer select-none">
+                        {label}
+                        <input
+                          type="checkbox"
+                          checked={gallerySettings[key]}
+                          onChange={(e) => updateGallerySetting(key, e.target.checked)}
+                        />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="font-semibold text-gray-600 text-xs border-b border-gray-200 pb-1">
+                      Filtros e Ordenação
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Ordenar por</span>
+                      <select
+                        className="border border-gray-300 rounded-md text-xs p-1"
+                        value={gallerySettings.sortOrder}
+                        onChange={(e) => updateGallerySetting('sortOrder', e.target.value)}
+                      >
+                        {SORT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Filtrar por mídia</span>
+                      <select
+                        className="border border-gray-300 rounded-md text-xs p-1"
+                        value={gallerySettings.mediaTypeFilter}
+                        onChange={(e) =>
+                          updateGallerySetting(
+                            'mediaTypeFilter',
+                            e.target.value as GallerySettings['mediaTypeFilter'],
+                          )
+                        }
+                      >
+                        <option value="all">Todos</option>
+                        <option value="IMAGE">Imagem</option>
+                        <option value="VIDEO">Vídeo</option>
+                        <option value="CAROUSEL_ALBUM">Carrossel</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           <Button onClick={openCreateModal}>
             <Plus className="w-4 h-4 mr-1.5" /> Criar Post
           </Button>
@@ -1223,54 +1465,113 @@ export default function GestorPostsPage() {
             </Card>
           )}
 
-          {media.length === 0 ? (
+          {filteredSortedMedia.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-sm text-muted-foreground">Nenhum post encontrado.</CardContent>
             </Card>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {media.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => openMedia(item)}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.querySelector('video')?.play().catch(() => {});
-                  }}
-                  onMouseLeave={(e) => {
-                    const video = e.currentTarget.querySelector('video');
-                    if (video) {
-                      video.pause();
-                      video.currentTime = 0;
-                    }
-                  }}
-                  className="group relative aspect-square rounded-lg overflow-hidden bg-muted border border-border"
-                >
-                  {item.media_type === 'VIDEO' ? (
-                    <video
-                      src={item.media_url}
-                      poster={item.thumbnail_url}
-                      muted
-                      loop
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <img
-                      src={item.thumbnail_url || item.media_url}
-                      alt={item.caption || ''}
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
-                    <span className="text-white text-xs flex items-center gap-1">
-                      <Heart className="w-3.5 h-3.5" /> {formatNumber(item.like_count)}
-                    </span>
-                    <span className="text-white text-xs flex items-center gap-1">
-                      <MessageCircle className="w-3.5 h-3.5" /> {formatNumber(item.comments_count)}
-                    </span>
-                  </div>
-                </button>
-              ))}
+              {filteredSortedMedia.map((item) => {
+                const MediaTypeIcon =
+                  item.media_type === 'VIDEO' ? Play : item.media_type === 'CAROUSEL_ALBUM' ? Layers : ImageIcon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => openMedia(item)}
+                    onMouseEnter={(e) => {
+                      const video = e.currentTarget.querySelector('video');
+                      if (video) {
+                        video.muted = !gallerySettings.isAudioEnabled;
+                        video.play().catch(() => {});
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      const video = e.currentTarget.querySelector('video');
+                      if (video) {
+                        video.pause();
+                        video.currentTime = 0;
+                      }
+                    }}
+                    className="group relative aspect-square rounded-lg overflow-hidden bg-muted border border-border"
+                  >
+                    {item.media_type === 'VIDEO' ? (
+                      <video
+                        src={item.media_url}
+                        poster={item.thumbnail_url}
+                        loop
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <img
+                        src={item.thumbnail_url || item.media_url}
+                        alt={item.caption || ''}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                      <MediaTypeIcon className="w-7 h-7 text-white" />
+                      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-2">
+                        {gallerySettings.isLikesVisible && (
+                          <span className="text-white text-xs flex items-center gap-1">
+                            <Heart className="w-3.5 h-3.5" /> {formatNumber(item.like_count)}
+                          </span>
+                        )}
+                        {gallerySettings.isCommentsVisible && (
+                          <span className="text-white text-xs flex items-center gap-1">
+                            <MessageCircle className="w-3.5 h-3.5" /> {formatNumber(item.comments_count)}
+                          </span>
+                        )}
+                        {gallerySettings.isReachVisible && (
+                          <span className="text-white text-xs flex items-center gap-1">
+                            <Target className="w-3.5 h-3.5" /> {formatNumber(insightValue(item, 'reach') || 0)}
+                          </span>
+                        )}
+                        {gallerySettings.isSavedVisible && (
+                          <span className="text-white text-xs flex items-center gap-1">
+                            <Bookmark className="w-3.5 h-3.5" /> {formatNumber(insightValue(item, 'saved') || 0)}
+                          </span>
+                        )}
+                        {gallerySettings.isInteractionsVisible && (
+                          <span className="text-white text-xs flex items-center gap-1">
+                            <Users className="w-3.5 h-3.5" /> {formatNumber(insightValue(item, 'total_interactions') || 0)}
+                          </span>
+                        )}
+                        {gallerySettings.isSharesVisible && (
+                          <span className="text-white text-xs flex items-center gap-1">
+                            <Share2 className="w-3.5 h-3.5" /> {formatNumber(insightValue(item, 'shares') || 0)}
+                          </span>
+                        )}
+                        {gallerySettings.isVisitsVisible && (
+                          <span className="text-white text-xs flex items-center gap-1">
+                            <Eye className="w-3.5 h-3.5" /> {formatNumber(insightValue(item, 'profile_visits') || 0)}
+                          </span>
+                        )}
+                        {gallerySettings.isFollowsVisible && (
+                          <span className="text-white text-xs flex items-center gap-1">
+                            <UserPlus className="w-3.5 h-3.5" /> {formatNumber(insightValue(item, 'follows') || 0)}
+                          </span>
+                        )}
+                        {gallerySettings.isWatchTimeVisible && item.media_type === 'VIDEO' && (
+                          <span className="text-white text-xs flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" /> {formatNumber(insightValue(item, 'ig_reels_avg_watch_time') || 0)}s
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {(gallerySettings.isInfoVisible || gallerySettings.isDateVisible) && (
+                      <div className="absolute bottom-0 inset-x-0 bg-black/70 text-white text-[11px] p-1.5 space-y-0.5">
+                        {gallerySettings.isDateVisible && item.timestamp && (
+                          <p className="opacity-80">{new Date(item.timestamp).toLocaleDateString('pt-BR')}</p>
+                        )}
+                        {gallerySettings.isInfoVisible && item.caption && (
+                          <p className="line-clamp-2 text-left">{item.caption}</p>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </>
@@ -1607,6 +1908,97 @@ export default function GestorPostsPage() {
         </div>
       )}
 
+      {/* --- MODAL: FILTRAR POR DATA --- */}
+      {showDateFilterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowDateFilterModal(false)} />
+          <div className="relative w-full max-w-md bg-white rounded-lg shadow-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-800">Filtrar por Data</h2>
+              <button onClick={() => setShowDateFilterModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mês</p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  <button
+                    onClick={() => applyMonthFilter(null)}
+                    className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                      activeMonthFilter === null ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                    }`}
+                  >
+                    Todos
+                  </button>
+                  {MONTH_LABELS.map((label, index) => (
+                    <button
+                      key={label}
+                      onClick={() => applyMonthFilter(index)}
+                      className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                        activeMonthFilter === index ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 pt-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Período Rápido</p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      { id: 'today' as const, label: 'Hoje' },
+                      { id: 'yesterday' as const, label: 'Ontem' },
+                      { id: 'week' as const, label: 'Semana' },
+                      { id: 'month' as const, label: 'Mês' },
+                      { id: 'year' as const, label: 'Ano' },
+                      { id: 'all' as const, label: 'Todos' },
+                    ]
+                  ).map(({ id, label }) => (
+                    <button
+                      key={id}
+                      onClick={() => applyQuickDateRange(id)}
+                      className="px-2 py-1.5 rounded-md text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/70 transition-colors"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 pt-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Intervalo Específico</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    className="flex-1 border border-gray-300 rounded-md text-sm p-2"
+                    value={dateRangeStart}
+                    onChange={(e) => {
+                      setActiveMonthFilter(null);
+                      setDateRangeStart(e.target.value);
+                    }}
+                  />
+                  <span className="text-gray-400">-</span>
+                  <input
+                    type="date"
+                    className="flex-1 border border-gray-300 rounded-md text-sm p-2"
+                    value={dateRangeEnd}
+                    onChange={(e) => {
+                      setActiveMonthFilter(null);
+                      setDateRangeEnd(e.target.value);
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- MODAL: CRIAR POST --- */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1630,143 +2022,174 @@ export default function GestorPostsPage() {
             </div>
 
             <div className="overflow-y-auto p-5 space-y-4">
-              {/* Upload: pasta ou arquivos — igual ao modelo original, os dois
-                  aceitam múltiplos arquivos de uma vez. */}
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => folderInputRef.current?.click()}
-                  className="flex-1 flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  <FolderOpen className="w-4 h-4" /> Subir Pasta
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  <Upload className="w-4 h-4" /> Subir Arquivos
-                </button>
-              </div>
-              <input
-                ref={folderInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                {...({ webkitdirectory: 'true' } as React.InputHTMLAttributes<HTMLInputElement>)}
-                onChange={(e) => {
-                  handleFolderInputChange(e.target.files);
-                  if (folderInputRef.current) folderInputRef.current.value = '';
-                }}
-              />
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,video/*"
-                className="hidden"
-                onChange={(e) => {
-                  addUploadedFiles(e.target.files);
-                  if (fileInputRef.current) fileInputRef.current.value = '';
-                }}
-              />
-
-              {/* Opções de pasta: igual ao modelo original — filtro por data,
-                  cliente e post, preenchidos a partir da estrutura de pastas
-                  Cliente/AAAA-MM-DD/NomeDoPost/FORMATO. */}
-              {showFolderOptions && (
-                <div className="space-y-3 border border-gray-200 rounded-lg p-3 bg-gray-50">
-                  <label className="flex items-center justify-between gap-2 text-sm text-gray-700 cursor-pointer select-none">
-                    Carregar apenas posts de hoje em diante
-                    <input
-                      type="checkbox"
-                      checked={folderFilterToday}
-                      onChange={(e) => setFolderFilterToday(e.target.checked)}
-                    />
-                  </label>
-                  {clientNames.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Selecionar Cliente</label>
-                        <select
-                          className="w-full border border-gray-300 rounded-md text-sm p-2"
-                          value={selectedClient}
-                          onChange={(e) => handleClientChange(e.target.value)}
-                        >
-                          {clientNames.map((name) => (
-                            <option key={name} value={name}>
-                              {name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Personalizar Post</label>
-                        <select
-                          className="w-full border border-gray-300 rounded-md text-sm p-2"
-                          value={selectedPost}
-                          onChange={(e) => handlePostChange(e.target.value)}
-                        >
-                          {postNames.map((name) => (
-                            <option key={name} value={name}>
-                              {name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
+              {mediaType === 'text' ? (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg py-6 flex items-center justify-center text-xs text-gray-400">
+                  Status de texto — sem mídia, só a legenda abaixo.
+                </div>
+              ) : mediaType === 'audio' ? (
+                <div>
+                  <input
+                    ref={audioInputRef}
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleAudioFileSelect(e.target.files?.[0] || null);
+                      if (audioInputRef.current) audioInputRef.current.value = '';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => audioInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    <Upload className="w-4 h-4" /> Selecionar Áudio
+                  </button>
+                  {uploadedFiles[0] && (
+                    <p className="text-xs text-gray-500 text-center mt-1">{uploadedFiles[0].name}</p>
                   )}
                 </div>
-              )}
-
-              {/* Prévia — lista única de arquivos, reordenável e removível
-                  individualmente, igual ao modelo original. Em modo
-                  Imagem/Vídeo só o primeiro arquivo é publicado; em modo
-                  Carrossel, todos (até 10). */}
-              {uploadedFiles.length > 0 ? (
-                <div className="grid grid-cols-4 gap-2">
-                  {uploadedPreviewUrls.map((url, index) => {
-                    const file = uploadedFiles[index];
-                    const isVideo = file?.type.startsWith('video/');
-                    return (
-                      <div key={url} className="relative aspect-square group">
-                        {isVideo ? (
-                          <video src={url} muted className="w-full h-full object-cover rounded-lg bg-black/5" />
-                        ) : (
-                          <img src={url} alt="" className="w-full h-full object-cover rounded-lg bg-black/5" />
-                        )}
-                        <button
-                          onClick={() => removeUploadedFileAt(index)}
-                          className="absolute top-1 right-1 bg-white/90 rounded-full p-0.5 shadow opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                        {uploadedFiles.length > 1 && (
-                          <div className="absolute bottom-1 inset-x-1 flex justify-between opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              disabled={index === 0}
-                              onClick={() => moveUploadedFile(index, -1)}
-                              className="w-5 h-5 bg-slate-700/80 rounded-full text-white flex items-center justify-center text-xs disabled:opacity-40"
-                            >
-                              ←
-                            </button>
-                            <button
-                              disabled={index === uploadedFiles.length - 1}
-                              onClick={() => moveUploadedFile(index, 1)}
-                              className="w-5 h-5 bg-slate-700/80 rounded-full text-white flex items-center justify-center text-xs disabled:opacity-40"
-                            >
-                              →
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
               ) : (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg py-6 flex items-center justify-center text-xs text-gray-400">
-                  Nenhuma mídia selecionada ainda.
-                </div>
+                <>
+                  {/* Upload: pasta ou arquivos — igual ao modelo original, os dois
+                      aceitam múltiplos arquivos de uma vez. */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => folderInputRef.current?.click()}
+                      className="flex-1 flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      <FolderOpen className="w-4 h-4" /> Subir Pasta
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      <Upload className="w-4 h-4" /> Subir Arquivos
+                    </button>
+                  </div>
+                  <input
+                    ref={folderInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    {...({ webkitdirectory: 'true' } as React.InputHTMLAttributes<HTMLInputElement>)}
+                    onChange={(e) => {
+                      handleFolderInputChange(e.target.files);
+                      if (folderInputRef.current) folderInputRef.current.value = '';
+                    }}
+                  />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,video/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      addUploadedFiles(e.target.files);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                  />
+
+                  {/* Opções de pasta: igual ao modelo original — filtro por data,
+                      cliente e post, preenchidos a partir da estrutura de pastas
+                      Cliente/AAAA-MM-DD/NomeDoPost/FORMATO. */}
+                  {showFolderOptions && (
+                    <div className="space-y-3 border border-gray-200 rounded-lg p-3 bg-gray-50">
+                      <label className="flex items-center justify-between gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                        Carregar apenas posts de hoje em diante
+                        <input
+                          type="checkbox"
+                          checked={folderFilterToday}
+                          onChange={(e) => setFolderFilterToday(e.target.checked)}
+                        />
+                      </label>
+                      {clientNames.length > 0 && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Selecionar Cliente</label>
+                            <select
+                              className="w-full border border-gray-300 rounded-md text-sm p-2"
+                              value={selectedClient}
+                              onChange={(e) => handleClientChange(e.target.value)}
+                            >
+                              {clientNames.map((name) => (
+                                <option key={name} value={name}>
+                                  {name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Personalizar Post</label>
+                            <select
+                              className="w-full border border-gray-300 rounded-md text-sm p-2"
+                              value={selectedPost}
+                              onChange={(e) => handlePostChange(e.target.value)}
+                            >
+                              {postNames.map((name) => (
+                                <option key={name} value={name}>
+                                  {name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Prévia — lista única de arquivos, reordenável e removível
+                      individualmente, igual ao modelo original. Em modo
+                      Imagem/Vídeo só o primeiro arquivo é publicado; em modo
+                      Carrossel, todos (até 10). */}
+                  {uploadedFiles.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-2">
+                      {uploadedPreviewUrls.map((url, index) => {
+                        const file = uploadedFiles[index];
+                        const isVideo = file?.type.startsWith('video/');
+                        return (
+                          <div key={url} className="relative aspect-square group">
+                            {isVideo ? (
+                              <video src={url} muted className="w-full h-full object-cover rounded-lg bg-black/5" />
+                            ) : (
+                              <img src={url} alt="" className="w-full h-full object-cover rounded-lg bg-black/5" />
+                            )}
+                            <button
+                              onClick={() => removeUploadedFileAt(index)}
+                              className="absolute top-1 right-1 bg-white/90 rounded-full p-0.5 shadow opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                            {uploadedFiles.length > 1 && (
+                              <div className="absolute bottom-1 inset-x-1 flex justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  disabled={index === 0}
+                                  onClick={() => moveUploadedFile(index, -1)}
+                                  className="w-5 h-5 bg-slate-700/80 rounded-full text-white flex items-center justify-center text-xs disabled:opacity-40"
+                                >
+                                  ←
+                                </button>
+                                <button
+                                  disabled={index === uploadedFiles.length - 1}
+                                  onClick={() => moveUploadedFile(index, 1)}
+                                  className="w-5 h-5 bg-slate-700/80 rounded-full text-white flex items-center justify-center text-xs disabled:opacity-40"
+                                >
+                                  →
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg py-6 flex items-center justify-center text-xs text-gray-400">
+                      Nenhuma mídia selecionada ainda.
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Plataforma(s) */}
@@ -1864,12 +2287,18 @@ export default function GestorPostsPage() {
               {/* Tipo de Mídia */}
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tipo de Mídia</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className={`grid gap-2 ${whatsappOnlySelected ? 'grid-cols-5' : 'grid-cols-3'}`}>
                   {(
                     [
                       { id: 'image' as const, label: 'Imagem' },
                       { id: 'video' as const, label: 'Vídeo' },
                       { id: 'carousel' as const, label: 'Carrossel' },
+                      ...(whatsappOnlySelected
+                        ? [
+                            { id: 'text' as const, label: 'Texto' },
+                            { id: 'audio' as const, label: 'Áudio' },
+                          ]
+                        : []),
                     ]
                   ).map(({ id, label }) => (
                     <button
@@ -2043,291 +2472,6 @@ export default function GestorPostsPage() {
         </div>
       )}
 
-      {/* --- MODAL: STATUS DO WHATSAPP --- */}
-      {showWhatsappModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => {
-              if (!sendingWhatsappStatus) setShowWhatsappModal(false);
-            }}
-          />
-          <div className="relative w-full max-w-lg bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-800">Status do WhatsApp</h2>
-              <button
-                onClick={() => {
-                  if (!sendingWhatsappStatus) setShowWhatsappModal(false);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {loadingWhatsappChannels ? (
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-8">
-                <Loader2 className="w-4 h-4 animate-spin" /> Carregando canais...
-              </div>
-            ) : whatsappChannels.length === 0 ? (
-              <div className="p-5 text-sm text-gray-400 text-center">
-                Nenhum canal de WhatsApp com suporte a Status conectado.
-              </div>
-            ) : (
-              <>
-                <div className="overflow-y-auto p-5 space-y-4">
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Canal</p>
-                    <select
-                      className="w-full border border-gray-300 rounded-md text-sm p-2"
-                      value={whatsappChannelId}
-                      onChange={(e) => setWhatsappChannelId(e.target.value)}
-                    >
-                      {whatsappChannels.map((c) => (
-                        <option key={c.channel_id} value={c.channel_id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tipo</p>
-                    <div className="flex gap-2">
-                      {(Object.keys(WHATSAPP_STATUS_TYPE_LABELS) as WhatsappStatusType[]).map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => setWhatsappType(type)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                            whatsappType === type
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-muted-foreground hover:bg-muted/70'
-                          }`}
-                        >
-                          {WHATSAPP_STATUS_TYPE_LABELS[type]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {whatsappType === 'text' ? (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Texto</p>
-                      <textarea
-                        className="w-full border border-gray-300 rounded-md text-sm p-2.5"
-                        rows={3}
-                        value={whatsappText}
-                        onChange={(e) => setWhatsappText(e.target.value)}
-                        placeholder="Escreva o texto do status..."
-                      />
-                    </div>
-                  ) : (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mídia</p>
-                      <input
-                        ref={whatsappFileInputRef}
-                        type="file"
-                        accept={
-                          whatsappType === 'image' ? 'image/*' : whatsappType === 'video' ? 'video/*' : 'audio/*'
-                        }
-                        className="hidden"
-                        onChange={(e) => handleWhatsappFileChange(e.target.files?.[0] || null)}
-                      />
-                      {whatsappFile ? (
-                        <div className="relative">
-                          {whatsappType === 'image' && whatsappPreviewUrl && (
-                            <img src={whatsappPreviewUrl} alt="" className="w-full max-h-64 rounded-lg bg-black/5 object-contain" />
-                          )}
-                          {whatsappType === 'video' && whatsappPreviewUrl && (
-                            <video src={whatsappPreviewUrl} controls className="w-full max-h-64 rounded-lg bg-black/5" />
-                          )}
-                          {whatsappType === 'audio' && whatsappPreviewUrl && (
-                            <audio src={whatsappPreviewUrl} controls className="w-full" />
-                          )}
-                          <button
-                            onClick={() => handleWhatsappFileChange(null)}
-                            className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => whatsappFileInputRef.current?.click()}
-                          className="w-full border-2 border-dashed border-gray-300 rounded-lg py-8 flex flex-col items-center gap-2 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
-                        >
-                          <Upload className="w-6 h-6" />
-                          <span className="text-sm">Selecionar {WHATSAPP_STATUS_TYPE_LABELS[whatsappType].toLowerCase()}</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {whatsappType !== 'text' && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Legenda (opcional)</p>
-                      <textarea
-                        className="w-full border border-gray-300 rounded-md text-sm p-2.5"
-                        rows={2}
-                        value={whatsappCaption}
-                        onChange={(e) => setWhatsappCaption(e.target.value)}
-                        placeholder="Escreva uma legenda..."
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-                  <Button
-                    variant="outline"
-                    disabled={sendingWhatsappStatus}
-                    onClick={() => {
-                      setShowWhatsappModal(false);
-                      resetWhatsappForm();
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button disabled={sendingWhatsappStatus} onClick={handleSendWhatsappStatus}>
-                    {sendingWhatsappStatus ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
-                    Publicar
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* --- MODAL: VÍDEO PARA O YOUTUBE --- */}
-      {showYoutubeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => {
-              if (!sendingYoutubeUpload) setShowYoutubeModal(false);
-            }}
-          />
-          <div className="relative w-full max-w-lg bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-800">Enviar Vídeo para o YouTube</h2>
-              <button
-                onClick={() => {
-                  if (!sendingYoutubeUpload) setShowYoutubeModal(false);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {loadingYoutubeConnected ? (
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-8">
-                <Loader2 className="w-4 h-4 animate-spin" /> Verificando conexão...
-              </div>
-            ) : !youtubeConnected ? (
-              <div className="p-5 text-sm text-gray-500 text-center space-y-2">
-                <p>Nenhuma conta Google conectada com acesso ao YouTube.</p>
-                <p>
-                  Conecte em <span className="font-medium">Configurações &gt; Integrações &gt; Google</span>{' '}
-                  (se já conectou antes, será preciso reconectar para autorizar o novo acesso).
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="overflow-y-auto p-5 space-y-4">
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Vídeo</p>
-                    <input
-                      ref={youtubeFileInputRef}
-                      type="file"
-                      accept="video/*"
-                      className="hidden"
-                      onChange={(e) => handleYoutubeFileChange(e.target.files?.[0] || null)}
-                    />
-                    {youtubeFile && youtubePreviewUrl ? (
-                      <div className="relative">
-                        <video src={youtubePreviewUrl} controls className="w-full max-h-64 rounded-lg bg-black/5" />
-                        <button
-                          onClick={() => handleYoutubeFileChange(null)}
-                          className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => youtubeFileInputRef.current?.click()}
-                        className="w-full border-2 border-dashed border-gray-300 rounded-lg py-8 flex flex-col items-center gap-2 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
-                      >
-                        <Upload className="w-6 h-6" />
-                        <span className="text-sm">Selecionar vídeo</span>
-                      </button>
-                    )}
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Título</p>
-                    <input
-                      className="w-full border border-gray-300 rounded-md text-sm p-2.5"
-                      value={youtubeTitle}
-                      onChange={(e) => setYoutubeTitle(e.target.value)}
-                      placeholder="Título do vídeo"
-                    />
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Descrição</p>
-                    <textarea
-                      className="w-full border border-gray-300 rounded-md text-sm p-2.5"
-                      rows={3}
-                      value={youtubeDescription}
-                      onChange={(e) => setYoutubeDescription(e.target.value)}
-                      placeholder="Descrição do vídeo..."
-                    />
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Privacidade</p>
-                    <div className="flex gap-2">
-                      {(Object.keys(YOUTUBE_PRIVACY_LABELS) as YoutubePrivacyStatus[]).map((status) => (
-                        <button
-                          key={status}
-                          onClick={() => setYoutubePrivacy(status)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                            youtubePrivacy === status
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-muted-foreground hover:bg-muted/70'
-                          }`}
-                        >
-                          {YOUTUBE_PRIVACY_LABELS[status]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-                  <Button
-                    variant="outline"
-                    disabled={sendingYoutubeUpload}
-                    onClick={() => {
-                      setShowYoutubeModal(false);
-                      resetYoutubeForm();
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button disabled={sendingYoutubeUpload} onClick={handleSendYoutubeUpload}>
-                    {sendingYoutubeUpload ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
-                    Enviar
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
