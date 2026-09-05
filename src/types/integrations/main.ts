@@ -280,14 +280,16 @@ export interface LeadSquaredFormData {
   transcript_activity_code?: number;
 }
 
-// Google Ads Integration types
+// Google Ads Integration types — conectado via login real com o Google
+// (OAuth, mesmo app do google_workspace); client_id/secret/refresh_token não
+// ficam mais no hook, só email + tokens do login e a conta escolhida.
 export interface GoogleAdsConfig {
-  client_id: string;
-  client_secret: string;
-  refresh_token: string;
-  developer_token: string;
+  email?: string;
+  access_token?: string;
+  refresh_token?: string;
+  expires_on?: string;
   login_customer_id?: string;
-  customer_id: string;
+  customer_id?: string;
 }
 
 export interface GoogleAdsHook extends IntegrationHook {
@@ -295,13 +297,10 @@ export interface GoogleAdsHook extends IntegrationHook {
   settings: GoogleAdsConfig;
 }
 
-export interface GoogleAdsFormData {
-  client_id: string;
-  client_secret: string;
-  refresh_token: string;
-  developer_token: string;
-  login_customer_id: string;
-  customer_id: string;
+export interface GoogleAdsAccessibleCustomer {
+  id: string;
+  name: string | null;
+  manager: boolean;
 }
 
 // Google Translate Integration types

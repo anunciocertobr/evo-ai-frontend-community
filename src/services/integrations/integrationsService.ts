@@ -29,6 +29,7 @@ import {
   BMSSyncResponse,
   LeadSquaredActivityResponse,
   LeadSquaredLeadResponse,
+  GoogleAdsAccessibleCustomer,
 } from '@/types/integrations';
 
 class IntegrationsService {
@@ -317,6 +318,32 @@ class IntegrationsService {
     // service (AI-agent tool OAuth callbacks), which would swallow this request.
     const response = await api.post('/google_workspace/callback', { code, state });
     return extractData<{ email: string | null }>(response);
+  }
+
+  // Google Ads (login com Google + escolha da conta de anúncios) — mesmo
+  // motivo do google_workspace acima pro path do callback ficar fora de
+  // /integrations/. accessible_customers/select_customer não são callbacks
+  // de OAuth de ferramenta de agente, então não colidem com o gateway, mas
+  // ficam ao lado por consistência de rota.
+  async handleGoogleAdsCallback(code: string, state: string): Promise<{ email: string | null }> {
+    const response = await api.post('/google_ads/callback', { code, state });
+    return extractData<{ email: string | null }>(response);
+  }
+
+  async getGoogleAdsAccessibleCustomers(): Promise<GoogleAdsAccessibleCustomer[]> {
+    const response = await api.get('/google_ads/accessible_customers');
+    return extractData<{ customers: GoogleAdsAccessibleCustomer[] }>(response).customers;
+  }
+
+  async selectGoogleAdsCustomer(
+    customerId: string,
+    loginCustomerId?: string,
+  ): Promise<{ customer_id: string; login_customer_id: string | null }> {
+    const response = await api.post('/google_ads/select_customer', {
+      customer_id: customerId,
+      login_customer_id: loginCustomerId || undefined,
+    });
+    return extractData<{ customer_id: string; login_customer_id: string | null }>(response);
   }
 
   // OpenAI Hook methods (using generic methods)

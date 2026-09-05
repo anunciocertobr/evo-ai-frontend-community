@@ -99,6 +99,7 @@ import SlackIntegrationPage from '../pages/Customer/Settings/Integrations/SlackI
 import OpenAIPage from '../pages/Customer/Settings/Integrations/OpenAIPage';
 import GeminiPage from '../pages/Customer/Settings/Integrations/GeminiPage';
 import GoogleWorkspaceCallback from '../pages/Customer/Settings/Integrations/GoogleWorkspaceCallback';
+import GoogleAdsCallback from '../pages/Customer/Settings/Integrations/GoogleAdsCallback';
 import GoogleWorkspacePage from '../pages/Customer/Settings/Integrations/GoogleWorkspacePage';
 import BMSPage from '../pages/Customer/Settings/Integrations/BMSPage';
 import LeadSquaredPage from '../pages/Customer/Settings/Integrations/LeadSquaredPage';
@@ -254,6 +255,16 @@ const AppRouter = () => {
 
           {/* Google Workspace settings (Client ID/Secret + connect/disconnect) Ã¢â‚¬â€ matched before the generic
               /settings/integrations/:integrationId placeholder route */}
+          {/* Google Ads OAuth Callback (login com Google + escolha da conta de anúncios) */}
+          <Route
+            path="/settings/integrations/google-ads/callback"
+            element={
+              <PublicRoute>
+                <GoogleAdsCallback />
+              </PublicRoute>
+            }
+          />
+
           <Route
             path="/settings/integrations/google_workspace"
             element={

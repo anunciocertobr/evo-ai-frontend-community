@@ -1399,6 +1399,36 @@
         "update": "Aggiorna integrazione",
         "saving": "Salvataggio..."
       }
+    },
+    "connect": {
+      "description": "Collega il tuo account Google Ads accedendo con Google, senza dover copiare manualmente client ID, secret o refresh token.",
+      "notConnected": {
+        "title": "Non connesso",
+        "cta": "Connetti con Google"
+      },
+      "connected": {
+        "title": "Connesso come {{email}}",
+        "changeAccount": "Cambia account",
+        "disconnect": "Disconnetti"
+      },
+      "picker": {
+        "title": "Scegli il tuo account Ads",
+        "description": "Seleziona quale account Google Ads vuoi usare in questo CRM.",
+        "loading": "Caricamento account...",
+        "empty": "Nessun account Ads trovato per questo accesso.",
+        "managerBadge": "Gestore (MCC)",
+        "loginCustomerIdLabel": "ID account gestore (MCC), se applicabile",
+        "loginCustomerIdHint": "Compila solo se l'account scelto sopra è gestito da un MCC.",
+        "save": "Salva account",
+        "saving": "Salvataggio...",
+        "error": "Impossibile caricare i tuoi account Google Ads.",
+        "developerTokenMissing": "Il Developer Token di Google Ads non è ancora stato configurato dall'amministratore del sistema."
+      },
+      "currentAccount": {
+        "title": "Account connesso",
+        "customerId": "ID account",
+        "loginCustomerId": "ID account gestore (MCC)"
+      }
     }
   },
   "elevenlabs": {
