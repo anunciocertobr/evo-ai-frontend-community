@@ -1223,13 +1223,34 @@ export default function GestorPostsPage() {
                 <button
                   key={item.id}
                   onClick={() => openMedia(item)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.querySelector('video')?.play().catch(() => {});
+                  }}
+                  onMouseLeave={(e) => {
+                    const video = e.currentTarget.querySelector('video');
+                    if (video) {
+                      video.pause();
+                      video.currentTime = 0;
+                    }
+                  }}
                   className="group relative aspect-square rounded-lg overflow-hidden bg-muted border border-border"
                 >
-                  <img
-                    src={item.thumbnail_url || item.media_url}
-                    alt={item.caption || ''}
-                    className="w-full h-full object-cover"
-                  />
+                  {item.media_type === 'VIDEO' ? (
+                    <video
+                      src={item.media_url}
+                      poster={item.thumbnail_url}
+                      muted
+                      loop
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={item.thumbnail_url || item.media_url}
+                      alt={item.caption || ''}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
                     <span className="text-white text-xs flex items-center gap-1">
                       <Heart className="w-3.5 h-3.5" /> {formatNumber(item.like_count)}
