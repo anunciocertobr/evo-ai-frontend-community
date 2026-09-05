@@ -40,6 +40,8 @@ import {
   UtensilsCrossed,
   Bike,
   Image,
+  AudioWaveform,
+  Video,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -209,6 +211,11 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
       { name: 'Relatórios', href: '/editor/content/mtlsot4v-cf6f9s', icon: PieChart },
       { name: 'Painel Tráfego', href: '/editor/content/mtlsqe9g-44xt89', icon: Filter },
       { name: 'Setup Marketing (Meta/GA4/Ads)', href: '/editor/content/setupbm-36c48c9d', icon: Settings },
+      { name: 'Copy de Tráfego (Meta)', href: '/editor/content/mktia-copytrafego', icon: PenTool },
+      { name: 'Gerar Áudio (ElevenLabs)', href: '/editor/content/mktia-audioeleven', icon: AudioWaveform },
+      { name: 'Gerar Imagem e Identidade Visual', href: '/editor/content/mktia-gerarimagem', icon: Wand },
+      { name: 'Roteiro de Vídeo', href: '/editor/content/mktia-roteirovideo', icon: Video },
+      { name: 'Suíte de Mídia', href: '/editor/content/mktia-suitemidia', icon: Layers },
     ],
   },
   {
