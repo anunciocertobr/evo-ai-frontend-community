@@ -939,6 +939,9 @@ export default function GestorPostsPage() {
                   <span className="flex items-center gap-1">
                     <Users className="w-3.5 h-3.5" /> {formatNumber(accountInfo.followers_count)} seguidores
                   </span>
+                  <span className="flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5" /> {formatNumber(accountInfo.follows_count)} seguindo
+                  </span>
                 </div>
               </CardContent>
             </Card>
