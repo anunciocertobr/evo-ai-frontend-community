@@ -138,23 +138,32 @@ export default function GestorPostsPage() {
     stories: false,
     reels: false,
   });
-  const [newFile, setNewFile] = useState<File | null>(null);
-  const [newPreviewUrl, setNewPreviewUrl] = useState<string | null>(null);
-  const [newIsCarousel, setNewIsCarousel] = useState(false);
-  // "Tipo de Mídia" — igual ao modelo original: Imagem/Vídeo/Carrossel é uma
-  // escolha única que decide o modo de upload (newIsCarousel é só o reflexo
-  // interno de "mediaType === 'carousel'", mantido pra não mexer no resto da
-  // lógica de publicação que já usava esse booleano).
+  // Lista única de arquivos enviados — igual ao modelo original
+  // (uploadedFiles), usada tanto pra post único (só o índice 0 é publicado)
+  // quanto carrossel (todos), com reordenar/remover individual.
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [uploadedPreviewUrls, setUploadedPreviewUrls] = useState<string[]>([]);
+  // "Tipo de Mídia" — Imagem/Vídeo/Carrossel, escolha única.
   const [mediaType, setMediaType] = useState<'image' | 'video' | 'carousel' | ''>('');
-  const [carouselFiles, setCarouselFiles] = useState<File[]>([]);
-  const [carouselPreviewUrls, setCarouselPreviewUrls] = useState<string[]>([]);
+  const [newIsCarousel, setNewIsCarousel] = useState(false);
   const [newIsScheduled, setNewIsScheduled] = useState(false);
   const [newScheduledFor, setNewScheduledFor] = useState('');
   const [creating, setCreating] = useState(false);
   const [createProgress, setCreateProgress] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const carouselInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+
+  // "Subir Pasta" com estrutura Cliente/Data/Post/Formato — igual ao modelo
+  // original: filtra por data, agrupa por cliente e por post, e cada post
+  // pode ter um configuracao.txt (plataformas/contas) e um legenda*.txt
+  // (legenda) que são lidos e aplicados automaticamente.
+  const [allFolderFiles, setAllFolderFiles] = useState<File[]>([]);
+  const [showFolderOptions, setShowFolderOptions] = useState(false);
+  const [folderFilterToday, setFolderFilterToday] = useState(true);
+  const [clientNames, setClientNames] = useState<string[]>([]);
+  const [selectedClient, setSelectedClient] = useState('');
+  const [postNames, setPostNames] = useState<string[]>([]);
+  const [selectedPost, setSelectedPost] = useState('');
 
   // Destinos do post: quais contas/instâncias/canais devem receber a
   // publicação — cada lista aceita múltiplas seleções, igual ao painel
@@ -248,59 +257,236 @@ export default function GestorPostsPage() {
   const selectMediaType = (type: 'image' | 'video' | 'carousel') => {
     setMediaType(type);
     setNewIsCarousel(type === 'carousel');
-    if (type === 'carousel') {
-      handleFileChange(null);
-    } else {
-      setCarouselFiles([]);
-      carouselPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
-      setCarouselPreviewUrls([]);
-    }
   };
 
-  const handleFileChange = (file: File | null) => {
-    setNewFile(file);
-    if (newPreviewUrl) URL.revokeObjectURL(newPreviewUrl);
-    setNewPreviewUrl(file ? URL.createObjectURL(file) : null);
-  };
+  // Preview de cada arquivo enviado se regenera sozinho sempre que a lista
+  // muda — evita ter que revogar/recriar URLs manualmente em cada handler.
+  useEffect(() => {
+    const urls = uploadedFiles.map((f) => URL.createObjectURL(f));
+    setUploadedPreviewUrls(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [uploadedFiles]);
 
-  const addCarouselFiles = (files: FileList | File[] | null) => {
-    if (!files) return;
-    const incoming = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    const next = [...carouselFiles, ...incoming].slice(0, 10);
-    setCarouselFiles(next);
-    carouselPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
-    setCarouselPreviewUrls(next.map((f) => URL.createObjectURL(f)));
-  };
-
-  const removeCarouselFile = (index: number) => {
-    const next = carouselFiles.filter((_, i) => i !== index);
-    setCarouselFiles(next);
-    carouselPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
-    setCarouselPreviewUrls(next.map((f) => URL.createObjectURL(f)));
-  };
-
-  // Selecionar uma pasta inteira (ou vários arquivos de uma vez) — se vier
-  // mais de uma imagem, liga automaticamente o modo carrossel; se vier um
-  // único arquivo, usa como post único.
-  const handleBulkFilesSelect = (fileList: FileList | null) => {
+  // "Subir Arquivos" — soma aos arquivos já enviados (não substitui), igual
+  // ao modelo original, e some com as opções de pasta (não é uma seleção
+  // organizada por cliente/post).
+  const addUploadedFiles = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
-    const files = Array.from(fileList).filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/'));
-    if (files.length === 0) return;
-
-    if (newIsCarousel) {
-      addCarouselFiles(files);
-      return;
+    const incoming = Array.from(fileList).filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/'));
+    if (incoming.length === 0) return;
+    setShowFolderOptions(false);
+    setUploadedFiles((prev) => [...prev, ...incoming]);
+    if (!mediaType) {
+      setMediaType(incoming.length > 1 || uploadedFiles.length > 0 ? 'carousel' : incoming[0].type.startsWith('video/') ? 'video' : 'image');
+      setNewIsCarousel(incoming.length > 1 || uploadedFiles.length > 0);
     }
+  };
 
-    const images = files.filter((f) => f.type.startsWith('image/'));
-    if (images.length > 1) {
+  const removeUploadedFileAt = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const moveUploadedFile = (index: number, direction: -1 | 1) => {
+    setUploadedFiles((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
+  // --- "Subir Pasta": estrutura Cliente/AAAA-MM-DD/NomeDoPost/FORMATO ---
+  const getRelativePath = (file: File) =>
+    ((file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name).replace(/\\/g, '/');
+
+  const applyConfigText = (text: string) => {
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    const config: Record<string, string> = {};
+    lines.forEach((line) => {
+      const parts = line.split(':');
+      if (parts.length < 2) return;
+      config[parts[0].trim().toLowerCase()] = parts.slice(1).join(':').trim();
+    });
+
+    const enabled = { instagram: false, facebook: false, whatsapp: false, youtube: false };
+    (Object.keys(enabled) as Array<keyof typeof enabled>).forEach((key) => {
+      if ((config[key] || '').toLowerCase() === 'sim') enabled[key] = true;
+    });
+    setPlatformEnabled(enabled);
+
+    const idsFor = (key: string) => (config[key] || '').split(',').map((s) => s.trim()).filter(Boolean);
+    setDestInstagramIds(enabled.instagram ? idsFor('id_instagram') : []);
+    setDestFacebookIds(enabled.facebook ? idsFor('id_facebook') : []);
+    setDestWhatsappIds(enabled.whatsapp ? idsFor('id_whatsapp') : []);
+    setDestYoutube(enabled.youtube);
+  };
+
+  const applyPostSelection = async (files: File[], client: string, postName: string | null) => {
+    setNewCaption('');
+    setNewFormats({ feed: false, stories: false, reels: false });
+    setNewIsScheduled(false);
+    setNewScheduledFor('');
+    setPlatformEnabled({ instagram: false, facebook: false, whatsapp: false, youtube: false });
+    setDestInstagramIds([]);
+    setDestFacebookIds([]);
+    setDestWhatsappIds([]);
+    setDestYoutube(false);
+
+    const isMedia = (f: File) => f.type.startsWith('image/') || f.type.startsWith('video/');
+    const matched = files
+      .filter((f) => {
+        const parts = getRelativePath(f).split('/');
+        return parts[1] === client && (postName ? parts[3] === postName : true) && isMedia(f);
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    setUploadedFiles(matched);
+    if (matched.length > 1) {
       setMediaType('carousel');
       setNewIsCarousel(true);
-      addCarouselFiles(images);
+    } else if (matched.length === 1) {
+      setMediaType(matched[0].type.startsWith('video/') ? 'video' : 'image');
+      setNewIsCarousel(false);
     } else {
-      setMediaType(files[0].type.startsWith('video/') ? 'video' : 'image');
-      handleFileChange(files[0]);
+      setMediaType('');
+      setNewIsCarousel(false);
     }
+
+    const configFile = files.find((f) => {
+      const parts = getRelativePath(f).split('/');
+      return parts[1] === client && f.name.toLowerCase() === 'configuracao.txt';
+    });
+    if (configFile) {
+      try {
+        applyConfigText(await configFile.text());
+      } catch {
+        toast.error('Erro ao ler o arquivo de configuração.');
+      }
+    }
+
+    const captionFile = files.find(
+      (f) => postName && getRelativePath(f).includes(`/${postName}/`) && f.name.toLowerCase().startsWith('legenda'),
+    );
+    if (captionFile) {
+      try {
+        setNewCaption(await captionFile.text());
+      } catch {
+        toast.error('Erro ao ler o arquivo de legenda do post.');
+      }
+    }
+
+    const firstFile = matched[0];
+    if (firstFile) {
+      const parts = getRelativePath(firstFile).split('/');
+      if (parts.length >= 5) {
+        const dateFolderName = parts[2];
+        const formatKey = parts[4].toLowerCase() as PublicationContentType;
+        if (formatKey === 'feed' || formatKey === 'stories' || formatKey === 'reels') {
+          setNewFormats((prev) => ({ ...prev, [formatKey]: true }));
+        }
+
+        const dateMatch = dateFolderName.match(/(\d{2,4})[-./](\d{1,2})[-./](\d{2,4})/);
+        if (dateMatch) {
+          let year: number, month: number, day: number;
+          if (dateMatch[1].length === 4) {
+            year = parseInt(dateMatch[1], 10);
+            month = parseInt(dateMatch[2], 10) - 1;
+            day = parseInt(dateMatch[3], 10);
+          } else {
+            day = parseInt(dateMatch[1], 10);
+            month = parseInt(dateMatch[2], 10) - 1;
+            year = parseInt(dateMatch[3], 10);
+          }
+          const parsedDate = new Date(year, month, day, 12, 0, 0);
+          if (!isNaN(parsedDate.getTime())) {
+            const pad = (n: number) => String(n).padStart(2, '0');
+            setNewIsScheduled(true);
+            setNewScheduledFor(
+              `${parsedDate.getFullYear()}-${pad(parsedDate.getMonth() + 1)}-${pad(parsedDate.getDate())}T${pad(parsedDate.getHours())}:${pad(parsedDate.getMinutes())}`,
+            );
+          }
+        }
+      }
+    }
+  };
+
+  const updatePostSelectorFor = (client: string, files: File[]) => {
+    const posts = Array.from(
+      new Set(
+        files
+          .filter((f) => getRelativePath(f).split('/')[1] === client)
+          .map((f) => getRelativePath(f).split('/')[3])
+          .filter(Boolean),
+      ),
+    );
+    setPostNames(posts);
+    if (posts.length > 0) {
+      setSelectedPost(posts[0]);
+      applyPostSelection(files, client, posts[0]);
+    } else {
+      setSelectedPost('');
+      applyPostSelection(files, client, null);
+    }
+  };
+
+  const handleFolderInputChange = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    let files = Array.from(fileList);
+
+    if (folderFilterToday) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      files = files.filter((f) => {
+        const parts = getRelativePath(f).split('/');
+        if (parts.length <= 2) return false;
+        const m = parts[2].match(/(\d{4})[-./](\d{2})[-./](\d{2})/);
+        if (!m) return false;
+        const postDate = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+        postDate.setHours(0, 0, 0, 0);
+        return postDate >= today;
+      });
+      if (files.length === 0) {
+        toast.error('Nenhum post com data de hoje em diante encontrado.');
+        setShowFolderOptions(false);
+        return;
+      }
+    }
+
+    setAllFolderFiles(files);
+    setShowFolderOptions(true);
+
+    const clients = Array.from(
+      new Set(
+        files
+          .map((f) => {
+            const parts = getRelativePath(f).split('/');
+            return parts.length > 1 ? parts[1] : null;
+          })
+          .filter((x): x is string => Boolean(x)),
+      ),
+    );
+    setClientNames(clients);
+
+    if (clients.length > 0) {
+      setSelectedClient(clients[0]);
+      updatePostSelectorFor(clients[0], files);
+    } else {
+      setSelectedClient('');
+      setPostNames([]);
+      setSelectedPost('');
+      applyPostSelection(files, '', null);
+    }
+  };
+
+  const handleClientChange = (client: string) => {
+    setSelectedClient(client);
+    updatePostSelectorFor(client, allFolderFiles);
+  };
+
+  const handlePostChange = (post: string) => {
+    setSelectedPost(post);
+    applyPostSelection(allFolderFiles, selectedClient, post || null);
   };
 
   const resetCreateForm = () => {
@@ -313,13 +499,17 @@ export default function GestorPostsPage() {
     setPlatformEnabled({ instagram: false, facebook: false, whatsapp: false, youtube: false });
     setMediaType('');
     setNewIsCarousel(false);
-    setCarouselFiles([]);
-    carouselPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
-    setCarouselPreviewUrls([]);
+    setUploadedFiles([]);
     setCreateProgress(null);
     setNewIsScheduled(false);
     setNewScheduledFor('');
-    handleFileChange(null);
+    setShowFolderOptions(false);
+    setFolderFilterToday(true);
+    setAllFolderFiles([]);
+    setClientNames([]);
+    setSelectedClient('');
+    setPostNames([]);
+    setSelectedPost('');
   };
 
   const openCreateModal = () => {
@@ -561,26 +751,28 @@ export default function GestorPostsPage() {
     format: PublicationContentType,
   ) => {
     if (newIsCarousel) {
+      const cards = uploadedFiles.slice(0, 10);
       const batch = await gestorPostsService.createCarouselBatch({
         caption: newCaption,
         platforms,
-        total_cards: carouselFiles.length,
+        total_cards: cards.length,
         channel_type: channel.channel_type,
         channel_id: channel.channel_id,
       });
-      for (const file of carouselFiles) {
+      for (const file of cards) {
         await gestorPostsService.addCarouselCard(batch.id, file);
       }
       pollCarouselStatus(batch.id);
       return;
     }
-    if (!newFile) return;
+    const file = uploadedFiles[0];
+    if (!file) return;
     if (newIsScheduled) {
       await gestorPostsService.createScheduledPost({
         caption: newCaption,
         platforms,
         content_type: format,
-        media: newFile,
+        media: file,
         channel_type: channel.channel_type,
         channel_id: channel.channel_id,
         scheduled_for: new Date(newScheduledFor).toISOString(),
@@ -591,7 +783,7 @@ export default function GestorPostsPage() {
       caption: newCaption,
       platforms,
       content_type: format,
-      media: newFile,
+      media: file,
       channel_type: channel.channel_type,
       channel_id: channel.channel_id,
     });
@@ -599,23 +791,25 @@ export default function GestorPostsPage() {
   };
 
   const publishWhatsappJob = async (channelId: string) => {
-    if (!newFile) return;
-    const type: WhatsappStatusType = newFile.type.startsWith('video/') ? 'video' : 'image';
+    const file = uploadedFiles[0];
+    if (!file) return;
+    const type: WhatsappStatusType = file.type.startsWith('video/') ? 'video' : 'image';
     await gestorPostsService.createWhatsappStatus({
       channel_id: channelId,
       type,
-      media: newFile,
+      media: file,
       caption: newCaption.trim() || undefined,
     });
   };
 
   const publishYoutubeJob = async () => {
-    if (!newFile) return;
+    const file = uploadedFiles[0];
+    if (!file) return;
     const upload = await gestorPostsService.createYoutubeUpload({
       title: newCaption.trim() || 'Vídeo publicado via CRM',
       description: newCaption,
       privacy_status: youtubePrivacy,
-      video: newFile,
+      video: file,
     });
     pollYoutubeUploadStatus(upload.id);
   };
@@ -639,7 +833,7 @@ export default function GestorPostsPage() {
       return;
     }
     if (newIsCarousel) {
-      if (carouselFiles.length < 2) {
+      if (uploadedFiles.length < 2) {
         toast.error('Selecione ao menos 2 imagens para o carrossel.');
         return;
       }
@@ -647,11 +841,11 @@ export default function GestorPostsPage() {
         toast.error('Carrossel só é suportado para Instagram/Facebook. Desmarque WhatsApp/YouTube ou desative o carrossel.');
         return;
       }
-    } else if (!newFile) {
+    } else if (uploadedFiles.length === 0) {
       toast.error('Selecione um arquivo de mídia.');
       return;
     }
-    if (hasYoutube && (newIsCarousel || !newFile?.type.startsWith('video/'))) {
+    if (hasYoutube && (newIsCarousel || !uploadedFiles[0]?.type.startsWith('video/'))) {
       toast.error('Para postar no YouTube, selecione um único arquivo de vídeo (sem carrossel).');
       return;
     }
@@ -1430,7 +1624,7 @@ export default function GestorPostsPage() {
                 className="hidden"
                 {...({ webkitdirectory: 'true' } as React.InputHTMLAttributes<HTMLInputElement>)}
                 onChange={(e) => {
-                  handleBulkFilesSelect(e.target.files);
+                  handleFolderInputChange(e.target.files);
                   if (folderInputRef.current) folderInputRef.current.value = '';
                 }}
               />
@@ -1441,67 +1635,102 @@ export default function GestorPostsPage() {
                 accept="image/*,video/*"
                 className="hidden"
                 onChange={(e) => {
-                  handleBulkFilesSelect(e.target.files);
+                  addUploadedFiles(e.target.files);
                   if (fileInputRef.current) fileInputRef.current.value = '';
                 }}
               />
 
-              {/* Prévia */}
-              {mediaType === 'carousel' ? (
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                    Imagens ({carouselFiles.length}/10)
-                  </p>
-                  <input
-                    ref={carouselInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      addCarouselFiles(e.target.files);
-                      if (carouselInputRef.current) carouselInputRef.current.value = '';
-                    }}
-                  />
-                  <div className="grid grid-cols-4 gap-2">
-                    {carouselPreviewUrls.map((url, index) => (
-                      <div key={url} className="relative aspect-square">
-                        <img src={url} alt="" className="w-full h-full object-cover rounded-lg bg-black/5" />
+              {/* Opções de pasta: igual ao modelo original — filtro por data,
+                  cliente e post, preenchidos a partir da estrutura de pastas
+                  Cliente/AAAA-MM-DD/NomeDoPost/FORMATO. */}
+              {showFolderOptions && (
+                <div className="space-y-3 border border-gray-200 rounded-lg p-3 bg-gray-50">
+                  <label className="flex items-center justify-between gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                    Carregar apenas posts de hoje em diante
+                    <input
+                      type="checkbox"
+                      checked={folderFilterToday}
+                      onChange={(e) => setFolderFilterToday(e.target.checked)}
+                    />
+                  </label>
+                  {clientNames.length > 0 && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Selecionar Cliente</label>
+                        <select
+                          className="w-full border border-gray-300 rounded-md text-sm p-2"
+                          value={selectedClient}
+                          onChange={(e) => handleClientChange(e.target.value)}
+                        >
+                          {clientNames.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Personalizar Post</label>
+                        <select
+                          className="w-full border border-gray-300 rounded-md text-sm p-2"
+                          value={selectedPost}
+                          onChange={(e) => handlePostChange(e.target.value)}
+                        >
+                          {postNames.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Prévia — lista única de arquivos, reordenável e removível
+                  individualmente, igual ao modelo original. Em modo
+                  Imagem/Vídeo só o primeiro arquivo é publicado; em modo
+                  Carrossel, todos (até 10). */}
+              {uploadedFiles.length > 0 ? (
+                <div className="grid grid-cols-4 gap-2">
+                  {uploadedPreviewUrls.map((url, index) => {
+                    const file = uploadedFiles[index];
+                    const isVideo = file?.type.startsWith('video/');
+                    return (
+                      <div key={url} className="relative aspect-square group">
+                        {isVideo ? (
+                          <video src={url} muted className="w-full h-full object-cover rounded-lg bg-black/5" />
+                        ) : (
+                          <img src={url} alt="" className="w-full h-full object-cover rounded-lg bg-black/5" />
+                        )}
                         <button
-                          onClick={() => removeCarouselFile(index)}
-                          className="absolute top-1 right-1 bg-white/90 rounded-full p-0.5 shadow"
+                          onClick={() => removeUploadedFileAt(index)}
+                          className="absolute top-1 right-1 bg-white/90 rounded-full p-0.5 shadow opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <X className="w-3 h-3" />
                         </button>
+                        {uploadedFiles.length > 1 && (
+                          <div className="absolute bottom-1 inset-x-1 flex justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              disabled={index === 0}
+                              onClick={() => moveUploadedFile(index, -1)}
+                              className="w-5 h-5 bg-slate-700/80 rounded-full text-white flex items-center justify-center text-xs disabled:opacity-40"
+                            >
+                              ←
+                            </button>
+                            <button
+                              disabled={index === uploadedFiles.length - 1}
+                              onClick={() => moveUploadedFile(index, 1)}
+                              className="w-5 h-5 bg-slate-700/80 rounded-full text-white flex items-center justify-center text-xs disabled:opacity-40"
+                            >
+                              →
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    ))}
-                    {carouselFiles.length < 10 && (
-                      <button
-                        onClick={() => carouselInputRef.current?.click()}
-                        className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
-                      >
-                        <Upload className="w-4 h-4" />
-                        <span className="text-xs">Adicionar</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ) : newPreviewUrl ? (
-                <div className="relative">
-                  {newFile?.type.startsWith('video/') ? (
-                    <video src={newPreviewUrl} controls className="w-full max-h-64 rounded-lg bg-black/5 object-contain" />
-                  ) : (
-                    <img src={newPreviewUrl} alt="" className="w-full max-h-64 rounded-lg bg-black/5 object-contain" />
-                  )}
-                  <button
-                    onClick={() => {
-                      handleFileChange(null);
-                      setMediaType('');
-                    }}
-                    className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="border-2 border-dashed border-gray-300 rounded-lg py-6 flex items-center justify-center text-xs text-gray-400">
