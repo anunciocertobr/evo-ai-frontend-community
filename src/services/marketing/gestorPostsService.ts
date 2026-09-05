@@ -5,6 +5,7 @@ import type {
   SocialChannelType,
   InstagramAccountInfo,
   InstagramMedia,
+  InstagramStory,
   InstagramComment,
   Publication,
   CreatePublicationPayload,
@@ -38,6 +39,11 @@ class GestorPostsService {
   async getMedia(channel?: SocialChannelOption, limit = 25): Promise<InstagramMedia[]> {
     const response = await api.get(`${this.baseUrl}/gallery/media`, { params: { ...channelParams(channel), limit } });
     return extractData<InstagramMedia[]>(response);
+  }
+
+  async getStories(channel?: SocialChannelOption): Promise<InstagramStory[]> {
+    const response = await api.get(`${this.baseUrl}/gallery/stories`, { params: channelParams(channel) });
+    return extractData<InstagramStory[]>(response);
   }
 
   async getComments(postId: string, channel?: SocialChannelOption): Promise<InstagramComment[]> {

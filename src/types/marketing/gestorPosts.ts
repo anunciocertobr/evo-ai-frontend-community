@@ -35,6 +35,15 @@ export interface InstagramMedia {
   insights?: { data: InstagramMediaInsight[] };
 }
 
+export interface InstagramStory {
+  id: string;
+  media_type: string;
+  media_url?: string;
+  thumbnail_url?: string;
+  permalink?: string;
+  timestamp?: string;
+}
+
 export interface InstagramComment {
   id: string;
   text: string;

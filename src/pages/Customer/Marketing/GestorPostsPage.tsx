@@ -9,6 +9,7 @@ import type {
   SocialChannelType,
   InstagramAccountInfo,
   InstagramMedia,
+  InstagramStory,
   InstagramComment,
   PublicationPlatform,
   PublicationContentType,
@@ -182,6 +183,13 @@ export default function GestorPostsPage() {
   const facebookChannels = channels.filter((c) => c.channel_type === ('Channel::FacebookPage' as SocialChannelType));
 
   const [galleryPlatform, setGalleryPlatform] = useState<GalleryPlatform>('instagram');
+
+  // "Destaques" não existe na Graph API pra apps de terceiros — o mais
+  // próximo que dá pra mostrar de verdade são os Stories ativos (só ficam
+  // disponíveis por 24h, mesmo que salvos como destaque no perfil).
+  const [instagramView, setInstagramView] = useState<'posts' | 'stories'>('posts');
+  const [stories, setStories] = useState<InstagramStory[]>([]);
+  const [loadingStories, setLoadingStories] = useState(false);
 
   const [selectedFacebookChannel, setSelectedFacebookChannel] = useState<SocialChannelOption | null>(null);
   const [facebookAccountInfo, setFacebookAccountInfo] = useState<FacebookAccountInfo | null>(null);
@@ -700,6 +708,23 @@ export default function GestorPostsPage() {
     loadGallery();
   }, [loadGallery]);
 
+  const loadStories = useCallback(async () => {
+    if (!selectedChannel) return;
+    setLoadingStories(true);
+    try {
+      const data = await gestorPostsService.getStories(selectedChannel);
+      setStories(data);
+    } catch {
+      toast.error('Erro ao carregar os Stories ativos.');
+    } finally {
+      setLoadingStories(false);
+    }
+  }, [selectedChannel]);
+
+  useEffect(() => {
+    if (galleryPlatform === 'instagram' && instagramView === 'stories') loadStories();
+  }, [galleryPlatform, instagramView, loadStories]);
+
   useEffect(() => {
     if (!selectedFacebookChannel && facebookChannels.length > 0) {
       setSelectedFacebookChannel(facebookChannels[0]);
@@ -868,6 +893,29 @@ export default function GestorPostsPage() {
             </div>
           )}
 
+          <div className="flex gap-2">
+            {(
+              [
+                { id: 'posts' as const, label: 'Posts' },
+                { id: 'stories' as const, label: 'Stories (24h)' },
+              ]
+            ).map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setInstagramView(id)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  instagramView === id
+                    ? 'bg-slate-700 text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {instagramView === 'posts' && (
+          <>
           {loadingGallery ? (
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-16">
           <Loader2 className="w-4 h-4 animate-spin" /> Carregando galeria...
@@ -926,6 +974,46 @@ export default function GestorPostsPage() {
             </div>
           )}
         </>
+          )}
+          </>
+          )}
+
+          {instagramView === 'stories' && (
+            <>
+              {loadingStories ? (
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-16">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Carregando Stories...
+                </div>
+              ) : stories.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                    Nenhum Story ativo no momento (somem da API 24h depois de postados, mesmo salvos como destaque).
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {stories.map((story) => (
+                    <a
+                      key={story.id}
+                      href={story.permalink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group relative aspect-[9/16] rounded-lg overflow-hidden bg-muted border border-border block"
+                    >
+                      {story.media_type === 'VIDEO' ? (
+                        <video src={story.media_url} className="w-full h-full object-cover" muted />
+                      ) : (
+                        <img
+                          src={story.thumbnail_url || story.media_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
       )}
