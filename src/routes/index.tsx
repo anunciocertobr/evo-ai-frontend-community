@@ -41,6 +41,7 @@ import Tools from '@/pages/Customer/Agents/Tools';
 import CustomTools from '@/pages/Customer/Agents/CustomTools';
 import Contacts from '@/pages/Customer/Contacts';
 import ScheduledActions from '@/pages/Customer/Contacts/ScheduledActions';
+import GoogleContactsSync from '@/pages/Customer/Contacts/GoogleContactsSync';
 import { Channels, ChannelSettings, NewChannel } from '@/pages/Customer/Channels';
 const ChatPage = React.lazy(() => import('@/pages/Customer/Chat/ChatPage'));
 
@@ -503,6 +504,21 @@ const AppRouter = () => {
                   <MainLayout>
                     <PermissionRoute resource="contacts" action="read">
                       <ScheduledActions />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/contacts/google-sync"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="contacts" action="read">
+                      <GoogleContactsSync />
                     </PermissionRoute>
                   </MainLayout>
                 </CustomerRoute>

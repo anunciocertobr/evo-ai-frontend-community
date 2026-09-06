@@ -43,6 +43,7 @@ import {
   AudioWaveform,
   Video,
   Navigation,
+  RefreshCw,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -132,6 +133,13 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         name: t('menu.contacts.scheduledActions'),
         href: '/contacts/scheduled-actions',
         icon: Clock,
+        resource: 'contacts',
+        action: 'read',
+      },
+      {
+        name: 'Contatos Google',
+        href: '/contacts/google-sync',
+        icon: RefreshCw,
         resource: 'contacts',
         action: 'read',
       },
