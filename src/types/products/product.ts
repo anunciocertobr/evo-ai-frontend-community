@@ -102,6 +102,18 @@ export interface Product {
   media?: ProductMedia[];
   variants: ProductVariant[];
   images: ProductImage[];
+  // Fiscal — legado + Reforma Tributária (IBS/CBS), ver Tax::CalculationService
+  ncm?: string | null;
+  cest?: string | null;
+  cfop_padrao?: string | null;
+  cst_icms?: string | null;
+  csosn?: string | null;
+  cst_pis_cofins?: string | null;
+  cst_ibs_cbs?: string | null;
+  cclasstrib?: string | null;
+  reducao_ibs_cbs_pct?: number | null;
+  sujeito_imposto_seletivo?: boolean;
+  aliquota_imposto_seletivo_pct?: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -149,6 +161,17 @@ export interface ProductFormData {
   metadata?: Record<string, unknown>;
   // Active Storage signed_ids of newly uploaded blobs
   images?: string[];
+  ncm?: string;
+  cest?: string;
+  cfop_padrao?: string;
+  cst_icms?: string;
+  csosn?: string;
+  cst_pis_cofins?: string;
+  cst_ibs_cbs?: string;
+  cclasstrib?: string;
+  reducao_ibs_cbs_pct?: number | null;
+  sujeito_imposto_seletivo?: boolean;
+  aliquota_imposto_seletivo_pct?: number | null;
 }
 
 export interface ProductVariantFormData {
@@ -274,6 +297,24 @@ export interface ProductSellAffectedItem {
   name: string;
   stock_quantity: number;
 }
+
+export interface ProductTaxCalculation {
+  regime: string;
+  base_calculo: number;
+  cbs_valor: number;
+  cbs_aliquota: number;
+  ibs_valor: number;
+  ibs_aliquota: number;
+  imposto_seletivo_valor: number;
+  imposto_seletivo_aliquota: number;
+  legado_valor: number;
+  legado_aliquota: number;
+  total_impostos: number;
+  preco_total: number;
+  avisos: string[];
+}
+
+export interface ProductTaxCalculationResponse extends StandardResponse<ProductTaxCalculation> {}
 
 export interface ProductSellResponse extends StandardResponse<{
   product_id: string;

@@ -14,6 +14,7 @@ import {
   ProductBulkRealResponse,
   ProductBulkDryRunResponse,
   ProductSellResponse,
+  ProductTaxCalculation,
   ProductUploadResponse,
   ProductImportSource,
   ProductImportCredentials,
@@ -106,6 +107,15 @@ class ProductsService {
   async sellProduct(id: string, quantity: number): Promise<ProductSellResponse> {
     const response = await api.post(`${this.baseUrl}/${id}/sell`, { quantity });
     return response.data as ProductSellResponse;
+  }
+
+  // ---------- Fiscal ----------
+
+  async calcularImposto(id: string, quantity = 1, unitPrice?: number): Promise<ProductTaxCalculation> {
+    const response = await api.get(`${this.baseUrl}/${id}/calcular_imposto`, {
+      params: { quantity, unit_price: unitPrice },
+    });
+    return extractData<ProductTaxCalculation>(response);
   }
 
   // ---------- Media upload (images / videos) ----------

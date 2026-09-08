@@ -41,6 +41,9 @@ import {
   Upload,
   PackageSearch,
   Wrench,
+  Receipt,
+  Calculator,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
@@ -55,6 +58,7 @@ import type {
   ProductMediaKind,
   ProductIngredientFormData,
   ProductCategory,
+  ProductTaxCalculation,
 } from '@/types/products';
 import { productsService } from '@/services/products/productsService';
 import { productCategoriesService } from '@/services/products/productCategoriesService';
@@ -90,6 +94,17 @@ type ProductFormState = Omit<ProductFormData, 'default_price'> & {
   anatel_number: string;
   equipamento_tipo: string;
   publish_ml: boolean;
+  ncm: string;
+  cest: string;
+  cfop_padrao: string;
+  cst_icms: string;
+  csosn: string;
+  cst_pis_cofins: string;
+  cst_ibs_cbs: string;
+  cclasstrib: string;
+  reducao_ibs_cbs_pct: number | null;
+  sujeito_imposto_seletivo: boolean;
+  aliquota_imposto_seletivo_pct: number | null;
 };
 
 interface Props {
@@ -154,6 +169,17 @@ function emptyForm(): ProductFormState {
     anatel_number: '',
     equipamento_tipo: '',
     publish_ml: false,
+    ncm: '',
+    cest: '',
+    cfop_padrao: '',
+    cst_icms: '',
+    csosn: '',
+    cst_pis_cofins: '',
+    cst_ibs_cbs: '',
+    cclasstrib: '',
+    reducao_ibs_cbs_pct: null,
+    sujeito_imposto_seletivo: false,
+    aliquota_imposto_seletivo_pct: null,
     labels: [],
     variants_attributes: [],
   };
@@ -478,6 +504,8 @@ interface GalleryItem {
 export default function ProductModal({ open, product, loading, errors, onOpenChange, onSubmit }: Props) {
   const { t } = useLanguage('products');
   const [form, setForm] = useState<ProductFormState>(emptyForm());
+  const [taxPreview, setTaxPreview] = useState<ProductTaxCalculation | null>(null);
+  const [taxPreviewLoading, setTaxPreviewLoading] = useState(false);
   const [variants, setVariants] = useState<ProductVariantFormData[]>([]);
   const [labelsText, setLabelsText] = useState('');
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -553,6 +581,17 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
             anatel_number: product.anatel_number ?? '',
             equipamento_tipo: product.equipamento_tipo ?? '',
             publish_ml: product.publish_ml ?? false,
+            ncm: product.ncm ?? '',
+            cest: product.cest ?? '',
+            cfop_padrao: product.cfop_padrao ?? '',
+            cst_icms: product.cst_icms ?? '',
+            csosn: product.csosn ?? '',
+            cst_pis_cofins: product.cst_pis_cofins ?? '',
+            cst_ibs_cbs: product.cst_ibs_cbs ?? '',
+            cclasstrib: product.cclasstrib ?? '',
+            reducao_ibs_cbs_pct: product.reducao_ibs_cbs_pct ?? null,
+            sujeito_imposto_seletivo: product.sujeito_imposto_seletivo ?? false,
+            aliquota_imposto_seletivo_pct: product.aliquota_imposto_seletivo_pct ?? null,
             labels: product.labels ?? [],
             variants_attributes: [],
           }
@@ -560,6 +599,7 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
     );
     setVariants(product ? (product.variants ?? []).map(variantToForm) : []);
     setLabelsText(product ? (product.labels ?? []).join(', ') : '');
+    setTaxPreview(null);
     setCategoryName(product?.category_name ?? '');
     setMedia(product?.media ?? []);
     setIngredients(
@@ -867,7 +907,15 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
       | 'model'
       | 'compatible_brands'
       | 'accessory_type'
-      | 'anatel_number',
+      | 'anatel_number'
+      | 'ncm'
+      | 'cest'
+      | 'cfop_padrao'
+      | 'cst_icms'
+      | 'csosn'
+      | 'cst_pis_cofins'
+      | 'cst_ibs_cbs'
+      | 'cclasstrib',
     label: string,
     placeholder: string,
   ) => (
@@ -881,6 +929,19 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
       />
     </div>
   );
+
+  const handleCalculateTax = async () => {
+    if (!product) return;
+    setTaxPreviewLoading(true);
+    try {
+      const result = await productsService.calcularImposto(product.id, 1, form.default_price ?? undefined);
+      setTaxPreview(result);
+    } catch {
+      toast.error('Erro ao calcular imposto.');
+    } finally {
+      setTaxPreviewLoading(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -896,12 +957,13 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
             now accepts raw multipart uploads (validated type + size), which is what
             productsService.buildFormData already sends as product[images][].
           */}
-          <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full">
+          <TabsList className="grid grid-cols-3 sm:grid-cols-7 w-full">
             <TabsTrigger value="general">{t('modal.tabs.general')}</TabsTrigger>
             <TabsTrigger value="media">{t('modal.tabs.media')}</TabsTrigger>
             <TabsTrigger value="variants">{t('modal.tabs.variants')}</TabsTrigger>
             <TabsTrigger value="ingredients">Insumos</TabsTrigger>
             <TabsTrigger value="details">Detalhes</TabsTrigger>
+            <TabsTrigger value="fiscal">Fiscal</TabsTrigger>
             <TabsTrigger value="labels">{t('modal.tabs.labels')}</TabsTrigger>
           </TabsList>
 
@@ -1565,6 +1627,106 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
               <p className="text-sm text-muted-foreground py-4 text-center border border-dashed rounded">
                 Os campos de dimensões e Mercado Livre se aplicam apenas a produtos.
               </p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="fiscal" className="space-y-5 overflow-y-auto pt-4">
+            <p className="text-xs text-muted-foreground">
+              Classificação fiscal do produto — legado (ICMS/CSOSN) e os novos códigos da Reforma Tributária
+              (CST do IBS/CBS + cClassTrib). Confirme os códigos com seu contador antes de emitir nota fiscal real.
+            </p>
+
+            <div>
+              <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-primary" /> Classificação Fiscal
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {textInput('ncm', 'NCM', 'Ex: 2106.90.90')}
+                {textInput('cest', 'CEST (se ICMS-ST)', 'Ex: 03.002.00')}
+                {textInput('cfop_padrao', 'CFOP Padrão', 'Ex: 5102')}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-semibold text-foreground mb-2">Tributação Legada</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {textInput('csosn', 'CSOSN (Simples Nacional)', 'Ex: 102')}
+                {textInput('cst_icms', 'CST ICMS (Presumido/Real)', 'Ex: 00')}
+                {textInput('cst_pis_cofins', 'CST PIS/COFINS', 'Ex: 01')}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <h4 className="text-sm font-semibold text-foreground">Reforma Tributária (IBS/CBS)</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {textInput('cst_ibs_cbs', 'CST do IBS/CBS', 'Ex: 000, 200, 830')}
+                {textInput('cclasstrib', 'cClassTrib', 'Ex: 200001')}
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-reducao-ibs-cbs">Redução de Alíquota (%)</Label>
+                  <Input
+                    id="p-reducao-ibs-cbs"
+                    type="number" step="1" min={0} max={100}
+                    value={form.reducao_ibs_cbs_pct ?? ''}
+                    placeholder="0, 30, 60 ou 100 (isento)"
+                    onChange={(e) => setForm({ ...form, reducao_ibs_cbs_pct: toNumberOrNull(e.target.value) })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="p-imposto-seletivo">Sujeito a Imposto Seletivo</Label>
+                <Switch
+                  id="p-imposto-seletivo"
+                  checked={form.sujeito_imposto_seletivo}
+                  onCheckedChange={(checked) => setForm({ ...form, sujeito_imposto_seletivo: Boolean(checked) })}
+                />
+              </div>
+              {form.sujeito_imposto_seletivo && (
+                <div className="space-y-1.5 max-w-xs">
+                  <Label htmlFor="p-is-aliquota">Alíquota do Imposto Seletivo (%)</Label>
+                  <Input
+                    id="p-is-aliquota"
+                    type="number" step="0.01" min={0}
+                    value={form.aliquota_imposto_seletivo_pct ?? ''}
+                    placeholder="Confirme com o contador"
+                    onChange={(e) => setForm({ ...form, aliquota_imposto_seletivo_pct: toNumberOrNull(e.target.value) })}
+                  />
+                </div>
+              )}
+            </div>
+
+            {product && (
+              <div className="rounded-lg border border-border p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Calculator className="w-4 h-4 text-primary" /> Simular Cálculo
+                  </h4>
+                  <Button type="button" size="sm" variant="outline" onClick={handleCalculateTax} disabled={taxPreviewLoading}>
+                    {taxPreviewLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : null}
+                    Calcular
+                  </Button>
+                </div>
+                {taxPreview && (
+                  <div className="text-sm space-y-1">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Preço base</span><span>{formatBRL(taxPreview.base_calculo)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">CBS ({taxPreview.cbs_aliquota}%)</span><span>{formatBRL(taxPreview.cbs_valor)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">IBS ({taxPreview.ibs_aliquota}%)</span><span>{formatBRL(taxPreview.ibs_valor)}</span></div>
+                    {taxPreview.imposto_seletivo_valor > 0 && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Imposto Seletivo ({taxPreview.imposto_seletivo_aliquota}%)</span><span>{formatBRL(taxPreview.imposto_seletivo_valor)}</span></div>
+                    )}
+                    <div className="flex justify-between"><span className="text-muted-foreground">Legado ({taxPreview.legado_aliquota}%)</span><span>{formatBRL(taxPreview.legado_valor)}</span></div>
+                    <div className="flex justify-between font-semibold border-t border-border pt-1"><span>Total de impostos</span><span>{formatBRL(taxPreview.total_impostos)}</span></div>
+                    <div className="flex justify-between font-semibold"><span>Preço + impostos</span><span>{formatBRL(taxPreview.preco_total)}</span></div>
+                    {taxPreview.avisos.length > 0 && (
+                      <ul className="text-xs text-amber-600 dark:text-amber-400 list-disc pl-4 pt-2 space-y-0.5">
+                        {taxPreview.avisos.map((aviso, idx) => <li key={idx}>{aviso}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </TabsContent>
 
