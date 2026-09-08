@@ -4,7 +4,7 @@
  * link/HTML/arquivo). O item fixo "Atendimentos" continua vindo de
  * menuItems.ts; os itens aqui são adicionados antes/depois dele.
  */
-import { FileText, Code, Link2, LucideIcon, CheckSquare } from 'lucide-react';
+import { FileText, Code, Link2, LucideIcon } from 'lucide-react';
 import { SubMenuItem } from '@/components/layout/config/menuItems';
 import { EditorContentType, EDITOR_ICON_REGISTRY, generateEditorId } from '@/utils/editorMenus';
 import { pushMenuConfig } from '@/utils/menuSync';
@@ -31,15 +31,6 @@ export interface DashboardItem {
 export const DASHBOARD_ITEMS_EVENT = 'dashboard-items-changed';
 export const DASHBOARD_CONTENT_ROUTE = '/dashboard/content';
 export const DASHBOARD_DEFAULT_HREF = '/dashboard';
-
-// Item fixo "Tarefas" (kanban de pipelines com suporte a cards de tarefa,
-// estilo Asana) — sempre presente ao lado de "Atendimentos", não editável
-// pelo formulário de itens personalizados (mesmo tratamento do item padrão).
-const TAREFAS_SUB_ITEM: SubMenuItem = {
-  name: 'Tarefas',
-  href: '/pipelines/default',
-  icon: CheckSquare,
-};
 
 const STORAGE_KEY = 'dashboard-menu-items';
 
@@ -110,5 +101,5 @@ export function buildDashboardSubItems(defaultSubItem: SubMenuItem): SubMenuItem
   const items = getDashboardItems();
   const before = items.filter((i) => i.position === 'before').map(itemToSubItem);
   const after = items.filter((i) => i.position === 'after').map(itemToSubItem);
-  return [...before, defaultSubItem, TAREFAS_SUB_ITEM, ...after];
+  return [...before, defaultSubItem, ...after];
 }
