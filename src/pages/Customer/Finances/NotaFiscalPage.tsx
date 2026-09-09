@@ -17,8 +17,9 @@ export default function NotaFiscalPage() {
       </div>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <FileText className="w-3.5 h-3.5" />
-        Módulo de demonstração. A emissão e a consulta SEFAZ são simuladas; integração com cartórios/API real pode ser
-        conectada posteriormente.
+        Produtos, pedidos e dados da empresa vêm do CRM real. A emissão e a consulta SEFAZ continuam simuladas —
+        exigem contratar um provedor certificado (eNotas, Focus NFe, PlugNotas etc.) e um certificado digital, que
+        ainda não estão configurados.
       </div>
     </div>
   );
