@@ -42,29 +42,14 @@ export function ContentViewer({
   const isHtmlDoc =
     contentType === 'html' || (contentType === 'file' && /\.html?$/i.test(fileName ?? ''));
 
-  if (contentType === 'link') {
-    const normalized = normalizeEditorUrl(url ?? '#');
-    return (
-      <div className="flex flex-col h-full bg-background p-6 space-y-4">
-        <BaseHeader
-          title={title || 'Link'}
-          subtitle={subtitle}
-          secondaryActions={[
-            {
-              label: 'Abrir em nova aba',
-              icon: <ExternalLink className="w-4 h-4 mr-2" />,
-              onClick: () => window.open(normalized, '_blank', 'noreferrer'),
-              variant: 'outline',
-            },
-          ]}
-        />
-        <div className="flex-1 rounded-lg border border-border bg-card overflow-hidden min-h-0">
-          <iframe src={normalized} title={title || 'Link'} className="w-full h-full border-0" />
-        </div>
-      </div>
-    );
-  }
-
+  // Todos os hooks abaixo são chamados incondicionalmente, mesmo pra
+  // contentType === 'link' (que nem os usa) — um `return` condicional ANTES
+  // dos hooks (como este componente tinha antes) viola as Regras dos Hooks:
+  // ao navegar entre um nó 'link' e um nó 'html'/'file' sem remount (só
+  // trocando o :nodeId da mesma rota), o React reaproveita a mesma instância
+  // e quebra com "Rendered more/fewer hooks than during the previous
+  // render" — a causa mais provável de o app travar ao navegar pelos
+  // conteúdos do editor.
   const currentUser = useAuthStore((s) => s.currentUser);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [dashboardToolsToken, setDashboardToolsToken] = useState<string | null>(null);
@@ -130,7 +115,7 @@ export function ContentViewer({
   if (isHtmlDoc) {
     const rawDoc = contentType === 'html' ? html ?? '' : fileData ?? '';
     srcDoc = resolveRenderableSrcDoc(rawDoc);
-  } else {
+  } else if (contentType !== 'link') {
     // .txt / .md / .json / .svg — renderiza como texto formatado
     srcDoc = `<!doctype html><html><head><meta charset="utf-8"><style>
       body{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
@@ -139,6 +124,29 @@ export function ContentViewer({
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')}</body></html>`;
+  }
+
+  if (contentType === 'link') {
+    const normalized = normalizeEditorUrl(url ?? '#');
+    return (
+      <div className="flex flex-col h-full bg-background p-6 space-y-4">
+        <BaseHeader
+          title={title || 'Link'}
+          subtitle={subtitle}
+          secondaryActions={[
+            {
+              label: 'Abrir em nova aba',
+              icon: <ExternalLink className="w-4 h-4 mr-2" />,
+              onClick: () => window.open(normalized, '_blank', 'noreferrer'),
+              variant: 'outline',
+            },
+          ]}
+        />
+        <div className="flex-1 rounded-lg border border-border bg-card overflow-hidden min-h-0">
+          <iframe src={normalized} title={title || 'Link'} className="w-full h-full border-0" />
+        </div>
+      </div>
+    );
   }
 
   return (
