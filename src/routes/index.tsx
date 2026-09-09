@@ -101,6 +101,10 @@ import OpenAIPage from '../pages/Customer/Settings/Integrations/OpenAIPage';
 import GeminiPage from '../pages/Customer/Settings/Integrations/GeminiPage';
 import GoogleWorkspaceCallback from '../pages/Customer/Settings/Integrations/GoogleWorkspaceCallback';
 import GoogleWorkspacePage from '../pages/Customer/Settings/Integrations/GoogleWorkspacePage';
+import DropboxCallback from '../pages/Customer/Settings/Integrations/DropboxCallback';
+import DropboxPage from '../pages/Customer/Settings/Integrations/DropboxPage';
+import GoogleDrivePage from '../pages/Customer/Drive/GoogleDrivePage';
+import DropboxFilesPage from '../pages/Customer/Dropbox/DropboxFilesPage';
 import BMSPage from '../pages/Customer/Settings/Integrations/BMSPage';
 import LeadSquaredPage from '../pages/Customer/Settings/Integrations/LeadSquaredPage';
 import HubSpotPage from '../pages/Customer/Settings/Integrations/HubSpotPage';
@@ -253,6 +257,16 @@ const AppRouter = () => {
             }
           />
 
+          {/* Dropbox OAuth Callback — own app, unrelated to the Google connections above */}
+          <Route
+            path="/settings/integrations/dropbox/callback"
+            element={
+              <PublicRoute>
+                <DropboxCallback />
+              </PublicRoute>
+            }
+          />
+
           {/* Google Workspace settings (Client ID/Secret + connect/disconnect) Ã¢â‚¬â€ matched before the generic
               /settings/integrations/:integrationId placeholder route */}
           <Route
@@ -263,6 +277,22 @@ const AppRouter = () => {
                   <MainLayout>
                     <PermissionRoute resource="integrations" action="read">
                       <GoogleWorkspacePage />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* Dropbox settings (App Key/Secret + connect/disconnect) — same reasoning as Google Workspace above */}
+          <Route
+            path="/settings/integrations/dropbox"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="integrations" action="read">
+                      <DropboxPage />
                     </PermissionRoute>
                   </MainLayout>
                 </CustomerRoute>
@@ -533,6 +563,33 @@ const AppRouter = () => {
                 <CustomerRoute>
                   <MainLayout>
                     <FinancesPage />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* Drive/Dropbox — top-level file-browser tabs (see Google::DriveService / Dropbox::FilesService) */}
+          <Route
+            path="/drive"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <GoogleDrivePage />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/dropbox"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <DropboxFilesPage />
                   </MainLayout>
                 </CustomerRoute>
               </PrivateRoute>

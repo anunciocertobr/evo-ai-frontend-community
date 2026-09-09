@@ -319,6 +319,12 @@ class IntegrationsService {
     return extractData<{ email: string | null }>(response);
   }
 
+  // Dropbox — same top-level-path reasoning as handleGoogleWorkspaceCallback above.
+  async handleDropboxCallback(code: string, state: string): Promise<{ email: string | null }> {
+    const response = await api.post('/dropbox/callback', { code, state });
+    return extractData<{ email: string | null }>(response);
+  }
+
   // OpenAI Hook methods (using generic methods)
   async getOpenAIHook(): Promise<OpenAIHook | null> {
     const hook = await this.getIntegrationHook('openai');

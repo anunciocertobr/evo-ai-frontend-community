@@ -45,6 +45,8 @@ import {
   Navigation,
   RefreshCw,
   Paintbrush,
+  HardDrive,
+  Box,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -333,6 +335,16 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
     icon: Layers,
     resource: 'inboxes',
     action: 'read',
+  },
+  {
+    name: 'Drive',
+    href: '/drive',
+    icon: HardDrive,
+  },
+  {
+    name: 'Dropbox',
+    href: '/dropbox',
+    icon: Box,
   },
   {
     id: 'customer-settings',
