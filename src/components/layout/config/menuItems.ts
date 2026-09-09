@@ -44,6 +44,7 @@ import {
   Video,
   Navigation,
   RefreshCw,
+  Paintbrush,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -214,6 +215,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
       { name: 'Gerar Imagem e Identidade Visual', href: '/editor/content/mktia-gerarimagem', icon: Wand },
       { name: 'Roteiro de Vídeo', href: '/editor/content/mktia-roteirovideo', icon: Video },
       { name: 'Suíte de Mídia', href: '/editor/content/mktia-suitemidia', icon: Layers },
+      { name: 'Quadro de Desenho', href: '/editor/content/mktia-quadrodesenho', icon: Paintbrush },
     ],
   },
   {
