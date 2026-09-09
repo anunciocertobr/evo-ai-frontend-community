@@ -671,10 +671,10 @@ export default function GestorPostsPage() {
       {selectedMedia && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedMedia(null)} />
-          <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-800">{selectedMedia.media_type}</h2>
-              <button onClick={() => setSelectedMedia(null)} className="text-gray-400 hover:text-gray-600">
+          <div className="relative w-full max-w-2xl bg-card rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted flex-shrink-0">
+              <h2 className="text-sm font-semibold text-foreground">{selectedMedia.media_type}</h2>
+              <button onClick={() => setSelectedMedia(null)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -684,7 +684,7 @@ export default function GestorPostsPage() {
                 alt=""
                 className="w-full max-h-72 object-contain rounded-lg bg-black/5"
               />
-              {selectedMedia.caption && <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedMedia.caption}</p>}
+              {selectedMedia.caption && <p className="text-sm text-foreground whitespace-pre-wrap">{selectedMedia.caption}</p>}
 
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">
@@ -704,25 +704,25 @@ export default function GestorPostsPage() {
                 )}
               </div>
 
-              <div className="border-t border-gray-100 pt-3 space-y-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Comentários</p>
+              <div className="border-t border-border pt-3 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Comentários</p>
                 {loadingComments ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
                     <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
                   </div>
                 ) : comments.length === 0 ? (
-                  <p className="text-sm text-gray-400">Nenhum comentário ainda.</p>
+                  <p className="text-sm text-muted-foreground">Nenhum comentário ainda.</p>
                 ) : (
                   comments.map((c) => (
-                    <div key={c.id} className="text-sm border border-gray-100 rounded-lg p-3 space-y-2">
+                    <div key={c.id} className="text-sm border border-border rounded-lg p-3 space-y-2">
                       <p>
-                        <span className="font-semibold text-gray-800">{c.username || c.from?.username}</span>{' '}
-                        <span className="text-gray-600">{c.text}</span>
+                        <span className="font-semibold text-foreground">{c.username || c.from?.username}</span>{' '}
+                        <span className="text-muted-foreground">{c.text}</span>
                       </p>
                       {replyingTo === c.id ? (
                         <div className="flex items-center gap-2">
                           <input
-                            className="flex-1 border-gray-300 rounded-md text-sm p-1.5 border"
+                            className="flex-1 border-border rounded-md text-sm p-1.5 border"
                             value={replyText}
                             onChange={(e) => setReplyText(e.target.value)}
                             placeholder="Escreva uma resposta..."
@@ -764,21 +764,21 @@ export default function GestorPostsPage() {
               if (!creating) setShowCreateModal(false);
             }}
           />
-          <div className="relative w-full max-w-lg bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-800">Criar Post</h2>
+          <div className="relative w-full max-w-lg bg-card rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted flex-shrink-0">
+              <h2 className="text-sm font-semibold text-foreground">Criar Post</h2>
               <button
                 onClick={() => {
                   if (!creating) setShowCreateModal(false);
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="overflow-y-auto p-5 space-y-4">
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+              <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={newIsCarousel}
@@ -792,7 +792,7 @@ export default function GestorPostsPage() {
 
               {newIsCarousel ? (
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                     Imagens ({carouselFiles.length}/10)
                   </p>
                   <input
@@ -812,7 +812,7 @@ export default function GestorPostsPage() {
                         <img src={url} alt="" className="w-full h-full object-cover rounded-lg bg-black/5" />
                         <button
                           onClick={() => removeCarouselFile(index)}
-                          className="absolute top-1 right-1 bg-white/90 rounded-full p-0.5 shadow"
+                          className="absolute top-1 right-1 bg-card/90 rounded-full p-0.5 shadow"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -821,7 +821,7 @@ export default function GestorPostsPage() {
                     {carouselFiles.length < 10 && (
                       <button
                         onClick={() => carouselInputRef.current?.click()}
-                        className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
+                        className="aspect-square border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors"
                       >
                         <Upload className="w-4 h-4" />
                         <span className="text-xs">Adicionar</span>
@@ -833,7 +833,7 @@ export default function GestorPostsPage() {
               ) : (
                 <>
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mídia</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Mídia</p>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -850,7 +850,7 @@ export default function GestorPostsPage() {
                         )}
                         <button
                           onClick={() => handleFileChange(null)}
-                          className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
+                          className="absolute top-2 right-2 bg-card/90 rounded-full p-1 shadow"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -858,7 +858,7 @@ export default function GestorPostsPage() {
                     ) : (
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="w-full border-2 border-dashed border-gray-300 rounded-lg py-8 flex flex-col items-center gap-2 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
+                        className="w-full border-2 border-dashed border-border rounded-lg py-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors"
                       >
                         <Upload className="w-6 h-6" />
                         <span className="text-sm">Selecionar imagem ou vídeo</span>
@@ -867,7 +867,7 @@ export default function GestorPostsPage() {
                   </div>
 
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tipo</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tipo</p>
                     <div className="flex gap-2">
                       {(Object.keys(CONTENT_TYPE_LABELS) as PublicationContentType[]).map((type) => (
                         <button
@@ -886,7 +886,7 @@ export default function GestorPostsPage() {
                   </div>
 
                   <div>
-                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none mb-2">
+                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none mb-2">
                       <input
                         type="checkbox"
                         checked={newIsScheduled}
@@ -900,7 +900,7 @@ export default function GestorPostsPage() {
                     {newIsScheduled && (
                       <input
                         type="datetime-local"
-                        className="w-full border border-gray-300 rounded-md text-sm p-2"
+                        className="w-full border border-border rounded-md text-sm p-2"
                         value={newScheduledFor}
                         min={toDatetimeLocalMin()}
                         onChange={(e) => setNewScheduledFor(e.target.value)}
@@ -911,7 +911,7 @@ export default function GestorPostsPage() {
               )}
 
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Plataformas</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Plataformas</p>
                 <div className="flex gap-2">
                   {availablePlatforms.map((platform) => (
                     <button
@@ -930,9 +930,9 @@ export default function GestorPostsPage() {
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Legenda</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Legenda</p>
                 <textarea
-                  className="w-full border border-gray-300 rounded-md text-sm p-2.5"
+                  className="w-full border border-border rounded-md text-sm p-2.5"
                   rows={3}
                   value={newCaption}
                   onChange={(e) => setNewCaption(e.target.value)}
@@ -941,7 +941,7 @@ export default function GestorPostsPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border bg-muted flex-shrink-0">
               <Button
                 variant="outline"
                 disabled={creating}
@@ -965,10 +965,10 @@ export default function GestorPostsPage() {
       {showScheduledModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowScheduledModal(false)} />
-          <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-800">Posts Agendados</h2>
-              <button onClick={() => setShowScheduledModal(false)} className="text-gray-400 hover:text-gray-600">
+          <div className="relative w-full max-w-2xl bg-card rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted flex-shrink-0">
+              <h2 className="text-sm font-semibold text-foreground">Posts Agendados</h2>
+              <button onClick={() => setShowScheduledModal(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -978,10 +978,10 @@ export default function GestorPostsPage() {
                   <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
                 </div>
               ) : scheduledPosts.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">Nenhum post agendado ainda.</p>
+                <p className="text-sm text-muted-foreground text-center py-8">Nenhum post agendado ainda.</p>
               ) : (
                 scheduledPosts.map((post) => (
-                  <div key={post.id} className="border border-gray-100 rounded-lg p-3 space-y-2">
+                  <div key={post.id} className="border border-border rounded-lg p-3 space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="outline">{SCHEDULED_STATUS_LABELS[post.status]}</Badge>
@@ -998,7 +998,7 @@ export default function GestorPostsPage() {
                         {new Date(post.scheduled_for).toLocaleString('pt-BR')}
                       </span>
                     </div>
-                    {post.caption && <p className="text-sm text-gray-600 line-clamp-2">{post.caption}</p>}
+                    {post.caption && <p className="text-sm text-muted-foreground line-clamp-2">{post.caption}</p>}
                     {post.status === 'failed' && post.error_message && (
                       <p className="text-xs text-red-600">{post.error_message}</p>
                     )}
@@ -1041,14 +1041,14 @@ export default function GestorPostsPage() {
               if (!sendingWhatsappStatus) setShowWhatsappModal(false);
             }}
           />
-          <div className="relative w-full max-w-lg bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-800">Status do WhatsApp</h2>
+          <div className="relative w-full max-w-lg bg-card rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted flex-shrink-0">
+              <h2 className="text-sm font-semibold text-foreground">Status do WhatsApp</h2>
               <button
                 onClick={() => {
                   if (!sendingWhatsappStatus) setShowWhatsappModal(false);
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1059,16 +1059,16 @@ export default function GestorPostsPage() {
                 <Loader2 className="w-4 h-4 animate-spin" /> Carregando canais...
               </div>
             ) : whatsappChannels.length === 0 ? (
-              <div className="p-5 text-sm text-gray-400 text-center">
+              <div className="p-5 text-sm text-muted-foreground text-center">
                 Nenhum canal de WhatsApp com suporte a Status conectado.
               </div>
             ) : (
               <>
                 <div className="overflow-y-auto p-5 space-y-4">
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Canal</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Canal</p>
                     <select
-                      className="w-full border border-gray-300 rounded-md text-sm p-2"
+                      className="w-full border border-border rounded-md text-sm p-2"
                       value={whatsappChannelId}
                       onChange={(e) => setWhatsappChannelId(e.target.value)}
                     >
@@ -1081,7 +1081,7 @@ export default function GestorPostsPage() {
                   </div>
 
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tipo</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tipo</p>
                     <div className="flex gap-2">
                       {(Object.keys(WHATSAPP_STATUS_TYPE_LABELS) as WhatsappStatusType[]).map((type) => (
                         <button
@@ -1101,9 +1101,9 @@ export default function GestorPostsPage() {
 
                   {whatsappType === 'text' ? (
                     <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Texto</p>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Texto</p>
                       <textarea
-                        className="w-full border border-gray-300 rounded-md text-sm p-2.5"
+                        className="w-full border border-border rounded-md text-sm p-2.5"
                         rows={3}
                         value={whatsappText}
                         onChange={(e) => setWhatsappText(e.target.value)}
@@ -1112,7 +1112,7 @@ export default function GestorPostsPage() {
                     </div>
                   ) : (
                     <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mídia</p>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Mídia</p>
                       <input
                         ref={whatsappFileInputRef}
                         type="file"
@@ -1135,7 +1135,7 @@ export default function GestorPostsPage() {
                           )}
                           <button
                             onClick={() => handleWhatsappFileChange(null)}
-                            className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
+                            className="absolute top-2 right-2 bg-card/90 rounded-full p-1 shadow"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -1143,7 +1143,7 @@ export default function GestorPostsPage() {
                       ) : (
                         <button
                           onClick={() => whatsappFileInputRef.current?.click()}
-                          className="w-full border-2 border-dashed border-gray-300 rounded-lg py-8 flex flex-col items-center gap-2 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
+                          className="w-full border-2 border-dashed border-border rounded-lg py-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors"
                         >
                           <Upload className="w-6 h-6" />
                           <span className="text-sm">Selecionar {WHATSAPP_STATUS_TYPE_LABELS[whatsappType].toLowerCase()}</span>
@@ -1154,9 +1154,9 @@ export default function GestorPostsPage() {
 
                   {whatsappType !== 'text' && (
                     <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Legenda (opcional)</p>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Legenda (opcional)</p>
                       <textarea
-                        className="w-full border border-gray-300 rounded-md text-sm p-2.5"
+                        className="w-full border border-border rounded-md text-sm p-2.5"
                         rows={2}
                         value={whatsappCaption}
                         onChange={(e) => setWhatsappCaption(e.target.value)}
@@ -1166,7 +1166,7 @@ export default function GestorPostsPage() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border bg-muted flex-shrink-0">
                   <Button
                     variant="outline"
                     disabled={sendingWhatsappStatus}
@@ -1197,14 +1197,14 @@ export default function GestorPostsPage() {
               if (!sendingYoutubeUpload) setShowYoutubeModal(false);
             }}
           />
-          <div className="relative w-full max-w-lg bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-800">Enviar Vídeo para o YouTube</h2>
+          <div className="relative w-full max-w-lg bg-card rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted flex-shrink-0">
+              <h2 className="text-sm font-semibold text-foreground">Enviar Vídeo para o YouTube</h2>
               <button
                 onClick={() => {
                   if (!sendingYoutubeUpload) setShowYoutubeModal(false);
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1215,7 +1215,7 @@ export default function GestorPostsPage() {
                 <Loader2 className="w-4 h-4 animate-spin" /> Verificando conexão...
               </div>
             ) : !youtubeConnected ? (
-              <div className="p-5 text-sm text-gray-500 text-center space-y-2">
+              <div className="p-5 text-sm text-muted-foreground text-center space-y-2">
                 <p>Nenhuma conta Google conectada com acesso ao YouTube.</p>
                 <p>
                   Conecte em <span className="font-medium">Configurações &gt; Integrações &gt; Google</span>{' '}
@@ -1226,7 +1226,7 @@ export default function GestorPostsPage() {
               <>
                 <div className="overflow-y-auto p-5 space-y-4">
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Vídeo</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Vídeo</p>
                     <input
                       ref={youtubeFileInputRef}
                       type="file"
@@ -1239,7 +1239,7 @@ export default function GestorPostsPage() {
                         <video src={youtubePreviewUrl} controls className="w-full max-h-64 rounded-lg bg-black/5" />
                         <button
                           onClick={() => handleYoutubeFileChange(null)}
-                          className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow"
+                          className="absolute top-2 right-2 bg-card/90 rounded-full p-1 shadow"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -1247,7 +1247,7 @@ export default function GestorPostsPage() {
                     ) : (
                       <button
                         onClick={() => youtubeFileInputRef.current?.click()}
-                        className="w-full border-2 border-dashed border-gray-300 rounded-lg py-8 flex flex-col items-center gap-2 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
+                        className="w-full border-2 border-dashed border-border rounded-lg py-8 flex flex-col items-center gap-2 text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors"
                       >
                         <Upload className="w-6 h-6" />
                         <span className="text-sm">Selecionar vídeo</span>
@@ -1256,9 +1256,9 @@ export default function GestorPostsPage() {
                   </div>
 
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Título</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Título</p>
                     <input
-                      className="w-full border border-gray-300 rounded-md text-sm p-2.5"
+                      className="w-full border border-border rounded-md text-sm p-2.5"
                       value={youtubeTitle}
                       onChange={(e) => setYoutubeTitle(e.target.value)}
                       placeholder="Título do vídeo"
@@ -1266,9 +1266,9 @@ export default function GestorPostsPage() {
                   </div>
 
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Descrição</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Descrição</p>
                     <textarea
-                      className="w-full border border-gray-300 rounded-md text-sm p-2.5"
+                      className="w-full border border-border rounded-md text-sm p-2.5"
                       rows={3}
                       value={youtubeDescription}
                       onChange={(e) => setYoutubeDescription(e.target.value)}
@@ -1277,7 +1277,7 @@ export default function GestorPostsPage() {
                   </div>
 
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Privacidade</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Privacidade</p>
                     <div className="flex gap-2">
                       {(Object.keys(YOUTUBE_PRIVACY_LABELS) as YoutubePrivacyStatus[]).map((status) => (
                         <button
@@ -1296,7 +1296,7 @@ export default function GestorPostsPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border bg-muted flex-shrink-0">
                   <Button
                     variant="outline"
                     disabled={sendingYoutubeUpload}
