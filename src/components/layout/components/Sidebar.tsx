@@ -93,7 +93,6 @@ export default function Sidebar({
     );
   }, [activeSubmenu, menuItems]);
 
-  const totalUnread = useUnreadConversationsStore((state) => state.totalUnread);
   const totalUnanswered = useUnansweredConversationsStore((state) => state.totalUnanswered);
 
   // --- Gerenciamento do site padrão (override simples de nome/URL) ---
