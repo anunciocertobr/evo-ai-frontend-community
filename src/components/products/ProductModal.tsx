@@ -530,7 +530,7 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaKind, setMediaKind] = useState<ProductMediaKind>('image');
   const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const mediaFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
@@ -718,7 +718,7 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
       toast.error('Falha ao enviar mídia');
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (mediaFileInputRef.current) mediaFileInputRef.current.value = '';
     }
   };
 
@@ -1374,7 +1374,7 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
                enviado à parte do multipart `images`). */}
             <div className="flex flex-wrap gap-2">
               <input
-                ref={fileInputRef}
+                ref={mediaFileInputRef}
                 type="file"
                 accept="image/*,video/*"
                 multiple
@@ -1386,7 +1386,7 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
                 variant="outline"
                 size="sm"
                 disabled={uploading}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => mediaFileInputRef.current?.click()}
               >
                 <Upload className="h-4 w-4 mr-2" />
                 {uploading ? 'Enviando...' : 'Subir arquivo'}
