@@ -4,6 +4,8 @@ import { extractData, extractResponse } from '@/utils/apiHelpers';
 export type FinancialKind = 'expense' | 'income';
 export type FinancialScope = 'store' | 'personal';
 
+export type FinancialTransactionStatus = 'pending' | 'confirmed';
+
 export interface FinancialTransaction {
   id: string;
   kind: FinancialKind;
@@ -15,6 +17,8 @@ export interface FinancialTransaction {
   receipt_url?: string | null;
   recurring_transaction_id?: string | null;
   occurrence_number?: number | null;
+  status: FinancialTransactionStatus;
+  confirmed_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -34,6 +38,7 @@ export interface FinancialTransactionsListParams {
   kind?: FinancialKind;
   from?: string;
   to?: string;
+  status?: FinancialTransactionStatus;
 }
 
 export interface FinancialTransactionsResponse {
@@ -73,10 +78,23 @@ class FinancialTransactionsService {
   async deleteTransaction(id: string): Promise<void> {
     await api.delete(`${this.baseUrl}/${id}`);
   }
+
+  // Manual-accounting occurrences (RecurringTransaction#accounting_mode == 'manual') sit as
+  // status: 'pending' and are excluded from getTransactions() until confirmed here.
+  async getPendingTransactions(): Promise<FinancialTransaction[]> {
+    const response = await api.get(this.baseUrl, { params: { status: 'pending' } });
+    return extractResponse<FinancialTransaction>(response).data;
+  }
+
+  async confirmTransaction(id: string): Promise<FinancialTransaction> {
+    const response = await api.post(`${this.baseUrl}/${id}/confirm`);
+    return extractData<FinancialTransaction>(response);
+  }
 }
 
 export type RecurrenceFrequency = 'monthly' | 'days';
 export type RecurrenceEndRule = 'never' | 'until_date' | 'count';
+export type RecurrenceAccountingMode = 'automatic' | 'manual';
 
 export interface RecurringTransaction {
   id: string;
@@ -92,6 +110,8 @@ export interface RecurringTransaction {
   end_date: string | null;
   max_occurrences: number | null;
   active: boolean;
+  accounting_mode: RecurrenceAccountingMode;
+  pending_count: number;
   generated_count: number;
   next_occurrence_date: string | null;
   created_at: string;
@@ -110,6 +130,7 @@ export interface RecurringTransactionFormData {
   end_rule: RecurrenceEndRule;
   end_date?: string | null;
   max_occurrences?: number | null;
+  accounting_mode?: RecurrenceAccountingMode;
 }
 
 class RecurringTransactionsService {
