@@ -5,7 +5,8 @@ import { BaseHeader } from '@/components/base';
 import { EditorContentType, normalizeEditorUrl } from '@/utils/editorMenus';
 import { resolveRenderableSrcDoc } from '@/utils/reactContentRenderer';
 import { useAuthStore } from '@/store/authStore';
-import { useCallback, useRef } from 'react';
+import { getDashboardToolsToken } from '@/services/dashboardTools/dashboardToolsService';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface ContentViewerProps {
   backHref: string;
@@ -66,8 +67,29 @@ export function ContentViewer({
 
   const currentUser = useAuthStore((s) => s.currentUser);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [dashboardToolsToken, setDashboardToolsToken] = useState<string | null>(null);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
 
-  const handleIframeLoad = useCallback(() => {
+  // Buscado uma vez (autenticado pela sessão real) e repassado pro iframe via
+  // postMessage — o HTML da ferramenta nunca mais carrega com esse token já
+  // embutido no código-fonte servido ao navegador.
+  useEffect(() => {
+    if (contentType !== 'html') return;
+    let cancelled = false;
+    getDashboardToolsToken()
+      .then((token) => {
+        if (!cancelled) setDashboardToolsToken(token);
+      })
+      .catch(() => {
+        // Ferramenta que não chama a API do CRM não precisa do token — falha
+        // silenciosa aqui não deve travar a renderização do conteúdo.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [contentType]);
+
+  const postToIframe = useCallback(() => {
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) return;
     try {
@@ -83,13 +105,26 @@ export function ContentViewer({
                 created_at: currentUser.created_at,
               }
             : null,
+          dashboardApiToken: dashboardToolsToken,
         },
         '*',
       );
     } catch {
       // iframe cross-origin — ignore
     }
-  }, [currentUser]);
+  }, [currentUser, dashboardToolsToken]);
+
+  const handleIframeLoad = useCallback(() => {
+    setIframeLoaded(true);
+    postToIframe();
+  }, [postToIframe]);
+
+  // O fetch do token é assíncrono e costuma terminar DEPOIS do iframe já ter
+  // carregado (o srcDoc é síncrono) — reenvia assim que o token chegar, sem
+  // esperar um segundo onLoad que nunca vai acontecer.
+  useEffect(() => {
+    if (iframeLoaded) postToIframe();
+  }, [iframeLoaded, postToIframe]);
 
   let srcDoc = '';
   if (isHtmlDoc) {
