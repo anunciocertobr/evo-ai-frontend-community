@@ -80,6 +80,8 @@ export interface WorkOrder {
   delivery_courier?: DeliveryCourier | null;
   motoboy_id?: string | null;
   motoboy_name?: string | null;
+  financial_transaction_id?: string | null;
+  stock_warnings?: string[] | null;
   items: WorkOrderItem[];
   items_count: number;
   item_names?: string;

@@ -698,7 +698,10 @@ export default function OrdersPage() {
         created = { ...editing, ...payload } as WorkOrder;
       } else {
         created = await workOrdersService.createOrder(payload);
-        toast.success('Ordem de Serviço cadastrada!');
+        toast.success('Ordem de Serviço cadastrada! Estoque abatido e venda lançada no financeiro.');
+        if (created.stock_warnings && created.stock_warnings.length > 0) {
+          created.stock_warnings.forEach((warning) => toast.warning(warning));
+        }
         setPreview(created);
       }
       resetForm();
