@@ -17,6 +17,7 @@ import {
   Download,
   Building2,
   Settings,
+  Ban,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -587,6 +588,38 @@ export default function OrdersPage() {
       loadOrders();
     } catch {
       toast.error('Erro ao excluir ordem');
+    }
+  };
+
+  // Cancelar mantém o registro (status: 'cancelled'), diferente de excluir —
+  // e deixa o operador escolher se devolve estoque e/ou estorna o financeiro,
+  // já que nem todo cancelamento implica as duas coisas.
+  const [cancelTarget, setCancelTarget] = useState<WorkOrder | null>(null);
+  const [restoreStockOnCancel, setRestoreStockOnCancel] = useState(true);
+  const [reverseFinancialOnCancel, setReverseFinancialOnCancel] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
+
+  const openCancelDialog = (order: WorkOrder) => {
+    setCancelTarget(order);
+    setRestoreStockOnCancel(true);
+    setReverseFinancialOnCancel(true);
+  };
+
+  const confirmCancelOrder = async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
+    try {
+      await workOrdersService.cancelOrder(cancelTarget.id, {
+        restore_stock: restoreStockOnCancel,
+        reverse_financial: reverseFinancialOnCancel,
+      });
+      toast.success('Ordem cancelada');
+      setCancelTarget(null);
+      loadOrders();
+    } catch {
+      toast.error('Erro ao cancelar ordem');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -1257,6 +1290,11 @@ export default function OrdersPage() {
                     <Button variant="ghost" size="icon" onClick={() => openEdit(o)} title="Editar">
                       <Edit2 className="w-4 h-4" />
                     </Button>
+                    {o.status !== 'cancelled' && (
+                      <Button variant="ghost" size="icon" className="text-amber-600 hover:text-amber-600" onClick={() => openCancelDialog(o)} title="Cancelar">
+                        <Ban className="w-4 h-4" />
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDelete(o)} title="Excluir">
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -1456,6 +1494,55 @@ export default function OrdersPage() {
               disabled={savingPipelineConfig || loadingPipelineConfig || (draftPipelineId !== 'none' && draftStageId === 'none')}
             >
               {savingPipelineConfig ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(cancelTarget)} onOpenChange={(open) => !open && setCancelTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar OS {cancelTarget?.os_number}</DialogTitle>
+            <DialogDescription>
+              A ordem fica marcada como cancelada (não é excluída). Escolha o que mais fizer sentido pra este caso.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                className="accent-primary mt-0.5"
+                checked={restoreStockOnCancel}
+                onChange={(e) => setRestoreStockOnCancel(e.target.checked)}
+              />
+              <span>
+                <span className="font-medium">Devolver os itens ao estoque</span>
+                <span className="block text-xs text-muted-foreground">
+                  Desmarque se o produto já foi preparado/consumido e não deve voltar pro estoque.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                className="accent-primary mt-0.5"
+                checked={reverseFinancialOnCancel}
+                onChange={(e) => setReverseFinancialOnCancel(e.target.checked)}
+              />
+              <span>
+                <span className="font-medium">Estornar do financeiro</span>
+                <span className="block text-xs text-muted-foreground">
+                  Desmarque se a venda já foi paga e não vai ser reembolsada.
+                </span>
+              </span>
+            </label>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCancelTarget(null)} disabled={cancelling}>
+              Voltar
+            </Button>
+            <Button type="button" variant="destructive" onClick={confirmCancelOrder} disabled={cancelling}>
+              {cancelling ? 'Cancelando...' : 'Confirmar Cancelamento'}
             </Button>
           </DialogFooter>
         </DialogContent>
