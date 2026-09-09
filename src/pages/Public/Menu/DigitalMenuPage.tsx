@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Package, ShoppingCart, X, Plus, Minus, Trash2, Search } from 'lucide-react';
+import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { menuService, PublicMenu, PublicMenuProduct } from '@/services/public/menuService';
 
 declare global {
@@ -404,6 +405,40 @@ const DigitalMenuPage = () => {
 
   const setField = (field: keyof CheckoutFormData, value: string) => {
     setCheckoutForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const [googleLoginMessage, setGoogleLoginMessage] = useState<string | null>(null);
+
+  // "Entrar com Google": se já existir um Contact (ou pedido anterior) com
+  // esse e-mail, preenche tudo o que o CRM já sabe; senão, preenche só o que
+  // o Google devolveu (nome/e-mail). Em ambos os casos o cliente continua
+  // podendo editar todos os campos normalmente.
+  const handleGoogleLoginSuccess = async (credentialResponse: CredentialResponse) => {
+    if (!credentialResponse.credential) return;
+    try {
+      const result = await menuService.googleLogin(credentialResponse.credential);
+      setCheckoutForm((prev) => ({
+        ...prev,
+        fullName: result.full_name || prev.fullName,
+        email: result.email || prev.email,
+        cpf: result.cpf || prev.cpf,
+        phone: result.phone || prev.phone,
+        instagram: result.instagram || prev.instagram,
+        zip: result.zip || prev.zip,
+        address: result.address || prev.address,
+        number: result.number || prev.number,
+        neighborhood: result.neighborhood || prev.neighborhood,
+        city: result.city || prev.city,
+        state: result.state || prev.state,
+      }));
+      setGoogleLoginMessage(
+        result.found
+          ? 'Encontramos seu cadastro! Confira os dados abaixo antes de finalizar.'
+          : 'Preenchemos com os dados do Google — complete o restante abaixo.',
+      );
+    } catch {
+      setGoogleLoginMessage('Não foi possível verificar o login do Google. Preencha manualmente.');
+    }
   };
 
   // Quando o CEP completa 8 dígitos, busca o endereço no ViaCEP e preenche
@@ -912,6 +947,25 @@ const DigitalMenuPage = () => {
             ) : (
               <form onSubmit={handleSubmitOrder} className="flex-1 overflow-y-auto flex flex-col min-h-0">
                 <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                  {settings.google_client_id && (
+                    <div className="space-y-2">
+                      <GoogleOAuthProvider clientId={settings.google_client_id} locale="pt-BR">
+                        <GoogleLogin
+                          onSuccess={handleGoogleLoginSuccess}
+                          onError={() => setGoogleLoginMessage('Não foi possível entrar com o Google. Preencha manualmente.')}
+                          text="continue_with"
+                        />
+                      </GoogleOAuthProvider>
+                      {googleLoginMessage && (
+                        <p className="text-xs" style={{ color: settings.text_color || undefined }}>{googleLoginMessage}</p>
+                      )}
+                      <div className="flex items-center gap-3 text-xs opacity-60" style={{ color: settings.text_color || undefined }}>
+                        <div className="flex-1 h-px bg-current opacity-30" />
+                        ou preencha manualmente
+                        <div className="flex-1 h-px bg-current opacity-30" />
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className={labelClass}>Nome Completo *</label>
                     <input

@@ -131,6 +131,7 @@ export interface RecurringTransactionFormData {
   end_date?: string | null;
   max_occurrences?: number | null;
   accounting_mode?: RecurrenceAccountingMode;
+  active?: boolean;
 }
 
 class RecurringTransactionsService {
