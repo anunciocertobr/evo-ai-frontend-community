@@ -48,6 +48,7 @@ import { BaseHeader } from '@/components/base';
 import { contactsService } from '@/services/contacts/contactsService';
 import { productsService } from '@/services/products/productsService';
 import { workOrdersService, WorkOrderPipelineConfig } from '@/services/orders/workOrdersService';
+import { motoboysService, Motoboy } from '@/services/orders/motoboysService';
 import type { Product } from '@/types/products';
 import {
   WorkOrder,
@@ -57,6 +58,10 @@ import {
   WORK_ORDER_STATUSES,
   WORK_ORDER_STATUS_LABELS,
   PaymentMethod,
+  FulfillmentType,
+  FULFILLMENT_TYPE_LABELS,
+  DeliveryCourier,
+  DELIVERY_COURIER_LABELS,
 } from '@/types/orders/workOrder';
 
 type View = 'registrar' | 'consultar';
@@ -105,6 +110,9 @@ function emptyForm() {
     client_birthdate: '',
     entry_date: new Date().toISOString().slice(0, 16),
     pickup_date: '',
+    fulfillment_type: 'pickup' as FulfillmentType,
+    delivery_courier: '' as DeliveryCourier | '',
+    motoboy_id: '',
     discount: '',
     payment_method: 'Não Definido' as PaymentMethod,
     installments: '',
@@ -269,11 +277,6 @@ function buildOsDocument(order: WorkOrder, company: CompanyProfile): string {
       </div>
       ${addressLine ? `<div style="font-size: 0.875rem; margin-top: 0.25rem; border-top: 1px solid #eee; padding-top: 0.25rem;"><p style="margin: 2px 0;"><strong>Endereço:</strong> ${escapeHtml(addressLine)}</p></div>` : ''}
     </section>
-    <section style="font-size: 0.875rem; margin-bottom: 0.5rem;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-        <p style="margin: 0;"><strong>Aparelho Liga:</strong> ${order.device_turns_on ? 'Sim' : 'Não'} &nbsp;|&nbsp; <strong>Retirou:</strong> ${order.picked_up ? 'Sim' : 'Não'}</p>
-      </div>
-    </section>
     <section style="margin-bottom: 1rem;">
       <h6 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid #eee;">Produtos e Serviços</h6>
       <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">
@@ -297,18 +300,6 @@ function buildOsDocument(order: WorkOrder, company: CompanyProfile): string {
       <p style="font-size: 1.25rem; font-weight: bold; margin: 2px 0;">Total: ${formatCurrency(Number(order.total))}</p>
       <p style="margin: 2px 0;"><strong>Forma de Pagamento:</strong> ${escapeHtml(order.payment_method)}${order.installments ? ` (${order.installments}x)` : ''}</p>
     </section>
-    <footer style="padding-top: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; text-align: center; font-size: 0.875rem;">
-      <div>
-        <div style="border-top: 1px solid #333; width: 80%; margin: 0 auto; padding-top: 0.5rem;">
-          <p style="margin: 0;">Assinatura do Cliente</p>
-        </div>
-      </div>
-      <div>
-        <div style="border-top: 1px solid #333; width: 80%; margin: 0 auto; padding-top: 0.5rem;">
-          <p style="margin: 0;">Assinatura Responsável</p>
-        </div>
-      </div>
-    </footer>
     ${company.termos ? `<div style="font-size: 0.65rem; color: #555; margin-top: 1rem; padding-top: 0.5rem; border-top: 1px solid #ccc;">${escapeHtml(company.termos)}</div>` : ''}
   `;
 }
@@ -343,7 +334,21 @@ export default function OrdersPage() {
   const [savingPipelineConfig, setSavingPipelineConfig] = useState(false);
   const [draftPipelineId, setDraftPipelineId] = useState<string>('none');
   const [draftStageId, setDraftStageId] = useState<string>('none');
+  const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
+  const [motoboysLoaded, setMotoboysLoaded] = useState(false);
   const clientSearchTimer = useRef<number | null>(null);
+
+  const ensureMotoboysLoaded = async () => {
+    if (motoboysLoaded) return;
+    try {
+      const list = await motoboysService.getMotoboys();
+      setMotoboys(list);
+    } catch {
+      toast.error('Erro ao carregar motoboys cadastrados.');
+    } finally {
+      setMotoboysLoaded(true);
+    }
+  };
 
   const addProductByCode = async (code: string) => {
     if (!code.trim()) return;
@@ -561,6 +566,9 @@ export default function OrdersPage() {
       client_birthdate: '',
        entry_date: order.entry_date ? new Date(order.entry_date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
        pickup_date: toLocalInputDate(order.pickup_date),
+       fulfillment_type: order.fulfillment_type ?? 'pickup',
+       delivery_courier: (order.delivery_courier ?? '') as DeliveryCourier | '',
+       motoboy_id: order.motoboy_id ?? '',
        discount: String(order.discount || ''),
        payment_method: order.payment_method,
        installments: String(order.installments ?? ''),
@@ -568,6 +576,7 @@ export default function OrdersPage() {
     setOrderItems(order.items ?? []);
     setSelectedClientId(null);
     setSavedClientSnapshot('');
+    if (order.delivery_courier === 'motoboy_proprio') ensureMotoboysLoaded();
   };
 
   const handleDelete = async (order: WorkOrder) => {
@@ -670,6 +679,9 @@ export default function OrdersPage() {
       client_state: form.client_state.trim(),
       entry_date: form.entry_date ? new Date(form.entry_date).toISOString() : new Date().toISOString(),
       pickup_date: form.pickup_date ? new Date(`${form.pickup_date}T12:00:00`).toISOString() : null,
+      fulfillment_type: form.fulfillment_type,
+      delivery_courier: form.fulfillment_type === 'delivery' ? (form.delivery_courier || null) : null,
+      motoboy_id: form.fulfillment_type === 'delivery' && form.delivery_courier === 'motoboy_proprio' ? (form.motoboy_id || null) : null,
       items: orderItems,
       base_value: Number(baseValue.toFixed(2)),
       discount: Number(discount.toFixed(2)),
@@ -935,6 +947,68 @@ export default function OrdersPage() {
             <Label htmlFor="os-data-retirada">Data de Retirada</Label>
             <Input id="os-data-retirada" type="date" value={form.pickup_date} onChange={(e) => setForm({ ...form, pickup_date: e.target.value })} />
           </div>
+        </div>
+
+        <div className="pt-2 border-t border-border space-y-3">
+          <div className="space-y-1.5">
+            <Label>Retirada ou Entrega</Label>
+            <div className="flex gap-2">
+              {(['pickup', 'delivery'] as FulfillmentType[]).map((ft) => (
+                <button
+                  key={ft}
+                  type="button"
+                  onClick={() => setForm({ ...form, fulfillment_type: ft, ...(ft === 'pickup' ? { delivery_courier: '', motoboy_id: '' } : {}) })}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                    form.fulfillment_type === ft
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {FULFILLMENT_TYPE_LABELS[ft]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {form.fulfillment_type === 'delivery' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="os-courier">Entregador</Label>
+                <Select
+                  value={form.delivery_courier}
+                  onValueChange={(v) => {
+                    setForm({ ...form, delivery_courier: v as DeliveryCourier, motoboy_id: '' });
+                    if (v === 'motoboy_proprio') ensureMotoboysLoaded();
+                  }}
+                >
+                  <SelectTrigger id="os-courier"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(DELIVERY_COURIER_LABELS) as DeliveryCourier[]).map((c) => (
+                      <SelectItem key={c} value={c}>{DELIVERY_COURIER_LABELS[c]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.delivery_courier === 'motoboy_proprio' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="os-motoboy">Motoboy</Label>
+                  <Select value={form.motoboy_id} onValueChange={(v) => setForm({ ...form, motoboy_id: v })}>
+                    <SelectTrigger id="os-motoboy"><SelectValue placeholder={motoboysLoaded ? 'Selecione...' : 'Carregando...'} /></SelectTrigger>
+                    <SelectContent>
+                      {motoboys.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name} {m.status !== 'disponivel' ? `(${m.status === 'em_entrega' ? 'em entrega' : 'offline'})` : ''}
+                        </SelectItem>
+                      ))}
+                      {motoboysLoaded && motoboys.length === 0 && (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhum motoboy cadastrado.</div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

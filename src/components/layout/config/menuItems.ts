@@ -182,13 +182,6 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
     ],
   },
   {
-    name: 'Cardápio',
-    href: '/orders/ifood?tab=cardapio',
-    icon: UtensilsCrossed,
-    resource: 'products',
-    action: 'read',
-  },
-  {
     name: 'Finanças',
     // '#': clicar apenas abre/fecha o painel do submenu; as entradas Loja /
     // Pessoal / Ambos é que navegam. Com href='/finances', clicar no pai caía

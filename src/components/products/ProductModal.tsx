@@ -1030,25 +1030,39 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
                     </div>
                   </div>
 
-              {form.item_type === 'equipamento' && (
-                <div className="col-span-2 space-y-1.5 border p-3 rounded-md bg-muted/30">
-                  <Label htmlFor="p-equipamento-tipo">Tipo de Equipamento</Label>
-                  <Select
-                    value={form.equipamento_tipo || 'maquina'}
-                    onValueChange={(v) => setForm({ ...form, equipamento_tipo: v })}
-                  >
-                    <SelectTrigger id="p-equipamento-tipo">
-                      <SelectValue placeholder="Selecione o tipo de equipamento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="maquina">Máquina</SelectItem>
-                      <SelectItem value="escritorio">Item de Escritório</SelectItem>
-                      <SelectItem value="cozinha">Cozinha</SelectItem>
-                      <SelectItem value="ti">TI</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              {form.item_type === 'equipamento' && (() => {
+                const fixedOptions = ['maquina', 'escritorio', 'cozinha', 'ti'];
+                const isCustom = form.equipamento_tipo !== '' && !fixedOptions.includes(form.equipamento_tipo);
+                return (
+                  <div className="col-span-2 space-y-1.5 border p-3 rounded-md bg-muted/30">
+                    <Label htmlFor="p-equipamento-tipo">Tipo de Equipamento</Label>
+                    <Select
+                      value={isCustom ? 'outro' : form.equipamento_tipo || 'maquina'}
+                      onValueChange={(v) => setForm({ ...form, equipamento_tipo: v === 'outro' ? '' : v })}
+                    >
+                      <SelectTrigger id="p-equipamento-tipo">
+                        <SelectValue placeholder="Selecione o tipo de equipamento" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="maquina">Máquina</SelectItem>
+                        <SelectItem value="escritorio">Item de Escritório</SelectItem>
+                        <SelectItem value="cozinha">Cozinha</SelectItem>
+                        <SelectItem value="ti">TI</SelectItem>
+                        <SelectItem value="outro">Outro (digite o nome)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(isCustom || form.equipamento_tipo === '') && (
+                      <Input
+                        id="p-equipamento-tipo-custom"
+                        value={form.equipamento_tipo}
+                        onChange={(e) => setForm({ ...form, equipamento_tipo: e.target.value })}
+                        placeholder="Ex: Ferramenta, Veículo, Instrumento musical..."
+                        className="mt-1.5"
+                      />
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="col-span-2 space-y-1.5">
                 <Label htmlFor="p-name">
@@ -1583,26 +1597,6 @@ export default function ProductModal({ open, product, loading, errors, onOpenCha
                         checked={form.publish_ml}
                         onCheckedChange={(checked) => setForm({ ...form, publish_ml: Boolean(checked) })}
                       />
-                    </div>
-                  </div>
-
-                                    <div>
-                    <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-                        <Wrench className="w-4 h-4 text-primary" /> Equipamento
-                    </h4>
-                    <div className="grid grid-cols-1 gap-3 rounded-lg border border-border p-3">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="p-equipamento-tipo">Tipo de Equipamento</Label>
-                            <Select value={form.equipamento_tipo} onValueChange={(v) => setForm({...form, equipamento_tipo: v})}>
-                                <SelectTrigger id="p-equipamento-tipo"><SelectValue placeholder="Selecione o tipo..." /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="maquina">Máquina</SelectItem>
-                                    <SelectItem value="escritorio">Item de Escritório</SelectItem>
-                                    <SelectItem value="cozinha">Item de Cozinha</SelectItem>
-                                    <SelectItem value="ti">Item de TI</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
                     </div>
                   </div>
 
