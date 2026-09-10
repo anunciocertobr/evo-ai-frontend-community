@@ -38,9 +38,21 @@ export const CHANGELOG_LEVEL_OPTIONS: { value: ChangelogLevel; label: string }[]
 
 export type ChangelogLevel = 'conta' | 'campanha' | 'conjunto' | 'anuncio';
 
+export type Gender = 'all' | 'male' | 'female';
+
+export const GENDER_OPTIONS: { value: Gender; label: string }[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'male', label: 'Masculino' },
+  { value: 'female', label: 'Feminino' },
+];
+
 export interface ClientGoalAdAccount {
   id: string;
   name: string;
+  locations: string[];
+  age_min: number | null;
+  age_max: number | null;
+  gender: Gender | null;
   objectives: ClientGoalObjective[];
 }
 

@@ -62,6 +62,8 @@ import {
   OBJECTIVE_TYPE_OPTIONS,
   SALES_CHANNEL_OPTIONS,
   CHANGELOG_LEVEL_OPTIONS,
+  GENDER_OPTIONS,
+  Gender,
 } from '@/services/marketing/clientGoalsService';
 
 // Os campos do design system usam fundo transparente por padrão (só a borda
@@ -95,7 +97,15 @@ const emptyObjective = (): ClientGoalObjective => ({
 
 // Cada conta de anúncio tem seus PRÓPRIOS objetivos — contas diferentes do
 // mesmo cliente podem ter metas bem diferentes entre si.
-const emptyAdAccount = (): ClientGoalAdAccount => ({ id: '', name: '', objectives: [emptyObjective()] });
+const emptyAdAccount = (): ClientGoalAdAccount => ({
+  id: '',
+  name: '',
+  locations: [],
+  age_min: null,
+  age_max: null,
+  gender: 'all',
+  objectives: [emptyObjective()],
+});
 
 const emptyForm = (): ClientGoalFormData => ({
   name: '',
@@ -126,6 +136,14 @@ const money = (v: number | null | undefined) =>
   v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const num = (v: number | null | undefined) => (v == null ? '—' : v.toLocaleString('pt-BR'));
+
+const genderLabel = (g: Gender | null | undefined) => GENDER_OPTIONS.find((opt) => opt.value === g)?.label || 'Todos';
+
+const ageRangeLabel = (min: number | null | undefined, max: number | null | undefined) => {
+  if (min == null && max == null) return null;
+  if (min != null && max != null) return `${min}-${max} anos`;
+  return min != null ? `A partir de ${min} anos` : `Até ${max} anos`;
+};
 
 // O backend devolve { success: false, errors: ["motivo real"] } — sem isso,
 // qualquer rejeição de validação (ex: nome com mais de 255 caracteres, fácil
@@ -212,10 +230,36 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
     });
   };
 
+  const patchAdAccount = (index: number, patch: Partial<ClientGoalAdAccount>) => {
+    setForm((prev) => {
+      const list = [...prev.ad_accounts];
+      list[index] = { ...list[index], ...patch };
+      return { ...prev, ad_accounts: list };
+    });
+  };
+
   const addAdAccount = () => setForm((prev) => ({ ...prev, ad_accounts: [...prev.ad_accounts, emptyAdAccount()] }));
 
   const removeAdAccount = (index: number) =>
     setForm((prev) => ({ ...prev, ad_accounts: prev.ad_accounts.filter((_, i) => i !== index) }));
+
+  // Um input de localização "pendente" por conta (a pessoa digita e aperta
+  // Enter pra adicionar à lista) — precisa ser por índice porque cada conta
+  // tem sua própria lista de localizações.
+  const [locationInputs, setLocationInputs] = useState<Record<number, string>>({});
+
+  const addLocation = (accountIndex: number) => {
+    const value = (locationInputs[accountIndex] || '').trim();
+    if (!value) return;
+    const current = form.ad_accounts[accountIndex].locations;
+    if (!current.includes(value)) {
+      patchAdAccount(accountIndex, { locations: [...current, value] });
+    }
+    setLocationInputs((prev) => ({ ...prev, [accountIndex]: '' }));
+  };
+
+  const removeLocation = (accountIndex: number, value: string) =>
+    patchAdAccount(accountIndex, { locations: form.ad_accounts[accountIndex].locations.filter((l) => l !== value) });
 
   const updateObjective = (accountIndex: number, objIndex: number, patch: Partial<ClientGoalObjective>) => {
     setForm((prev) => {
@@ -368,6 +412,83 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                   <Button size="icon" variant="ghost" onClick={() => removeAdAccount(accIndex)}>
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <Label className="text-xs">Idade Mínima</Label>
+                    <Input
+                      className={FIELD_CLASS}
+                      type="number"
+                      min={13}
+                      max={65}
+                      value={acc.age_min ?? ''}
+                      onChange={(e) => patchAdAccount(accIndex, { age_min: e.target.value === '' ? null : Number(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Idade Máxima</Label>
+                    <Input
+                      className={FIELD_CLASS}
+                      type="number"
+                      min={13}
+                      max={65}
+                      value={acc.age_max ?? ''}
+                      onChange={(e) => patchAdAccount(accIndex, { age_max: e.target.value === '' ? null : Number(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Gênero</Label>
+                    <Select value={acc.gender || 'all'} onValueChange={(v) => patchAdAccount(accIndex, { gender: v as Gender })}>
+                      <SelectTrigger className={FIELD_CLASS}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GENDER_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs">Localizações</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      className={FIELD_CLASS}
+                      value={locationInputs[accIndex] || ''}
+                      onChange={(e) => setLocationInputs((prev) => ({ ...prev, [accIndex]: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addLocation(accIndex);
+                        }
+                      }}
+                      placeholder="Ex: São Paulo, SP (Enter pra adicionar)"
+                    />
+                    <Button type="button" size="icon" variant="outline" onClick={() => addLocation(accIndex)}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {acc.locations.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {acc.locations.map((loc) => (
+                        <Badge key={loc} variant="outline" className="gap-1">
+                          {loc}
+                          <button
+                            type="button"
+                            onClick={() => removeLocation(accIndex, loc)}
+                            className="ml-1 text-muted-foreground hover:text-red-500"
+                          >
+                            ×
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <Separator />
@@ -884,11 +1005,24 @@ export default function ClientGoalsPage() {
                               {goal.ad_accounts.length ? (
                                 goal.ad_accounts.map((account) => (
                                   <div key={account.id} className="rounded-md border bg-background p-3">
-                                    <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                                    <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
                                       <Building2 className="h-4 w-4 text-muted-foreground" />
                                       {account.name || account.id}
                                       <span className="text-xs font-normal text-muted-foreground">({account.id})</span>
                                     </div>
+                                    {(account.locations.length > 0 || ageRangeLabel(account.age_min, account.age_max) || account.gender) && (
+                                      <div className="mb-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                                        {account.locations.map((loc) => (
+                                          <Badge key={loc} variant="outline">
+                                            {loc}
+                                          </Badge>
+                                        ))}
+                                        {ageRangeLabel(account.age_min, account.age_max) && (
+                                          <Badge variant="outline">{ageRangeLabel(account.age_min, account.age_max)}</Badge>
+                                        )}
+                                        <Badge variant="outline">{genderLabel(account.gender)}</Badge>
+                                      </div>
+                                    )}
                                     {account.objectives.length ? (
                                       <div className="space-y-3">
                                         {account.objectives.map((o) => (
