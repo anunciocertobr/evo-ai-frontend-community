@@ -38,9 +38,13 @@ import {
   Badge,
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   Separator,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@evoapi/design-system';
 import { BaseHeader } from '@/components/base';
 import {
@@ -56,6 +60,13 @@ import {
   SALES_CHANNEL_OPTIONS,
   CHANGELOG_LEVEL_OPTIONS,
 } from '@/services/marketing/clientGoalsService';
+
+// Os campos do design system usam fundo transparente por padrão (só a borda
+// marca o campo) — nesta tela, com vários campos numéricos pequenos lado a
+// lado, isso ficava ilegível tanto no claro quanto no escuro (o campo se
+// confundia com o fundo do card/diálogo). Fundo próprio, visível nos dois
+// temas.
+const FIELD_CLASS = 'bg-slate-100 dark:bg-slate-800/70 border-slate-300 dark:border-slate-700';
 
 const emptyObjective = (): ClientGoalObjective => ({
   key: `novo-${Math.random().toString(36).slice(2)}`,
@@ -213,20 +224,18 @@ export default function ClientGoalsPage() {
       toast.error('Informe o nome do cliente.');
       return;
     }
+    // Único campo obrigatório é o nome — conta de anúncio, objetivos, etc.
+    // são todos opcionais e podem ser preenchidos depois. Um objetivo "Outro"
+    // sem rótulo ainda precisa de algum texto pro backend (identifica o
+    // objetivo), então preenche um padrão em vez de bloquear o salvamento.
     const cleanedAdAccounts = form.ad_accounts.filter((a) => a.id.trim());
-    if (!cleanedAdAccounts.length) {
-      toast.error('Informe ao menos uma conta de anúncio.');
-      return;
-    }
-    const invalidObjective = form.objectives.find((o) => o.objective_type === 'outro' && !o.custom_label?.trim());
-    if (invalidObjective) {
-      toast.error('Todo objetivo "Outro" precisa de um rótulo.');
-      return;
-    }
+    const cleanedObjectives = form.objectives.map((o) =>
+      o.objective_type === 'outro' && !o.custom_label?.trim() ? { ...o, custom_label: 'Outro' } : o
+    );
 
     setSaving(true);
     try {
-      const payload: ClientGoalFormData = { ...form, ad_accounts: cleanedAdAccounts };
+      const payload: ClientGoalFormData = { ...form, ad_accounts: cleanedAdAccounts, objectives: cleanedObjectives };
       if (editingId) {
         await clientGoalsService.update(editingId, payload);
         toast.success('Cliente atualizado.');
@@ -282,71 +291,83 @@ export default function ClientGoalsPage() {
         ) : goals.length === 0 ? (
           <p className="text-sm text-slate-500">Nenhum cliente cadastrado ainda.</p>
         ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {goals.map((goal) => (
-              <Card key={goal.id} className={!goal.active ? 'opacity-60' : ''}>
-                <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                  <div>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Target className="h-4 w-4" /> {goal.name}
-                      {!goal.active && <Badge variant="outline">Pausado</Badge>}
-                    </CardTitle>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {goal.segment || 'Sem segmento'} · Fecha venda: {goal.sales_channel || 'não informado'}
-                    </p>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button size="icon" variant="ghost" title={goal.active ? 'Pausar' : 'Reativar'} onClick={() => handleToggleActive(goal)}>
-                      <Power className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={() => openEdit(goal)}>
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(goal)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-1 text-xs">
-                    <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                    {goal.ad_accounts.map((a) => (
-                      <Badge key={a.id} variant="outline">
-                        {a.name || a.id} ({a.id})
-                      </Badge>
-                    ))}
-                    <span className="ml-auto font-medium">Orçamento Meta: {money(goal.meta_budget)}</span>
-                  </div>
-                  <Separator />
-                  <div className="space-y-2">
-                    {goal.objectives.map((o) => (
-                      <div key={o.key} className="flex flex-col gap-1 rounded-md border p-2 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">{objectiveLabel(o)}</span>
-                          <span className="text-slate-500">Orçamento: {money(o.budget)}</span>
-                        </div>
-                        <ObservationBadge objective={o} />
-                      </div>
-                    ))}
-                  </div>
-                  {goal.changelog.length > 0 && (
-                    <>
-                      <Separator />
-                      <div className="text-xs">
-                        <p className="mb-1 font-medium text-slate-500">Últimas mudanças</p>
-                        {goal.changelog.slice(0, 2).map((c, idx) => (
-                          <p key={idx} className="text-slate-500">
-                            {c.change_date} — [{c.level}] {c.reference_name ? `${c.reference_name}: ` : ''}
-                            {c.description}
-                          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Segmento</TableHead>
+                <TableHead>Fecha Venda</TableHead>
+                <TableHead>Contas de Anúncio</TableHead>
+                <TableHead>Objetivos</TableHead>
+                <TableHead>Orçamento Meta</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {goals.map((goal) => (
+                <TableRow key={goal.id} className={!goal.active ? 'opacity-60' : ''}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <Target className="h-4 w-4 text-slate-400" /> {goal.name}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm text-slate-500">{goal.segment || '—'}</TableCell>
+                  <TableCell className="text-sm text-slate-500">{goal.sales_channel || '—'}</TableCell>
+                  <TableCell>
+                    {goal.ad_accounts.length ? (
+                      <div className="flex flex-wrap gap-1">
+                        {goal.ad_accounts.map((a) => (
+                          <Badge key={a.id} variant="outline" className="gap-1">
+                            <Building2 className="h-3 w-3" /> {a.name || a.id}
+                          </Badge>
                         ))}
                       </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    ) : (
+                      <span className="text-sm text-slate-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {goal.objectives.length ? (
+                      <div className="flex flex-col gap-1">
+                        {goal.objectives.map((o) => (
+                          <div key={o.key} className="flex items-center gap-2 text-xs">
+                            <span className="font-medium">{objectiveLabel(o)}</span>
+                            <ObservationBadge objective={o} />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-slate-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm font-medium">{money(goal.meta_budget)}</TableCell>
+                  <TableCell>
+                    {goal.active ? (
+                      <Badge variant="secondary" className="bg-green-100 text-green-800">
+                        Ativo
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">Pausado</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button size="icon" variant="ghost" title={goal.active ? 'Pausar' : 'Reativar'} onClick={() => handleToggleActive(goal)}>
+                        <Power className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => openEdit(goal)}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(goal)}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
 
@@ -362,12 +383,18 @@ export default function ClientGoalsPage() {
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <Label>Nome do Cliente</Label>
-                <Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="Ex: Burger House" />
+                <Label>Nome do Cliente *</Label>
+                <Input
+                  className={FIELD_CLASS}
+                  value={form.name}
+                  onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="Ex: Burger House"
+                />
               </div>
               <div>
                 <Label>Segmento</Label>
                 <Input
+                  className={FIELD_CLASS}
                   value={form.segment || ''}
                   onChange={(e) => setForm((p) => ({ ...p, segment: e.target.value }))}
                   placeholder="Ex: Hamburgueria / Delivery"
@@ -376,7 +403,7 @@ export default function ClientGoalsPage() {
               <div>
                 <Label>Onde fecha venda?</Label>
                 <Select value={form.sales_channel || ''} onValueChange={(v) => setForm((p) => ({ ...p, sales_channel: v }))}>
-                  <SelectTrigger>
+                  <SelectTrigger className={FIELD_CLASS}>
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -391,6 +418,7 @@ export default function ClientGoalsPage() {
               <div>
                 <Label>Orçamento Total pra Meta (R$)</Label>
                 <Input
+                  className={FIELD_CLASS}
                   type="number"
                   step="0.01"
                   value={form.meta_budget ?? ''}
@@ -411,8 +439,18 @@ export default function ClientGoalsPage() {
               <div className="space-y-2">
                 {form.ad_accounts.map((acc, index) => (
                   <div key={index} className="flex gap-2">
-                    <Input placeholder="ID da conta (act_...)" value={acc.id} onChange={(e) => updateAdAccount(index, 'id', e.target.value)} />
-                    <Input placeholder="Nome da conta" value={acc.name} onChange={(e) => updateAdAccount(index, 'name', e.target.value)} />
+                    <Input
+                      className={FIELD_CLASS}
+                      placeholder="ID da conta (act_...)"
+                      value={acc.id}
+                      onChange={(e) => updateAdAccount(index, 'id', e.target.value)}
+                    />
+                    <Input
+                      className={FIELD_CLASS}
+                      placeholder="Nome da conta"
+                      value={acc.name}
+                      onChange={(e) => updateAdAccount(index, 'name', e.target.value)}
+                    />
                     <Button size="icon" variant="ghost" onClick={() => removeAdAccount(index)}>
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
@@ -441,7 +479,7 @@ export default function ClientGoalsPage() {
                             value={obj.objective_type}
                             onValueChange={(v) => updateObjective(index, { objective_type: v as ObjectiveType })}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className={FIELD_CLASS}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -456,12 +494,17 @@ export default function ClientGoalsPage() {
                         {obj.objective_type === 'outro' && (
                           <div className="flex-1">
                             <Label>Rótulo do Objetivo</Label>
-                            <Input value={obj.custom_label || ''} onChange={(e) => updateObjective(index, { custom_label: e.target.value })} />
+                            <Input
+                              className={FIELD_CLASS}
+                              value={obj.custom_label || ''}
+                              onChange={(e) => updateObjective(index, { custom_label: e.target.value })}
+                            />
                           </div>
                         )}
                         <div className="w-40">
                           <Label>Orçamento (R$)</Label>
                           <Input
+                            className={FIELD_CLASS}
                             type="number"
                             step="0.01"
                             value={obj.budget ?? ''}
@@ -492,6 +535,7 @@ export default function ClientGoalsPage() {
                             <p className="text-xs font-semibold text-slate-500">{period.label}</p>
                             <Label className="text-xs">Meta de Resultado</Label>
                             <Input
+                              className={FIELD_CLASS}
                               type="number"
                               step="0.01"
                               value={(obj[`target_result_${period.key}` as keyof ClientGoalObjective] as number) ?? ''}
@@ -502,8 +546,9 @@ export default function ClientGoalsPage() {
                               }
                             />
                             <Label className="text-xs">Custo por Resultado — Margem Aceita (R$)</Label>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1.5">
                               <Input
+                                className={`${FIELD_CLASS} min-w-0 flex-1`}
                                 type="number"
                                 step="0.01"
                                 placeholder="Mín"
@@ -514,8 +559,9 @@ export default function ClientGoalsPage() {
                                   })
                                 }
                               />
-                              <span className="text-xs text-slate-400">até</span>
+                              <span className="shrink-0 text-xs text-slate-400">até</span>
                               <Input
+                                className={`${FIELD_CLASS} min-w-0 flex-1`}
                                 type="number"
                                 step="0.01"
                                 placeholder="Máx"
@@ -552,12 +598,13 @@ export default function ClientGoalsPage() {
               </p>
               <div className="mb-3 grid grid-cols-1 gap-2 rounded-md border p-3 sm:grid-cols-4">
                 <Input
+                  className={FIELD_CLASS}
                   type="date"
                   value={newChangeEntry.change_date}
                   onChange={(e) => setNewChangeEntry((p) => ({ ...p, change_date: e.target.value }))}
                 />
                 <Select value={newChangeEntry.level} onValueChange={(v) => setNewChangeEntry((p) => ({ ...p, level: v as ChangelogLevel }))}>
-                  <SelectTrigger>
+                  <SelectTrigger className={FIELD_CLASS}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -569,6 +616,7 @@ export default function ClientGoalsPage() {
                   </SelectContent>
                 </Select>
                 <Input
+                  className={FIELD_CLASS}
                   placeholder="Nome (opcional)"
                   value={newChangeEntry.reference_name || ''}
                   onChange={(e) => setNewChangeEntry((p) => ({ ...p, reference_name: e.target.value }))}
@@ -577,7 +625,7 @@ export default function ClientGoalsPage() {
                   <Plus className="h-3.5 w-3.5" /> Adicionar
                 </Button>
                 <Textarea
-                  className="sm:col-span-4"
+                  className={`${FIELD_CLASS} sm:col-span-4`}
                   placeholder="O que mudou?"
                   value={newChangeEntry.description}
                   onChange={(e) => setNewChangeEntry((p) => ({ ...p, description: e.target.value }))}
