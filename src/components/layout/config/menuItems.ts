@@ -47,6 +47,7 @@ import {
   Paintbrush,
   HardDrive,
   Box,
+  Target,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -210,6 +211,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
     subItems: [
       { name: 'GTM', href: '/marketing/gtm', icon: Tag },
       { name: 'Gestor de Posts', href: '/marketing/gestor-posts', icon: Image },
+      { name: 'Metas de Clientes', href: '/marketing/metas-clientes', icon: Target },
       { name: 'Painel Tráfego', href: '/editor/content/mtlsqe9g-44xt89', icon: Megaphone },
       { name: 'Setup Marketing (Meta/GA4/Ads)', href: '/editor/content/setupbm-36c48c9d', icon: Settings },
       { name: 'Copy de Tráfego (Meta)', href: '/editor/content/mktia-copytrafego', icon: PenTool },

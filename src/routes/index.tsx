@@ -77,6 +77,7 @@ import NotaFiscalPage from '@/pages/Customer/Finances/NotaFiscalPage';
 import RecibosPage from '@/pages/Customer/Finances/RecibosPage';
 import GtmPage from '@/pages/Customer/Marketing/GtmPage';
 import GestorPostsPage from '@/pages/Customer/Marketing/GestorPostsPage';
+import ClientGoalsPage from '@/pages/Customer/Marketing/ClientGoalsPage';
 import OrdersPage from '@/pages/Customer/Orders/OrdersPage';
 import IfoodOrdersPage from '@/pages/Customer/Orders/IfoodOrdersPage';
 import NinetyNineOrdersPage from '@/pages/Customer/Orders/NinetyNineOrdersPage';
@@ -660,6 +661,20 @@ const AppRouter = () => {
                 <CustomerRoute>
                   <MainLayout>
                     <GestorPostsPage />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* Marketing > Metas de Clientes: lista de contas de anúncio por cliente, objetivos, orçamentos e metas de custo por resultado */}
+          <Route
+            path="/marketing/metas-clientes"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <ClientGoalsPage />
                   </MainLayout>
                 </CustomerRoute>
               </PrivateRoute>
