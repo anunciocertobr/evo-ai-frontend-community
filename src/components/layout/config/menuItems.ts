@@ -220,6 +220,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
       { name: 'Roteiro de Vídeo', href: '/editor/content/mktia-roteirovideo', icon: Video },
       { name: 'Suíte de Mídia', href: '/editor/content/mktia-suitemidia', icon: Layers },
       { name: 'Quadro de Desenho', href: '/editor/content/mktia-quadrodesenho', icon: Paintbrush },
+      { name: 'Lista de Clientes', href: '/editor/content/mktia-listaclientes', icon: Users2 },
     ],
   },
   {
