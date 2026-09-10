@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import {
   Plus,
   Trash2,
@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   MinusCircle,
   Power,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -103,6 +105,14 @@ const objectiveLabel = (o: ClientGoalObjective) =>
 const money = (v: number | null | undefined) =>
   v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+const num = (v: number | null | undefined) => (v == null ? '—' : v.toLocaleString('pt-BR'));
+
+const PERIODS = [
+  { key: 'daily', label: 'Diário' },
+  { key: 'weekly', label: 'Semanal' },
+  { key: 'monthly', label: 'Mensal' },
+] as const;
+
 function ObservationBadge({ objective }: { objective: ClientGoalObjective }) {
   const status = objective.status;
   if (!status || !status.trackable) {
@@ -134,6 +144,7 @@ export default function ClientGoalsPage() {
   const [form, setForm] = useState<ClientGoalFormData>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ClientGoal | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [newChangeEntry, setNewChangeEntry] = useState<ClientGoalChangelogEntry>({
     change_date: new Date().toISOString().slice(0, 10),
     level: 'conta',
@@ -294,6 +305,7 @@ export default function ClientGoalsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead />
                 <TableHead>Cliente</TableHead>
                 <TableHead>Segmento</TableHead>
                 <TableHead>Fecha Venda</TableHead>
@@ -305,71 +317,161 @@ export default function ClientGoalsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {goals.map((goal) => (
-                <TableRow
-                  key={goal.id}
-                  className={`cursor-pointer ${!goal.active ? 'opacity-60' : ''}`}
-                  onClick={() => openEdit(goal)}
-                >
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <Target className="h-4 w-4 text-muted-foreground" /> {goal.name}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{goal.segment || '—'}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{goal.sales_channel || '—'}</TableCell>
-                  <TableCell>
-                    {goal.ad_accounts.length ? (
-                      <div className="flex flex-wrap gap-1">
-                        {goal.ad_accounts.map((a) => (
-                          <Badge key={a.id} variant="outline" className="gap-1">
-                            <Building2 className="h-3 w-3" /> {a.name || a.id}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {goal.objectives.length ? (
-                      <div className="flex flex-col gap-1">
-                        {goal.objectives.map((o) => (
-                          <div key={o.key} className="flex items-center gap-2 text-xs">
-                            <span className="font-medium">{objectiveLabel(o)}</span>
-                            <ObservationBadge objective={o} />
+              {goals.map((goal) => {
+                const expanded = expandedId === goal.id;
+                return (
+                  <Fragment key={goal.id}>
+                    <TableRow
+                      className={`cursor-pointer ${!goal.active ? 'opacity-60' : ''}`}
+                      onClick={() => setExpandedId(expanded ? null : goal.id)}
+                    >
+                      <TableCell className="w-6 text-muted-foreground">
+                        {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <Target className="h-4 w-4 text-muted-foreground" /> {goal.name}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{goal.segment || '—'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{goal.sales_channel || '—'}</TableCell>
+                      <TableCell>
+                        {goal.ad_accounts.length ? (
+                          <div className="flex flex-wrap gap-1">
+                            {goal.ad_accounts.map((a) => (
+                              <Badge key={a.id} variant="outline" className="gap-1">
+                                <Building2 className="h-3 w-3" /> {a.name || a.id}
+                              </Badge>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">—</span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {goal.objectives.length ? (
+                          <div className="flex flex-col gap-1">
+                            {goal.objectives.map((o) => (
+                              <div key={o.key} className="flex items-center gap-2 text-xs">
+                                <span className="font-medium">{objectiveLabel(o)}</span>
+                                <ObservationBadge objective={o} />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">{money(goal.meta_budget)}</TableCell>
+                      <TableCell>
+                        {goal.active ? (
+                          <Badge variant="secondary" className="bg-green-100 text-green-800">
+                            Ativo
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">Pausado</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex justify-end gap-1">
+                          <Button size="icon" variant="ghost" title={goal.active ? 'Pausar' : 'Reativar'} onClick={() => handleToggleActive(goal)}>
+                            <Power className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" title="Editar" onClick={() => openEdit(goal)}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(goal)}>
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {expanded && (
+                      <TableRow>
+                        <TableCell colSpan={9} className="bg-muted/30 p-4">
+                          <div className="space-y-4">
+                            <div>
+                              <p className="mb-1 text-xs font-semibold text-muted-foreground">Contas de Anúncio</p>
+                              {goal.ad_accounts.length ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {goal.ad_accounts.map((a) => (
+                                    <Badge key={a.id} variant="outline" className="gap-1">
+                                      <Building2 className="h-3 w-3" /> {a.name || a.id} ({a.id})
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">Nenhuma conta vinculada.</p>
+                              )}
+                            </div>
+
+                            {goal.objectives.length ? (
+                              <div className="space-y-3">
+                                <p className="text-xs font-semibold text-muted-foreground">Objetivos</p>
+                                {goal.objectives.map((o) => (
+                                  <div key={o.key} className="rounded-md border bg-background p-3">
+                                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                      <span className="text-sm font-semibold">{objectiveLabel(o)}</span>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground">Orçamento: {money(o.budget)}</span>
+                                        <ObservationBadge objective={o} />
+                                      </div>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full text-xs">
+                                        <thead>
+                                          <tr className="text-left text-muted-foreground">
+                                            <th className="py-1 pr-3 font-medium">Período</th>
+                                            <th className="py-1 pr-3 font-medium">Meta de Resultado</th>
+                                            <th className="py-1 pr-3 font-medium">Margem Mín (R$)</th>
+                                            <th className="py-1 pr-3 font-medium">Margem Máx (R$)</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {PERIODS.map((period) => (
+                                            <tr key={period.key} className="border-t">
+                                              <td className="py-1.5 pr-3 font-medium">{period.label}</td>
+                                              <td className="py-1.5 pr-3">
+                                                {num(o[`target_result_${period.key}` as keyof ClientGoalObjective] as number)}
+                                              </td>
+                                              <td className="py-1.5 pr-3">
+                                                {money(o[`cost_margin_${period.key}_min` as keyof ClientGoalObjective] as number)}
+                                              </td>
+                                              <td className="py-1.5 pr-3">
+                                                {money(o[`cost_margin_${period.key}_max` as keyof ClientGoalObjective] as number)}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">Nenhum objetivo cadastrado.</p>
+                            )}
+
+                            {goal.changelog.length > 0 && (
+                              <div>
+                                <p className="mb-1 text-xs font-semibold text-muted-foreground">Mudanças Registradas</p>
+                                <div className="space-y-1">
+                                  {goal.changelog.map((c, idx) => (
+                                    <p key={idx} className="text-xs text-muted-foreground">
+                                      {c.change_date} — [{c.level}] {c.reference_name ? `${c.reference_name}: ` : ''}
+                                      {c.description}
+                                    </p>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </TableCell>
-                  <TableCell className="text-sm font-medium">{money(goal.meta_budget)}</TableCell>
-                  <TableCell>
-                    {goal.active ? (
-                      <Badge variant="secondary" className="bg-green-100 text-green-800">
-                        Ativo
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">Pausado</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex justify-end gap-1">
-                      <Button size="icon" variant="ghost" title={goal.active ? 'Pausar' : 'Reativar'} onClick={() => handleToggleActive(goal)}>
-                        <Power className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={() => openEdit(goal)}>
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(goal)}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                  </Fragment>
+                );
+              })}
             </TableBody>
           </Table>
         )}
