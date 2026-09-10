@@ -78,6 +78,7 @@ import RecibosPage from '@/pages/Customer/Finances/RecibosPage';
 import GtmPage from '@/pages/Customer/Marketing/GtmPage';
 import GestorPostsPage from '@/pages/Customer/Marketing/GestorPostsPage';
 import ClientGoalsPage from '@/pages/Customer/Marketing/ClientGoalsPage';
+import MarketingAlertsSettingsPage from '@/pages/Customer/Marketing/MarketingAlertsSettingsPage';
 import OrdersPage from '@/pages/Customer/Orders/OrdersPage';
 import IfoodOrdersPage from '@/pages/Customer/Orders/IfoodOrdersPage';
 import NinetyNineOrdersPage from '@/pages/Customer/Orders/NinetyNineOrdersPage';
@@ -675,6 +676,20 @@ const AppRouter = () => {
                 <CustomerRoute>
                   <MainLayout>
                     <ClientGoalsPage />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* Marketing > Alertas e Relatórios: canais de envio (WhatsApp/e-mail/CRM) do relatório semanal e da checagem diária de metas */}
+          <Route
+            path="/marketing/alertas"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <MarketingAlertsSettingsPage />
                   </MainLayout>
                 </CustomerRoute>
               </PrivateRoute>
