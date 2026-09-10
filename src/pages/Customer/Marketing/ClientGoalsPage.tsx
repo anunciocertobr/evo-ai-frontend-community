@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
+import axios from 'axios';
 import {
   Plus,
   Trash2,
@@ -115,6 +116,18 @@ const money = (v: number | null | undefined) =>
   v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const num = (v: number | null | undefined) => (v == null ? '—' : v.toLocaleString('pt-BR'));
+
+// O backend devolve { success: false, errors: ["motivo real"] } — sem isso,
+// qualquer rejeição de validação (ex: nome com mais de 255 caracteres, fácil
+// de acontecer colando de uma planilha) virava só "Erro ao salvar", sem
+// dizer o que estava errado de verdade.
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  if (axios.isAxiosError(error)) {
+    const errors = (error.response?.data as { errors?: string[] } | undefined)?.errors;
+    if (errors?.length) return errors.join(' ');
+  }
+  return fallback;
+};
 
 function ObservationBadge({ objective }: { objective: ClientGoalObjective }) {
   const status = objective.status;
@@ -308,7 +321,7 @@ export default function ClientGoalsPage() {
       load();
     } catch (error) {
       console.error('ClientGoalsPage.handleSave error:', error);
-      toast.error('Erro ao salvar. Confira os campos e tente novamente.');
+      toast.error(extractErrorMessage(error, 'Erro ao salvar. Confira os campos e tente novamente.'));
     } finally {
       setSaving(false);
     }
@@ -498,6 +511,7 @@ export default function ClientGoalsPage() {
                 <Input
                   className={FIELD_CLASS}
                   value={form.name}
+                  maxLength={255}
                   onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
                   placeholder="Ex: Burger House"
                 />
