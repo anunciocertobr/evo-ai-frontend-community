@@ -80,7 +80,7 @@ export interface ClientGoalChangelogEntry {
 export interface ClientGoal {
   id: string;
   name: string;
-  segment?: string | null;
+  segments: string[];
   sales_channel?: string | null;
   meta_budget: number | null;
   active: boolean;
