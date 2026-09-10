@@ -107,7 +107,7 @@ function ObservationBadge({ objective }: { objective: ClientGoalObjective }) {
   const status = objective.status;
   if (!status || !status.trackable) {
     return (
-      <Badge variant="outline" className="gap-1 text-slate-500">
+      <Badge variant="outline" className="gap-1 text-muted-foreground">
         <MinusCircle className="h-3 w-3" /> Sem acompanhamento automático
       </Badge>
     );
@@ -287,9 +287,9 @@ export default function ClientGoalsPage() {
 
       <div className="flex-1 overflow-y-auto p-4">
         {loading ? (
-          <p className="text-sm text-slate-500">Carregando...</p>
+          <p className="text-sm text-muted-foreground">Carregando...</p>
         ) : goals.length === 0 ? (
-          <p className="text-sm text-slate-500">Nenhum cliente cadastrado ainda.</p>
+          <p className="text-sm text-muted-foreground">Nenhum cliente cadastrado ainda.</p>
         ) : (
           <Table>
             <TableHeader>
@@ -306,14 +306,18 @@ export default function ClientGoalsPage() {
             </TableHeader>
             <TableBody>
               {goals.map((goal) => (
-                <TableRow key={goal.id} className={!goal.active ? 'opacity-60' : ''}>
+                <TableRow
+                  key={goal.id}
+                  className={`cursor-pointer ${!goal.active ? 'opacity-60' : ''}`}
+                  onClick={() => openEdit(goal)}
+                >
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
-                      <Target className="h-4 w-4 text-slate-400" /> {goal.name}
+                      <Target className="h-4 w-4 text-muted-foreground" /> {goal.name}
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm text-slate-500">{goal.segment || '—'}</TableCell>
-                  <TableCell className="text-sm text-slate-500">{goal.sales_channel || '—'}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{goal.segment || '—'}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{goal.sales_channel || '—'}</TableCell>
                   <TableCell>
                     {goal.ad_accounts.length ? (
                       <div className="flex flex-wrap gap-1">
@@ -324,7 +328,7 @@ export default function ClientGoalsPage() {
                         ))}
                       </div>
                     ) : (
-                      <span className="text-sm text-slate-400">—</span>
+                      <span className="text-sm text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -338,7 +342,7 @@ export default function ClientGoalsPage() {
                         ))}
                       </div>
                     ) : (
-                      <span className="text-sm text-slate-400">—</span>
+                      <span className="text-sm text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <TableCell className="text-sm font-medium">{money(goal.meta_budget)}</TableCell>
@@ -351,7 +355,7 @@ export default function ClientGoalsPage() {
                       <Badge variant="outline">Pausado</Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-1">
                       <Button size="icon" variant="ghost" title={goal.active ? 'Pausar' : 'Reativar'} onClick={() => handleToggleActive(goal)}>
                         <Power className="h-4 w-4" />
@@ -532,7 +536,7 @@ export default function ClientGoalsPage() {
                           ] as const
                         ).map((period) => (
                           <div key={period.key} className="space-y-1 rounded-md border p-2">
-                            <p className="text-xs font-semibold text-slate-500">{period.label}</p>
+                            <p className="text-xs font-semibold text-muted-foreground">{period.label}</p>
                             <Label className="text-xs">Meta de Resultado</Label>
                             <Input
                               className={FIELD_CLASS}
@@ -559,7 +563,7 @@ export default function ClientGoalsPage() {
                                   })
                                 }
                               />
-                              <span className="shrink-0 text-xs text-slate-400">até</span>
+                              <span className="shrink-0 text-xs text-muted-foreground">até</span>
                               <Input
                                 className={`${FIELD_CLASS} min-w-0 flex-1`}
                                 type="number"
@@ -592,7 +596,7 @@ export default function ClientGoalsPage() {
 
             <div>
               <Label className="text-sm font-semibold">Mudanças na Conta / Campanha / Conjunto / Anúncio</Label>
-              <p className="mb-2 text-xs text-slate-500">
+              <p className="mb-2 text-xs text-muted-foreground">
                 Registre mudanças feitas (ex: aumento de orçamento, pausa de campanha, troca de criativo) com a data — ajuda a
                 explicar variações de resultado depois.
               </p>
