@@ -46,10 +46,15 @@ export const GENDER_OPTIONS: { value: Gender; label: string }[] = [
   { value: 'female', label: 'Feminino' },
 ];
 
+export interface ClientGoalLocation {
+  name: string;
+  radius: number | null;
+}
+
 export interface ClientGoalAdAccount {
   id: string;
   name: string;
-  locations: string[];
+  locations: ClientGoalLocation[];
   age_min: number | null;
   age_max: number | null;
   gender: Gender | null;

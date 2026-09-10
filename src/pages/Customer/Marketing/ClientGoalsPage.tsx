@@ -56,6 +56,7 @@ import {
   ClientGoalFormData,
   ClientGoalObjective,
   ClientGoalAdAccount,
+  ClientGoalLocation,
   ClientGoalChangelogEntry,
   ObjectiveType,
   ChangelogLevel,
@@ -243,23 +244,31 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
   const removeAdAccount = (index: number) =>
     setForm((prev) => ({ ...prev, ad_accounts: prev.ad_accounts.filter((_, i) => i !== index) }));
 
-  // Um input de localização "pendente" por conta (a pessoa digita e aperta
-  // Enter pra adicionar à lista) — precisa ser por índice porque cada conta
-  // tem sua própria lista de localizações.
-  const [locationInputs, setLocationInputs] = useState<Record<number, string>>({});
+  // Um par nome/raio "pendente" por conta (preenche os dois campos e clica
+  // Adicionar) — precisa ser por índice porque cada conta tem sua própria
+  // lista de localizações.
+  const [locationInputs, setLocationInputs] = useState<Record<number, { name: string; radius: string }>>({});
+
+  const getLocationInput = (accountIndex: number) => locationInputs[accountIndex] || { name: '', radius: '' };
+
+  const setLocationInput = (accountIndex: number, patch: Partial<{ name: string; radius: string }>) =>
+    setLocationInputs((prev) => ({ ...prev, [accountIndex]: { ...getLocationInput(accountIndex), ...patch } }));
 
   const addLocation = (accountIndex: number) => {
-    const value = (locationInputs[accountIndex] || '').trim();
-    if (!value) return;
+    const { name, radius } = getLocationInput(accountIndex);
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
     const current = form.ad_accounts[accountIndex].locations;
-    if (!current.includes(value)) {
-      patchAdAccount(accountIndex, { locations: [...current, value] });
+    if (!current.some((l) => l.name === trimmedName)) {
+      patchAdAccount(accountIndex, {
+        locations: [...current, { name: trimmedName, radius: radius.trim() === '' ? null : Number(radius) }],
+      });
     }
-    setLocationInputs((prev) => ({ ...prev, [accountIndex]: '' }));
+    setLocationInputs((prev) => ({ ...prev, [accountIndex]: { name: '', radius: '' } }));
   };
 
-  const removeLocation = (accountIndex: number, value: string) =>
-    patchAdAccount(accountIndex, { locations: form.ad_accounts[accountIndex].locations.filter((l) => l !== value) });
+  const removeLocation = (accountIndex: number, name: string) =>
+    patchAdAccount(accountIndex, { locations: form.ad_accounts[accountIndex].locations.filter((l) => l.name !== name) });
 
   const updateObjective = (accountIndex: number, objIndex: number, patch: Partial<ClientGoalObjective>) => {
     setForm((prev) => {
@@ -458,16 +467,30 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                   <Label className="text-xs">Localizações</Label>
                   <div className="flex gap-2">
                     <Input
-                      className={FIELD_CLASS}
-                      value={locationInputs[accIndex] || ''}
-                      onChange={(e) => setLocationInputs((prev) => ({ ...prev, [accIndex]: e.target.value }))}
+                      className={`${FIELD_CLASS} flex-1`}
+                      value={getLocationInput(accIndex).name}
+                      onChange={(e) => setLocationInput(accIndex, { name: e.target.value })}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           addLocation(accIndex);
                         }
                       }}
-                      placeholder="Ex: São Paulo, SP (Enter pra adicionar)"
+                      placeholder="Ex: São Paulo, SP"
+                    />
+                    <Input
+                      className={`${FIELD_CLASS} w-28`}
+                      type="number"
+                      min={1}
+                      value={getLocationInput(accIndex).radius}
+                      onChange={(e) => setLocationInput(accIndex, { radius: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addLocation(accIndex);
+                        }
+                      }}
+                      placeholder="Raio (km)"
                     />
                     <Button type="button" size="icon" variant="outline" onClick={() => addLocation(accIndex)}>
                       <Plus className="h-4 w-4" />
@@ -476,11 +499,12 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                   {acc.locations.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {acc.locations.map((loc) => (
-                        <Badge key={loc} variant="outline" className="gap-1">
-                          {loc}
+                        <Badge key={loc.name} variant="outline" className="gap-1">
+                          {loc.name}
+                          {loc.radius != null && ` (+${loc.radius}km)`}
                           <button
                             type="button"
-                            onClick={() => removeLocation(accIndex, loc)}
+                            onClick={() => removeLocation(accIndex, loc.name)}
                             className="ml-1 text-muted-foreground hover:text-red-500"
                           >
                             ×
@@ -1013,8 +1037,9 @@ export default function ClientGoalsPage() {
                                     {(account.locations.length > 0 || ageRangeLabel(account.age_min, account.age_max) || account.gender) && (
                                       <div className="mb-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
                                         {account.locations.map((loc) => (
-                                          <Badge key={loc} variant="outline">
-                                            {loc}
+                                          <Badge key={loc.name} variant="outline">
+                                            {loc.name}
+                                            {loc.radius != null && ` (+${loc.radius}km)`}
                                           </Badge>
                                         ))}
                                         {ageRangeLabel(account.age_min, account.age_max) && (
