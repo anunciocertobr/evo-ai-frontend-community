@@ -41,6 +41,7 @@ export type ChangelogLevel = 'conta' | 'campanha' | 'conjunto' | 'anuncio';
 export interface ClientGoalAdAccount {
   id: string;
   name: string;
+  objectives: ClientGoalObjective[];
 }
 
 export interface ClientGoalObjectiveStatus {
@@ -84,7 +85,6 @@ export interface ClientGoal {
   meta_budget: number | null;
   active: boolean;
   ad_accounts: ClientGoalAdAccount[];
-  objectives: ClientGoalObjective[];
   changelog: ClientGoalChangelogEntry[];
   created_at: string;
   updated_at: string;

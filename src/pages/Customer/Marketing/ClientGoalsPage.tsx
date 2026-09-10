@@ -70,6 +70,12 @@ import {
 // temas.
 const FIELD_CLASS = 'bg-slate-100 dark:bg-slate-800/70 border-slate-300 dark:border-slate-700';
 
+const PERIODS = [
+  { key: 'daily', label: 'Diário' },
+  { key: 'weekly', label: 'Semanal' },
+  { key: 'monthly', label: 'Mensal' },
+] as const;
+
 const emptyObjective = (): ClientGoalObjective => ({
   key: `novo-${Math.random().toString(36).slice(2)}`,
   objective_type: 'mensagens',
@@ -86,14 +92,17 @@ const emptyObjective = (): ClientGoalObjective => ({
   cost_margin_monthly_max: null,
 });
 
+// Cada conta de anúncio tem seus PRÓPRIOS objetivos — contas diferentes do
+// mesmo cliente podem ter metas bem diferentes entre si.
+const emptyAdAccount = (): ClientGoalAdAccount => ({ id: '', name: '', objectives: [emptyObjective()] });
+
 const emptyForm = (): ClientGoalFormData => ({
   name: '',
   segment: '',
   sales_channel: '',
   meta_budget: null,
   active: true,
-  ad_accounts: [{ id: '', name: '' }],
-  objectives: [emptyObjective()],
+  ad_accounts: [emptyAdAccount()],
   changelog: [],
 });
 
@@ -106,12 +115,6 @@ const money = (v: number | null | undefined) =>
   v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const num = (v: number | null | undefined) => (v == null ? '—' : v.toLocaleString('pt-BR'));
-
-const PERIODS = [
-  { key: 'daily', label: 'Diário' },
-  { key: 'weekly', label: 'Semanal' },
-  { key: 'monthly', label: 'Mensal' },
-] as const;
 
 function ObservationBadge({ objective }: { objective: ClientGoalObjective }) {
   const status = objective.status;
@@ -133,6 +136,36 @@ function ObservationBadge({ objective }: { objective: ClientGoalObjective }) {
     <Badge variant="secondary" className="gap-1 bg-green-100 text-green-800">
       <CheckCircle2 className="h-3 w-3" /> {status.observation}
     </Badge>
+  );
+}
+
+// Mini-tabela Diário/Semanal/Mensal x Meta de Resultado/Margem Mín/Margem
+// Máx de um objetivo — usada tanto na linha expandida da tabela (leitura)
+// quanto reaproveitada visualmente no formulário de edição.
+function ObjectivePeriodsTable({ objective }: { objective: ClientGoalObjective }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left text-muted-foreground">
+            <th className="py-1 pr-3 font-medium">Período</th>
+            <th className="py-1 pr-3 font-medium">Meta de Resultado</th>
+            <th className="py-1 pr-3 font-medium">Margem Mín (R$)</th>
+            <th className="py-1 pr-3 font-medium">Margem Máx (R$)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {PERIODS.map((period) => (
+            <tr key={period.key} className="border-t">
+              <td className="py-1.5 pr-3 font-medium">{period.label}</td>
+              <td className="py-1.5 pr-3">{num(objective[`target_result_${period.key}` as keyof ClientGoalObjective] as number)}</td>
+              <td className="py-1.5 pr-3">{money(objective[`cost_margin_${period.key}_min` as keyof ClientGoalObjective] as number)}</td>
+              <td className="py-1.5 pr-3">{money(objective[`cost_margin_${period.key}_max` as keyof ClientGoalObjective] as number)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -184,15 +217,14 @@ export default function ClientGoalsPage() {
       sales_channel: goal.sales_channel || '',
       meta_budget: goal.meta_budget,
       active: goal.active,
-      ad_accounts: goal.ad_accounts.length ? goal.ad_accounts : [{ id: '', name: '' }],
-      objectives: goal.objectives.length ? goal.objectives : [emptyObjective()],
+      ad_accounts: goal.ad_accounts.length ? goal.ad_accounts : [emptyAdAccount()],
       changelog: goal.changelog,
     });
     setNewChangeEntry({ change_date: new Date().toISOString().slice(0, 10), level: 'conta', reference_name: '', description: '' });
     setDialogOpen(true);
   };
 
-  const updateAdAccount = (index: number, field: keyof ClientGoalAdAccount, value: string) => {
+  const updateAdAccount = (index: number, field: 'id' | 'name', value: string) => {
     setForm((prev) => {
       const list = [...prev.ad_accounts];
       list[index] = { ...list[index], [field]: value };
@@ -200,23 +232,37 @@ export default function ClientGoalsPage() {
     });
   };
 
-  const addAdAccount = () => setForm((prev) => ({ ...prev, ad_accounts: [...prev.ad_accounts, { id: '', name: '' }] }));
+  const addAdAccount = () => setForm((prev) => ({ ...prev, ad_accounts: [...prev.ad_accounts, emptyAdAccount()] }));
 
   const removeAdAccount = (index: number) =>
     setForm((prev) => ({ ...prev, ad_accounts: prev.ad_accounts.filter((_, i) => i !== index) }));
 
-  const updateObjective = (index: number, patch: Partial<ClientGoalObjective>) => {
+  const updateObjective = (accountIndex: number, objIndex: number, patch: Partial<ClientGoalObjective>) => {
     setForm((prev) => {
-      const list = [...prev.objectives];
-      list[index] = { ...list[index], ...patch };
-      return { ...prev, objectives: list };
+      const accounts = [...prev.ad_accounts];
+      const objectives = [...accounts[accountIndex].objectives];
+      objectives[objIndex] = { ...objectives[objIndex], ...patch };
+      accounts[accountIndex] = { ...accounts[accountIndex], objectives };
+      return { ...prev, ad_accounts: accounts };
     });
   };
 
-  const addObjective = () => setForm((prev) => ({ ...prev, objectives: [...prev.objectives, emptyObjective()] }));
+  const addObjective = (accountIndex: number) =>
+    setForm((prev) => {
+      const accounts = [...prev.ad_accounts];
+      accounts[accountIndex] = { ...accounts[accountIndex], objectives: [...accounts[accountIndex].objectives, emptyObjective()] };
+      return { ...prev, ad_accounts: accounts };
+    });
 
-  const removeObjective = (index: number) =>
-    setForm((prev) => ({ ...prev, objectives: prev.objectives.filter((_, i) => i !== index) }));
+  const removeObjective = (accountIndex: number, objIndex: number) =>
+    setForm((prev) => {
+      const accounts = [...prev.ad_accounts];
+      accounts[accountIndex] = {
+        ...accounts[accountIndex],
+        objectives: accounts[accountIndex].objectives.filter((_, i) => i !== objIndex),
+      };
+      return { ...prev, ad_accounts: accounts };
+    });
 
   const addChangelogEntry = () => {
     if (!newChangeEntry.description.trim()) {
@@ -239,14 +285,18 @@ export default function ClientGoalsPage() {
     // são todos opcionais e podem ser preenchidos depois. Um objetivo "Outro"
     // sem rótulo ainda precisa de algum texto pro backend (identifica o
     // objetivo), então preenche um padrão em vez de bloquear o salvamento.
-    const cleanedAdAccounts = form.ad_accounts.filter((a) => a.id.trim());
-    const cleanedObjectives = form.objectives.map((o) =>
-      o.objective_type === 'outro' && !o.custom_label?.trim() ? { ...o, custom_label: 'Outro' } : o
-    );
+    const cleanedAdAccounts = form.ad_accounts
+      .filter((a) => a.id.trim())
+      .map((a) => ({
+        ...a,
+        objectives: a.objectives.map((o) =>
+          o.objective_type === 'outro' && !o.custom_label?.trim() ? { ...o, custom_label: 'Outro' } : o
+        ),
+      }));
 
     setSaving(true);
     try {
-      const payload: ClientGoalFormData = { ...form, ad_accounts: cleanedAdAccounts, objectives: cleanedObjectives };
+      const payload: ClientGoalFormData = { ...form, ad_accounts: cleanedAdAccounts };
       if (editingId) {
         await clientGoalsService.update(editingId, payload);
         toast.success('Cliente atualizado.');
@@ -292,7 +342,7 @@ export default function ClientGoalsPage() {
     <div className="flex h-full flex-col">
       <BaseHeader
         title="Metas de Clientes"
-        subtitle="Contas de anúncio, objetivos, orçamentos e metas de custo por resultado — com acompanhamento automático de quantos dias cada objetivo está fora da meta."
+        subtitle="Cada conta de anúncio com seus próprios objetivos, orçamento e metas de custo por resultado — com acompanhamento automático de quantos dias cada uma está fora da meta."
         primaryAction={{ label: 'Novo Cliente', icon: <Plus className="h-4 w-4" />, onClick: openCreate }}
       />
 
@@ -310,7 +360,6 @@ export default function ClientGoalsPage() {
                 <TableHead>Segmento</TableHead>
                 <TableHead>Fecha Venda</TableHead>
                 <TableHead>Contas de Anúncio</TableHead>
-                <TableHead>Objetivos</TableHead>
                 <TableHead>Orçamento Meta</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -348,20 +397,6 @@ export default function ClientGoalsPage() {
                           <span className="text-sm text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        {goal.objectives.length ? (
-                          <div className="flex flex-col gap-1">
-                            {goal.objectives.map((o) => (
-                              <div key={o.key} className="flex items-center gap-2 text-xs">
-                                <span className="font-medium">{objectiveLabel(o)}</span>
-                                <ObservationBadge objective={o} />
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
                       <TableCell className="text-sm font-medium">{money(goal.meta_budget)}</TableCell>
                       <TableCell>
                         {goal.active ? (
@@ -388,68 +423,38 @@ export default function ClientGoalsPage() {
                     </TableRow>
                     {expanded && (
                       <TableRow>
-                        <TableCell colSpan={9} className="bg-muted/30 p-4">
+                        <TableCell colSpan={8} className="bg-muted/30 p-4">
                           <div className="space-y-4">
-                            <div>
-                              <p className="mb-1 text-xs font-semibold text-muted-foreground">Contas de Anúncio</p>
-                              {goal.ad_accounts.length ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {goal.ad_accounts.map((a) => (
-                                    <Badge key={a.id} variant="outline" className="gap-1">
-                                      <Building2 className="h-3 w-3" /> {a.name || a.id} ({a.id})
-                                    </Badge>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-sm text-muted-foreground">Nenhuma conta vinculada.</p>
-                              )}
-                            </div>
-
-                            {goal.objectives.length ? (
-                              <div className="space-y-3">
-                                <p className="text-xs font-semibold text-muted-foreground">Objetivos</p>
-                                {goal.objectives.map((o) => (
-                                  <div key={o.key} className="rounded-md border bg-background p-3">
-                                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                      <span className="text-sm font-semibold">{objectiveLabel(o)}</span>
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs text-muted-foreground">Orçamento: {money(o.budget)}</span>
-                                        <ObservationBadge objective={o} />
-                                      </div>
-                                    </div>
-                                    <div className="overflow-x-auto">
-                                      <table className="w-full text-xs">
-                                        <thead>
-                                          <tr className="text-left text-muted-foreground">
-                                            <th className="py-1 pr-3 font-medium">Período</th>
-                                            <th className="py-1 pr-3 font-medium">Meta de Resultado</th>
-                                            <th className="py-1 pr-3 font-medium">Margem Mín (R$)</th>
-                                            <th className="py-1 pr-3 font-medium">Margem Máx (R$)</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          {PERIODS.map((period) => (
-                                            <tr key={period.key} className="border-t">
-                                              <td className="py-1.5 pr-3 font-medium">{period.label}</td>
-                                              <td className="py-1.5 pr-3">
-                                                {num(o[`target_result_${period.key}` as keyof ClientGoalObjective] as number)}
-                                              </td>
-                                              <td className="py-1.5 pr-3">
-                                                {money(o[`cost_margin_${period.key}_min` as keyof ClientGoalObjective] as number)}
-                                              </td>
-                                              <td className="py-1.5 pr-3">
-                                                {money(o[`cost_margin_${period.key}_max` as keyof ClientGoalObjective] as number)}
-                                              </td>
-                                            </tr>
-                                          ))}
-                                        </tbody>
-                                      </table>
-                                    </div>
+                            {goal.ad_accounts.length ? (
+                              goal.ad_accounts.map((account) => (
+                                <div key={account.id} className="rounded-md border bg-background p-3">
+                                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                                    {account.name || account.id}
+                                    <span className="text-xs font-normal text-muted-foreground">({account.id})</span>
                                   </div>
-                                ))}
-                              </div>
+                                  {account.objectives.length ? (
+                                    <div className="space-y-3">
+                                      {account.objectives.map((o) => (
+                                        <div key={o.key} className="rounded-md border p-2">
+                                          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                                            <span className="text-xs font-semibold">{objectiveLabel(o)}</span>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs text-muted-foreground">Orçamento: {money(o.budget)}</span>
+                                              <ObservationBadge objective={o} />
+                                            </div>
+                                          </div>
+                                          <ObjectivePeriodsTable objective={o} />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">Nenhum objetivo cadastrado pra esta conta.</p>
+                                  )}
+                                </div>
+                              ))
                             ) : (
-                              <p className="text-sm text-muted-foreground">Nenhum objetivo cadastrado.</p>
+                              <p className="text-sm text-muted-foreground">Nenhuma conta de anúncio vinculada.</p>
                             )}
 
                             {goal.changelog.length > 0 && (
@@ -482,7 +487,7 @@ export default function ClientGoalsPage() {
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
             <DialogDescription>
-              Configure segmento, contas de anúncio, objetivos com orçamento/metas e o histórico de mudanças.
+              Configure segmento, contas de anúncio (cada uma com seus próprios objetivos/metas) e o histórico de mudanças.
             </DialogDescription>
           </DialogHeader>
 
@@ -537,157 +542,156 @@ export default function ClientGoalsPage() {
 
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <Label className="text-sm font-semibold">Contas de Anúncio</Label>
+                <Label className="text-sm font-semibold">Contas de Anúncio e Objetivos</Label>
                 <Button size="sm" variant="outline" onClick={addAdAccount} className="gap-1">
                   <Plus className="h-3.5 w-3.5" /> Adicionar Conta
                 </Button>
               </div>
-              <div className="space-y-2">
-                {form.ad_accounts.map((acc, index) => (
-                  <div key={index} className="flex gap-2">
-                    <Input
-                      className={FIELD_CLASS}
-                      placeholder="ID da conta (act_...)"
-                      value={acc.id}
-                      onChange={(e) => updateAdAccount(index, 'id', e.target.value)}
-                    />
-                    <Input
-                      className={FIELD_CLASS}
-                      placeholder="Nome da conta"
-                      value={acc.name}
-                      onChange={(e) => updateAdAccount(index, 'name', e.target.value)}
-                    />
-                    <Button size="icon" variant="ghost" onClick={() => removeAdAccount(index)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <Separator />
-
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <Label className="text-sm font-semibold">Objetivos a Trabalhar</Label>
-                <Button size="sm" variant="outline" onClick={addObjective} className="gap-1">
-                  <Plus className="h-3.5 w-3.5" /> Adicionar Objetivo
-                </Button>
-              </div>
               <div className="space-y-4">
-                {form.objectives.map((obj, index) => (
-                  <Card key={obj.key || index}>
+                {form.ad_accounts.map((acc, accIndex) => (
+                  <Card key={accIndex}>
                     <CardContent className="space-y-3 pt-4">
-                      <div className="flex items-start gap-2">
-                        <div className="flex-1">
-                          <Label>Tipo de Objetivo</Label>
-                          <Select
-                            value={obj.objective_type}
-                            onValueChange={(v) => updateObjective(index, { objective_type: v as ObjectiveType })}
-                          >
-                            <SelectTrigger className={FIELD_CLASS}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {OBJECTIVE_TYPE_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {obj.objective_type === 'outro' && (
-                          <div className="flex-1">
-                            <Label>Rótulo do Objetivo</Label>
-                            <Input
-                              className={FIELD_CLASS}
-                              value={obj.custom_label || ''}
-                              onChange={(e) => updateObjective(index, { custom_label: e.target.value })}
-                            />
-                          </div>
-                        )}
-                        <div className="w-40">
-                          <Label>Orçamento (R$)</Label>
-                          <Input
-                            className={FIELD_CLASS}
-                            type="number"
-                            step="0.01"
-                            value={obj.budget ?? ''}
-                            onChange={(e) => updateObjective(index, { budget: e.target.value === '' ? null : Number(e.target.value) })}
-                          />
-                        </div>
-                        <Button size="icon" variant="ghost" className="mt-6" onClick={() => removeObjective(index)}>
+                      <div className="flex gap-2">
+                        <Input
+                          className={FIELD_CLASS}
+                          placeholder="ID da conta (act_...)"
+                          value={acc.id}
+                          onChange={(e) => updateAdAccount(accIndex, 'id', e.target.value)}
+                        />
+                        <Input
+                          className={FIELD_CLASS}
+                          placeholder="Nome da conta"
+                          value={acc.name}
+                          onChange={(e) => updateAdAccount(accIndex, 'name', e.target.value)}
+                        />
+                        <Button size="icon" variant="ghost" onClick={() => removeAdAccount(accIndex)}>
                           <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>
                       </div>
 
-                      {obj.objective_type === 'seguidores' || obj.objective_type === 'outro' ? (
-                        <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-700">
-                          A API do Meta não expõe esse resultado diretamente nos Insights — este objetivo fica registrado, mas o
-                          acompanhamento automático de "dias fora da meta" não é calculado para ele.
-                        </p>
-                      ) : null}
+                      <Separator />
 
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        {(
-                          [
-                            { key: 'daily', label: 'Diário' },
-                            { key: 'weekly', label: 'Semanal' },
-                            { key: 'monthly', label: 'Mensal' },
-                          ] as const
-                        ).map((period) => (
-                          <div key={period.key} className="space-y-1 rounded-md border p-2">
-                            <p className="text-xs font-semibold text-muted-foreground">{period.label}</p>
-                            <Label className="text-xs">Meta de Resultado</Label>
-                            <Input
-                              className={FIELD_CLASS}
-                              type="number"
-                              step="0.01"
-                              value={(obj[`target_result_${period.key}` as keyof ClientGoalObjective] as number) ?? ''}
-                              onChange={(e) =>
-                                updateObjective(index, {
-                                  [`target_result_${period.key}`]: e.target.value === '' ? null : Number(e.target.value),
-                                })
-                              }
-                            />
-                            <Label className="text-xs">Custo por Resultado — Margem Aceita (R$)</Label>
-                            <div className="flex items-center gap-1.5">
-                              <Input
-                                className={`${FIELD_CLASS} min-w-0 flex-1`}
-                                type="number"
-                                step="0.01"
-                                placeholder="Mín"
-                                value={(obj[`cost_margin_${period.key}_min` as keyof ClientGoalObjective] as number) ?? ''}
-                                onChange={(e) =>
-                                  updateObjective(index, {
-                                    [`cost_margin_${period.key}_min`]: e.target.value === '' ? null : Number(e.target.value),
-                                  })
-                                }
-                              />
-                              <span className="shrink-0 text-xs text-muted-foreground">até</span>
-                              <Input
-                                className={`${FIELD_CLASS} min-w-0 flex-1`}
-                                type="number"
-                                step="0.01"
-                                placeholder="Máx"
-                                value={(obj[`cost_margin_${period.key}_max` as keyof ClientGoalObjective] as number) ?? ''}
-                                onChange={(e) =>
-                                  updateObjective(index, {
-                                    [`cost_margin_${period.key}_max`]: e.target.value === '' ? null : Number(e.target.value),
-                                  })
-                                }
-                              />
-                            </div>
-                          </div>
-                        ))}
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-semibold text-muted-foreground">Objetivos desta conta</Label>
+                        <Button size="sm" variant="outline" onClick={() => addObjective(accIndex)} className="gap-1">
+                          <Plus className="h-3.5 w-3.5" /> Adicionar Objetivo
+                        </Button>
                       </div>
 
-                      {editingId && obj.status && (
-                        <div className="pt-1">
-                          <ObservationBadge objective={obj} />
-                        </div>
-                      )}
+                      <div className="space-y-4">
+                        {acc.objectives.map((obj, objIndex) => (
+                          <Card key={obj.key || objIndex} className={FIELD_CLASS}>
+                            <CardContent className="space-y-3 pt-4">
+                              <div className="flex items-start gap-2">
+                                <div className="flex-1">
+                                  <Label>Tipo de Objetivo</Label>
+                                  <Select
+                                    value={obj.objective_type}
+                                    onValueChange={(v) => updateObjective(accIndex, objIndex, { objective_type: v as ObjectiveType })}
+                                  >
+                                    <SelectTrigger className={FIELD_CLASS}>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {OBJECTIVE_TYPE_OPTIONS.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value}>
+                                          {opt.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                {obj.objective_type === 'outro' && (
+                                  <div className="flex-1">
+                                    <Label>Rótulo do Objetivo</Label>
+                                    <Input
+                                      className={FIELD_CLASS}
+                                      value={obj.custom_label || ''}
+                                      onChange={(e) => updateObjective(accIndex, objIndex, { custom_label: e.target.value })}
+                                    />
+                                  </div>
+                                )}
+                                <div className="w-40">
+                                  <Label>Orçamento (R$)</Label>
+                                  <Input
+                                    className={FIELD_CLASS}
+                                    type="number"
+                                    step="0.01"
+                                    value={obj.budget ?? ''}
+                                    onChange={(e) =>
+                                      updateObjective(accIndex, objIndex, { budget: e.target.value === '' ? null : Number(e.target.value) })
+                                    }
+                                  />
+                                </div>
+                                <Button size="icon" variant="ghost" className="mt-6" onClick={() => removeObjective(accIndex, objIndex)}>
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </div>
+
+                              {obj.objective_type === 'seguidores' || obj.objective_type === 'outro' ? (
+                                <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-700">
+                                  A API do Meta não expõe esse resultado diretamente nos Insights — este objetivo fica registrado, mas o
+                                  acompanhamento automático de "dias fora da meta" não é calculado para ele.
+                                </p>
+                              ) : null}
+
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                {PERIODS.map((period) => (
+                                  <div key={period.key} className="space-y-1 rounded-md border p-2">
+                                    <p className="text-xs font-semibold text-muted-foreground">{period.label}</p>
+                                    <Label className="text-xs">Meta de Resultado</Label>
+                                    <Input
+                                      className={FIELD_CLASS}
+                                      type="number"
+                                      step="0.01"
+                                      value={(obj[`target_result_${period.key}` as keyof ClientGoalObjective] as number) ?? ''}
+                                      onChange={(e) =>
+                                        updateObjective(accIndex, objIndex, {
+                                          [`target_result_${period.key}`]: e.target.value === '' ? null : Number(e.target.value),
+                                        })
+                                      }
+                                    />
+                                    <Label className="text-xs">Custo por Resultado — Margem Aceita (R$)</Label>
+                                    <div className="flex items-center gap-1.5">
+                                      <Input
+                                        className={`${FIELD_CLASS} min-w-0 flex-1`}
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="Mín"
+                                        value={(obj[`cost_margin_${period.key}_min` as keyof ClientGoalObjective] as number) ?? ''}
+                                        onChange={(e) =>
+                                          updateObjective(accIndex, objIndex, {
+                                            [`cost_margin_${period.key}_min`]: e.target.value === '' ? null : Number(e.target.value),
+                                          })
+                                        }
+                                      />
+                                      <span className="shrink-0 text-xs text-muted-foreground">até</span>
+                                      <Input
+                                        className={`${FIELD_CLASS} min-w-0 flex-1`}
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="Máx"
+                                        value={(obj[`cost_margin_${period.key}_max` as keyof ClientGoalObjective] as number) ?? ''}
+                                        onChange={(e) =>
+                                          updateObjective(accIndex, objIndex, {
+                                            [`cost_margin_${period.key}_max`]: e.target.value === '' ? null : Number(e.target.value),
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {editingId && obj.status && (
+                                <div className="pt-1">
+                                  <ObservationBadge objective={obj} />
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
