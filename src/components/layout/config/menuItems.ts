@@ -338,13 +338,12 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
   },
   {
     name: 'Drive',
-    href: '/drive',
+    href: '#',
     icon: HardDrive,
-  },
-  {
-    name: 'Dropbox',
-    href: '/dropbox',
-    icon: Box,
+    subItems: [
+      { name: 'Google Drive', href: '/drive', icon: HardDrive },
+      { name: 'Dropbox', href: '/dropbox', icon: Box },
+    ],
   },
   {
     id: 'customer-settings',
