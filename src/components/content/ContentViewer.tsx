@@ -5,7 +5,8 @@ import { BaseHeader } from '@/components/base';
 import { EditorContentType, normalizeEditorUrl } from '@/utils/editorMenus';
 import { resolveRenderableSrcDoc } from '@/utils/reactContentRenderer';
 import { useAuthStore } from '@/store/authStore';
-import { useCallback, useRef } from 'react';
+import { getDashboardToolsToken } from '@/services/dashboardTools/dashboardToolsService';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface ContentViewerProps {
   backHref: string;
@@ -41,6 +42,90 @@ export function ContentViewer({
   const isHtmlDoc =
     contentType === 'html' || (contentType === 'file' && /\.html?$/i.test(fileName ?? ''));
 
+  // Todos os hooks abaixo são chamados incondicionalmente, mesmo pra
+  // contentType === 'link' (que nem os usa) — um `return` condicional ANTES
+  // dos hooks (como este componente tinha antes) viola as Regras dos Hooks:
+  // ao navegar entre um nó 'link' e um nó 'html'/'file' sem remount (só
+  // trocando o :nodeId da mesma rota), o React reaproveita a mesma instância
+  // e quebra com "Rendered more/fewer hooks than during the previous
+  // render" — a causa mais provável de o app travar ao navegar pelos
+  // conteúdos do editor.
+  const currentUser = useAuthStore((s) => s.currentUser);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [dashboardToolsToken, setDashboardToolsToken] = useState<string | null>(null);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+
+  // Buscado uma vez (autenticado pela sessão real) e repassado pro iframe via
+  // postMessage — o HTML da ferramenta nunca mais carrega com esse token já
+  // embutido no código-fonte servido ao navegador.
+  useEffect(() => {
+    if (contentType !== 'html') return;
+    let cancelled = false;
+    getDashboardToolsToken()
+      .then((token) => {
+        if (!cancelled) setDashboardToolsToken(token);
+      })
+      .catch(() => {
+        // Ferramenta que não chama a API do CRM não precisa do token — falha
+        // silenciosa aqui não deve travar a renderização do conteúdo.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [contentType]);
+
+  const postToIframe = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    try {
+      iframe.contentWindow.postMessage(
+        {
+          type: 'evo-user-data',
+          user: currentUser
+            ? {
+                id: currentUser.id,
+                name: currentUser.name,
+                email: currentUser.email,
+                avatar_url: currentUser.avatar_url,
+                created_at: currentUser.created_at,
+              }
+            : null,
+          dashboardApiToken: dashboardToolsToken,
+        },
+        '*',
+      );
+    } catch {
+      // iframe cross-origin — ignore
+    }
+  }, [currentUser, dashboardToolsToken]);
+
+  const handleIframeLoad = useCallback(() => {
+    setIframeLoaded(true);
+    postToIframe();
+  }, [postToIframe]);
+
+  // O fetch do token é assíncrono e costuma terminar DEPOIS do iframe já ter
+  // carregado (o srcDoc é síncrono) — reenvia assim que o token chegar, sem
+  // esperar um segundo onLoad que nunca vai acontecer.
+  useEffect(() => {
+    if (iframeLoaded) postToIframe();
+  }, [iframeLoaded, postToIframe]);
+
+  let srcDoc = '';
+  if (isHtmlDoc) {
+    const rawDoc = contentType === 'html' ? html ?? '' : fileData ?? '';
+    srcDoc = resolveRenderableSrcDoc(rawDoc);
+  } else if (contentType !== 'link') {
+    // .txt / .md / .json / .svg — renderiza como texto formatado
+    srcDoc = `<!doctype html><html><head><meta charset="utf-8"><style>
+      body{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+      padding:16px;color:#222;background:#fff;white-space:pre-wrap;word-break:break-word}
+    </style></head><body>${(fileData ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')}</body></html>`;
+  }
+
   if (contentType === 'link') {
     const normalized = normalizeEditorUrl(url ?? '#');
     return (
@@ -62,48 +147,6 @@ export function ContentViewer({
         </div>
       </div>
     );
-  }
-
-  const currentUser = useAuthStore((s) => s.currentUser);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  const handleIframeLoad = useCallback(() => {
-    const iframe = iframeRef.current;
-    if (!iframe?.contentWindow) return;
-    try {
-      iframe.contentWindow.postMessage(
-        {
-          type: 'evo-user-data',
-          user: currentUser
-            ? {
-                id: currentUser.id,
-                name: currentUser.name,
-                email: currentUser.email,
-                avatar_url: currentUser.avatar_url,
-                created_at: currentUser.created_at,
-              }
-            : null,
-        },
-        '*',
-      );
-    } catch {
-      // iframe cross-origin — ignore
-    }
-  }, [currentUser]);
-
-  let srcDoc = '';
-  if (isHtmlDoc) {
-    const rawDoc = contentType === 'html' ? html ?? '' : fileData ?? '';
-    srcDoc = resolveRenderableSrcDoc(rawDoc);
-  } else {
-    // .txt / .md / .json / .svg — renderiza como texto formatado
-    srcDoc = `<!doctype html><html><head><meta charset="utf-8"><style>
-      body{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
-      padding:16px;color:#222;background:#fff;white-space:pre-wrap;word-break:break-word}
-    </style></head><body>${(fileData ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')}</body></html>`;
   }
 
   return (

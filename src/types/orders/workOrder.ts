@@ -29,6 +29,20 @@ export const PAYMENT_METHODS = [
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+export type FulfillmentType = 'pickup' | 'delivery';
+export const FULFILLMENT_TYPE_LABELS: Record<FulfillmentType, string> = {
+  pickup: 'Retirada no Balcão',
+  delivery: 'Entrega',
+};
+
+export type DeliveryCourier = 'motoboy_proprio' | 'ifood' | '99' | 'keeta';
+export const DELIVERY_COURIER_LABELS: Record<DeliveryCourier, string> = {
+  motoboy_proprio: 'Motoboy Próprio',
+  ifood: 'iFood',
+  '99': '99',
+  keeta: 'Keeta (ainda sem integração)',
+};
+
 export interface WorkOrderItem {
   product_id?: string;
   name: string;
@@ -62,6 +76,12 @@ export interface WorkOrder {
   pickup_date?: string | null;
   device_turns_on: boolean;
   picked_up: boolean;
+  fulfillment_type: FulfillmentType;
+  delivery_courier?: DeliveryCourier | null;
+  motoboy_id?: string | null;
+  motoboy_name?: string | null;
+  financial_transaction_id?: string | null;
+  stock_warnings?: string[] | null;
   items: WorkOrderItem[];
   items_count: number;
   item_names?: string;
@@ -97,6 +117,9 @@ export interface WorkOrderFormData {
   pickup_date?: string | null;
   device_turns_on?: boolean;
   picked_up?: boolean;
+  fulfillment_type?: FulfillmentType;
+  delivery_courier?: DeliveryCourier | null;
+  motoboy_id?: string | null;
   items?: WorkOrderItem[];
   base_value?: number;
   discount?: number;

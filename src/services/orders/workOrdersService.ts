@@ -55,6 +55,14 @@ class WorkOrdersService {
     await api.delete(`${this.baseUrl}/${id}`);
   }
 
+  // Cancela a ordem (mantém o registro, status: 'cancelled') deixando o
+  // operador escolher se devolve os itens ao estoque e/ou estorna a venda
+  // lançada no financeiro — nenhum dos dois é automático.
+  async cancelOrder(id: string, options: { restore_stock: boolean; reverse_financial: boolean }): Promise<WorkOrder> {
+    const response = await api.patch(`${this.baseUrl}/${id}/cancel`, options);
+    return extractData<WorkOrder>(response);
+  }
+
   // Config de pra qual pipeline/etapa uma ordem nova vira card automaticamente
   // (Orders::PipelineSyncService no backend) — ver WorkOrderPipelineConfig.
   async getPipelineConfig(): Promise<WorkOrderPipelineConfig> {

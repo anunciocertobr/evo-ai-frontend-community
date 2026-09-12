@@ -26,6 +26,22 @@ export interface PublicMenuSettings {
   company_name_color: string | null;
   gtm_id: string | null;
   whatsapp_number: string | null;
+  google_client_id: string | null;
+}
+
+export interface GoogleLoginResult {
+  found: boolean;
+  email: string;
+  full_name: string | null;
+  cpf: string | null;
+  phone: string | null;
+  instagram: string | null;
+  zip: string | null;
+  address: string | null;
+  number: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
 }
 
 export interface PublicMenu {
@@ -84,6 +100,14 @@ class MenuService {
   async getOrderStatus(orderToken: string): Promise<'pending' | 'sent' | 'failed'> {
     const { data } = await apiPublic.get<{ status: 'pending' | 'sent' | 'failed' }>(`/menu/orders/${orderToken}/status`);
     return data.status;
+  }
+
+  // Verifica o ID token do "Entrar com Google" e devolve o que o CRM já sabe
+  // sobre esse e-mail (Contact + último WorkOrder), pra pré-preencher o
+  // checkout — o cliente continua podendo editar tudo.
+  async googleLogin(credential: string): Promise<GoogleLoginResult> {
+    const { data } = await apiPublic.post<{ data: GoogleLoginResult }>('/menu/google_login', { credential });
+    return data.data;
   }
 }
 

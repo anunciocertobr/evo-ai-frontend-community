@@ -23,6 +23,7 @@ import {
   Pause,
   Play,
   CalendarClock,
+  Check,
 } from 'lucide-react';
 import {
   Button,
@@ -58,6 +59,7 @@ import {
   FinancialScope,
   RecurringTransaction,
   RecurrenceEndRule,
+  RecurrenceAccountingMode,
 } from '@/services/finances/financesService';
 
 type TabId =
@@ -81,6 +83,7 @@ interface RecurrenceFormState {
   endRule: RecurrenceEndRule;
   endDate: string;
   count: string;
+  accountingMode: RecurrenceAccountingMode;
 }
 
 const emptyRecurrenceForm: RecurrenceFormState = {
@@ -90,6 +93,7 @@ const emptyRecurrenceForm: RecurrenceFormState = {
   endRule: 'never',
   endDate: '',
   count: '',
+  accountingMode: 'automatic',
 };
 
 type QuickKey = 'hoje' | 'ontem' | 'semana' | 'mes' | 'ano' | 'todos';
@@ -446,6 +450,8 @@ export default function FinancesPage() {
   const [recurrences, setRecurrences] = useState<RecurringTransaction[]>([]);
   const [editingRecurrence, setEditingRecurrence] = useState<RecurringTransaction | null>(null);
   const [isRecDialogOpen, setIsRecDialogOpen] = useState(false);
+  const [pendingTransactions, setPendingTransactions] = useState<FinancialTransaction[]>([]);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const scopes: { id: FinancialScope; label: string; icon: typeof Store }[] = [
     { id: 'store', label: 'Despesas Loja', icon: Store },
@@ -494,10 +500,35 @@ export default function FinancesPage() {
     }
   }, []);
 
+  const loadPendingTransactions = useCallback(async () => {
+    try {
+      const data = await financialTransactionsService.getPendingTransactions();
+      setPendingTransactions(data);
+    } catch {
+      toast.error('Erro ao carregar confirmações pendentes');
+    }
+  }, []);
+
   useEffect(() => {
     loadTransactions();
     loadRecurrences();
-  }, [loadTransactions, loadRecurrences]);
+    loadPendingTransactions();
+  }, [loadTransactions, loadRecurrences, loadPendingTransactions]);
+
+  const handleConfirmPending = async (t: FinancialTransaction) => {
+    setConfirmingId(t.id);
+    try {
+      await financialTransactionsService.confirmTransaction(t.id);
+      toast.success('Movimentação confirmada!');
+      loadPendingTransactions();
+      loadTransactions();
+      loadRecurrences();
+    } catch {
+      toast.error('Erro ao confirmar movimentação');
+    } finally {
+      setConfirmingId(null);
+    }
+  };
 
   const categorySuggestions = useMemo(() => {
     if (!tabFilter) return [];
@@ -611,6 +642,7 @@ export default function FinancesPage() {
       end_rule: recurrence.endRule,
       end_date: recurrence.endRule === 'until_date' ? recurrence.endDate : null,
       max_occurrences: maxOccurrences,
+      accounting_mode: recurrence.accountingMode,
     };
   };
 
@@ -727,6 +759,7 @@ export default function FinancesPage() {
     endRule: r.end_rule,
     endDate: r.end_date || '',
     count: r.max_occurrences ? String(r.max_occurrences) : '',
+    accountingMode: r.accounting_mode,
   });
 
   const [editRecForm, setEditRecForm] = useState<RecurrenceFormState>(emptyRecurrenceForm);
@@ -765,6 +798,7 @@ export default function FinancesPage() {
         end_rule: editRecForm.endRule,
         end_date: editRecForm.endRule === 'until_date' ? editRecForm.endDate : null,
         max_occurrences: maxOccurrences,
+        accounting_mode: editRecForm.accountingMode,
         active: true,
       });
       toast.success('Recorrência atualizada! Movimentações futuras foram reajustadas.');
@@ -1258,6 +1292,7 @@ export default function FinancesPage() {
               onClick={() => {
                 loadRecurrences();
                 loadTransactions();
+                loadPendingTransactions();
               }}
             >
               <RefreshCw className="w-4 h-4 mr-2" /> Atualizar
@@ -1267,6 +1302,39 @@ export default function FinancesPage() {
             </span>
           </div>
         </div>
+
+        {pendingTransactions.length > 0 && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 overflow-hidden">
+            <div className="px-4 py-3 border-b border-amber-500/20">
+              <h4 className="font-semibold text-foreground text-sm">
+                Confirmações Pendentes ({pendingTransactions.length})
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Recorrências manuais só entram nos totais depois que você confirmar que realmente aconteceram.
+              </p>
+            </div>
+            <div className="divide-y divide-border">
+              {pendingTransactions.map((t) => (
+                <div key={t.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{t.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatShortDate(toLocalDate(t.transaction_date))} · {t.kind === 'expense' ? 'Despesa' : 'Entrada'} ·{' '}
+                      {formatCurrency(t.amount)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => handleConfirmPending(t)}
+                    disabled={confirmingId === t.id}
+                  >
+                    <Check className="w-4 h-4 mr-1.5" /> Confirmar
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
           {recurrences.length === 0 ? (
@@ -1283,6 +1351,7 @@ export default function FinancesPage() {
                   <th className="py-3 px-4 text-right">Valor</th>
                   <th className="py-3 px-4">Frequência</th>
                   <th className="py-3 px-4">Repetição</th>
+                  <th className="py-3 px-4 text-center">Contabilização</th>
                   <th className="py-3 px-4 text-center">Próxima</th>
                   <th className="py-3 px-4 text-center">Status</th>
                   <th className="py-3 px-4 text-center">Ações</th>
@@ -1314,6 +1383,22 @@ export default function FinancesPage() {
                       <td className="py-3 px-4 text-right font-semibold">{formatCurrency(r.amount)}</td>
                       <td className="py-3 px-4 text-muted-foreground text-xs">{frequencyLabel(r)}</td>
                       <td className="py-3 px-4 text-muted-foreground text-xs">{endRuleLabel(r)}</td>
+                      <td className="py-3 px-4 text-center">
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            r.accounting_mode === 'manual'
+                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {r.accounting_mode === 'manual' ? 'Manual' : 'Automática'}
+                        </span>
+                        {r.accounting_mode === 'manual' && r.pending_count > 0 && (
+                          <span className="block text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                            {r.pending_count} pendente{r.pending_count > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-3 px-4 text-center text-muted-foreground text-xs">
                         {r.active && r.next_occurrence_date ? formatShortDate(r.next_occurrence_date) : '—'}
                       </td>
@@ -1783,6 +1868,38 @@ export default function FinancesPage() {
                           />
                         </div>
                       )}
+                      <div className="space-y-1.5">
+                        <Label>Contabilização</Label>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setRecurrence({ ...recurrence, accountingMode: 'automatic' })}
+                            className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                              recurrence.accountingMode === 'automatic'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            Automática
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRecurrence({ ...recurrence, accountingMode: 'manual' })}
+                            className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                              recurrence.accountingMode === 'manual'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            Manual
+                          </button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {recurrence.accountingMode === 'manual'
+                            ? 'Cada ocorrência fica pendente em "Confirmações Pendentes" e só entra nos totais quando você confirmar que realmente aconteceu.'
+                            : 'Cada ocorrência é lançada automaticamente na data prevista.'}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1905,6 +2022,38 @@ export default function FinancesPage() {
                     />
                   </div>
                 )}
+                <div className="space-y-1.5">
+                  <Label>Contabilização</Label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditRecForm({ ...editRecForm, accountingMode: 'automatic' })}
+                      className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                        editRecForm.accountingMode === 'automatic'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Automática
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditRecForm({ ...editRecForm, accountingMode: 'manual' })}
+                      className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                        editRecForm.accountingMode === 'manual'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Manual
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {editRecForm.accountingMode === 'manual'
+                      ? 'Cada ocorrência fica pendente em "Confirmações Pendentes" e só entra nos totais quando você confirmar que realmente aconteceu.'
+                      : 'Cada ocorrência é lançada automaticamente na data prevista.'}
+                  </p>
+                </div>
               </div>
             )}
             <DialogFooter>

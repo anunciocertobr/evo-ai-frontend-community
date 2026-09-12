@@ -2859,18 +2859,18 @@ export default function GestorPostsPage() {
       {selectedMedia && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedMedia(null)} />
-          <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-800">{selectedMedia.media_type}</h2>
+          <div className="relative w-full max-w-2xl bg-card rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted flex-shrink-0">
+              <h2 className="text-sm font-semibold text-foreground">{selectedMedia.media_type}</h2>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setConfirmDeleteMediaOpen(true)}
-                  className="text-gray-400 hover:text-red-600"
+                  className="text-muted-foreground hover:text-red-600"
                   title="Excluir post"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
-                <button onClick={() => setSelectedMedia(null)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => setSelectedMedia(null)} className="text-muted-foreground hover:text-foreground">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -2881,7 +2881,7 @@ export default function GestorPostsPage() {
                 alt=""
                 className="w-full max-h-72 object-contain rounded-lg bg-black/5"
               />
-              {selectedMedia.caption && <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedMedia.caption}</p>}
+              {selectedMedia.caption && <p className="text-sm text-foreground whitespace-pre-wrap">{selectedMedia.caption}</p>}
 
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">
@@ -2912,25 +2912,25 @@ export default function GestorPostsPage() {
                 </a>
               )}
 
-              <div className="border-t border-gray-100 pt-3 space-y-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Comentários</p>
+              <div className="border-t border-border pt-3 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Comentários</p>
                 {loadingComments ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
                     <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
                   </div>
                 ) : comments.length === 0 ? (
-                  <p className="text-sm text-gray-400">Nenhum comentário ainda.</p>
+                  <p className="text-sm text-muted-foreground">Nenhum comentário ainda.</p>
                 ) : (
                   comments.map((c) => (
-                    <div key={c.id} className="text-sm border border-gray-100 rounded-lg p-3 space-y-2">
+                    <div key={c.id} className="text-sm border border-border rounded-lg p-3 space-y-2">
                       <p>
-                        <span className="font-semibold text-gray-800">{c.username || c.from?.username}</span>{' '}
-                        <span className="text-gray-600">{c.text}</span>
+                        <span className="font-semibold text-foreground">{c.username || c.from?.username}</span>{' '}
+                        <span className="text-muted-foreground">{c.text}</span>
                       </p>
                       {replyingTo === c.id ? (
                         <div className="flex items-center gap-2">
                           <input
-                            className="flex-1 border-gray-300 rounded-md text-sm p-1.5 border"
+                            className="flex-1 border-border rounded-md text-sm p-1.5 border"
                             value={replyText}
                             onChange={(e) => setReplyText(e.target.value)}
                             placeholder="Escreva uma resposta..."
@@ -3228,14 +3228,14 @@ export default function GestorPostsPage() {
               if (!creating) setShowCreateModal(false);
             }}
           />
-          <div className="relative w-full max-w-lg bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-800">Criar Post</h2>
+          <div className="relative w-full max-w-lg bg-card rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted flex-shrink-0">
+              <h2 className="text-sm font-semibold text-foreground">Criar Post</h2>
               <button
                 onClick={() => {
                   if (!creating) setShowCreateModal(false);
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -3607,9 +3607,9 @@ export default function GestorPostsPage() {
               )}
 
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Legenda</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Legenda</p>
                 <textarea
-                  className="w-full border border-gray-300 rounded-md text-sm p-2.5"
+                  className="w-full border border-border rounded-md text-sm p-2.5"
                   rows={3}
                   value={newCaption}
                   onChange={(e) => setNewCaption(e.target.value)}
@@ -3648,7 +3648,7 @@ export default function GestorPostsPage() {
               {createProgress && <p className="text-xs text-muted-foreground">{createProgress}</p>}
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border bg-muted flex-shrink-0">
               <Button
                 variant="outline"
                 disabled={creating}
@@ -3672,10 +3672,10 @@ export default function GestorPostsPage() {
       {showScheduledModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowScheduledModal(false)} />
-          <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-800">Posts Agendados</h2>
-              <button onClick={() => setShowScheduledModal(false)} className="text-gray-400 hover:text-gray-600">
+          <div className="relative w-full max-w-2xl bg-card rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted flex-shrink-0">
+              <h2 className="text-sm font-semibold text-foreground">Posts Agendados</h2>
+              <button onClick={() => setShowScheduledModal(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -3685,10 +3685,10 @@ export default function GestorPostsPage() {
                   <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
                 </div>
               ) : scheduledPosts.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">Nenhum post agendado ainda.</p>
+                <p className="text-sm text-muted-foreground text-center py-8">Nenhum post agendado ainda.</p>
               ) : (
                 scheduledPosts.map((post) => (
-                  <div key={post.id} className="border border-gray-100 rounded-lg p-3 space-y-2">
+                  <div key={post.id} className="border border-border rounded-lg p-3 space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="outline">{SCHEDULED_STATUS_LABELS[post.status]}</Badge>
@@ -3705,7 +3705,7 @@ export default function GestorPostsPage() {
                         {new Date(post.scheduled_for).toLocaleString('pt-BR')}
                       </span>
                     </div>
-                    {post.caption && <p className="text-sm text-gray-600 line-clamp-2">{post.caption}</p>}
+                    {post.caption && <p className="text-sm text-muted-foreground line-clamp-2">{post.caption}</p>}
                     {post.status === 'failed' && post.error_message && (
                       <p className="text-xs text-red-600">{post.error_message}</p>
                     )}
@@ -3738,7 +3738,6 @@ export default function GestorPostsPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

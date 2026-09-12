@@ -14,6 +14,7 @@ import {
   X,
   Mail,
   User,
+  Receipt,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BaseHeader } from '@/components/base';
@@ -23,6 +24,11 @@ import {
   Label,
   Textarea,
   Switch,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@evoapi/design-system';
 import { adminConfigService } from '@/services/admin/adminConfigService';
 
@@ -79,6 +85,11 @@ interface OrganizationProfile {
   site_comercial: string;
   politicas_privacidade: string;
   termo_servico_url: string;
+  regime_tributario: string;
+  cnae_principal: string;
+  inscricao_estadual: string;
+  inscricao_municipal: string;
+  aliquota_efetiva_simples: string;
 }
 
 function emptyProfile(): OrganizationProfile {
@@ -114,6 +125,11 @@ function emptyProfile(): OrganizationProfile {
     site_comercial: '',
     politicas_privacidade: '',
     termo_servico_url: '',
+    regime_tributario: 'simples_nacional',
+    cnae_principal: '',
+    inscricao_estadual: '',
+    inscricao_municipal: '',
+    aliquota_efetiva_simples: '',
   };
 }
 
@@ -153,6 +169,11 @@ const SCALAR_FIELD_KEYS: Array<[keyof OrganizationProfile, string]> = [
   ['site_comercial', 'ORG_SITE_COMERCIAL'],
   ['politicas_privacidade', 'ORG_POLITICAS_PRIVACIDADE'],
   ['termo_servico_url', 'ORG_TERMO_SERVICO_URL'],
+  ['regime_tributario', 'ORG_REGIME_TRIBUTARIO'],
+  ['cnae_principal', 'ORG_CNAE_PRINCIPAL'],
+  ['inscricao_estadual', 'ORG_INSCRICAO_ESTADUAL'],
+  ['inscricao_municipal', 'ORG_INSCRICAO_MUNICIPAL'],
+  ['aliquota_efetiva_simples', 'ORG_ALIQUOTA_EFETIVA_SIMPLES'],
 ];
 
 function safeParseArray<T>(raw: unknown): T[] {
@@ -403,6 +424,45 @@ export default function OrganizationDataPage() {
             <div className="space-y-1.5"><Label>Contato Geral</Label><Input value={profile.contato_geral} onChange={(e) => set('contato_geral', e.target.value)} /></div>
             <div className="space-y-1.5"><Label><User className="w-3.5 h-3.5 inline mr-1" />Atendimento Direto</Label><Input value={profile.atendimento_direto} onChange={(e) => set('atendimento_direto', e.target.value)} /></div>
             <div className="space-y-1.5"><Label>Atendimento IA</Label><Input value={profile.atendimento_ia} onChange={(e) => set('atendimento_ia', e.target.value)} /></div>
+        </div>
+      </section>
+
+      {/* Fiscal */}
+      <section className="rounded-lg border border-border bg-card p-4 space-y-3">
+        <h4 className="text-sm font-semibold text-foreground flex items-center gap-2"><Receipt className="w-4 h-4 text-primary" /> Fiscal</h4>
+        <p className="text-xs text-muted-foreground">
+          Usado pelo cálculo de imposto dos produtos (IBS/CBS da Reforma Tributária + tributos legados). Confirme os
+          valores com seu contador — alíquotas mudam com a lei e com a faixa de faturamento da empresa.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>Regime Tributário</Label>
+            <Select value={profile.regime_tributario} onValueChange={(v) => set('regime_tributario', v)}>
+              <SelectTrigger><SelectValue placeholder="Selecione o regime" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="simples_nacional">Simples Nacional</SelectItem>
+                <SelectItem value="lucro_presumido">Lucro Presumido</SelectItem>
+                <SelectItem value="lucro_real">Lucro Real</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5"><Label>CNAE Principal</Label><Input value={profile.cnae_principal} onChange={(e) => set('cnae_principal', e.target.value)} placeholder="Ex: 5611-2/01" /></div>
+          <div className="space-y-1.5"><Label>Inscrição Estadual</Label><Input value={profile.inscricao_estadual} onChange={(e) => set('inscricao_estadual', e.target.value)} placeholder="Ou 'Isento'" /></div>
+          <div className="space-y-1.5"><Label>Inscrição Municipal</Label><Input value={profile.inscricao_municipal} onChange={(e) => set('inscricao_municipal', e.target.value)} /></div>
+          <div className="space-y-1.5">
+            <Label>Alíquota Efetiva de Tributos Legados (%)</Label>
+            <Input
+              type="number" step="0.01" value={profile.aliquota_efetiva_simples}
+              onChange={(e) => set('aliquota_efetiva_simples', e.target.value)}
+              placeholder="Ex: 6.00"
+            />
+            <p className="text-xs text-muted-foreground">
+              {profile.regime_tributario === 'simples_nacional'
+                ? 'Alíquota efetiva do Simples Nacional (calculada com base no seu faturamento dos últimos 12 meses e Anexo — pergunte ao contador).'
+                : 'Soma aproximada de ICMS/ISS + PIS/COFINS aplicável aos seus produtos.'}
+              {' '}Sem preencher, o cálculo usa um valor de referência genérico e avisa que não está configurado.
+            </p>
+          </div>
         </div>
       </section>
 

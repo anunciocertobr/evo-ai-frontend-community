@@ -44,6 +44,11 @@ import {
   Video,
   Navigation,
   RefreshCw,
+  Paintbrush,
+  HardDrive,
+  Box,
+  Target,
+  Bell,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -182,13 +187,6 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
     ],
   },
   {
-    name: 'Cardápio',
-    href: '/orders/ifood?tab=cardapio',
-    icon: UtensilsCrossed,
-    resource: 'products',
-    action: 'read',
-  },
-  {
     name: 'Finanças',
     // '#': clicar apenas abre/fecha o painel do submenu; as entradas Loja /
     // Pessoal / Ambos é que navegam. Com href='/finances', clicar no pai caía
@@ -218,6 +216,8 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
       // mesmos itens que já existiam em "Meu Espaço", linkados aqui também
       // via a rota genérica /editor/content/:nodeId.
       { name: 'Relatórios', href: '/editor/content/mtlsot4v-cf6f9s', icon: PieChart },
+      { name: 'Metas de Clientes', href: '/marketing/metas-clientes', icon: Target },
+      { name: 'Alertas e Relatórios', href: '/marketing/alertas', icon: Bell },
       { name: 'Painel Tráfego', href: '/editor/content/mtlsqe9g-44xt89', icon: Megaphone },
       { name: 'Setup Marketing (Meta/GA4/Ads)', href: '/editor/content/setupbm-36c48c9d', icon: Settings },
       { name: 'Copy de Tráfego (Meta)', href: '/editor/content/mktia-copytrafego', icon: PenTool },
@@ -225,6 +225,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
       { name: 'Gerar Imagem e Identidade Visual', href: '/editor/content/mktia-gerarimagem', icon: Wand },
       { name: 'Roteiro de Vídeo', href: '/editor/content/mktia-roteirovideo', icon: Video },
       { name: 'Suíte de Mídia', href: '/editor/content/mktia-suitemidia', icon: Layers },
+      { name: 'Quadro de Desenho', href: '/editor/content/mktia-quadrodesenho', icon: Paintbrush },
     ],
   },
   {
@@ -342,6 +343,15 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
     icon: Layers,
     resource: 'inboxes',
     action: 'read',
+  },
+  {
+    name: 'Drive',
+    href: '#',
+    icon: HardDrive,
+    subItems: [
+      { name: 'Google Drive', href: '/drive', icon: HardDrive },
+      { name: 'Dropbox', href: '/dropbox', icon: Box },
+    ],
   },
   {
     id: 'customer-settings',
