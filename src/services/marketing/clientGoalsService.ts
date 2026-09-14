@@ -179,6 +179,17 @@ class ClientGoalsService {
     );
     return (response.data?.[0]?.lista_final_contas_de_anuncios || []).map((a) => ({ id: a.id, name: a.name }));
   }
+
+  // Autocomplete do campo "Nome da conta": lista TODAS as contas que o token
+  // tem acesso, sem escopar por BM (mesma ação, só sem id_bm — Meta::AdsManagerService#ad_accounts
+  // cai pro /me/adaccounts global quando business_id vem em branco).
+  async listAllAdAccounts(): Promise<{ id: string; name: string }[]> {
+    const response = await api.post<[{ lista_final_contas_de_anuncios?: { id: string; name: string }[] }]>(
+      '/reports/meta_ads_manager',
+      { acao: 'lista_de_contas' },
+    );
+    return (response.data?.[0]?.lista_final_contas_de_anuncios || []).map((a) => ({ id: a.id, name: a.name }));
+  }
 }
 
 export const clientGoalsService = new ClientGoalsService();

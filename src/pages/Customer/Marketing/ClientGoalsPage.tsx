@@ -298,6 +298,26 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
     }
   };
 
+  // Autocomplete do "Nome da conta": busca a lista completa de contas UMA
+  // vez (na primeira vez que o campo ganha foco) e reaproveita pra todas as
+  // linhas — filtra localmente a cada tecla, sem chamar a API de novo.
+  const [allAccounts, setAllAccounts] = useState<{ id: string; name: string }[] | null>(null);
+  const [loadingAllAccounts, setLoadingAllAccounts] = useState(false);
+  const [openNameDropdown, setOpenNameDropdown] = useState<number | null>(null);
+
+  const ensureAllAccountsLoaded = () => {
+    if (allAccounts !== null || loadingAllAccounts) return;
+    setLoadingAllAccounts(true);
+    clientGoalsService
+      .listAllAdAccounts()
+      .then(setAllAccounts)
+      .catch(() => {
+        toast.error('Não foi possível carregar a lista de contas de anúncio.');
+        setAllAccounts([]);
+      })
+      .finally(() => setLoadingAllAccounts(false));
+  };
+
   // Um par nome/raio "pendente" por conta (preenche os dois campos e clica
   // Adicionar) — precisa ser por índice porque cada conta tem sua própria
   // lista de localizações.
@@ -482,12 +502,56 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                       <Search className="h-4 w-4" />
                     )}
                   </Button>
-                  <Input
-                    className={`${FIELD_CLASS} min-w-[140px] flex-1`}
-                    placeholder="Nome da conta"
-                    value={acc.name}
-                    onChange={(e) => updateAdAccount(accIndex, 'name', e.target.value)}
-                  />
+                  <div className="relative min-w-[140px] flex-1">
+                    <Input
+                      className={FIELD_CLASS}
+                      placeholder="Nome da conta"
+                      value={acc.name}
+                      autoComplete="off"
+                      onFocus={() => {
+                        ensureAllAccountsLoaded();
+                        setOpenNameDropdown(accIndex);
+                      }}
+                      onChange={(e) => {
+                        updateAdAccount(accIndex, 'name', e.target.value);
+                        setOpenNameDropdown(accIndex);
+                      }}
+                      onBlur={() => setTimeout(() => setOpenNameDropdown((cur) => (cur === accIndex ? null : cur)), 150)}
+                    />
+                    {openNameDropdown === accIndex && (
+                      <div className="bg-popover text-popover-foreground absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-md border shadow-md">
+                        {loadingAllAccounts ? (
+                          <div className="flex items-center gap-2 p-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando contas...
+                          </div>
+                        ) : (
+                          (() => {
+                            const query = acc.name.trim().toLowerCase();
+                            const matches = (allAccounts || []).filter(
+                              (a) => !query || a.name.toLowerCase().includes(query),
+                            );
+                            if (matches.length === 0) {
+                              return <div className="p-2 text-xs text-muted-foreground">Nenhuma conta encontrada.</div>;
+                            }
+                            return matches.slice(0, 30).map((a) => (
+                              <button
+                                key={a.id}
+                                type="button"
+                                className="hover:bg-accent hover:text-accent-foreground block w-full truncate px-2 py-1.5 text-left text-sm"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  patchAdAccount(accIndex, { id: a.id, name: a.name });
+                                  setOpenNameDropdown(null);
+                                }}
+                              >
+                                {a.name} <span className="text-muted-foreground">({a.id})</span>
+                              </button>
+                            ));
+                          })()
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <Button size="icon" variant="ghost" onClick={() => removeAdAccount(accIndex)}>
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
