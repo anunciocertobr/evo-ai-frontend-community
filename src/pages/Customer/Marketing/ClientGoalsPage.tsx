@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import {
   Plus,
@@ -338,32 +338,117 @@ function ObservationBadge({ objective }: { objective: ClientGoalObjective }) {
   );
 }
 
-// Mini-tabela Diário/Semanal/Mensal x Meta de Resultado/Margem Mín/Margem
-// Máx de um objetivo — usada na leitura (linha expandida da tabela).
-function ObjectivePeriodsTable({ objective }: { objective: ClientGoalObjective }) {
+// Envolve uma tabela larga (mais colunas do que cabe na tela) com uma
+// segunda barra de rolagem horizontal grudada embaixo da viewport
+// (position: sticky) enquanto a tabela estiver visível — sem isso, pra
+// rolar pra o lado era preciso primeiro rolar a página inteira até achar a
+// barra de rolagem nativa no rodapé da própria tabela, que pode estar bem
+// longe se a tabela for alta (várias campanhas/conjuntos/anúncios). As
+// duas barras (a nativa da tabela e essa mirror) ficam sincronizadas nos
+// dois sentidos.
+function ScrollableTable({ minWidth, children }: { minWidth: number; children: React.ReactNode }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const syncing = useRef(false);
+  const [needsScroll, setNeedsScroll] = useState(false);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const update = () => setNeedsScroll(el.scrollWidth > el.clientWidth + 1);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const syncFrom = (source: HTMLDivElement, target: HTMLDivElement) => {
+    if (syncing.current) return;
+    syncing.current = true;
+    target.scrollLeft = source.scrollLeft;
+    syncing.current = false;
+  };
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-left text-muted-foreground">
-            <th className="py-1 pr-3 font-medium">Período</th>
-            <th className="py-1 pr-3 font-medium">Meta de Resultado</th>
-            <th className="py-1 pr-3 font-medium">Margem Mín (R$)</th>
-            <th className="py-1 pr-3 font-medium">Margem Máx (R$)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {PERIODS.map((period) => (
-            <tr key={period.key} className="border-t">
-              <td className="py-1.5 pr-3 font-medium">{period.label}</td>
-              <td className="py-1.5 pr-3">{num(objective[`target_result_${period.key}` as keyof ClientGoalObjective] as number)}</td>
-              <td className="py-1.5 pr-3">{money(objective[`cost_margin_${period.key}_min` as keyof ClientGoalObjective] as number)}</td>
-              <td className="py-1.5 pr-3">{money(objective[`cost_margin_${period.key}_max` as keyof ClientGoalObjective] as number)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div
+        ref={contentRef}
+        className="overflow-x-auto"
+        onScroll={(e) => barRef.current && syncFrom(e.currentTarget, barRef.current)}
+      >
+        <div style={{ minWidth }}>{children}</div>
+      </div>
+      {needsScroll && (
+        <div
+          ref={barRef}
+          className="sticky bottom-0 z-10 overflow-x-auto overflow-y-hidden border-t bg-background"
+          style={{ height: 14 }}
+          onScroll={(e) => contentRef.current && syncFrom(e.currentTarget, contentRef.current)}
+        >
+          <div style={{ minWidth, height: 1 }} />
+        </div>
+      )}
+    </>
+  );
+}
+
+// Uma linha por objetivo (não uma linha por período) — mesmo modelo das
+// tabelas de campanha/conjunto/anúncio: Diário/Semanal/Mensal viram grupos
+// de colunas lado a lado, não linhas empilhadas.
+function AccountObjectiveRowHeader() {
+  return (
+    <thead>
+      <tr className="border-b text-muted-foreground">
+        <th rowSpan={2} className="whitespace-nowrap px-2 py-1 text-left align-bottom">
+          Objetivo
+        </th>
+        <th rowSpan={2} className="whitespace-nowrap px-2 py-1 text-right align-bottom">
+          Orçamento
+        </th>
+        {PERIODS.map((period) => (
+          <th key={period.key} colSpan={3} className="border-l px-2 py-1 text-center">
+            {period.label}
+          </th>
+        ))}
+        <th rowSpan={2} className="border-l whitespace-nowrap px-2 py-1 text-left align-bottom">
+          Acompanhamento
+        </th>
+      </tr>
+      <tr className="border-b text-muted-foreground">
+        {PERIODS.map((period) => (
+          <Fragment key={period.key}>
+            <th className="border-l px-2 py-1 text-right text-[10px] font-normal">Meta</th>
+            <th className="px-2 py-1 text-right text-[10px] font-normal">Margem Mín</th>
+            <th className="px-2 py-1 text-right text-[10px] font-normal">Margem Máx</th>
+          </Fragment>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+function AccountObjectiveRow({ objective }: { objective: ClientGoalObjective }) {
+  return (
+    <tr className="border-t">
+      <td className="whitespace-nowrap px-2 py-1.5 font-medium">{objectiveLabel(objective)}</td>
+      <td className="px-2 py-1.5 text-right">{money(objective.budget)}</td>
+      {PERIODS.map((period) => (
+        <Fragment key={period.key}>
+          <td className="border-l px-2 py-1.5 text-right">
+            {num(objective[`target_result_${period.key}` as keyof ClientGoalObjective] as number)}
+          </td>
+          <td className="px-2 py-1.5 text-right">
+            {money(objective[`cost_margin_${period.key}_min` as keyof ClientGoalObjective] as number)}
+          </td>
+          <td className="px-2 py-1.5 text-right">
+            {money(objective[`cost_margin_${period.key}_max` as keyof ClientGoalObjective] as number)}
+          </td>
+        </Fragment>
+      ))}
+      <td className="border-l px-2 py-1.5">
+        <ObservationBadge objective={objective} />
+      </td>
+    </tr>
   );
 }
 
@@ -1984,20 +2069,16 @@ export default function ClientGoalsPage() {
                                         </div>
                                       )}
                                       {account.objectives.length ? (
-                                        <div className="space-y-3">
-                                          {account.objectives.map((o) => (
-                                            <div key={o.key} className="rounded-md border p-2">
-                                              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                                                <span className="text-xs font-semibold">{objectiveLabel(o)}</span>
-                                                <div className="flex items-center gap-2">
-                                                  <span className="text-xs text-muted-foreground">Orçamento: {money(o.budget)}</span>
-                                                  <ObservationBadge objective={o} />
-                                                </div>
-                                              </div>
-                                              <ObjectivePeriodsTable objective={o} />
-                                            </div>
-                                          ))}
-                                        </div>
+                                        <ScrollableTable minWidth={760}>
+                                          <table className="w-full text-xs">
+                                            <AccountObjectiveRowHeader />
+                                            <tbody>
+                                              {account.objectives.map((o) => (
+                                                <AccountObjectiveRow key={o.key} objective={o} />
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </ScrollableTable>
                                       ) : (
                                         <p className="text-xs text-muted-foreground">Nenhum objetivo cadastrado pra esta conta.</p>
                                       )}
@@ -2009,12 +2090,13 @@ export default function ClientGoalsPage() {
                                               <Loader2 className="h-3 w-3 animate-spin" /> Buscando campanhas ativas...
                                             </span>
                                           ) : roCampaigns && roCampaigns.length > 0 ? (
-                                            <div className="overflow-x-auto">
+                                            <>
                                               <div className="mb-1 font-medium text-foreground">
                                                 Campanhas ativas agora ({roCampaigns.length}) — últimos 30 dias — clique na seta pra ver
                                                 conjuntos/anúncios:
                                               </div>
-                                              <table className="w-full min-w-[1100px] text-xs">
+                                              <ScrollableTable minWidth={1100}>
+                                              <table className="w-full text-xs">
                                                 <GoalRowHeader />
                                                 <tbody>
                                                   {roCampaigns.map((camp) => {
@@ -2161,7 +2243,8 @@ export default function ClientGoalsPage() {
                                                   })}
                                                 </tbody>
                                               </table>
-                                            </div>
+                                              </ScrollableTable>
+                                            </>
                                           ) : (
                                             <span className="text-muted-foreground">Nenhuma campanha ativa no momento nessa conta.</span>
                                           )}
