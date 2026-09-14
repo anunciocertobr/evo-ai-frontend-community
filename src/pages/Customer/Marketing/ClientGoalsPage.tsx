@@ -804,8 +804,31 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
   const emptyDrillDown = { campaignId: null as string | null, adsetId: null as string | null, adId: null as string | null };
   const [drillDown, setDrillDown] = useState<Record<number, typeof emptyDrillDown>>({});
 
-  const toggleAccountExpanded = (index: number) =>
+  // Busca só a árvore de campanhas ao vivo, sem tocar em idade/gênero/
+  // localizações — usada pra carregar sozinha quando a linha expande (o
+  // usuário só quer VER as campanhas, não pediu pra sobrescrever os campos
+  // da conta). Só busca uma vez por conta (activeCampaigns[index] guarda
+  // o resultado); "Preencher com histórico" continua sendo a única ação
+  // que sobrescreve idade/gênero/localizações, de propósito.
+  const fetchActiveCampaignsOnly = async (index: number, id: string) => {
+    if (activeCampaigns[index] !== undefined || historyLoading[index]) return;
+    setHistoryLoading((prev) => ({ ...prev, [index]: true }));
+    try {
+      const summary = await clientGoalsService.getAccountHistorySummary(id);
+      setActiveCampaigns((prev) => ({ ...prev, [index]: summary.active_campaigns || [] }));
+    } catch (error) {
+      console.error('fetchActiveCampaignsOnly error:', error);
+    } finally {
+      setHistoryLoading((prev) => ({ ...prev, [index]: false }));
+    }
+  };
+
+  const toggleAccountExpanded = (index: number) => {
+    const willExpand = !expandedAccounts[index];
     setExpandedAccounts((prev) => ({ ...prev, [index]: !prev[index] }));
+    const id = form.ad_accounts[index]?.id?.trim();
+    if (willExpand && id) fetchActiveCampaignsOnly(index, id);
+  };
 
   const toggleCampaign = (accIndex: number, campaignId: string) =>
     setDrillDown((prev) => {
@@ -1211,7 +1234,12 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                     {expanded && (
                       <TableRow>
                         <TableCell colSpan={7} className="bg-muted/30 p-4">
-                          <div className="space-y-4">
+                          {/* width:1px + min-width:100% impede que o conteúdo largo (tabela de
+                              campanhas) infle a largura da CÉLULA da tabela (e por tabela auto-layout,
+                              a tabela inteira) — sem isso o overflow vazava pra fora da tela sem
+                              nenhuma barra de rolagem visível pra alcançar (a barra que existiria
+                              seria a da tabela INTEIRA, lá embaixo de todas as linhas). */}
+                          <div style={{ width: 1, minWidth: '100%' }} className="space-y-4">
                             <div className="flex flex-wrap items-center gap-2">
                               <MetaAdAccountPicker onSelect={(account) => selectAccount(accIndex, account)} />
                               <Input
@@ -1801,6 +1829,16 @@ export default function ClientGoalsPage() {
       if (editingRowId === goal.id) cancelInlineEdit();
     } else {
       setExpandedId(goal.id);
+      // Busca as campanhas de cada conta sozinho ao expandir — o usuário só
+      // quer VER, não deveria precisar clicar num botão de sincronizar toda
+      // vez. Só busca as que ainda não têm resultado guardado (evita
+      // reconsultar a Graph API de novo ao fechar/abrir a mesma linha).
+      goal.ad_accounts.forEach((account, accIndex) => {
+        const roKey = `${goal.id}:${accIndex}`;
+        if (account.id?.trim() && roActiveCampaigns[roKey] === undefined && !roHistoryLoading[roKey]) {
+          applyReadOnlyHistory(roKey, account.id);
+        }
+      });
     }
   };
 
@@ -2025,6 +2063,11 @@ export default function ClientGoalsPage() {
                     {expanded && (
                       <TableRow>
                         <TableCell colSpan={8} className="bg-muted/30 p-4" onClick={(e) => e.stopPropagation()}>
+                          {/* Mesmo truque de width:1px + min-width:100% do TableCell da tabela
+                              de contas — corta a cadeia de "cresce pra caber o conteúdo" bem no
+                              início, na célula da tabela de clientes (a mais externa), senão
+                              nada mais abaixo consegue ficar de fato contido/rolável. */}
+                          <div style={{ width: 1, minWidth: '100%' }}>
                           {editingThisRow ? (
                             <div className="space-y-4">
                               <ClientGoalFormFields
@@ -2299,6 +2342,7 @@ export default function ClientGoalsPage() {
                               <p className="text-xs text-muted-foreground">Dica: dê dois cliques na linha do cliente pra editar.</p>
                             </div>
                           )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     )}
