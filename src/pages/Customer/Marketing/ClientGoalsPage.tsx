@@ -127,6 +127,35 @@ const formFromGoal = (goal: ClientGoal): ClientGoalFormData => ({
   changelog: goal.changelog,
 });
 
+// Uma conta "vazia" (linha adicionada via "Adicionar Conta" mas nunca
+// preenchida) não deve virar uma conta salva — mas ID da conta é OPCIONAL:
+// nem todo cliente tem uma conta de anúncio Meta real ainda (só perde o
+// acompanhamento automático, ver `Sem acompanhamento automático`). Antes
+// disso, o filtro exigia `id` preenchido e descartava a conta inteira (com
+// todos os objetivos preenchidos) sem avisar nada, silenciosamente, sempre
+// que o cliente não tinha ID de conta Meta.
+const objectiveHasContent = (o: ClientGoalObjective) =>
+  o.budget != null ||
+  o.target_result_daily != null ||
+  o.target_result_weekly != null ||
+  o.target_result_monthly != null ||
+  o.cost_margin_daily_min != null ||
+  o.cost_margin_daily_max != null ||
+  o.cost_margin_weekly_min != null ||
+  o.cost_margin_weekly_max != null ||
+  o.cost_margin_monthly_min != null ||
+  o.cost_margin_monthly_max != null ||
+  !!o.custom_label?.trim();
+
+const accountHasContent = (a: ClientGoalAdAccount) =>
+  !!a.id.trim() ||
+  !!a.name.trim() ||
+  a.locations.length > 0 ||
+  a.age_min != null ||
+  a.age_max != null ||
+  (a.gender != null && a.gender !== 'all') ||
+  a.objectives.some(objectiveHasContent);
+
 const objectiveLabel = (o: ClientGoalObjective) =>
   o.objective_type === 'outro'
     ? o.custom_label || 'Outro'
@@ -798,11 +827,14 @@ export default function ClientGoalsPage() {
       return;
     }
     // Único campo obrigatório é o nome — conta de anúncio, objetivos, etc.
-    // são todos opcionais e podem ser preenchidos depois. Um objetivo "Outro"
-    // sem rótulo ainda precisa de algum texto pro backend (identifica o
-    // objetivo), então preenche um padrão em vez de bloquear o salvamento.
+    // são todos opcionais e podem ser preenchidos depois. ID da conta é
+    // opcional (nem todo cliente tem conta Meta ligada ainda): só derruba
+    // uma linha de conta se ela estiver genuinamente vazia (nunca preenchida),
+    // nunca por falta de ID especificamente. Um objetivo "Outro" sem rótulo
+    // ainda precisa de algum texto pro backend (identifica o objetivo), então
+    // preenche um padrão em vez de bloquear o salvamento.
     const cleanedAdAccounts = form.ad_accounts
-      .filter((a) => a.id.trim())
+      .filter(accountHasContent)
       .map((a) => ({
         ...a,
         objectives: a.objectives.map((o) =>
