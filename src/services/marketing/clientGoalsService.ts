@@ -109,6 +109,22 @@ export interface ClientGoal {
 
 export type ClientGoalFormData = Omit<ClientGoal, 'id' | 'created_at' | 'updated_at'>;
 
+export interface AccountHistorySummary {
+  targeting_summary: {
+    age_min: number | null;
+    age_max: number | null;
+    gender: Gender;
+    locations: ClientGoalLocation[];
+  };
+  active_campaigns: {
+    id: string;
+    name: string;
+    objective?: string;
+    daily_budget?: string;
+    lifetime_budget?: string;
+  }[];
+}
+
 interface ApiEnvelope<T> {
   success: boolean;
   data: T;
@@ -189,6 +205,18 @@ class ClientGoalsService {
       { acao: 'lista_de_contas' },
     );
     return (response.data?.[0]?.lista_final_contas_de_anuncios || []).map((a) => ({ id: a.id, name: a.name }));
+  }
+
+  // Ao escolher uma conta (autocomplete, seletor BM>Conta ou "Buscar conta"):
+  // preenche idade/gênero/localizações a partir do histórico de público da
+  // conta e traz as campanhas ativas agora, pra contexto
+  // (Meta::AdsManagerService#account_history_summary).
+  async getAccountHistorySummary(id: string): Promise<AccountHistorySummary> {
+    const response = await api.post<AccountHistorySummary>('/reports/meta_ads_manager', {
+      acao: 'conta_historico',
+      id_conta_anuncio: id,
+    });
+    return response.data;
   }
 }
 

@@ -67,6 +67,7 @@ import {
   CHANGELOG_LEVEL_OPTIONS,
   GENDER_OPTIONS,
   Gender,
+  AccountHistorySummary,
 } from '@/services/marketing/clientGoalsService';
 
 // Os campos do design system usam fundo transparente por padrão (só a borda
@@ -280,6 +281,40 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
   // nome direto na Graph API (Meta::AdsManagerService#account_info).
   const [lookupLoading, setLookupLoading] = useState<Record<number, boolean>>({});
 
+  // Ao escolher uma conta (por qualquer um dos três caminhos: autocomplete
+  // do nome, seletor BM>Conta ou "Buscar conta" por ID), preenche sozinho
+  // idade/gênero/localizações a partir do histórico de público da conta e
+  // guarda as campanhas ativas agora, só pra mostrar como contexto (não é
+  // salvo no formulário — some se a conta for trocada de novo).
+  const [historyLoading, setHistoryLoading] = useState<Record<number, boolean>>({});
+  const [activeCampaigns, setActiveCampaigns] = useState<Record<number, AccountHistorySummary['active_campaigns']>>(
+    {},
+  );
+
+  const applyAccountHistory = async (index: number, accountId: string) => {
+    setHistoryLoading((prev) => ({ ...prev, [index]: true }));
+    try {
+      const summary = await clientGoalsService.getAccountHistorySummary(accountId);
+      const t = summary.targeting_summary;
+      patchAdAccount(index, {
+        age_min: t.age_min,
+        age_max: t.age_max,
+        gender: t.gender || 'all',
+        locations: t.locations,
+      });
+      setActiveCampaigns((prev) => ({ ...prev, [index]: summary.active_campaigns || [] }));
+    } catch (error) {
+      toast.error(extractErrorMessage(error, 'Não foi possível carregar o histórico dessa conta.'));
+    } finally {
+      setHistoryLoading((prev) => ({ ...prev, [index]: false }));
+    }
+  };
+
+  const selectAccount = (index: number, account: { id: string; name: string }) => {
+    patchAdAccount(index, { id: account.id, name: account.name });
+    applyAccountHistory(index, account.id);
+  };
+
   const lookupAccount = async (index: number) => {
     const id = form.ad_accounts[index]?.id?.trim();
     if (!id) {
@@ -289,7 +324,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
     setLookupLoading((prev) => ({ ...prev, [index]: true }));
     try {
       const info = await clientGoalsService.lookupAdAccount(id);
-      patchAdAccount(index, { id: info.id, name: info.name || form.ad_accounts[index].name });
+      selectAccount(index, { id: info.id, name: info.name || form.ad_accounts[index].name });
       toast.success(info.name ? `Conta encontrada: ${info.name}` : 'Conta encontrada.');
     } catch (error) {
       toast.error(extractErrorMessage(error, 'Não foi possível buscar essa conta. Confira o ID.'));
@@ -480,9 +515,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
             <Card key={accIndex}>
               <CardContent className="space-y-3 pt-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <MetaAdAccountPicker
-                    onSelect={(account) => patchAdAccount(accIndex, { id: account.id, name: account.name })}
-                  />
+                  <MetaAdAccountPicker onSelect={(account) => selectAccount(accIndex, account)} />
                   <Input
                     className={`${FIELD_CLASS} min-w-[140px] flex-1`}
                     placeholder="ID da conta (act_...)"
@@ -540,7 +573,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                 className="hover:bg-accent hover:text-accent-foreground block w-full truncate px-2 py-1.5 text-left text-sm"
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => {
-                                  patchAdAccount(accIndex, { id: a.id, name: a.name });
+                                  selectAccount(accIndex, a);
                                   setOpenNameDropdown(null);
                                 }}
                               >
@@ -556,6 +589,31 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
                 </div>
+
+                {(historyLoading[accIndex] || activeCampaigns[accIndex]) && (
+                  <div className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">
+                    {historyLoading[accIndex] ? (
+                      <span className="flex items-center gap-1.5">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Buscando histórico de público e campanhas ativas...
+                      </span>
+                    ) : activeCampaigns[accIndex]?.length ? (
+                      <>
+                        <span className="font-medium text-foreground">
+                          Campanhas ativas agora ({activeCampaigns[accIndex]?.length}):
+                        </span>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {activeCampaigns[accIndex]?.map((c) => (
+                            <Badge key={c.id} variant="outline" title={c.objective || undefined}>
+                              {c.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <span>Nenhuma campanha ativa no momento nessa conta.</span>
+                    )}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
