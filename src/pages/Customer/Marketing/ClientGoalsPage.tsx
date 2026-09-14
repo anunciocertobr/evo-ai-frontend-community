@@ -339,18 +339,22 @@ function ObservationBadge({ objective }: { objective: ClientGoalObjective }) {
 }
 
 // Envolve uma tabela larga (mais colunas do que cabe na tela) com uma
-// segunda barra de rolagem horizontal grudada embaixo da viewport
-// (position: sticky) enquanto a tabela estiver visível — sem isso, pra
-// rolar pra o lado era preciso primeiro rolar a página inteira até achar a
-// barra de rolagem nativa no rodapé da própria tabela, que pode estar bem
-// longe se a tabela for alta (várias campanhas/conjuntos/anúncios). As
-// duas barras (a nativa da tabela e essa mirror) ficam sincronizadas nos
-// dois sentidos.
+// segunda barra de rolagem horizontal FIXA no rodapé da janela do
+// navegador (position: fixed, não sticky) enquanto qualquer parte da
+// tabela estiver na tela — acompanha a rolagem vertical da página em vez
+// de só aparecer quando a rolagem da própria tabela alcança o fim do
+// conteúdo (que pode estar longe do rodapé visível se a tela for mais
+// alta que a tabela). Some quando a tabela sai completamente da tela.
+// left/width são recalculados no resize pra acompanhar a posição real da
+// tabela (calculada uma vez quando ela entra em vista, não a cada scroll —
+// scroll vertical não muda a posição horizontal de nada aqui).
 function ScrollableTable({ minWidth, children }: { minWidth: number; children: React.ReactNode }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const syncing = useRef(false);
   const [needsScroll, setNeedsScroll] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const [rect, setRect] = useState<{ left: number; width: number } | null>(null);
 
   useEffect(() => {
     const el = contentRef.current;
@@ -361,6 +365,27 @@ function ScrollableTable({ minWidth, children }: { minWidth: number; children: R
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!visible || !needsScroll) return;
+    const el = contentRef.current;
+    if (!el) return;
+    const updateRect = () => {
+      const r = el.getBoundingClientRect();
+      setRect({ left: r.left, width: r.width });
+    };
+    updateRect();
+    window.addEventListener('resize', updateRect);
+    return () => window.removeEventListener('resize', updateRect);
+  }, [visible, needsScroll]);
 
   const syncFrom = (source: HTMLDivElement, target: HTMLDivElement) => {
     if (syncing.current) return;
@@ -378,11 +403,11 @@ function ScrollableTable({ minWidth, children }: { minWidth: number; children: R
       >
         <div style={{ minWidth }}>{children}</div>
       </div>
-      {needsScroll && (
+      {needsScroll && visible && rect && (
         <div
           ref={barRef}
-          className="sticky bottom-0 z-10 overflow-x-auto overflow-y-hidden border-t bg-background"
-          style={{ height: 14 }}
+          className="fixed bottom-0 z-40 overflow-x-auto overflow-y-hidden border-t bg-background shadow-[0_-2px_6px_rgba(0,0,0,0.15)]"
+          style={{ left: rect.left, width: rect.width, height: 14 }}
           onScroll={(e) => contentRef.current && syncFrom(e.currentTarget, contentRef.current)}
         >
           <div style={{ minWidth, height: 1 }} />
