@@ -59,6 +59,32 @@ export interface ClientGoalAdAccount {
   age_max: number | null;
   gender: Gender | null;
   objectives: ClientGoalObjective[];
+  campaigns: ClientGoalCampaignGoal[];
+}
+
+// Meta definida num nível mais fundo que a conta (campanha/conjunto/
+// anúncio) — só existe uma entrada aqui quando o usuário decide comparar o
+// resultado de uma campanha/conjunto/anúncio específico, não o agregado da
+// conta inteira. id/name vêm denormalizados do drill-down ao vivo
+// (AccountHistorySummary) no momento em que a meta é criada.
+export interface ClientGoalCampaignGoal {
+  id: string;
+  name: string;
+  objectives: ClientGoalObjective[];
+  adsets: ClientGoalAdSetGoal[];
+}
+
+export interface ClientGoalAdSetGoal {
+  id: string;
+  name: string;
+  objectives: ClientGoalObjective[];
+  ads: ClientGoalAdGoal[];
+}
+
+export interface ClientGoalAdGoal {
+  id: string;
+  name: string;
+  objectives: ClientGoalObjective[];
 }
 
 export interface ClientGoalObjectiveStatus {

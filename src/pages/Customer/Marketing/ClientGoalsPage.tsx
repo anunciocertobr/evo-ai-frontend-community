@@ -60,6 +60,9 @@ import {
   ClientGoalFormData,
   ClientGoalObjective,
   ClientGoalAdAccount,
+  ClientGoalCampaignGoal,
+  ClientGoalAdSetGoal,
+  ClientGoalAdGoal,
   ClientGoalChangelogEntry,
   ObjectiveType,
   ChangelogLevel,
@@ -111,6 +114,36 @@ const emptyAdAccount = (): ClientGoalAdAccount => ({
   age_max: null,
   gender: 'all',
   objectives: [emptyObjective()],
+  campaigns: [],
+});
+
+// Registros salvos ANTES de campanha/conjunto/anúncio virarem níveis de
+// meta possíveis não têm essas chaves — sem isso, ler um cliente antigo e
+// tentar `acc.campaigns.find(...)` quebraria com "Cannot read properties of
+// undefined".
+const normalizeAdGoal = (a: Partial<ClientGoalAdGoal>): ClientGoalAdGoal => ({
+  id: a.id || '',
+  name: a.name || '',
+  objectives: a.objectives || [],
+});
+
+const normalizeAdSetGoal = (a: Partial<ClientGoalAdSetGoal>): ClientGoalAdSetGoal => ({
+  id: a.id || '',
+  name: a.name || '',
+  objectives: a.objectives || [],
+  ads: (a.ads || []).map(normalizeAdGoal),
+});
+
+const normalizeCampaignGoal = (c: Partial<ClientGoalCampaignGoal>): ClientGoalCampaignGoal => ({
+  id: c.id || '',
+  name: c.name || '',
+  objectives: c.objectives || [],
+  adsets: (c.adsets || []).map(normalizeAdSetGoal),
+});
+
+const normalizeAdAccount = (a: ClientGoalAdAccount): ClientGoalAdAccount => ({
+  ...a,
+  campaigns: (a.campaigns || []).map(normalizeCampaignGoal),
 });
 
 const emptyForm = (): ClientGoalFormData => ({
@@ -129,7 +162,7 @@ const formFromGoal = (goal: ClientGoal): ClientGoalFormData => ({
   sales_channel: goal.sales_channel || '',
   meta_budget: goal.meta_budget,
   active: goal.active,
-  ad_accounts: goal.ad_accounts.length ? goal.ad_accounts : [emptyAdAccount()],
+  ad_accounts: (goal.ad_accounts.length ? goal.ad_accounts : [emptyAdAccount()]).map(normalizeAdAccount),
   changelog: goal.changelog,
 });
 
@@ -153,6 +186,12 @@ const objectiveHasContent = (o: ClientGoalObjective) =>
   o.cost_margin_monthly_max != null ||
   !!o.custom_label?.trim();
 
+const campaignGoalHasContent = (c: ClientGoalCampaignGoal): boolean =>
+  c.objectives.some(objectiveHasContent) || c.adsets.some(adsetGoalHasContent);
+
+const adsetGoalHasContent = (a: ClientGoalAdSetGoal): boolean =>
+  a.objectives.some(objectiveHasContent) || a.ads.some((ad) => ad.objectives.some(objectiveHasContent));
+
 const accountHasContent = (a: ClientGoalAdAccount) =>
   !!a.id.trim() ||
   !!a.name.trim() ||
@@ -160,7 +199,8 @@ const accountHasContent = (a: ClientGoalAdAccount) =>
   a.age_min != null ||
   a.age_max != null ||
   (a.gender != null && a.gender !== 'all') ||
-  a.objectives.some(objectiveHasContent);
+  a.objectives.some(objectiveHasContent) ||
+  a.campaigns.some(campaignGoalHasContent);
 
 const objectiveLabel = (o: ClientGoalObjective) =>
   o.objective_type === 'outro'
@@ -273,6 +313,155 @@ function ObjectivePeriodsTable({ objective }: { objective: ClientGoalObjective }
   );
 }
 
+// Editor de metas (objectives) reutilizado nos 4 níveis possíveis — conta,
+// campanha, conjunto, anúncio — já que a forma de definir uma meta (tipo,
+// orçamento, meta de resultado e margem por período) é sempre a mesma,
+// só muda ONDE ela é aplicada (ver patchCampaign/patchAdset/patchAd em
+// ClientGoalFormFields).
+function ObjectivesEditor({
+  title,
+  objectives,
+  isEditing,
+  onAdd,
+  onUpdate,
+  onRemove,
+}: {
+  title: string;
+  objectives: ClientGoalObjective[];
+  isEditing: boolean;
+  onAdd: () => void;
+  onUpdate: (objIndex: number, patch: Partial<ClientGoalObjective>) => void;
+  onRemove: (objIndex: number) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-semibold text-muted-foreground">{title}</Label>
+        <Button size="sm" variant="outline" onClick={onAdd} className="gap-1">
+          <Plus className="h-3.5 w-3.5" /> Adicionar Meta
+        </Button>
+      </div>
+
+      {objectives.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nenhuma meta definida aqui ainda.</p>
+      ) : (
+        <div className="space-y-4">
+          {objectives.map((obj, objIndex) => (
+            <Card key={obj.key || objIndex} className={FIELD_CLASS}>
+              <CardContent className="space-y-3 pt-4">
+                <div className="flex flex-wrap items-start gap-2">
+                  <div className="min-w-[160px] flex-1">
+                    <Label>Tipo de Objetivo</Label>
+                    <Select
+                      value={obj.objective_type}
+                      onValueChange={(v) => onUpdate(objIndex, { objective_type: v as ObjectiveType })}
+                    >
+                      <SelectTrigger className={FIELD_CLASS}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OBJECTIVE_TYPE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {obj.objective_type === 'outro' && (
+                    <div className="min-w-[160px] flex-1">
+                      <Label>Rótulo do Objetivo</Label>
+                      <Input
+                        className={FIELD_CLASS}
+                        value={obj.custom_label || ''}
+                        onChange={(e) => onUpdate(objIndex, { custom_label: e.target.value })}
+                      />
+                    </div>
+                  )}
+                  <div className="w-full sm:w-40">
+                    <Label>Orçamento (R$)</Label>
+                    <Input
+                      className={FIELD_CLASS}
+                      type="number"
+                      step="0.01"
+                      value={obj.budget ?? ''}
+                      onChange={(e) => onUpdate(objIndex, { budget: e.target.value === '' ? null : Number(e.target.value) })}
+                    />
+                  </div>
+                  <Button size="icon" variant="ghost" className="mt-6" onClick={() => onRemove(objIndex)}>
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+
+                {obj.objective_type === 'seguidores' || obj.objective_type === 'outro' ? (
+                  <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-700">
+                    A API do Meta não expõe esse resultado diretamente nos Insights — este objetivo fica registrado, mas o
+                    acompanhamento automático de "dias fora da meta" não é calculado para ele.
+                  </p>
+                ) : null}
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {PERIODS.map((period) => (
+                    <div key={period.key} className="space-y-1 rounded-md border p-2">
+                      <p className="text-xs font-semibold text-muted-foreground">{period.label}</p>
+                      <Label className="text-xs">Meta de Resultado</Label>
+                      <Input
+                        className={FIELD_CLASS}
+                        type="number"
+                        step="0.01"
+                        value={(obj[`target_result_${period.key}` as keyof ClientGoalObjective] as number) ?? ''}
+                        onChange={(e) =>
+                          onUpdate(objIndex, {
+                            [`target_result_${period.key}`]: e.target.value === '' ? null : Number(e.target.value),
+                          })
+                        }
+                      />
+                      <Label className="text-xs">Custo por Resultado — Margem Aceita (R$)</Label>
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          className={`${FIELD_CLASS} min-w-0 flex-1`}
+                          type="number"
+                          step="0.01"
+                          placeholder="Mín"
+                          value={(obj[`cost_margin_${period.key}_min` as keyof ClientGoalObjective] as number) ?? ''}
+                          onChange={(e) =>
+                            onUpdate(objIndex, {
+                              [`cost_margin_${period.key}_min`]: e.target.value === '' ? null : Number(e.target.value),
+                            })
+                          }
+                        />
+                        <span className="shrink-0 text-xs text-muted-foreground">até</span>
+                        <Input
+                          className={`${FIELD_CLASS} min-w-0 flex-1`}
+                          type="number"
+                          step="0.01"
+                          placeholder="Máx"
+                          value={(obj[`cost_margin_${period.key}_max` as keyof ClientGoalObjective] as number) ?? ''}
+                          onChange={(e) =>
+                            onUpdate(objIndex, {
+                              [`cost_margin_${period.key}_max`]: e.target.value === '' ? null : Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {isEditing && obj.status && (
+                  <div className="pt-1">
+                    <ObservationBadge objective={obj} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface ClientGoalFormFieldsProps {
   form: ClientGoalFormData;
   setForm: React.Dispatch<React.SetStateAction<ClientGoalFormData>>;
@@ -328,25 +517,31 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
   // campos demais pra caber em colunas. Dentro do expandido, o drill-down
   // campanha > conjunto > anúncio abre no máximo um de cada nível por vez.
   const [expandedAccounts, setExpandedAccounts] = useState<Record<number, boolean>>({});
-  const [drillDown, setDrillDown] = useState<Record<number, { campaignId: string | null; adsetId: string | null }>>(
-    {},
-  );
+  const emptyDrillDown = { campaignId: null as string | null, adsetId: null as string | null, adId: null as string | null };
+  const [drillDown, setDrillDown] = useState<Record<number, typeof emptyDrillDown>>({});
 
   const toggleAccountExpanded = (index: number) =>
     setExpandedAccounts((prev) => ({ ...prev, [index]: !prev[index] }));
 
   const toggleCampaign = (accIndex: number, campaignId: string) =>
     setDrillDown((prev) => {
-      const current = prev[accIndex];
-      const isOpen = current?.campaignId === campaignId;
-      return { ...prev, [accIndex]: isOpen ? { campaignId: null, adsetId: null } : { campaignId, adsetId: null } };
+      const current = prev[accIndex] || emptyDrillDown;
+      const isOpen = current.campaignId === campaignId;
+      return { ...prev, [accIndex]: isOpen ? emptyDrillDown : { ...emptyDrillDown, campaignId } };
     });
 
   const toggleAdset = (accIndex: number, adsetId: string) =>
     setDrillDown((prev) => {
-      const current = prev[accIndex] || { campaignId: null, adsetId: null };
+      const current = prev[accIndex] || emptyDrillDown;
       const isOpen = current.adsetId === adsetId;
-      return { ...prev, [accIndex]: { ...current, adsetId: isOpen ? null : adsetId } };
+      return { ...prev, [accIndex]: { ...current, adsetId: isOpen ? null : adsetId, adId: null } };
+    });
+
+  const toggleAd = (accIndex: number, adId: string) =>
+    setDrillDown((prev) => {
+      const current = prev[accIndex] || emptyDrillDown;
+      const isOpen = current.adId === adId;
+      return { ...prev, [accIndex]: { ...current, adId: isOpen ? null : adId } };
     });
 
   const applyAccountHistory = async (index: number) => {
@@ -468,6 +663,73 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
       };
       return { ...prev, ad_accounts: accounts };
     });
+
+  // Metas por campanha/conjunto/anúncio (além da meta da conta): cada nível
+  // só ganha uma entrada em `campaigns`/`adsets`/`ads` quando o usuário
+  // decide definir uma meta ali — a entrada é criada na hora (com
+  // objectives: []) se ainda não existir, a partir do id/nome que já vem do
+  // drill-down ao vivo.
+  const patchAccountCampaigns = (
+    accountIndex: number,
+    updater: (campaigns: ClientGoalCampaignGoal[]) => ClientGoalCampaignGoal[],
+  ) =>
+    setForm((prev) => {
+      const accounts = [...prev.ad_accounts];
+      accounts[accountIndex] = { ...accounts[accountIndex], campaigns: updater(accounts[accountIndex].campaigns) };
+      return { ...prev, ad_accounts: accounts };
+    });
+
+  const withObjectives = <T extends { objectives: ClientGoalObjective[] }>(
+    node: T,
+    transform: (objectives: ClientGoalObjective[]) => ClientGoalObjective[],
+  ): T => ({ ...node, objectives: transform(node.objectives) });
+
+  const findOrCreateCampaign = (campaigns: ClientGoalCampaignGoal[], id: string, name: string) =>
+    campaigns.some((c) => c.id === id) ? campaigns : [...campaigns, { id, name, objectives: [], adsets: [] }];
+
+  const patchCampaign = (
+    accountIndex: number,
+    campaignId: string,
+    campaignName: string,
+    patch: (camp: ClientGoalCampaignGoal) => ClientGoalCampaignGoal,
+  ) =>
+    patchAccountCampaigns(accountIndex, (campaigns) =>
+      findOrCreateCampaign(campaigns, campaignId, campaignName).map((c) => (c.id === campaignId ? patch(c) : c)),
+    );
+
+  const findOrCreateAdset = (adsets: ClientGoalAdSetGoal[], id: string, name: string) =>
+    adsets.some((a) => a.id === id) ? adsets : [...adsets, { id, name, objectives: [], ads: [] }];
+
+  const patchAdset = (
+    accountIndex: number,
+    campaignId: string,
+    campaignName: string,
+    adsetId: string,
+    adsetName: string,
+    patch: (adset: ClientGoalAdSetGoal) => ClientGoalAdSetGoal,
+  ) =>
+    patchCampaign(accountIndex, campaignId, campaignName, (camp) => ({
+      ...camp,
+      adsets: findOrCreateAdset(camp.adsets, adsetId, adsetName).map((a) => (a.id === adsetId ? patch(a) : a)),
+    }));
+
+  const findOrCreateAd = (ads: ClientGoalAdGoal[], id: string, name: string) =>
+    ads.some((a) => a.id === id) ? ads : [...ads, { id, name, objectives: [] }];
+
+  const patchAd = (
+    accountIndex: number,
+    campaignId: string,
+    campaignName: string,
+    adsetId: string,
+    adsetName: string,
+    adId: string,
+    adName: string,
+    patch: (ad: ClientGoalAdGoal) => ClientGoalAdGoal,
+  ) =>
+    patchAdset(accountIndex, campaignId, campaignName, adsetId, adsetName, (adset) => ({
+      ...adset,
+      ads: findOrCreateAd(adset.ads, adId, adName).map((a) => (a.id === adId ? patch(a) : a)),
+    }));
 
   const addChangelogEntry = () => {
     if (!newChangeEntry.description.trim()) {
@@ -751,7 +1013,11 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                         <span>Conjuntos ativos</span>
                                       </div>
                                       {campaigns.map((camp) => {
-                                        const results = computeResults(objectiveTypes, camp.metrics);
+                                        const campGoal = acc.campaigns.find((c) => c.id === camp.id);
+                                        const campObjectiveTypes = campGoal?.objectives.length
+                                          ? Array.from(new Set(campGoal.objectives.map((o) => o.objective_type)))
+                                          : objectiveTypes;
+                                        const results = computeResults(campObjectiveTypes, camp.metrics);
                                         const cpr = results != null && results > 0 ? camp.metrics.spend / results : null;
                                         const campOpen = drill?.campaignId === camp.id;
                                         return (
@@ -767,20 +1033,53 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                   <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                                                 )}
                                                 {camp.name}
+                                                {!!campGoal?.objectives.length && (
+                                                  <Badge variant="outline" className="ml-1 text-[10px]">
+                                                    meta própria
+                                                  </Badge>
+                                                )}
                                               </span>
                                               <span>{results != null ? formatResults(results) : '—'}</span>
                                               <span>{cpr != null ? money(cpr) : '—'}</span>
                                               <span>{camp.active_adsets_count}</span>
                                             </div>
                                             {campOpen && (
-                                              <div className="mb-1 ml-4 border-l pl-2">
+                                              <div className="mb-2 ml-4 border-l pl-2">
+                                                <div className="my-2">
+                                                  <ObjectivesEditor
+                                                    title="Metas desta campanha"
+                                                    objectives={campGoal?.objectives || []}
+                                                    isEditing={isEditing}
+                                                    onAdd={() =>
+                                                      patchCampaign(accIndex, camp.id, camp.name, (c) =>
+                                                        withObjectives(c, (objs) => [...objs, emptyObjective()]),
+                                                      )
+                                                    }
+                                                    onUpdate={(objIndex, patch) =>
+                                                      patchCampaign(accIndex, camp.id, camp.name, (c) =>
+                                                        withObjectives(c, (objs) =>
+                                                          objs.map((o, i) => (i === objIndex ? { ...o, ...patch } : o)),
+                                                        ),
+                                                      )
+                                                    }
+                                                    onRemove={(objIndex) =>
+                                                      patchCampaign(accIndex, camp.id, camp.name, (c) =>
+                                                        withObjectives(c, (objs) => objs.filter((_, i) => i !== objIndex)),
+                                                      )
+                                                    }
+                                                  />
+                                                </div>
                                                 {camp.adsets.length === 0 ? (
                                                   <p className="py-1 text-muted-foreground">
                                                     Nenhum conjunto de anúncio nessa campanha.
                                                   </p>
                                                 ) : (
                                                   camp.adsets.map((adset) => {
-                                                    const adsetResults = computeResults(objectiveTypes, adset.metrics);
+                                                    const adsetGoal = campGoal?.adsets.find((a) => a.id === adset.id);
+                                                    const adsetObjectiveTypes = adsetGoal?.objectives.length
+                                                      ? Array.from(new Set(adsetGoal.objectives.map((o) => o.objective_type)))
+                                                      : campObjectiveTypes;
+                                                    const adsetResults = computeResults(adsetObjectiveTypes, adset.metrics);
                                                     const adsetCpr =
                                                       adsetResults != null && adsetResults > 0
                                                         ? adset.metrics.spend / adsetResults
@@ -802,39 +1101,134 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                             <Badge variant="outline" className="ml-1 text-[10px]">
                                                               {adset.effective_status}
                                                             </Badge>
+                                                            {!!adsetGoal?.objectives.length && (
+                                                              <Badge variant="outline" className="text-[10px]">
+                                                                meta própria
+                                                              </Badge>
+                                                            )}
                                                           </span>
                                                           <span>{adsetResults != null ? formatResults(adsetResults) : '—'}</span>
                                                           <span>{adsetCpr != null ? money(adsetCpr) : '—'}</span>
                                                           <span>{adset.active_ads_count}</span>
                                                         </div>
                                                         {adsetOpen && (
-                                                          <div className="mb-1 ml-4 border-l pl-2">
+                                                          <div className="mb-2 ml-4 border-l pl-2">
+                                                            <div className="my-2">
+                                                              <ObjectivesEditor
+                                                                title="Metas deste conjunto"
+                                                                objectives={adsetGoal?.objectives || []}
+                                                                isEditing={isEditing}
+                                                                onAdd={() =>
+                                                                  patchAdset(accIndex, camp.id, camp.name, adset.id, adset.name, (a) =>
+                                                                    withObjectives(a, (objs) => [...objs, emptyObjective()]),
+                                                                  )
+                                                                }
+                                                                onUpdate={(objIndex, patch) =>
+                                                                  patchAdset(accIndex, camp.id, camp.name, adset.id, adset.name, (a) =>
+                                                                    withObjectives(a, (objs) =>
+                                                                      objs.map((o, i) => (i === objIndex ? { ...o, ...patch } : o)),
+                                                                    ),
+                                                                  )
+                                                                }
+                                                                onRemove={(objIndex) =>
+                                                                  patchAdset(accIndex, camp.id, camp.name, adset.id, adset.name, (a) =>
+                                                                    withObjectives(a, (objs) => objs.filter((_, i) => i !== objIndex)),
+                                                                  )
+                                                                }
+                                                              />
+                                                            </div>
                                                             {adset.ads.length === 0 ? (
                                                               <p className="py-1 text-muted-foreground">
                                                                 Nenhum anúncio nesse conjunto.
                                                               </p>
                                                             ) : (
                                                               adset.ads.map((ad) => {
-                                                                const adResults = computeResults(objectiveTypes, ad.metrics);
+                                                                const adGoal = adsetGoal?.ads.find((a) => a.id === ad.id);
+                                                                const adObjectiveTypes = adGoal?.objectives.length
+                                                                  ? Array.from(new Set(adGoal.objectives.map((o) => o.objective_type)))
+                                                                  : adsetObjectiveTypes;
+                                                                const adResults = computeResults(adObjectiveTypes, ad.metrics);
                                                                 const adCpr =
                                                                   adResults != null && adResults > 0
                                                                     ? ad.metrics.spend / adResults
                                                                     : null;
+                                                                const adOpen = drill?.adId === ad.id;
                                                                 return (
-                                                                  <div
-                                                                    key={ad.id}
-                                                                    className="grid grid-cols-[1fr_90px_110px_110px] items-center gap-x-2 border-b py-1.5 last:border-b-0"
-                                                                  >
-                                                                    <span className="flex items-center gap-1 truncate pl-4">
-                                                                      {ad.name}
-                                                                      <Badge variant="outline" className="ml-1 text-[10px]">
-                                                                        {ad.effective_status}
-                                                                      </Badge>
-                                                                    </span>
-                                                                    <span>{adResults != null ? formatResults(adResults) : '—'}</span>
-                                                                    <span>{adCpr != null ? money(adCpr) : '—'}</span>
-                                                                    <span>—</span>
-                                                                  </div>
+                                                                  <Fragment key={ad.id}>
+                                                                    <div
+                                                                      className="grid cursor-pointer grid-cols-[1fr_90px_110px_110px] items-center gap-x-2 border-b py-1.5 last:border-b-0 hover:bg-accent/50"
+                                                                      onClick={() => toggleAd(accIndex, ad.id)}
+                                                                    >
+                                                                      <span className="flex items-center gap-1 truncate pl-4">
+                                                                        {adOpen ? (
+                                                                          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                                                                        ) : (
+                                                                          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                                                                        )}
+                                                                        {ad.name}
+                                                                        <Badge variant="outline" className="ml-1 text-[10px]">
+                                                                          {ad.effective_status}
+                                                                        </Badge>
+                                                                        {!!adGoal?.objectives.length && (
+                                                                          <Badge variant="outline" className="text-[10px]">
+                                                                            meta própria
+                                                                          </Badge>
+                                                                        )}
+                                                                      </span>
+                                                                      <span>{adResults != null ? formatResults(adResults) : '—'}</span>
+                                                                      <span>{adCpr != null ? money(adCpr) : '—'}</span>
+                                                                      <span>—</span>
+                                                                    </div>
+                                                                    {adOpen && (
+                                                                      <div className="mb-2 ml-4 border-l py-2 pl-2">
+                                                                        <ObjectivesEditor
+                                                                          title="Metas deste anúncio"
+                                                                          objectives={adGoal?.objectives || []}
+                                                                          isEditing={isEditing}
+                                                                          onAdd={() =>
+                                                                            patchAd(
+                                                                              accIndex,
+                                                                              camp.id,
+                                                                              camp.name,
+                                                                              adset.id,
+                                                                              adset.name,
+                                                                              ad.id,
+                                                                              ad.name,
+                                                                              (a) => withObjectives(a, (objs) => [...objs, emptyObjective()]),
+                                                                            )
+                                                                          }
+                                                                          onUpdate={(objIndex, patch) =>
+                                                                            patchAd(
+                                                                              accIndex,
+                                                                              camp.id,
+                                                                              camp.name,
+                                                                              adset.id,
+                                                                              adset.name,
+                                                                              ad.id,
+                                                                              ad.name,
+                                                                              (a) =>
+                                                                                withObjectives(a, (objs) =>
+                                                                                  objs.map((o, i) => (i === objIndex ? { ...o, ...patch } : o)),
+                                                                                ),
+                                                                            )
+                                                                          }
+                                                                          onRemove={(objIndex) =>
+                                                                            patchAd(
+                                                                              accIndex,
+                                                                              camp.id,
+                                                                              camp.name,
+                                                                              adset.id,
+                                                                              adset.name,
+                                                                              ad.id,
+                                                                              ad.name,
+                                                                              (a) =>
+                                                                                withObjectives(a, (objs) => objs.filter((_, i) => i !== objIndex)),
+                                                                            )
+                                                                          }
+                                                                        />
+                                                                      </div>
+                                                                    )}
+                                                                  </Fragment>
                                                                 );
                                                               })
                                                             )}
@@ -958,143 +1352,14 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
 
                             <Separator />
 
-                            <div className="flex items-center justify-between">
-                              <Label className="text-xs font-semibold text-muted-foreground">Objetivos desta conta</Label>
-                              <Button size="sm" variant="outline" onClick={() => addObjective(accIndex)} className="gap-1">
-                                <Plus className="h-3.5 w-3.5" /> Adicionar Objetivo
-                              </Button>
-                            </div>
-
-                            <div className="space-y-4">
-                              {acc.objectives.map((obj, objIndex) => (
-                                <Card key={obj.key || objIndex} className={FIELD_CLASS}>
-                                  <CardContent className="space-y-3 pt-4">
-                                    <div className="flex flex-wrap items-start gap-2">
-                                      <div className="min-w-[160px] flex-1">
-                                        <Label>Tipo de Objetivo</Label>
-                                        <Select
-                                          value={obj.objective_type}
-                                          onValueChange={(v) =>
-                                            updateObjective(accIndex, objIndex, { objective_type: v as ObjectiveType })
-                                          }
-                                        >
-                                          <SelectTrigger className={FIELD_CLASS}>
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {OBJECTIVE_TYPE_OPTIONS.map((opt) => (
-                                              <SelectItem key={opt.value} value={opt.value}>
-                                                {opt.label}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-                                      {obj.objective_type === 'outro' && (
-                                        <div className="min-w-[160px] flex-1">
-                                          <Label>Rótulo do Objetivo</Label>
-                                          <Input
-                                            className={FIELD_CLASS}
-                                            value={obj.custom_label || ''}
-                                            onChange={(e) =>
-                                              updateObjective(accIndex, objIndex, { custom_label: e.target.value })
-                                            }
-                                          />
-                                        </div>
-                                      )}
-                                      <div className="w-full sm:w-40">
-                                        <Label>Orçamento (R$)</Label>
-                                        <Input
-                                          className={FIELD_CLASS}
-                                          type="number"
-                                          step="0.01"
-                                          value={obj.budget ?? ''}
-                                          onChange={(e) =>
-                                            updateObjective(accIndex, objIndex, {
-                                              budget: e.target.value === '' ? null : Number(e.target.value),
-                                            })
-                                          }
-                                        />
-                                      </div>
-                                      <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        className="mt-6"
-                                        onClick={() => removeObjective(accIndex, objIndex)}
-                                      >
-                                        <Trash2 className="h-4 w-4 text-red-500" />
-                                      </Button>
-                                    </div>
-
-                                    {obj.objective_type === 'seguidores' || obj.objective_type === 'outro' ? (
-                                      <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-700">
-                                        A API do Meta não expõe esse resultado diretamente nos Insights — este objetivo fica
-                                        registrado, mas o acompanhamento automático de "dias fora da meta" não é calculado para
-                                        ele.
-                                      </p>
-                                    ) : null}
-
-                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                                      {PERIODS.map((period) => (
-                                        <div key={period.key} className="space-y-1 rounded-md border p-2">
-                                          <p className="text-xs font-semibold text-muted-foreground">{period.label}</p>
-                                          <Label className="text-xs">Meta de Resultado</Label>
-                                          <Input
-                                            className={FIELD_CLASS}
-                                            type="number"
-                                            step="0.01"
-                                            value={(obj[`target_result_${period.key}` as keyof ClientGoalObjective] as number) ?? ''}
-                                            onChange={(e) =>
-                                              updateObjective(accIndex, objIndex, {
-                                                [`target_result_${period.key}`]: e.target.value === '' ? null : Number(e.target.value),
-                                              })
-                                            }
-                                          />
-                                          <Label className="text-xs">Custo por Resultado — Margem Aceita (R$)</Label>
-                                          <div className="flex items-center gap-1.5">
-                                            <Input
-                                              className={`${FIELD_CLASS} min-w-0 flex-1`}
-                                              type="number"
-                                              step="0.01"
-                                              placeholder="Mín"
-                                              value={
-                                                (obj[`cost_margin_${period.key}_min` as keyof ClientGoalObjective] as number) ?? ''
-                                              }
-                                              onChange={(e) =>
-                                                updateObjective(accIndex, objIndex, {
-                                                  [`cost_margin_${period.key}_min`]: e.target.value === '' ? null : Number(e.target.value),
-                                                })
-                                              }
-                                            />
-                                            <span className="shrink-0 text-xs text-muted-foreground">até</span>
-                                            <Input
-                                              className={`${FIELD_CLASS} min-w-0 flex-1`}
-                                              type="number"
-                                              step="0.01"
-                                              placeholder="Máx"
-                                              value={
-                                                (obj[`cost_margin_${period.key}_max` as keyof ClientGoalObjective] as number) ?? ''
-                                              }
-                                              onChange={(e) =>
-                                                updateObjective(accIndex, objIndex, {
-                                                  [`cost_margin_${period.key}_max`]: e.target.value === '' ? null : Number(e.target.value),
-                                                })
-                                              }
-                                            />
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-
-                                    {isEditing && obj.status && (
-                                      <div className="pt-1">
-                                        <ObservationBadge objective={obj} />
-                                      </div>
-                                    )}
-                                  </CardContent>
-                                </Card>
-                              ))}
-                            </div>
+                            <ObjectivesEditor
+                              title="Metas desta conta"
+                              objectives={acc.objectives}
+                              isEditing={isEditing}
+                              onAdd={() => addObjective(accIndex)}
+                              onUpdate={(objIndex, patch) => updateObjective(accIndex, objIndex, patch)}
+                              onRemove={(objIndex) => removeObjective(accIndex, objIndex)}
+                            />
                           </div>
                         </TableCell>
                       </TableRow>
