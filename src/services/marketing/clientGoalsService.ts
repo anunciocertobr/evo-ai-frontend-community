@@ -109,6 +109,43 @@ export interface ClientGoal {
 
 export type ClientGoalFormData = Omit<ClientGoal, 'id' | 'created_at' | 'updated_at'>;
 
+export interface AdMetrics {
+  spend: number;
+  impressions: number;
+  reach: number;
+  clicks: number;
+  actions: Record<string, number>;
+}
+
+export interface AdNode {
+  id: string;
+  name: string;
+  effective_status: string;
+  metrics: AdMetrics;
+}
+
+export interface AdSetNode {
+  id: string;
+  name: string;
+  effective_status: string;
+  daily_budget?: string;
+  lifetime_budget?: string;
+  active_ads_count: number;
+  metrics: AdMetrics;
+  ads: AdNode[];
+}
+
+export interface CampaignNode {
+  id: string;
+  name: string;
+  objective?: string;
+  daily_budget?: string;
+  lifetime_budget?: string;
+  active_adsets_count: number;
+  metrics: AdMetrics;
+  adsets: AdSetNode[];
+}
+
 export interface AccountHistorySummary {
   targeting_summary: {
     age_min: number | null;
@@ -116,13 +153,7 @@ export interface AccountHistorySummary {
     gender: Gender;
     locations: ClientGoalLocation[];
   };
-  active_campaigns: {
-    id: string;
-    name: string;
-    objective?: string;
-    daily_budget?: string;
-    lifetime_budget?: string;
-  }[];
+  active_campaigns: CampaignNode[];
 }
 
 interface ApiEnvelope<T> {
