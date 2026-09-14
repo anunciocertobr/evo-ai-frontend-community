@@ -73,6 +73,9 @@ import {
   Gender,
   AccountHistorySummary,
   AdMetrics,
+  CampaignNode,
+  AdSetNode,
+  AdNode,
 } from '@/services/marketing/clientGoalsService';
 
 // Os campos do design system usam fundo transparente por padrão (só a borda
@@ -89,6 +92,47 @@ const PERIODS = [
 ] as const;
 
 const roEmptyDrillDown = { campaignId: null as string | null, adsetId: null as string | null, adId: null as string | null };
+
+const EMPTY_METRICS: AdMetrics = { spend: 0, impressions: 0, reach: 0, clicks: 0, actions: {} };
+
+// Uma campanha/conjunto/anúncio com meta salva não pode sumir da lista só
+// porque a Meta não reportou ela como ativa agora (pausou, por exemplo) —
+// senão a meta configurada fica "invisível" e parece que não foi salva.
+// Junta a lista ao vivo com qualquer meta salva que não esteja nela,
+// mostrando as que só existem na meta salva sem métricas (tudo zerado).
+function mergeWithSavedGoals<TLive extends { id: string; name: string }, TGoal extends { id: string; name: string }>(
+  live: TLive[],
+  goals: TGoal[],
+  placeholder: (goal: TGoal) => TLive,
+): TLive[] {
+  const liveIds = new Set(live.map((l) => l.id));
+  const missing = goals.filter((g) => !liveIds.has(g.id)).map(placeholder);
+  return [...live, ...missing];
+}
+
+const campaignPlaceholder = (g: ClientGoalCampaignGoal): CampaignNode => ({
+  id: g.id,
+  name: g.name,
+  active_adsets_count: 0,
+  metrics: EMPTY_METRICS,
+  adsets: [],
+});
+
+const adsetPlaceholder = (g: ClientGoalAdSetGoal): AdSetNode => ({
+  id: g.id,
+  name: g.name,
+  effective_status: 'DESCONHECIDO',
+  active_ads_count: 0,
+  metrics: EMPTY_METRICS,
+  ads: [],
+});
+
+const adPlaceholder = (g: ClientGoalAdGoal): AdNode => ({
+  id: g.id,
+  name: g.name,
+  effective_status: 'DESCONHECIDO',
+  metrics: EMPTY_METRICS,
+});
 
 const emptyObjective = (): ClientGoalObjective => ({
   key: `novo-${Math.random().toString(36).slice(2)}`,
@@ -175,6 +219,14 @@ const formFromGoal = (goal: ClientGoal): ClientGoalFormData => ({
 // disso, o filtro exigia `id` preenchido e descartava a conta inteira (com
 // todos os objetivos preenchidos) sem avisar nada, silenciosamente, sempre
 // que o cliente não tinha ID de conta Meta.
+// Objetivo "outro" sem rótulo derruba a validação do backend (custom_label
+// obrigatório pra esse tipo) — aplicado recursivamente nos 4 níveis antes
+// de salvar, porque o objetivo implícito de campanha/conjunto/anúncio
+// (criado por withSingleObjective) pode herdar objective_type 'outro' do
+// nível pai mesmo sem o usuário nunca ter visto um seletor de tipo.
+const fixOutroLabel = (o: ClientGoalObjective): ClientGoalObjective =>
+  o.objective_type === 'outro' && !o.custom_label?.trim() ? { ...o, custom_label: 'Outro' } : o;
+
 const objectiveHasContent = (o: ClientGoalObjective) =>
   o.budget != null ||
   o.target_result_daily != null ||
@@ -953,7 +1005,9 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
               {form.ad_accounts.map((acc, accIndex) => {
                 const expanded = !!expandedAccounts[accIndex];
                 const objectiveTypes = Array.from(new Set(acc.objectives.map((o) => o.objective_type)));
-                const campaigns = activeCampaigns[accIndex];
+                const campaigns = activeCampaigns[accIndex]
+                  ? mergeWithSavedGoals(activeCampaigns[accIndex] as CampaignNode[], acc.campaigns, campaignPlaceholder)
+                  : activeCampaigns[accIndex];
                 const drill = drillDown[accIndex];
 
                 return (
@@ -1119,6 +1173,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                         const results = computeResults(campObjectiveTypes, camp.metrics);
                                         const cpr = results != null && results > 0 ? camp.metrics.spend / results : null;
                                         const campOpen = drill?.campaignId === camp.id;
+                                        const displayAdsets = mergeWithSavedGoals(camp.adsets, campGoal?.adsets || [], adsetPlaceholder);
                                         return (
                                           <Fragment key={camp.id}>
                                             <div
@@ -1150,17 +1205,17 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                     objective={campGoal?.objectives[0]}
                                                     onChange={(patch) =>
                                                       patchCampaign(accIndex, camp.id, camp.name, (c) =>
-                                                        withSingleObjective(c, patch, acc.objectives[0]?.objective_type || 'outro'),
+                                                        withSingleObjective(c, patch, acc.objectives[0]?.objective_type || 'mensagens'),
                                                       )
                                                     }
                                                   />
                                                 </div>
-                                                {camp.adsets.length === 0 ? (
+                                                {displayAdsets.length === 0 ? (
                                                   <p className="py-1 text-muted-foreground">
                                                     Nenhum conjunto de anúncio nessa campanha.
                                                   </p>
                                                 ) : (
-                                                  camp.adsets.map((adset) => {
+                                                  displayAdsets.map((adset) => {
                                                     const adsetGoal = campGoal?.adsets.find((a) => a.id === adset.id);
                                                     const adsetObjectiveTypes = adsetGoal?.objectives.length
                                                       ? Array.from(new Set(adsetGoal.objectives.map((o) => o.objective_type)))
@@ -1171,6 +1226,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                         ? adset.metrics.spend / adsetResults
                                                         : null;
                                                     const adsetOpen = drill?.adsetId === adset.id;
+                                                    const displayAds = mergeWithSavedGoals(adset.ads, adsetGoal?.ads || [], adPlaceholder);
                                                     return (
                                                       <Fragment key={adset.id}>
                                                         <div
@@ -1205,17 +1261,17 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                                 objective={adsetGoal?.objectives[0]}
                                                                 onChange={(patch) =>
                                                                   patchAdset(accIndex, camp.id, camp.name, adset.id, adset.name, (a) =>
-                                                                    withSingleObjective(a, patch, campObjectiveTypes[0] || 'outro'),
+                                                                    withSingleObjective(a, patch, campObjectiveTypes[0] || 'mensagens'),
                                                                   )
                                                                 }
                                                               />
                                                             </div>
-                                                            {adset.ads.length === 0 ? (
+                                                            {displayAds.length === 0 ? (
                                                               <p className="py-1 text-muted-foreground">
                                                                 Nenhum anúncio nesse conjunto.
                                                               </p>
                                                             ) : (
-                                                              adset.ads.map((ad) => {
+                                                              displayAds.map((ad) => {
                                                                 const adGoal = adsetGoal?.ads.find((a) => a.id === ad.id);
                                                                 const adObjectiveTypes = adGoal?.objectives.length
                                                                   ? Array.from(new Set(adGoal.objectives.map((o) => o.objective_type)))
@@ -1266,7 +1322,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                                               adset.name,
                                                                               ad.id,
                                                                               ad.name,
-                                                                              (a) => withSingleObjective(a, patch, adsetObjectiveTypes[0] || 'outro'),
+                                                                              (a) => withSingleObjective(a, patch, adsetObjectiveTypes[0] || 'mensagens'),
                                                                             )
                                                                           }
                                                                         />
@@ -1624,14 +1680,19 @@ export default function ClientGoalsPage() {
     // nunca por falta de ID especificamente. Um objetivo "Outro" sem rótulo
     // ainda precisa de algum texto pro backend (identifica o objetivo), então
     // preenche um padrão em vez de bloquear o salvamento.
-    const cleanedAdAccounts = form.ad_accounts
-      .filter(accountHasContent)
-      .map((a) => ({
-        ...a,
-        objectives: a.objectives.map((o) =>
-          o.objective_type === 'outro' && !o.custom_label?.trim() ? { ...o, custom_label: 'Outro' } : o
-        ),
-      }));
+    const cleanedAdAccounts = form.ad_accounts.filter(accountHasContent).map((a) => ({
+      ...a,
+      objectives: a.objectives.map(fixOutroLabel),
+      campaigns: a.campaigns.map((c) => ({
+        ...c,
+        objectives: c.objectives.map(fixOutroLabel),
+        adsets: c.adsets.map((adset) => ({
+          ...adset,
+          objectives: adset.objectives.map(fixOutroLabel),
+          ads: adset.ads.map((ad) => ({ ...ad, objectives: ad.objectives.map(fixOutroLabel) })),
+        })),
+      })),
+    }));
 
     setSaving(true);
     try {
@@ -1851,10 +1912,12 @@ export default function ClientGoalsPage() {
                               {goal.ad_accounts.length ? (
                                 goal.ad_accounts.map((account, accIndex) => {
                                   const roKey = `${goal.id}:${accIndex}`;
-                                  const roCampaigns = roActiveCampaigns[roKey];
+                                  const accountCampaignGoals = account.campaigns || [];
+                                  const roCampaigns = roActiveCampaigns[roKey]
+                                    ? mergeWithSavedGoals(roActiveCampaigns[roKey] as CampaignNode[], accountCampaignGoals, campaignPlaceholder)
+                                    : roActiveCampaigns[roKey];
                                   const roDrill = roDrillDown[roKey];
                                   const roObjectiveTypes = Array.from(new Set(account.objectives.map((o) => o.objective_type)));
-                                  const accountCampaignGoals = account.campaigns || [];
 
                                   return (
                                     <div key={account.id || accIndex} className="rounded-md border bg-background p-3">
@@ -1939,6 +2002,7 @@ export default function ClientGoalsPage() {
                                                   const results = computeResults(campObjectiveTypes, camp.metrics);
                                                   const cpr = results != null && results > 0 ? camp.metrics.spend / results : null;
                                                   const campOpen = roDrill?.campaignId === camp.id;
+                                                  const roDisplayAdsets = mergeWithSavedGoals(camp.adsets, campGoal?.adsets || [], adsetPlaceholder);
                                                   return (
                                                     <Fragment key={camp.id}>
                                                       <div
@@ -1970,12 +2034,12 @@ export default function ClientGoalsPage() {
                                                               <GoalPeriodsReadOnlyTable objective={campGoal.objectives[0]} />
                                                             </div>
                                                           )}
-                                                          {camp.adsets.length === 0 ? (
+                                                          {roDisplayAdsets.length === 0 ? (
                                                             <p className="py-1 text-muted-foreground">
                                                               Nenhum conjunto de anúncio nessa campanha.
                                                             </p>
                                                           ) : (
-                                                            camp.adsets.map((adset) => {
+                                                            roDisplayAdsets.map((adset) => {
                                                               const adsetGoal = campGoal?.adsets.find((a) => a.id === adset.id);
                                                               const adsetObjectiveTypes = adsetGoal?.objectives.length
                                                                 ? Array.from(new Set(adsetGoal.objectives.map((o) => o.objective_type)))
@@ -1986,6 +2050,7 @@ export default function ClientGoalsPage() {
                                                                   ? adset.metrics.spend / adsetResults
                                                                   : null;
                                                               const adsetOpen = roDrill?.adsetId === adset.id;
+                                                              const roDisplayAds = mergeWithSavedGoals(adset.ads, adsetGoal?.ads || [], adPlaceholder);
                                                               return (
                                                                 <Fragment key={adset.id}>
                                                                   <div
@@ -2020,12 +2085,12 @@ export default function ClientGoalsPage() {
                                                                           <GoalPeriodsReadOnlyTable objective={adsetGoal.objectives[0]} />
                                                                         </div>
                                                                       )}
-                                                                      {adset.ads.length === 0 ? (
+                                                                      {roDisplayAds.length === 0 ? (
                                                                         <p className="py-1 text-muted-foreground">
                                                                           Nenhum anúncio nesse conjunto.
                                                                         </p>
                                                                       ) : (
-                                                                        adset.ads.map((ad) => {
+                                                                        roDisplayAds.map((ad) => {
                                                                           const adGoal = adsetGoal?.ads.find((a) => a.id === ad.id);
                                                                           const adObjectiveTypes = adGoal?.objectives.length
                                                                             ? Array.from(new Set(adGoal.objectives.map((o) => o.objective_type)))
