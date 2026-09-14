@@ -104,6 +104,18 @@ export interface ClientGoalObjective {
   target_result_daily?: number | null;
   target_result_weekly?: number | null;
   target_result_monthly?: number | null;
+  // Faixa aceita de resultado (min/max) por período — usada nas metas de
+  // campanha/conjunto/anúncio (colunas diretas, sem Tipo de
+  // Objetivo/Orçamento). A meta de conta continua só com o valor único
+  // target_result_{period} acima; os dois formatos coexistem no mesmo tipo
+  // porque são o mesmo `objective`, só editados por UIs diferentes conforme
+  // o nível.
+  target_result_daily_min?: number | null;
+  target_result_daily_max?: number | null;
+  target_result_weekly_min?: number | null;
+  target_result_weekly_max?: number | null;
+  target_result_monthly_min?: number | null;
+  target_result_monthly_max?: number | null;
   cost_margin_daily_min?: number | null;
   cost_margin_daily_max?: number | null;
   cost_margin_weekly_min?: number | null;

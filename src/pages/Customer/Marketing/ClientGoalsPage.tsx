@@ -88,6 +88,8 @@ const PERIODS = [
   { key: 'monthly', label: 'Mensal' },
 ] as const;
 
+const roEmptyDrillDown = { campaignId: null as string | null, adsetId: null as string | null, adId: null as string | null };
+
 const emptyObjective = (): ClientGoalObjective => ({
   key: `novo-${Math.random().toString(36).slice(2)}`,
   objective_type: 'mensagens',
@@ -313,11 +315,98 @@ function ObjectivePeriodsTable({ objective }: { objective: ClientGoalObjective }
   );
 }
 
-// Editor de metas (objectives) reutilizado nos 4 níveis possíveis — conta,
-// campanha, conjunto, anúncio — já que a forma de definir uma meta (tipo,
-// orçamento, meta de resultado e margem por período) é sempre a mesma,
-// só muda ONDE ela é aplicada (ver patchCampaign/patchAdset/patchAd em
-// ClientGoalFormFields).
+// Colunas Resultado Mín/Máx + Custo/Resultado Mín/Máx por período, direto —
+// pra metas de campanha/conjunto/anúncio: sem Tipo de Objetivo, sem
+// Orçamento, sem card, sem botão "Adicionar" (o objetivo é criado sozinho
+// no primeiro campo preenchido, via withSingleObjective em
+// ClientGoalFormFields). Repetido em edição (InlineGoalEditor, com inputs)
+// e leitura (GoalPeriodsReadOnlyTable, só texto).
+const GOAL_COLUMNS = ['Período', 'Resultado Mín', 'Resultado Máx', 'Custo/Result. Mín (R$)', 'Custo/Result. Máx (R$)'];
+
+function GoalPeriodsReadOnlyTable({ objective }: { objective: ClientGoalObjective }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left text-muted-foreground">
+            {GOAL_COLUMNS.map((col) => (
+              <th key={col} className="py-1 pr-3 font-medium">
+                {col}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {PERIODS.map((period) => (
+            <tr key={period.key} className="border-t">
+              <td className="py-1.5 pr-3 font-medium">{period.label}</td>
+              <td className="py-1.5 pr-3">{num(objective[`target_result_${period.key}_min` as keyof ClientGoalObjective] as number)}</td>
+              <td className="py-1.5 pr-3">{num(objective[`target_result_${period.key}_max` as keyof ClientGoalObjective] as number)}</td>
+              <td className="py-1.5 pr-3">{money(objective[`cost_margin_${period.key}_min` as keyof ClientGoalObjective] as number)}</td>
+              <td className="py-1.5 pr-3">{money(objective[`cost_margin_${period.key}_max` as keyof ClientGoalObjective] as number)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function InlineGoalEditor({
+  objective,
+  onChange,
+}: {
+  objective: ClientGoalObjective | undefined;
+  onChange: (patch: Partial<ClientGoalObjective>) => void;
+}) {
+  const numField = (key: string) => {
+    const typedKey = key as keyof ClientGoalObjective;
+    return (
+      <Input
+        className={`${FIELD_CLASS} w-24`}
+        type="number"
+        step="0.01"
+        value={(objective?.[typedKey] as number) ?? ''}
+        onChange={(e) => onChange({ [typedKey]: e.target.value === '' ? null : Number(e.target.value) })}
+      />
+    );
+  };
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left text-muted-foreground">
+            {GOAL_COLUMNS.map((col) => (
+              <th key={col} className="py-1 pr-2 font-medium">
+                {col}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {PERIODS.map((period) => (
+            <tr key={period.key} className="border-t">
+              <td className="py-1.5 pr-2 font-medium">{period.label}</td>
+              <td className="py-1.5 pr-2">{numField(`target_result_${period.key}_min`)}</td>
+              <td className="py-1.5 pr-2">{numField(`target_result_${period.key}_max`)}</td>
+              <td className="py-1.5 pr-2">{numField(`cost_margin_${period.key}_min`)}</td>
+              <td className="py-1.5 pr-2">{numField(`cost_margin_${period.key}_max`)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Editor de metas (objectives) usado só no nível conta — tipo, orçamento,
+// meta de resultado e margem por período, num card por objetivo (pode ter
+// vários). Campanha/conjunto/anúncio usam InlineGoalEditor (mais simples,
+// só as colunas de período) em vez deste — ver histórico do arquivo:
+// aplicar este mesmo editor nesses 3 níveis ficou "bagunçado" (botão
+// "Adicionar Meta" separado da tabela, um objetivo por vez) pro caso de uso
+// real, que é comparar um único alvo por período contra o resultado real.
 function ObjectivesEditor({
   title,
   objectives,
@@ -679,10 +768,20 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
       return { ...prev, ad_accounts: accounts };
     });
 
-  const withObjectives = <T extends { objectives: ClientGoalObjective[] }>(
+  // Campanha/conjunto/anúncio têm no máximo UM objetivo implícito (sem
+  // seletor de Tipo de Objetivo) — criado sozinho no primeiro campo
+  // preenchido, herdando o objective_type da conta (só usado internamente
+  // pra computeResults saber qual action_type comparar; nunca aparece na UI
+  // desses 3 níveis).
+  const withSingleObjective = <T extends { objectives: ClientGoalObjective[] }>(
     node: T,
-    transform: (objectives: ClientGoalObjective[]) => ClientGoalObjective[],
-  ): T => ({ ...node, objectives: transform(node.objectives) });
+    patch: Partial<ClientGoalObjective>,
+    defaultObjectiveType: ObjectiveType,
+  ): T => {
+    const existing = node.objectives[0];
+    const updated = existing ? { ...existing, ...patch } : { ...emptyObjective(), objective_type: defaultObjectiveType, ...patch };
+    return { ...node, objectives: [updated] };
+  };
 
   const findOrCreateCampaign = (campaigns: ClientGoalCampaignGoal[], id: string, name: string) =>
     campaigns.some((c) => c.id === id) ? campaigns : [...campaigns, { id, name, objectives: [], adsets: [] }];
@@ -1046,25 +1145,12 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                             {campOpen && (
                                               <div className="mb-2 ml-4 border-l pl-2">
                                                 <div className="my-2">
-                                                  <ObjectivesEditor
-                                                    title="Metas desta campanha"
-                                                    objectives={campGoal?.objectives || []}
-                                                    isEditing={isEditing}
-                                                    onAdd={() =>
+                                                  <p className="mb-1 text-xs font-semibold text-muted-foreground">Meta desta campanha</p>
+                                                  <InlineGoalEditor
+                                                    objective={campGoal?.objectives[0]}
+                                                    onChange={(patch) =>
                                                       patchCampaign(accIndex, camp.id, camp.name, (c) =>
-                                                        withObjectives(c, (objs) => [...objs, emptyObjective()]),
-                                                      )
-                                                    }
-                                                    onUpdate={(objIndex, patch) =>
-                                                      patchCampaign(accIndex, camp.id, camp.name, (c) =>
-                                                        withObjectives(c, (objs) =>
-                                                          objs.map((o, i) => (i === objIndex ? { ...o, ...patch } : o)),
-                                                        ),
-                                                      )
-                                                    }
-                                                    onRemove={(objIndex) =>
-                                                      patchCampaign(accIndex, camp.id, camp.name, (c) =>
-                                                        withObjectives(c, (objs) => objs.filter((_, i) => i !== objIndex)),
+                                                        withSingleObjective(c, patch, acc.objectives[0]?.objective_type || 'outro'),
                                                       )
                                                     }
                                                   />
@@ -1114,25 +1200,12 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                         {adsetOpen && (
                                                           <div className="mb-2 ml-4 border-l pl-2">
                                                             <div className="my-2">
-                                                              <ObjectivesEditor
-                                                                title="Metas deste conjunto"
-                                                                objectives={adsetGoal?.objectives || []}
-                                                                isEditing={isEditing}
-                                                                onAdd={() =>
+                                                              <p className="mb-1 text-xs font-semibold text-muted-foreground">Meta deste conjunto</p>
+                                                              <InlineGoalEditor
+                                                                objective={adsetGoal?.objectives[0]}
+                                                                onChange={(patch) =>
                                                                   patchAdset(accIndex, camp.id, camp.name, adset.id, adset.name, (a) =>
-                                                                    withObjectives(a, (objs) => [...objs, emptyObjective()]),
-                                                                  )
-                                                                }
-                                                                onUpdate={(objIndex, patch) =>
-                                                                  patchAdset(accIndex, camp.id, camp.name, adset.id, adset.name, (a) =>
-                                                                    withObjectives(a, (objs) =>
-                                                                      objs.map((o, i) => (i === objIndex ? { ...o, ...patch } : o)),
-                                                                    ),
-                                                                  )
-                                                                }
-                                                                onRemove={(objIndex) =>
-                                                                  patchAdset(accIndex, camp.id, camp.name, adset.id, adset.name, (a) =>
-                                                                    withObjectives(a, (objs) => objs.filter((_, i) => i !== objIndex)),
+                                                                    withSingleObjective(a, patch, campObjectiveTypes[0] || 'outro'),
                                                                   )
                                                                 }
                                                               />
@@ -1181,11 +1254,10 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                                     </div>
                                                                     {adOpen && (
                                                                       <div className="mb-2 ml-4 border-l py-2 pl-2">
-                                                                        <ObjectivesEditor
-                                                                          title="Metas deste anúncio"
-                                                                          objectives={adGoal?.objectives || []}
-                                                                          isEditing={isEditing}
-                                                                          onAdd={() =>
+                                                                        <p className="mb-1 text-xs font-semibold text-muted-foreground">Meta deste anúncio</p>
+                                                                        <InlineGoalEditor
+                                                                          objective={adGoal?.objectives[0]}
+                                                                          onChange={(patch) =>
                                                                             patchAd(
                                                                               accIndex,
                                                                               camp.id,
@@ -1194,35 +1266,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                                               adset.name,
                                                                               ad.id,
                                                                               ad.name,
-                                                                              (a) => withObjectives(a, (objs) => [...objs, emptyObjective()]),
-                                                                            )
-                                                                          }
-                                                                          onUpdate={(objIndex, patch) =>
-                                                                            patchAd(
-                                                                              accIndex,
-                                                                              camp.id,
-                                                                              camp.name,
-                                                                              adset.id,
-                                                                              adset.name,
-                                                                              ad.id,
-                                                                              ad.name,
-                                                                              (a) =>
-                                                                                withObjectives(a, (objs) =>
-                                                                                  objs.map((o, i) => (i === objIndex ? { ...o, ...patch } : o)),
-                                                                                ),
-                                                                            )
-                                                                          }
-                                                                          onRemove={(objIndex) =>
-                                                                            patchAd(
-                                                                              accIndex,
-                                                                              camp.id,
-                                                                              camp.name,
-                                                                              adset.id,
-                                                                              adset.name,
-                                                                              ad.id,
-                                                                              ad.name,
-                                                                              (a) =>
-                                                                                withObjectives(a, (objs) => objs.filter((_, i) => i !== objIndex)),
+                                                                              (a) => withSingleObjective(a, patch, adsetObjectiveTypes[0] || 'outro'),
                                                                             )
                                                                           }
                                                                         />
@@ -1452,6 +1496,53 @@ export default function ClientGoalsPage() {
     reference_name: '',
     description: '',
   });
+
+  // Mesmo drill-down campanha > conjunto > anúncio do formulário de edição,
+  // só que pra visão de leitura (clicar num cliente na lista sem entrar no
+  // modo de edição) — aqui é só consulta, sem "Adicionar Meta"; a meta já
+  // configurada de cada nível é mostrada com ObjectivePeriodsTable (mesmo
+  // componente do nível conta). Chave composta `${goalId}:${accIndex}`
+  // porque essa view itera vários goals ao mesmo tempo (cada um pode estar
+  // expandido/carregando independente dos outros).
+  const [roHistoryLoading, setRoHistoryLoading] = useState<Record<string, boolean>>({});
+  const [roActiveCampaigns, setRoActiveCampaigns] = useState<Record<string, AccountHistorySummary['active_campaigns']>>(
+    {},
+  );
+  const [roDrillDown, setRoDrillDown] = useState<Record<string, typeof roEmptyDrillDown>>({});
+
+  const applyReadOnlyHistory = async (key: string, accountId: string) => {
+    if (!accountId.trim()) return;
+    setRoHistoryLoading((prev) => ({ ...prev, [key]: true }));
+    try {
+      const summary = await clientGoalsService.getAccountHistorySummary(accountId);
+      setRoActiveCampaigns((prev) => ({ ...prev, [key]: summary.active_campaigns || [] }));
+    } catch (error) {
+      toast.error(extractErrorMessage(error, 'Não foi possível carregar as campanhas dessa conta.'));
+    } finally {
+      setRoHistoryLoading((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const roToggleCampaign = (key: string, campaignId: string) =>
+    setRoDrillDown((prev) => {
+      const current = prev[key] || roEmptyDrillDown;
+      const isOpen = current.campaignId === campaignId;
+      return { ...prev, [key]: isOpen ? roEmptyDrillDown : { ...roEmptyDrillDown, campaignId } };
+    });
+
+  const roToggleAdset = (key: string, adsetId: string) =>
+    setRoDrillDown((prev) => {
+      const current = prev[key] || roEmptyDrillDown;
+      const isOpen = current.adsetId === adsetId;
+      return { ...prev, [key]: { ...current, adsetId: isOpen ? null : adsetId, adId: null } };
+    });
+
+  const roToggleAd = (key: string, adId: string) =>
+    setRoDrillDown((prev) => {
+      const current = prev[key] || roEmptyDrillDown;
+      const isOpen = current.adId === adId;
+      return { ...prev, [key]: { ...current, adId: isOpen ? null : adId } };
+    });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1758,47 +1849,250 @@ export default function ClientGoalsPage() {
                           ) : (
                             <div className="space-y-4">
                               {goal.ad_accounts.length ? (
-                                goal.ad_accounts.map((account) => (
-                                  <div key={account.id} className="rounded-md border bg-background p-3">
-                                    <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
-                                      <Building2 className="h-4 w-4 text-muted-foreground" />
-                                      {account.name || account.id}
-                                      <span className="text-xs font-normal text-muted-foreground">({account.id})</span>
-                                    </div>
-                                    {(account.locations.length > 0 || ageRangeLabel(account.age_min, account.age_max) || account.gender) && (
-                                      <div className="mb-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                                        {account.locations.map((loc) => (
-                                          <Badge key={loc.name} variant="outline">
-                                            {loc.name}
-                                            {loc.radius != null && ` (+${loc.radius}km)`}
-                                          </Badge>
-                                        ))}
-                                        {ageRangeLabel(account.age_min, account.age_max) && (
-                                          <Badge variant="outline">{ageRangeLabel(account.age_min, account.age_max)}</Badge>
+                                goal.ad_accounts.map((account, accIndex) => {
+                                  const roKey = `${goal.id}:${accIndex}`;
+                                  const roCampaigns = roActiveCampaigns[roKey];
+                                  const roDrill = roDrillDown[roKey];
+                                  const roObjectiveTypes = Array.from(new Set(account.objectives.map((o) => o.objective_type)));
+                                  const accountCampaignGoals = account.campaigns || [];
+
+                                  return (
+                                    <div key={account.id || accIndex} className="rounded-md border bg-background p-3">
+                                      <div className="mb-1 flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2 text-sm font-semibold">
+                                          <Building2 className="h-4 w-4 text-muted-foreground" />
+                                          {account.name || account.id}
+                                          <span className="text-xs font-normal text-muted-foreground">({account.id})</span>
+                                        </div>
+                                        {account.id && (
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            title="Ver campanhas ativas dessa conta e comparar com a meta"
+                                            disabled={roHistoryLoading[roKey]}
+                                            onClick={() => applyReadOnlyHistory(roKey, account.id)}
+                                          >
+                                            {roHistoryLoading[roKey] ? (
+                                              <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                              <History className="h-4 w-4" />
+                                            )}
+                                          </Button>
                                         )}
-                                        <Badge variant="outline">{genderLabel(account.gender)}</Badge>
                                       </div>
-                                    )}
-                                    {account.objectives.length ? (
-                                      <div className="space-y-3">
-                                        {account.objectives.map((o) => (
-                                          <div key={o.key} className="rounded-md border p-2">
-                                            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                                              <span className="text-xs font-semibold">{objectiveLabel(o)}</span>
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-xs text-muted-foreground">Orçamento: {money(o.budget)}</span>
-                                                <ObservationBadge objective={o} />
+                                      {(account.locations.length > 0 || ageRangeLabel(account.age_min, account.age_max) || account.gender) && (
+                                        <div className="mb-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                                          {account.locations.map((loc) => (
+                                            <Badge key={loc.name} variant="outline">
+                                              {loc.name}
+                                              {loc.radius != null && ` (+${loc.radius}km)`}
+                                            </Badge>
+                                          ))}
+                                          {ageRangeLabel(account.age_min, account.age_max) && (
+                                            <Badge variant="outline">{ageRangeLabel(account.age_min, account.age_max)}</Badge>
+                                          )}
+                                          <Badge variant="outline">{genderLabel(account.gender)}</Badge>
+                                        </div>
+                                      )}
+                                      {account.objectives.length ? (
+                                        <div className="space-y-3">
+                                          {account.objectives.map((o) => (
+                                            <div key={o.key} className="rounded-md border p-2">
+                                              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                                                <span className="text-xs font-semibold">{objectiveLabel(o)}</span>
+                                                <div className="flex items-center gap-2">
+                                                  <span className="text-xs text-muted-foreground">Orçamento: {money(o.budget)}</span>
+                                                  <ObservationBadge objective={o} />
+                                                </div>
+                                              </div>
+                                              <ObjectivePeriodsTable objective={o} />
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground">Nenhum objetivo cadastrado pra esta conta.</p>
+                                      )}
+
+                                      {(roHistoryLoading[roKey] || roCampaigns) && (
+                                        <div className="mt-3 rounded-md border border-dashed p-2 text-xs">
+                                          {roHistoryLoading[roKey] ? (
+                                            <span className="flex items-center gap-1.5 text-muted-foreground">
+                                              <Loader2 className="h-3 w-3 animate-spin" /> Buscando campanhas ativas...
+                                            </span>
+                                          ) : roCampaigns && roCampaigns.length > 0 ? (
+                                            <div className="overflow-x-auto">
+                                              <div className="min-w-[560px]">
+                                                <div className="mb-1 font-medium text-foreground">
+                                                  Campanhas ativas agora ({roCampaigns.length}) — últimos 30 dias:
+                                                </div>
+                                                <div className="grid grid-cols-[1fr_90px_110px_110px] gap-x-2 border-b pb-1 text-muted-foreground">
+                                                  <span>Campanha</span>
+                                                  <span>Resultados</span>
+                                                  <span>Custo/Result.</span>
+                                                  <span>Conjuntos ativos</span>
+                                                </div>
+                                                {roCampaigns.map((camp) => {
+                                                  const campGoal = accountCampaignGoals.find((c) => c.id === camp.id);
+                                                  const campObjectiveTypes = campGoal?.objectives.length
+                                                    ? Array.from(new Set(campGoal.objectives.map((o) => o.objective_type)))
+                                                    : roObjectiveTypes;
+                                                  const results = computeResults(campObjectiveTypes, camp.metrics);
+                                                  const cpr = results != null && results > 0 ? camp.metrics.spend / results : null;
+                                                  const campOpen = roDrill?.campaignId === camp.id;
+                                                  return (
+                                                    <Fragment key={camp.id}>
+                                                      <div
+                                                        className="grid cursor-pointer grid-cols-[1fr_90px_110px_110px] items-center gap-x-2 border-b py-1.5 hover:bg-accent/50"
+                                                        onClick={() => roToggleCampaign(roKey, camp.id)}
+                                                      >
+                                                        <span className="flex items-center gap-1 truncate">
+                                                          {campOpen ? (
+                                                            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                                                          ) : (
+                                                            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                                                          )}
+                                                          {camp.name}
+                                                          {!!campGoal?.objectives.length && (
+                                                            <Badge variant="outline" className="ml-1 text-[10px]">
+                                                              meta própria
+                                                            </Badge>
+                                                          )}
+                                                        </span>
+                                                        <span>{results != null ? formatResults(results) : '—'}</span>
+                                                        <span>{cpr != null ? money(cpr) : '—'}</span>
+                                                        <span>{camp.active_adsets_count}</span>
+                                                      </div>
+                                                      {campOpen && (
+                                                        <div className="mb-2 ml-4 border-l pl-2">
+                                                          {!!campGoal?.objectives[0] && (
+                                                            <div className="my-2">
+                                                              <p className="mb-1 text-xs font-semibold text-muted-foreground">Meta desta campanha</p>
+                                                              <GoalPeriodsReadOnlyTable objective={campGoal.objectives[0]} />
+                                                            </div>
+                                                          )}
+                                                          {camp.adsets.length === 0 ? (
+                                                            <p className="py-1 text-muted-foreground">
+                                                              Nenhum conjunto de anúncio nessa campanha.
+                                                            </p>
+                                                          ) : (
+                                                            camp.adsets.map((adset) => {
+                                                              const adsetGoal = campGoal?.adsets.find((a) => a.id === adset.id);
+                                                              const adsetObjectiveTypes = adsetGoal?.objectives.length
+                                                                ? Array.from(new Set(adsetGoal.objectives.map((o) => o.objective_type)))
+                                                                : campObjectiveTypes;
+                                                              const adsetResults = computeResults(adsetObjectiveTypes, adset.metrics);
+                                                              const adsetCpr =
+                                                                adsetResults != null && adsetResults > 0
+                                                                  ? adset.metrics.spend / adsetResults
+                                                                  : null;
+                                                              const adsetOpen = roDrill?.adsetId === adset.id;
+                                                              return (
+                                                                <Fragment key={adset.id}>
+                                                                  <div
+                                                                    className="grid cursor-pointer grid-cols-[1fr_90px_110px_110px] items-center gap-x-2 border-b py-1.5 hover:bg-accent/50"
+                                                                    onClick={() => roToggleAdset(roKey, adset.id)}
+                                                                  >
+                                                                    <span className="flex items-center gap-1 truncate">
+                                                                      {adsetOpen ? (
+                                                                        <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                                                                      ) : (
+                                                                        <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                                                                      )}
+                                                                      {adset.name}
+                                                                      <Badge variant="outline" className="ml-1 text-[10px]">
+                                                                        {adset.effective_status}
+                                                                      </Badge>
+                                                                      {!!adsetGoal?.objectives.length && (
+                                                                        <Badge variant="outline" className="text-[10px]">
+                                                                          meta própria
+                                                                        </Badge>
+                                                                      )}
+                                                                    </span>
+                                                                    <span>{adsetResults != null ? formatResults(adsetResults) : '—'}</span>
+                                                                    <span>{adsetCpr != null ? money(adsetCpr) : '—'}</span>
+                                                                    <span>{adset.active_ads_count}</span>
+                                                                  </div>
+                                                                  {adsetOpen && (
+                                                                    <div className="mb-2 ml-4 border-l pl-2">
+                                                                      {!!adsetGoal?.objectives[0] && (
+                                                                        <div className="my-2">
+                                                                          <p className="mb-1 text-xs font-semibold text-muted-foreground">Meta deste conjunto</p>
+                                                                          <GoalPeriodsReadOnlyTable objective={adsetGoal.objectives[0]} />
+                                                                        </div>
+                                                                      )}
+                                                                      {adset.ads.length === 0 ? (
+                                                                        <p className="py-1 text-muted-foreground">
+                                                                          Nenhum anúncio nesse conjunto.
+                                                                        </p>
+                                                                      ) : (
+                                                                        adset.ads.map((ad) => {
+                                                                          const adGoal = adsetGoal?.ads.find((a) => a.id === ad.id);
+                                                                          const adObjectiveTypes = adGoal?.objectives.length
+                                                                            ? Array.from(new Set(adGoal.objectives.map((o) => o.objective_type)))
+                                                                            : adsetObjectiveTypes;
+                                                                          const adResults = computeResults(adObjectiveTypes, ad.metrics);
+                                                                          const adCpr =
+                                                                            adResults != null && adResults > 0
+                                                                              ? ad.metrics.spend / adResults
+                                                                              : null;
+                                                                          const adOpen = roDrill?.adId === ad.id;
+                                                                          return (
+                                                                            <Fragment key={ad.id}>
+                                                                              <div
+                                                                                className="grid cursor-pointer grid-cols-[1fr_90px_110px_110px] items-center gap-x-2 border-b py-1.5 last:border-b-0 hover:bg-accent/50"
+                                                                                onClick={() => roToggleAd(roKey, ad.id)}
+                                                                              >
+                                                                                <span className="flex items-center gap-1 truncate pl-4">
+                                                                                  {adOpen ? (
+                                                                                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                                                                                  ) : (
+                                                                                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                                                                                  )}
+                                                                                  {ad.name}
+                                                                                  <Badge variant="outline" className="ml-1 text-[10px]">
+                                                                                    {ad.effective_status}
+                                                                                  </Badge>
+                                                                                  {!!adGoal?.objectives.length && (
+                                                                                    <Badge variant="outline" className="text-[10px]">
+                                                                                      meta própria
+                                                                                    </Badge>
+                                                                                  )}
+                                                                                </span>
+                                                                                <span>{adResults != null ? formatResults(adResults) : '—'}</span>
+                                                                                <span>{adCpr != null ? money(adCpr) : '—'}</span>
+                                                                                <span>—</span>
+                                                                              </div>
+                                                                              {adOpen && !!adGoal?.objectives[0] && (
+                                                                                <div className="mb-2 ml-4 border-l py-2 pl-2">
+                                                                                  <p className="mb-1 text-xs font-semibold text-muted-foreground">Meta deste anúncio</p>
+                                                                                  <GoalPeriodsReadOnlyTable objective={adGoal.objectives[0]} />
+                                                                                </div>
+                                                                              )}
+                                                                            </Fragment>
+                                                                          );
+                                                                        })
+                                                                      )}
+                                                                    </div>
+                                                                  )}
+                                                                </Fragment>
+                                                              );
+                                                            })
+                                                          )}
+                                                        </div>
+                                                      )}
+                                                    </Fragment>
+                                                  );
+                                                })}
                                               </div>
                                             </div>
-                                            <ObjectivePeriodsTable objective={o} />
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-xs text-muted-foreground">Nenhum objetivo cadastrado pra esta conta.</p>
-                                    )}
-                                  </div>
-                                ))
+                                          ) : (
+                                            <span className="text-muted-foreground">Nenhuma campanha ativa no momento nessa conta.</span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })
                               ) : (
                                 <p className="text-sm text-muted-foreground">Nenhuma conta de anúncio vinculada.</p>
                               )}
