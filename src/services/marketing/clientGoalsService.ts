@@ -159,6 +159,26 @@ class ClientGoalsService {
     );
     return { id: response.data.id || response.data.account_id || id, name: response.data.name || '' };
   }
+
+  // Seletor "BM > Conta": mesmas duas ações que o Painel Tráfego já usa pra
+  // navegar Business Manager > Contas, só que devolvendo listas simples pro
+  // combobox com busca (em vez da árvore completa com insights/gasto que o
+  // Painel Tráfego usa).
+  async listBusinessManagers(): Promise<{ id: string; name: string }[]> {
+    const response = await api.post<[{ lista_bms?: { id: string; name: string }[] }]>(
+      '/reports/meta_ads_manager',
+      { acao: 'lista_bms' },
+    );
+    return response.data?.[0]?.lista_bms || [];
+  }
+
+  async listAdAccountsForBm(businessId: string): Promise<{ id: string; name: string }[]> {
+    const response = await api.post<[{ lista_final_contas_de_anuncios?: { id: string; name: string }[] }]>(
+      '/reports/meta_ads_manager',
+      { acao: 'lista_de_contas', id_bm: businessId },
+    );
+    return (response.data?.[0]?.lista_final_contas_de_anuncios || []).map((a) => ({ id: a.id, name: a.name }));
+  }
 }
 
 export const clientGoalsService = new ClientGoalsService();

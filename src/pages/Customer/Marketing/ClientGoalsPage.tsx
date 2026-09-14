@@ -52,6 +52,7 @@ import {
   TableRow,
 } from '@evoapi/design-system';
 import { BaseHeader } from '@/components/base';
+import { MetaAdAccountPicker } from '@/components/marketing/MetaAdAccountPicker';
 import {
   clientGoalsService,
   ClientGoal,
@@ -459,6 +460,9 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
             <Card key={accIndex}>
               <CardContent className="space-y-3 pt-4">
                 <div className="flex gap-2">
+                  <MetaAdAccountPicker
+                    onSelect={(account) => patchAdAccount(accIndex, { id: account.id, name: account.name })}
+                  />
                   <Input
                     className={FIELD_CLASS}
                     placeholder="ID da conta (act_...)"
@@ -468,7 +472,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                   <Button
                     size="icon"
                     variant="outline"
-                    title="Buscar conta na Meta e preencher o nome"
+                    title="Buscar essa conta na Meta pelo ID e preencher o nome"
                     disabled={lookupLoading[accIndex]}
                     onClick={() => lookupAccount(accIndex)}
                   >
