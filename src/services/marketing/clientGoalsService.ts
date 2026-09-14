@@ -147,6 +147,18 @@ class ClientGoalsService {
   async remove(id: string): Promise<void> {
     await api.delete(`${this.baseUrl}/${id}`);
   }
+
+  // Botão "Buscar conta": preenche o nome da conta a partir só do ID que o
+  // usuário colou, sem precisar navegar Business Manager > Contas no Painel
+  // Tráfego pra descobrir o nome. Reaproveita o mesmo endpoint despachado
+  // por `acao` que o Painel Tráfego já usa (Meta::AdsManagerService#account_info).
+  async lookupAdAccount(id: string): Promise<{ id: string; name: string }> {
+    const response = await api.post<{ name?: string; account_id?: string; id?: string }>(
+      '/reports/meta_ads_manager',
+      { acao: 'conta_info', id_conta_anuncio: id },
+    );
+    return { id: response.data.id || response.data.account_id || id, name: response.data.name || '' };
+  }
 }
 
 export const clientGoalsService = new ClientGoalsService();

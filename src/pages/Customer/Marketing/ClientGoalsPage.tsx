@@ -12,6 +12,8 @@ import {
   Power,
   ChevronDown,
   ChevronRight,
+  Search,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -272,6 +274,29 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
   const removeAdAccount = (index: number) =>
     setForm((prev) => ({ ...prev, ad_accounts: prev.ad_accounts.filter((_, i) => i !== index) }));
 
+  // Botão "Buscar conta": em vez do usuário ter que ir no Painel Tráfego
+  // achar o nome da conta pra colar aqui, cola só o ID e a gente busca o
+  // nome direto na Graph API (Meta::AdsManagerService#account_info).
+  const [lookupLoading, setLookupLoading] = useState<Record<number, boolean>>({});
+
+  const lookupAccount = async (index: number) => {
+    const id = form.ad_accounts[index]?.id?.trim();
+    if (!id) {
+      toast.error('Cole o ID da conta antes de buscar.');
+      return;
+    }
+    setLookupLoading((prev) => ({ ...prev, [index]: true }));
+    try {
+      const info = await clientGoalsService.lookupAdAccount(id);
+      patchAdAccount(index, { id: info.id, name: info.name || form.ad_accounts[index].name });
+      toast.success(info.name ? `Conta encontrada: ${info.name}` : 'Conta encontrada.');
+    } catch (error) {
+      toast.error(extractErrorMessage(error, 'Não foi possível buscar essa conta. Confira o ID.'));
+    } finally {
+      setLookupLoading((prev) => ({ ...prev, [index]: false }));
+    }
+  };
+
   // Um par nome/raio "pendente" por conta (preenche os dois campos e clica
   // Adicionar) — precisa ser por índice porque cada conta tem sua própria
   // lista de localizações.
@@ -440,6 +465,19 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                     value={acc.id}
                     onChange={(e) => updateAdAccount(accIndex, 'id', e.target.value)}
                   />
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    title="Buscar conta na Meta e preencher o nome"
+                    disabled={lookupLoading[accIndex]}
+                    onClick={() => lookupAccount(accIndex)}
+                  >
+                    {lookupLoading[accIndex] ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
                   <Input
                     className={FIELD_CLASS}
                     placeholder="Nome da conta"
