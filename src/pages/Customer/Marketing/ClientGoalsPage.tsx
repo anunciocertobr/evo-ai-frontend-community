@@ -371,36 +371,69 @@ function ObjectivePeriodsTable({ objective }: { objective: ClientGoalObjective }
 // pra metas de campanha/conjunto/anúncio: sem Tipo de Objetivo, sem
 // Orçamento, sem card, sem botão "Adicionar" (o objetivo é criado sozinho
 // no primeiro campo preenchido, via withSingleObjective em
-// ClientGoalFormFields). Repetido em edição (InlineGoalEditor, com inputs)
-// e leitura (GoalPeriodsReadOnlyTable, só texto).
+// ClientGoalFormFields). Em edição isso vira colunas de input
+// (InlineGoalEditor); em leitura, uma linha por campanha/conjunto/anúncio
+// já mostra tudo de uma vez, sem precisar clicar (GoalRowColumns +
+// GoalRowHeader, usados dentro de uma <table> só na visão de leitura — a
+// seta ali serve só pra abrir o próximo nível, não pra revelar a meta).
 const GOAL_COLUMNS = ['Período', 'Resultado Mín', 'Resultado Máx', 'Custo/Result. Mín (R$)', 'Custo/Result. Máx (R$)'];
 
-function GoalPeriodsReadOnlyTable({ objective }: { objective: ClientGoalObjective }) {
+function GoalRowHeader() {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-left text-muted-foreground">
-            {GOAL_COLUMNS.map((col) => (
-              <th key={col} className="py-1 pr-3 font-medium">
-                {col}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {PERIODS.map((period) => (
-            <tr key={period.key} className="border-t">
-              <td className="py-1.5 pr-3 font-medium">{period.label}</td>
-              <td className="py-1.5 pr-3">{num(objective[`target_result_${period.key}_min` as keyof ClientGoalObjective] as number)}</td>
-              <td className="py-1.5 pr-3">{num(objective[`target_result_${period.key}_max` as keyof ClientGoalObjective] as number)}</td>
-              <td className="py-1.5 pr-3">{money(objective[`cost_margin_${period.key}_min` as keyof ClientGoalObjective] as number)}</td>
-              <td className="py-1.5 pr-3">{money(objective[`cost_margin_${period.key}_max` as keyof ClientGoalObjective] as number)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <thead>
+      <tr className="border-b text-muted-foreground">
+        <th rowSpan={2} className="whitespace-nowrap px-2 py-1 text-left align-bottom">
+          Campanha / Conjunto / Anúncio
+        </th>
+        {PERIODS.map((period) => (
+          <th key={period.key} colSpan={4} className="border-l px-2 py-1 text-center">
+            {period.label}
+          </th>
+        ))}
+        <th rowSpan={2} className="border-l whitespace-nowrap px-2 py-1 text-right align-bottom">
+          Resultado Real
+        </th>
+        <th rowSpan={2} className="whitespace-nowrap px-2 py-1 text-right align-bottom">
+          Custo/Result. Real
+        </th>
+        <th rowSpan={2} className="whitespace-nowrap px-2 py-1 text-right align-bottom">
+          Ativos
+        </th>
+      </tr>
+      <tr className="border-b text-muted-foreground">
+        {PERIODS.map((period) => (
+          <Fragment key={period.key}>
+            <th className="border-l px-2 py-1 text-right text-[10px] font-normal">Result. Mín</th>
+            <th className="px-2 py-1 text-right text-[10px] font-normal">Result. Máx</th>
+            <th className="px-2 py-1 text-right text-[10px] font-normal">Custo Mín</th>
+            <th className="px-2 py-1 text-right text-[10px] font-normal">Custo Máx</th>
+          </Fragment>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+function GoalRowColumns({ objective }: { objective: ClientGoalObjective | undefined }) {
+  return (
+    <>
+      {PERIODS.map((period) => (
+        <Fragment key={period.key}>
+          <td className="border-l px-2 py-1.5 text-right">
+            {num(objective?.[`target_result_${period.key}_min` as keyof ClientGoalObjective] as number)}
+          </td>
+          <td className="px-2 py-1.5 text-right">
+            {num(objective?.[`target_result_${period.key}_max` as keyof ClientGoalObjective] as number)}
+          </td>
+          <td className="px-2 py-1.5 text-right">
+            {money(objective?.[`cost_margin_${period.key}_min` as keyof ClientGoalObjective] as number)}
+          </td>
+          <td className="px-2 py-1.5 text-right">
+            {money(objective?.[`cost_margin_${period.key}_max` as keyof ClientGoalObjective] as number)}
+          </td>
+        </Fragment>
+      ))}
+    </>
   );
 }
 
@@ -1593,13 +1626,6 @@ export default function ClientGoalsPage() {
       return { ...prev, [key]: { ...current, adsetId: isOpen ? null : adsetId, adId: null } };
     });
 
-  const roToggleAd = (key: string, adId: string) =>
-    setRoDrillDown((prev) => {
-      const current = prev[key] || roEmptyDrillDown;
-      const isOpen = current.adId === adId;
-      return { ...prev, [key]: { ...current, adId: isOpen ? null : adId } };
-    });
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -1984,60 +2010,57 @@ export default function ClientGoalsPage() {
                                             </span>
                                           ) : roCampaigns && roCampaigns.length > 0 ? (
                                             <div className="overflow-x-auto">
-                                              <div className="min-w-[560px]">
-                                                <div className="mb-1 font-medium text-foreground">
-                                                  Campanhas ativas agora ({roCampaigns.length}) — últimos 30 dias:
-                                                </div>
-                                                <div className="grid grid-cols-[1fr_90px_110px_110px] gap-x-2 border-b pb-1 text-muted-foreground">
-                                                  <span>Campanha</span>
-                                                  <span>Resultados</span>
-                                                  <span>Custo/Result.</span>
-                                                  <span>Conjuntos ativos</span>
-                                                </div>
-                                                {roCampaigns.map((camp) => {
-                                                  const campGoal = accountCampaignGoals.find((c) => c.id === camp.id);
-                                                  const campObjectiveTypes = campGoal?.objectives.length
-                                                    ? Array.from(new Set(campGoal.objectives.map((o) => o.objective_type)))
-                                                    : roObjectiveTypes;
-                                                  const results = computeResults(campObjectiveTypes, camp.metrics);
-                                                  const cpr = results != null && results > 0 ? camp.metrics.spend / results : null;
-                                                  const campOpen = roDrill?.campaignId === camp.id;
-                                                  const roDisplayAdsets = mergeWithSavedGoals(camp.adsets, campGoal?.adsets || [], adsetPlaceholder);
-                                                  return (
-                                                    <Fragment key={camp.id}>
-                                                      <div
-                                                        className="grid cursor-pointer grid-cols-[1fr_90px_110px_110px] items-center gap-x-2 border-b py-1.5 hover:bg-accent/50"
-                                                        onClick={() => roToggleCampaign(roKey, camp.id)}
-                                                      >
-                                                        <span className="flex items-center gap-1 truncate">
-                                                          {campOpen ? (
-                                                            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                                                          ) : (
-                                                            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                                                          )}
-                                                          {camp.name}
-                                                          {!!campGoal?.objectives.length && (
-                                                            <Badge variant="outline" className="ml-1 text-[10px]">
-                                                              meta própria
-                                                            </Badge>
-                                                          )}
-                                                        </span>
-                                                        <span>{results != null ? formatResults(results) : '—'}</span>
-                                                        <span>{cpr != null ? money(cpr) : '—'}</span>
-                                                        <span>{camp.active_adsets_count}</span>
-                                                      </div>
-                                                      {campOpen && (
-                                                        <div className="mb-2 ml-4 border-l pl-2">
-                                                          {!!campGoal?.objectives[0] && (
-                                                            <div className="my-2">
-                                                              <p className="mb-1 text-xs font-semibold text-muted-foreground">Meta desta campanha</p>
-                                                              <GoalPeriodsReadOnlyTable objective={campGoal.objectives[0]} />
-                                                            </div>
-                                                          )}
-                                                          {roDisplayAdsets.length === 0 ? (
-                                                            <p className="py-1 text-muted-foreground">
-                                                              Nenhum conjunto de anúncio nessa campanha.
-                                                            </p>
+                                              <div className="mb-1 font-medium text-foreground">
+                                                Campanhas ativas agora ({roCampaigns.length}) — últimos 30 dias — clique na seta pra ver
+                                                conjuntos/anúncios:
+                                              </div>
+                                              <table className="w-full min-w-[1100px] text-xs">
+                                                <GoalRowHeader />
+                                                <tbody>
+                                                  {roCampaigns.map((camp) => {
+                                                    const campGoal = accountCampaignGoals.find((c) => c.id === camp.id);
+                                                    const campObjectiveTypes = campGoal?.objectives.length
+                                                      ? Array.from(new Set(campGoal.objectives.map((o) => o.objective_type)))
+                                                      : roObjectiveTypes;
+                                                    const results = computeResults(campObjectiveTypes, camp.metrics);
+                                                    const cpr = results != null && results > 0 ? camp.metrics.spend / results : null;
+                                                    const campOpen = roDrill?.campaignId === camp.id;
+                                                    const roDisplayAdsets = mergeWithSavedGoals(camp.adsets, campGoal?.adsets || [], adsetPlaceholder);
+                                                    return (
+                                                      <Fragment key={camp.id}>
+                                                        <tr
+                                                          className="cursor-pointer border-t hover:bg-accent/50"
+                                                          onClick={() => roToggleCampaign(roKey, camp.id)}
+                                                        >
+                                                          <td className="whitespace-nowrap px-2 py-1.5 font-medium">
+                                                            <span className="flex items-center gap-1">
+                                                              {campOpen ? (
+                                                                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                                                              ) : (
+                                                                <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                                                              )}
+                                                              {camp.name}
+                                                              {!!campGoal?.objectives.length && (
+                                                                <Badge variant="outline" className="text-[10px]">
+                                                                  meta própria
+                                                                </Badge>
+                                                              )}
+                                                            </span>
+                                                          </td>
+                                                          <GoalRowColumns objective={campGoal?.objectives[0]} />
+                                                          <td className="border-l px-2 py-1.5 text-right">
+                                                            {results != null ? formatResults(results) : '—'}
+                                                          </td>
+                                                          <td className="px-2 py-1.5 text-right">{cpr != null ? money(cpr) : '—'}</td>
+                                                          <td className="px-2 py-1.5 text-right">{camp.active_adsets_count}</td>
+                                                        </tr>
+                                                        {campOpen &&
+                                                          (roDisplayAdsets.length === 0 ? (
+                                                            <tr className="border-t bg-muted/10">
+                                                              <td colSpan={16} className="px-2 py-1.5 pl-6 text-muted-foreground">
+                                                                Nenhum conjunto de anúncio nessa campanha.
+                                                              </td>
+                                                            </tr>
                                                           ) : (
                                                             roDisplayAdsets.map((adset) => {
                                                               const adsetGoal = campGoal?.adsets.find((a) => a.id === adset.id);
@@ -2053,102 +2076,91 @@ export default function ClientGoalsPage() {
                                                               const roDisplayAds = mergeWithSavedGoals(adset.ads, adsetGoal?.ads || [], adPlaceholder);
                                                               return (
                                                                 <Fragment key={adset.id}>
-                                                                  <div
-                                                                    className="grid cursor-pointer grid-cols-[1fr_90px_110px_110px] items-center gap-x-2 border-b py-1.5 hover:bg-accent/50"
+                                                                  <tr
+                                                                    className="cursor-pointer border-t bg-muted/10 hover:bg-accent/50"
                                                                     onClick={() => roToggleAdset(roKey, adset.id)}
                                                                   >
-                                                                    <span className="flex items-center gap-1 truncate">
-                                                                      {adsetOpen ? (
-                                                                        <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                                                                      ) : (
-                                                                        <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                                                                      )}
-                                                                      {adset.name}
-                                                                      <Badge variant="outline" className="ml-1 text-[10px]">
-                                                                        {adset.effective_status}
-                                                                      </Badge>
-                                                                      {!!adsetGoal?.objectives.length && (
+                                                                    <td className="whitespace-nowrap py-1.5 pr-2 pl-6 font-medium">
+                                                                      <span className="flex items-center gap-1">
+                                                                        {adsetOpen ? (
+                                                                          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                                                                        ) : (
+                                                                          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                                                                        )}
+                                                                        {adset.name}
                                                                         <Badge variant="outline" className="text-[10px]">
-                                                                          meta própria
+                                                                          {adset.effective_status}
                                                                         </Badge>
-                                                                      )}
-                                                                    </span>
-                                                                    <span>{adsetResults != null ? formatResults(adsetResults) : '—'}</span>
-                                                                    <span>{adsetCpr != null ? money(adsetCpr) : '—'}</span>
-                                                                    <span>{adset.active_ads_count}</span>
-                                                                  </div>
-                                                                  {adsetOpen && (
-                                                                    <div className="mb-2 ml-4 border-l pl-2">
-                                                                      {!!adsetGoal?.objectives[0] && (
-                                                                        <div className="my-2">
-                                                                          <p className="mb-1 text-xs font-semibold text-muted-foreground">Meta deste conjunto</p>
-                                                                          <GoalPeriodsReadOnlyTable objective={adsetGoal.objectives[0]} />
-                                                                        </div>
-                                                                      )}
-                                                                      {roDisplayAds.length === 0 ? (
-                                                                        <p className="py-1 text-muted-foreground">
+                                                                        {!!adsetGoal?.objectives.length && (
+                                                                          <Badge variant="outline" className="text-[10px]">
+                                                                            meta própria
+                                                                          </Badge>
+                                                                        )}
+                                                                      </span>
+                                                                    </td>
+                                                                    <GoalRowColumns objective={adsetGoal?.objectives[0]} />
+                                                                    <td className="border-l px-2 py-1.5 text-right">
+                                                                      {adsetResults != null ? formatResults(adsetResults) : '—'}
+                                                                    </td>
+                                                                    <td className="px-2 py-1.5 text-right">
+                                                                      {adsetCpr != null ? money(adsetCpr) : '—'}
+                                                                    </td>
+                                                                    <td className="px-2 py-1.5 text-right">{adset.active_ads_count}</td>
+                                                                  </tr>
+                                                                  {adsetOpen &&
+                                                                    (roDisplayAds.length === 0 ? (
+                                                                      <tr className="border-t bg-muted/20">
+                                                                        <td colSpan={16} className="px-2 py-1.5 pl-10 text-muted-foreground">
                                                                           Nenhum anúncio nesse conjunto.
-                                                                        </p>
-                                                                      ) : (
-                                                                        roDisplayAds.map((ad) => {
-                                                                          const adGoal = adsetGoal?.ads.find((a) => a.id === ad.id);
-                                                                          const adObjectiveTypes = adGoal?.objectives.length
-                                                                            ? Array.from(new Set(adGoal.objectives.map((o) => o.objective_type)))
-                                                                            : adsetObjectiveTypes;
-                                                                          const adResults = computeResults(adObjectiveTypes, ad.metrics);
-                                                                          const adCpr =
-                                                                            adResults != null && adResults > 0
-                                                                              ? ad.metrics.spend / adResults
-                                                                              : null;
-                                                                          const adOpen = roDrill?.adId === ad.id;
-                                                                          return (
-                                                                            <Fragment key={ad.id}>
-                                                                              <div
-                                                                                className="grid cursor-pointer grid-cols-[1fr_90px_110px_110px] items-center gap-x-2 border-b py-1.5 last:border-b-0 hover:bg-accent/50"
-                                                                                onClick={() => roToggleAd(roKey, ad.id)}
-                                                                              >
-                                                                                <span className="flex items-center gap-1 truncate pl-4">
-                                                                                  {adOpen ? (
-                                                                                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                                                                                  ) : (
-                                                                                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                                                                                  )}
-                                                                                  {ad.name}
-                                                                                  <Badge variant="outline" className="ml-1 text-[10px]">
-                                                                                    {ad.effective_status}
+                                                                        </td>
+                                                                      </tr>
+                                                                    ) : (
+                                                                      roDisplayAds.map((ad) => {
+                                                                        const adGoal = adsetGoal?.ads.find((a) => a.id === ad.id);
+                                                                        const adObjectiveTypes = adGoal?.objectives.length
+                                                                          ? Array.from(new Set(adGoal.objectives.map((o) => o.objective_type)))
+                                                                          : adsetObjectiveTypes;
+                                                                        const adResults = computeResults(adObjectiveTypes, ad.metrics);
+                                                                        const adCpr =
+                                                                          adResults != null && adResults > 0
+                                                                            ? ad.metrics.spend / adResults
+                                                                            : null;
+                                                                        return (
+                                                                          <tr key={ad.id} className="border-t bg-muted/20">
+                                                                            <td className="whitespace-nowrap py-1.5 pr-2 pl-10">
+                                                                              <span className="flex items-center gap-1">
+                                                                                {ad.name}
+                                                                                <Badge variant="outline" className="text-[10px]">
+                                                                                  {ad.effective_status}
+                                                                                </Badge>
+                                                                                {!!adGoal?.objectives.length && (
+                                                                                  <Badge variant="outline" className="text-[10px]">
+                                                                                    meta própria
                                                                                   </Badge>
-                                                                                  {!!adGoal?.objectives.length && (
-                                                                                    <Badge variant="outline" className="text-[10px]">
-                                                                                      meta própria
-                                                                                    </Badge>
-                                                                                  )}
-                                                                                </span>
-                                                                                <span>{adResults != null ? formatResults(adResults) : '—'}</span>
-                                                                                <span>{adCpr != null ? money(adCpr) : '—'}</span>
-                                                                                <span>—</span>
-                                                                              </div>
-                                                                              {adOpen && !!adGoal?.objectives[0] && (
-                                                                                <div className="mb-2 ml-4 border-l py-2 pl-2">
-                                                                                  <p className="mb-1 text-xs font-semibold text-muted-foreground">Meta deste anúncio</p>
-                                                                                  <GoalPeriodsReadOnlyTable objective={adGoal.objectives[0]} />
-                                                                                </div>
-                                                                              )}
-                                                                            </Fragment>
-                                                                          );
-                                                                        })
-                                                                      )}
-                                                                    </div>
-                                                                  )}
+                                                                                )}
+                                                                              </span>
+                                                                            </td>
+                                                                            <GoalRowColumns objective={adGoal?.objectives[0]} />
+                                                                            <td className="border-l px-2 py-1.5 text-right">
+                                                                              {adResults != null ? formatResults(adResults) : '—'}
+                                                                            </td>
+                                                                            <td className="px-2 py-1.5 text-right">
+                                                                              {adCpr != null ? money(adCpr) : '—'}
+                                                                            </td>
+                                                                            <td className="px-2 py-1.5 text-right">—</td>
+                                                                          </tr>
+                                                                        );
+                                                                      })
+                                                                    ))}
                                                                 </Fragment>
                                                               );
                                                             })
-                                                          )}
-                                                        </div>
-                                                      )}
-                                                    </Fragment>
-                                                  );
-                                                })}
-                                              </div>
+                                                          ))}
+                                                      </Fragment>
+                                                    );
+                                                  })}
+                                                </tbody>
+                                              </table>
                                             </div>
                                           ) : (
                                             <span className="text-muted-foreground">Nenhuma campanha ativa no momento nessa conta.</span>
