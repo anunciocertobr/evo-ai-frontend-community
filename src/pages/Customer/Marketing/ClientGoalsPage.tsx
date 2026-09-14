@@ -389,9 +389,9 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
         </div>
         <div>
           <Label>Segmentos</Label>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Input
-              className={FIELD_CLASS}
+              className={`${FIELD_CLASS} min-w-[140px] flex-1`}
               value={segmentInput}
               onChange={(e) => setSegmentInput(e.target.value)}
               onKeyDown={(e) => {
@@ -459,12 +459,12 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
           {form.ad_accounts.map((acc, accIndex) => (
             <Card key={accIndex}>
               <CardContent className="space-y-3 pt-4">
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <MetaAdAccountPicker
                     onSelect={(account) => patchAdAccount(accIndex, { id: account.id, name: account.name })}
                   />
                   <Input
-                    className={FIELD_CLASS}
+                    className={`${FIELD_CLASS} min-w-[140px] flex-1`}
                     placeholder="ID da conta (act_...)"
                     value={acc.id}
                     onChange={(e) => updateAdAccount(accIndex, 'id', e.target.value)}
@@ -483,7 +483,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                     )}
                   </Button>
                   <Input
-                    className={FIELD_CLASS}
+                    className={`${FIELD_CLASS} min-w-[140px] flex-1`}
                     placeholder="Nome da conta"
                     value={acc.name}
                     onChange={(e) => updateAdAccount(accIndex, 'name', e.target.value)}
@@ -535,9 +535,9 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
 
                 <div>
                   <Label className="text-xs">Localizações</Label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Input
-                      className={`${FIELD_CLASS} flex-1`}
+                      className={`${FIELD_CLASS} min-w-[140px] flex-1`}
                       value={getLocationInput(accIndex).name}
                       onChange={(e) => setLocationInput(accIndex, { name: e.target.value })}
                       onKeyDown={(e) => {
@@ -598,8 +598,8 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                   {acc.objectives.map((obj, objIndex) => (
                     <Card key={obj.key || objIndex} className={FIELD_CLASS}>
                       <CardContent className="space-y-3 pt-4">
-                        <div className="flex items-start gap-2">
-                          <div className="flex-1">
+                        <div className="flex flex-wrap items-start gap-2">
+                          <div className="min-w-[160px] flex-1">
                             <Label>Tipo de Objetivo</Label>
                             <Select
                               value={obj.objective_type}
@@ -618,7 +618,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                             </Select>
                           </div>
                           {obj.objective_type === 'outro' && (
-                            <div className="flex-1">
+                            <div className="min-w-[160px] flex-1">
                               <Label>Rótulo do Objetivo</Label>
                               <Input
                                 className={FIELD_CLASS}
@@ -627,7 +627,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                               />
                             </div>
                           )}
-                          <div className="w-40">
+                          <div className="w-full sm:w-40">
                             <Label>Orçamento (R$)</Label>
                             <Input
                               className={FIELD_CLASS}
@@ -1174,7 +1174,7 @@ export default function ClientGoalsPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[95vw] sm:max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Novo Cliente</DialogTitle>
             <DialogDescription>
