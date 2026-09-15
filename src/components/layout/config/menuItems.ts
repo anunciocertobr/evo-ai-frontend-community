@@ -49,6 +49,7 @@ import {
   Box,
   Target,
   Bell,
+  Home,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -184,6 +185,13 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         resource: 'products',
         action: 'read',
       },
+      {
+        name: 'Imobiliária',
+        href: '/real-estate',
+        icon: Home,
+        resource: 'products',
+        action: 'read',
+      },
     ],
   },
   {
@@ -282,6 +290,11 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         name: 'Cardápio Digital',
         href: '/organizacao/cardapio-digital',
         icon: UtensilsCrossed,
+      },
+      {
+        name: 'Imobiliária',
+        href: '/organizacao/imobiliaria',
+        icon: Home,
       },
     ],
   },

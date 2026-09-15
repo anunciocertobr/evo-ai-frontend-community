@@ -71,6 +71,7 @@ import IntegrationCredentials from '@/pages/Customer/Settings/IntegrationCredent
 import MessageTemplates from '@/pages/Customer/Settings/MessageTemplates';
 import { Macros } from '@/pages/Customer/Settings/Macros';
 import Products, { ProductsImport } from '@/pages/Customer/Settings/Products';
+import RealEstateAdminPage from '@/pages/Customer/Settings/RealEstate/RealEstateAdminPage';
 import InventoryPage from '@/pages/Customer/Settings/Inventory/InventoryPage';
 import FinancesPage from '@/pages/Customer/Finances/FinancesPage';
 import HoleritePage from '@/pages/Customer/Finances/HoleritePage';
@@ -1175,6 +1176,21 @@ const AppRouter = () => {
                   <MainLayout>
                     <PermissionRoute resource="products" action="read">
                       <InventoryPage />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/real-estate"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="products" action="read">
+                      <RealEstateAdminPage />
                     </PermissionRoute>
                   </MainLayout>
                 </CustomerRoute>

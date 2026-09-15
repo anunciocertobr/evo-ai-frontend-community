@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { productsService } from '@/services/products/productsService';
-import { toFieldErrors } from './productErrors';
+import { toFieldErrors } from '../Products/productErrors';
 import type { Product, ProductFormData } from '@/types/products';
 import RealEstateTable from '@/components/real-estate/RealEstateTable';
 import RealEstateItemModal from '@/components/real-estate/RealEstateItemModal';
@@ -17,7 +17,7 @@ import {
 } from '@evoapi/design-system';
 import { Plus } from 'lucide-react';
 
-export default function RealEstateTab() {
+export default function RealEstateAdminPage() {
   const { can } = usePermissions();
   const canCreate = can('products', 'create');
   const canUpdate = can('products', 'update');
@@ -107,11 +107,22 @@ export default function RealEstateTab() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Imóveis cadastrados aqui aparecem no site público de imóveis.
-        </p>
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Imobiliária</h1>
+          <p className="text-sm text-muted-foreground">
+            Imóveis cadastrados aqui aparecem no site público de imóveis.
+          </p>
+        </div>
+        <Button variant="outline" asChild>
+          <a href="/imoveis" target="_blank" rel="noopener noreferrer">
+            Ver site de imóveis
+          </a>
+        </Button>
+      </div>
+
+      <div className="flex items-center justify-end mb-4">
         <Button onClick={openCreate} disabled={!canCreate}>
           <Plus className="h-4 w-4 mr-1.5" />
           Novo Imóvel
