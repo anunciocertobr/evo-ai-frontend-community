@@ -329,11 +329,16 @@ const RealEstatePage = () => {
     if (!selected || !leadForm.name.trim() || !leadForm.email.trim() || !leadForm.phone.trim()) return;
     setSubmittingLead(true);
     try {
+      // Mesma normalização do link de WhatsApp (buildWhatsappLink): sem DDI,
+      // assume Brasil — sem isso o backend guarda um E.164 com o país errado.
+      let phoneDigits = leadForm.phone.replace(/\D/g, '');
+      if (phoneDigits.length <= 11) phoneDigits = `55${phoneDigits}`;
+
       await realEstateService.submitLead({
         product_id: selected.id,
         name: leadForm.name.trim(),
         email: leadForm.email.trim(),
-        phone: leadForm.phone.trim(),
+        phone: phoneDigits,
         message: leadForm.message.trim() || undefined,
       });
     } catch (err) {
