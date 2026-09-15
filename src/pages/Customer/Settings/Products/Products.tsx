@@ -16,6 +16,7 @@ import ProductsHeader from '@/components/products/ProductsHeader';
 import ProductsTable from '@/components/products/ProductsTable';
 import ProductsPagination from '@/components/products/ProductsPagination';
 import ProductModal from '@/components/products/ProductModal';
+import RealEstateTab from './RealEstateTab';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,10 @@ import {
   Button,
   Input,
   Label,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
 } from '@evoapi/design-system';
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -187,51 +192,64 @@ export default function Products() {
         </Button>
       </div>
 
-      <ProductsHeader
-        search={search}
-        kindFilter={kindFilter}
-        itemTypesFilter={itemTypesFilter}
-        statusFilter={statusFilter}
-        canCreate={canCreate}
-        onSearchChange={(v) => {
-          setSearch(v);
-          setPage(1);
-        }}
-        onKindChange={(v) => {
-          setKindFilter(v);
-          setPage(1);
-        }}
-        onItemTypesChange={(v) => {
-          setItemTypesFilter(v);
-          setPage(1);
-        }}
-        onStatusChange={(v) => {
-          setStatusFilter(v);
-          setPage(1);
-        }}
-        onCreate={openCreate}
-      />
+      <Tabs defaultValue="produtos" className="mb-4">
+        <TabsList>
+          <TabsTrigger value="produtos">Produtos</TabsTrigger>
+          <TabsTrigger value="imobiliaria">Imobiliária</TabsTrigger>
+        </TabsList>
 
-      {loading ? (
-        <div className="text-center text-sm text-muted-foreground py-10">{t('page.loading')}</div>
-      ) : (
-        <ProductsTable
-          products={products}
-          canUpdate={canUpdate}
-          canDelete={canDelete}
-          canSell={canUpdate}
-          onEdit={openEdit}
-          onDelete={(p) => setConfirmDelete(p)}
-          onSell={openSell}
-        />
-      )}
+        <TabsContent value="produtos" className="space-y-4 pt-4">
+          <ProductsHeader
+            search={search}
+            kindFilter={kindFilter}
+            itemTypesFilter={itemTypesFilter}
+            statusFilter={statusFilter}
+            canCreate={canCreate}
+            onSearchChange={(v) => {
+              setSearch(v);
+              setPage(1);
+            }}
+            onKindChange={(v) => {
+              setKindFilter(v);
+              setPage(1);
+            }}
+            onItemTypesChange={(v) => {
+              setItemTypesFilter(v);
+              setPage(1);
+            }}
+            onStatusChange={(v) => {
+              setStatusFilter(v);
+              setPage(1);
+            }}
+            onCreate={openCreate}
+          />
 
-      <ProductsPagination
-        page={page}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        onPageChange={setPage}
-      />
+          {loading ? (
+            <div className="text-center text-sm text-muted-foreground py-10">{t('page.loading')}</div>
+          ) : (
+            <ProductsTable
+              products={products}
+              canUpdate={canUpdate}
+              canDelete={canDelete}
+              canSell={canUpdate}
+              onEdit={openEdit}
+              onDelete={(p) => setConfirmDelete(p)}
+              onSell={openSell}
+            />
+          )}
+
+          <ProductsPagination
+            page={page}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            onPageChange={setPage}
+          />
+        </TabsContent>
+
+        <TabsContent value="imobiliaria" className="pt-4">
+          <RealEstateTab />
+        </TabsContent>
+      </Tabs>
 
       <ProductModal
         open={modalOpen}

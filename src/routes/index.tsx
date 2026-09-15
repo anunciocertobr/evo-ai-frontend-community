@@ -29,6 +29,7 @@ import SurveyResponse from '@/pages/Public/Survey/SurveyResponse';
 import PublicChatPage from '@/pages/Public/Chat/ChatPage';
 import FormPage from '@/pages/Public/Form/FormPage';
 import DigitalMenuPage from '@/pages/Public/Menu/DigitalMenuPage';
+import RealEstatePage from '@/pages/Public/RealEstate/RealEstatePage';
 
 // PÃƒÂ¡ginas customer
 import Dashboard from '@/pages/Customer/Dashboard';
@@ -89,6 +90,7 @@ import ContentViewPage from '@/pages/Customer/Editor/ContentViewPage';
 import DashboardContentPage from '@/pages/Customer/Dashboard/DashboardContentPage';
 import OrganizationDataPage from '@/pages/Customer/Organization/OrganizationDataPage';
 import DigitalMenuSettingsPage from '@/pages/Customer/Organization/DigitalMenuSettingsPage';
+import RealEstateSettingsPage from '@/pages/Customer/Organization/RealEstateSettingsPage';
 import CrmForms from '@/pages/Customer/Settings/CrmForms';
 import ChatPages from '@/pages/Customer/Settings/ChatPages';
 import Templates from '@/pages/Customer/Settings/Templates/Templates';
@@ -490,6 +492,16 @@ const AppRouter = () => {
             element={
               <PublicRoute>
                 <DigitalMenuPage />
+              </PublicRoute>
+            }
+          />
+
+          {/* Site de imóveis público (catálogo de imóveis ativos) */}
+          <Route
+            path="/imoveis"
+            element={
+              <PublicRoute>
+                <RealEstatePage />
               </PublicRoute>
             }
           />
@@ -1287,6 +1299,19 @@ const AppRouter = () => {
                 <CustomerRoute>
                   <MainLayout>
                     <DigitalMenuSettingsPage />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/organizacao/imobiliaria"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <RealEstateSettingsPage />
                   </MainLayout>
                 </CustomerRoute>
               </PrivateRoute>

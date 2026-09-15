@@ -1,7 +1,7 @@
 import type { PaginatedResponse, PaginationMeta, StandardResponse } from '@/types/core';
 
 export type ProductKind = 'physical' | 'digital';
-export type ProductItemType = 'produto' | 'produto_ml' | 'servico' | 'insumo' | 'equipamento';
+export type ProductItemType = 'produto' | 'produto_ml' | 'servico' | 'insumo' | 'equipamento' | 'imovel';
 export type ProductStatus = 'active' | 'inactive' | 'draft';
 export type ProductCurrency = 'BRL' | 'USD' | 'EUR';
 

@@ -34,6 +34,9 @@ const ITEM_TYPE_LABELS: Record<ProductItemType, string> = {
   servico: 'Serviço',
   insumo: 'Insumo',
   equipamento: 'Equipamento',
+  // Imóveis têm sua própria aba (ver Products.tsx) e nunca aparecem neste
+  // filtro — a chave só existe aqui pra satisfazer o Record<ProductItemType, string>.
+  imovel: 'Imóvel',
 };
 
 export default function ProductsHeader({
