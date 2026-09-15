@@ -283,7 +283,12 @@ const OBJECTIVE_ACTION_TYPES: Record<ObjectiveType, string[]> = {
   mensagens: ['onsite_conversion.total_messaging_connection', 'onsite_conversion.messaging_conversation_started_7d'],
   video: ['video_view'],
   vendas_site: ['offsite_conversion.fb_pixel_purchase', 'purchase', 'omni_purchase'],
-  lead_site: ['offsite_conversion.fb_pixel_lead', 'lead', 'onsite_conversion.lead_grouped'],
+  // Lead de FORMULÁRIO nativo do Meta (instant form) e lead de SITE
+  // (pixel/Conversions API) são fontes diferentes — uma conta pode rodar
+  // as duas campanhas ao mesmo tempo com resultado e custo bem diferentes
+  // uma da outra, então não podem ficar somadas num "lead_site" só.
+  lead_formulario: ['lead', 'onsite_conversion.lead_grouped'],
+  lead_site: ['offsite_conversion.fb_pixel_lead'],
   alcance: [],
   seguidores: [],
   outro: [],
@@ -549,9 +554,11 @@ function GoalRowColumns({ objective }: { objective: ClientGoalObjective | undefi
 
 function InlineGoalEditor({
   objective,
+  defaultObjectiveType,
   onChange,
 }: {
   objective: ClientGoalObjective | undefined;
+  defaultObjectiveType: ObjectiveType;
   onChange: (patch: Partial<ClientGoalObjective>) => void;
 }) {
   const numField = (key: string) => {
@@ -568,7 +575,30 @@ function InlineGoalEditor({
   };
 
   return (
-    <div className="overflow-x-auto">
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Label className="text-xs text-muted-foreground">Tipo de Objetivo</Label>
+        <Select
+          value={objective?.objective_type || defaultObjectiveType}
+          onValueChange={(v) => onChange({ objective_type: v as ObjectiveType })}
+        >
+          <SelectTrigger className={`${FIELD_CLASS} h-7 w-48 text-xs`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {/* "outro" fica de fora aqui de propósito — exige um rótulo
+                (custom_label) que essa UI simplificada não coleta; escolher
+                "outro" sem rótulo já causou um bug real de salvamento
+                (ver commit que corrigiu objective_type herdado). */}
+            {OBJECTIVE_TYPE_OPTIONS.filter((opt) => opt.value !== 'outro').map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
           <tr className="text-left text-muted-foreground">
@@ -591,6 +621,7 @@ function InlineGoalEditor({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -1360,7 +1391,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                 {camp.name}
                                                 {!!campGoal?.objectives.length && (
                                                   <Badge variant="outline" className="ml-1 text-[10px]">
-                                                    meta própria
+                                                    meta: {objectiveLabel(campGoal!.objectives[0])}
                                                   </Badge>
                                                 )}
                                               </span>
@@ -1374,6 +1405,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                   <p className="mb-1 text-xs font-semibold text-muted-foreground">Meta desta campanha</p>
                                                   <InlineGoalEditor
                                                     objective={campGoal?.objectives[0]}
+                                                    defaultObjectiveType={acc.objectives[0]?.objective_type || 'mensagens'}
                                                     onChange={(patch) =>
                                                       patchCampaign(accIndex, camp.id, camp.name, (c) =>
                                                         withSingleObjective(c, patch, acc.objectives[0]?.objective_type || 'mensagens'),
@@ -1416,7 +1448,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                             </Badge>
                                                             {!!adsetGoal?.objectives.length && (
                                                               <Badge variant="outline" className="text-[10px]">
-                                                                meta própria
+                                                                meta: {objectiveLabel(adsetGoal!.objectives[0])}
                                                               </Badge>
                                                             )}
                                                           </span>
@@ -1430,6 +1462,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                               <p className="mb-1 text-xs font-semibold text-muted-foreground">Meta deste conjunto</p>
                                                               <InlineGoalEditor
                                                                 objective={adsetGoal?.objectives[0]}
+                                                                defaultObjectiveType={campObjectiveTypes[0] || 'mensagens'}
                                                                 onChange={(patch) =>
                                                                   patchAdset(accIndex, camp.id, camp.name, adset.id, adset.name, (a) =>
                                                                     withSingleObjective(a, patch, campObjectiveTypes[0] || 'mensagens'),
@@ -1471,7 +1504,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                                         </Badge>
                                                                         {!!adGoal?.objectives.length && (
                                                                           <Badge variant="outline" className="text-[10px]">
-                                                                            meta própria
+                                                                            meta: {objectiveLabel(adGoal!.objectives[0])}
                                                                           </Badge>
                                                                         )}
                                                                       </span>
@@ -1484,6 +1517,7 @@ function ClientGoalFormFields({ form, setForm, isEditing, newChangeEntry, setNew
                                                                         <p className="mb-1 text-xs font-semibold text-muted-foreground">Meta deste anúncio</p>
                                                                         <InlineGoalEditor
                                                                           objective={adGoal?.objectives[0]}
+                                                                          defaultObjectiveType={adsetObjectiveTypes[0] || 'mensagens'}
                                                                           onChange={(patch) =>
                                                                             patchAd(
                                                                               accIndex,
@@ -2192,7 +2226,7 @@ export default function ClientGoalsPage() {
                                                               {camp.name}
                                                               {!!campGoal?.objectives.length && (
                                                                 <Badge variant="outline" className="text-[10px]">
-                                                                  meta própria
+                                                                  meta: {objectiveLabel(campGoal!.objectives[0])}
                                                                 </Badge>
                                                               )}
                                                             </span>
@@ -2243,7 +2277,7 @@ export default function ClientGoalsPage() {
                                                                         </Badge>
                                                                         {!!adsetGoal?.objectives.length && (
                                                                           <Badge variant="outline" className="text-[10px]">
-                                                                            meta própria
+                                                                            meta: {objectiveLabel(adsetGoal!.objectives[0])}
                                                                           </Badge>
                                                                         )}
                                                                       </span>
@@ -2285,7 +2319,7 @@ export default function ClientGoalsPage() {
                                                                                 </Badge>
                                                                                 {!!adGoal?.objectives.length && (
                                                                                   <Badge variant="outline" className="text-[10px]">
-                                                                                    meta própria
+                                                                                    meta: {objectiveLabel(adGoal!.objectives[0])}
                                                                                   </Badge>
                                                                                 )}
                                                                               </span>

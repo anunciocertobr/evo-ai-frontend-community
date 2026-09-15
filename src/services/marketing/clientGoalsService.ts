@@ -6,6 +6,7 @@ export type ObjectiveType =
   | 'video'
   | 'alcance'
   | 'vendas_site'
+  | 'lead_formulario'
   | 'lead_site'
   | 'outro';
 
@@ -15,6 +16,7 @@ export const OBJECTIVE_TYPE_OPTIONS: { value: ObjectiveType; label: string }[] =
   { value: 'video', label: 'Visualizações de Vídeo' },
   { value: 'alcance', label: 'Alcance' },
   { value: 'vendas_site', label: 'Vendas no Site' },
+  { value: 'lead_formulario', label: 'Lead via Formulário' },
   { value: 'lead_site', label: 'Lead no Site' },
   { value: 'outro', label: 'Outro' },
 ];
