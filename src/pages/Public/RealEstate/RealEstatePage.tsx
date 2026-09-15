@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Home, X, MapPin, Bed, Bath, Car, Search, Map as MapIcon } from 'lucide-react';
+import { Home, X, MapPin, Bed, Bath, Car, Search, Map as MapIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { realEstateService, PublicRealEstate, PublicRealEstateListing } from '@/services/public/realEstateService';
 
 declare global {
@@ -107,6 +107,7 @@ const RealEstatePage = () => {
 
   const [selected, setSelected] = useState<PublicRealEstateListing | null>(null);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const [mapOpen, setMapOpen] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -198,13 +199,17 @@ const RealEstatePage = () => {
   const openListing = (listing: PublicRealEstateListing) => {
     setSelected(listing);
     setGalleryIndex(0);
+    setLightboxOpen(false);
     pushToDataLayer(
       { event: 'view_item', ecommerce: { items: [{ item_id: listing.id, item_name: listing.name, price: listing.price }] } },
       trackingProfileRef.current,
     );
   };
 
-  const closeListing = () => setSelected(null);
+  const closeListing = () => {
+    setSelected(null);
+    setLightboxOpen(false);
+  };
 
   const openMap = () => setMapOpen(true);
   // Só troca o estado — a limpeza do mapa é sempre feita pelo cleanup do
@@ -502,10 +507,21 @@ const RealEstatePage = () => {
                           allowFullScreen
                         />
                       ) : (
-                        <video src={resolveMediaUrl(activeMedia.url)} className="h-full w-full object-cover" controls />
+                        <video src={resolveMediaUrl(activeMedia.url)} className="h-full w-full object-contain" controls />
                       )
                     ) : (
-                      <img src={resolveMediaUrl(activeMedia.url)} alt={selected.name} className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setLightboxOpen(true)}
+                        className="h-full w-full cursor-zoom-in"
+                        aria-label="Ver imagem em tela cheia"
+                      >
+                        <img
+                          src={resolveMediaUrl(activeMedia.url)}
+                          alt={selected.name}
+                          className="h-full w-full object-contain"
+                        />
+                      </button>
                     )
                   ) : (
                     <Home className="h-10 w-10 text-muted-foreground" />
@@ -527,6 +543,15 @@ const RealEstatePage = () => {
                         )}
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {getCoordinates(selected) && (
+                  <div className="p-3 pt-0">
+                    <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5" /> Localização
+                    </p>
+                    <div ref={detailMapContainerRef} className="h-56 w-full rounded-lg overflow-hidden border border-border" />
                   </div>
                 )}
               </div>
@@ -586,15 +611,6 @@ const RealEstatePage = () => {
                       ))}
                     </div>
                   )}
-
-                  {getCoordinates(selected) && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5" /> Localização
-                      </p>
-                      <div ref={detailMapContainerRef} className="h-56 w-full rounded-lg overflow-hidden border border-border" />
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -614,6 +630,46 @@ const RealEstatePage = () => {
               </a>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Lightbox — abre a foto atual em tela cheia, sem cortar (object-contain,
+         diferente das miniaturas e da galeria principal, que usam object-cover/
+         contain pra caber no espaço disponível). */}
+      {lightboxOpen && selected && activeMedia && activeMedia.kind === 'image' && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center">
+          <button
+            onClick={() => setLightboxOpen(false)}
+            className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white z-10"
+            aria-label="Fechar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+
+          {selectMediaGallery.length > 1 && (
+            <>
+              <button
+                onClick={() => setGalleryIndex((i) => (i - 1 + selectMediaGallery.length) % selectMediaGallery.length)}
+                className="absolute left-2 sm:left-4 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
+                aria-label="Foto anterior"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+              <button
+                onClick={() => setGalleryIndex((i) => (i + 1) % selectMediaGallery.length)}
+                className="absolute right-2 sm:right-4 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
+                aria-label="Próxima foto"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            </>
+          )}
+
+          <img
+            src={resolveMediaUrl(activeMedia.url)}
+            alt={selected.name}
+            className="max-h-screen max-w-screen object-contain"
+          />
         </div>
       )}
 
