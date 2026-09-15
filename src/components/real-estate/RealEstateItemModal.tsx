@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -159,7 +159,6 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [geocoding, setGeocoding] = useState(false);
-  const mapPickerContainerRef = useRef<HTMLDivElement | null>(null);
   const mapPickerRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
 
@@ -224,51 +223,60 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
 
   // Mapa pra escolher a localização do imóvel: nasce centrado nas
   // coordenadas já salvas (se houver) ou no Brasil inteiro; clicar nele (ou
-  // arrastar o pino) atualiza latitude/longitude automaticamente. Só o
-  // cleanup deste effect remove a instância — nunca um handler de clique/
-  // drag (mesmo cuidado do mapa público, ver RealEstatePage.tsx: chamar
-  // map.remove() fora do cleanup, no meio do dispatch de um evento do
-  // próprio Leaflet, deixa o container "reused by another instance" da
-  // próxima vez que o modal abrir).
-  useEffect(() => {
-    if (!open || !mapPickerContainerRef.current) return;
+  // arrastar o pino) atualiza latitude/longitude automaticamente.
+  //
+  // Ref CALLBACK em vez de useRef + useEffect: o Dialog (Radix) monta/
+  // desmonta o conteúdo de verdade a cada abertura, então esta função roda
+  // exatamente quando o <div> entra (container != null) e sai (null) do DOM
+  // — nunca fica esperando um useEffect cujo timing depende de quando o
+  // Radix decide montar a Presence/animação, o que na prática deixava o
+  // mapa em branco (o efeito nunca disparava; só a limpeza/instância
+  // idêntica funcionava se chamada manualmente). Só esta função remove a
+  // instância — nunca um handler de clique/drag (mesmo cuidado do mapa
+  // público, ver RealEstatePage.tsx: chamar map.remove() de dentro do
+  // dispatch de um evento do próprio Leaflet deixa o container "reused by
+  // another instance" na próxima vez que o modal abrir).
+  const initMapPicker = useCallback(
+    (container: HTMLDivElement | null) => {
+      if (mapPickerRef.current) {
+        mapPickerRef.current.remove();
+        mapPickerRef.current = null;
+        markerRef.current = null;
+      }
+      if (!container) return;
 
-    const metadata = (item?.metadata ?? {}) as Record<string, unknown>;
-    const asNumber = (v: unknown): number | null => (typeof v === 'number' ? v : v ? Number(v) : null);
-    const initialLat = asNumber(metadata.latitude);
-    const initialLng = asNumber(metadata.longitude);
-    const hasInitialCoords = initialLat != null && initialLng != null;
+      const metadata = (item?.metadata ?? {}) as Record<string, unknown>;
+      const asNumber = (v: unknown): number | null => (typeof v === 'number' ? v : v ? Number(v) : null);
+      const initialLat = asNumber(metadata.latitude);
+      const initialLng = asNumber(metadata.longitude);
+      const hasInitialCoords = initialLat != null && initialLng != null;
 
-    const map = L.map(mapPickerContainerRef.current).setView(
-      hasInitialCoords ? [initialLat as number, initialLng as number] : DEFAULT_MAP_CENTER,
-      hasInitialCoords ? 15 : 4,
-    );
-    mapPickerRef.current = map;
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap',
-    }).addTo(map);
+      const map = L.map(container).setView(
+        hasInitialCoords ? [initialLat as number, initialLng as number] : DEFAULT_MAP_CENTER,
+        hasInitialCoords ? 15 : 4,
+      );
+      mapPickerRef.current = map;
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+      }).addTo(map);
 
-    if (hasInitialCoords) {
-      const marker = L.marker([initialLat as number, initialLng as number], { draggable: true }).addTo(map);
-      marker.on('dragend', () => {
-        const pos = marker.getLatLng();
-        setForm((prev) => ({ ...prev, latitude: pos.lat, longitude: pos.lng }));
+      if (hasInitialCoords) {
+        const marker = L.marker([initialLat as number, initialLng as number], { draggable: true }).addTo(map);
+        marker.on('dragend', () => {
+          const pos = marker.getLatLng();
+          setForm((prev) => ({ ...prev, latitude: pos.lat, longitude: pos.lng }));
+        });
+        markerRef.current = marker;
+      }
+
+      map.on('click', (e: L.LeafletMouseEvent) => {
+        placeMarker(map, e.latlng.lat, e.latlng.lng);
       });
-      markerRef.current = marker;
-    }
 
-    map.on('click', (e: L.LeafletMouseEvent) => {
-      placeMarker(map, e.latlng.lat, e.latlng.lng);
-    });
-
-    setTimeout(() => map.invalidateSize(), 50);
-
-    return () => {
-      map.remove();
-      mapPickerRef.current = null;
-      markerRef.current = null;
-    };
-  }, [open, item]);
+      setTimeout(() => map.invalidateSize(), 50);
+    },
+    [item],
+  );
 
   // Busca o endereço digitado no OpenStreetMap (Nominatim) e centraliza o
   // mapa + posiciona o pino lá — o admin ainda pode arrastar o pino ou
@@ -541,7 +549,7 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
                   {geocoding ? 'Buscando...' : 'Buscar endereço no mapa'}
                 </Button>
               </div>
-              <div ref={mapPickerContainerRef} className="h-56 w-full rounded-md overflow-hidden border" />
+              <div ref={initMapPicker} className="h-56 w-full rounded-md overflow-hidden border" />
               <p className="text-xs text-muted-foreground">
                 Clique no mapa (ou arraste o pino) pra ajustar o ponto exato — sem latitude/longitude o imóvel
                 aparece na grade, mas não no mapa do site.
