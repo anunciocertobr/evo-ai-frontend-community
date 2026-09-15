@@ -110,6 +110,7 @@ const RealEstatePage = () => {
 
   const [mapOpen, setMapOpen] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const detailMapContainerRef = useRef<HTMLDivElement | null>(null);
 
   const trackingProfileRef = useRef<Record<string, string>>({});
   const homeEventFiredRef = useRef(false);
@@ -252,6 +253,31 @@ const RealEstatePage = () => {
       map.remove();
     };
   }, [mapOpen, filteredListings]);
+
+  // Mapa pequeno embutido na tela cheia do imóvel (só quando tem coordenadas).
+  // Mesmo cuidado do mapa grande: só o cleanup deste effect remove a
+  // instância — nunca um handler de clique (ver comentário em closeMap).
+  useEffect(() => {
+    if (!selected || !detailMapContainerRef.current) return;
+    const coords = getCoordinates(selected);
+    if (!coords) return;
+
+    const map = L.map(detailMapContainerRef.current, { scrollWheelZoom: false }).setView(coords, 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+    }).addTo(map);
+    const icon = L.divIcon({
+      className: 'real-estate-map-marker',
+      html: `<div style="background:#111827;color:#fff;font-size:11px;font-weight:600;padding:4px 8px;border-radius:9999px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.4)">${formatCurrency(selected.price, selected.currency)}</div>`,
+      iconSize: [0, 0],
+    });
+    L.marker(coords, { icon }).addTo(map);
+    setTimeout(() => map.invalidateSize(), 50);
+
+    return () => {
+      map.remove();
+    };
+  }, [selected]);
 
   if (isLoading) {
     return (
@@ -444,125 +470,150 @@ const RealEstatePage = () => {
         </p>
       </div>
 
-      {/* Listing detail modal */}
+      {/* Listing detail — tela cheia (não é mais um modal pequeno): o botão de
+         WhatsApp fica numa barra fixa no rodapé, sempre visível sem precisar
+         rolar, e a coluna de informações mostra um mapa embutido quando o
+         imóvel tem coordenadas. */}
       {selected && (
-        <div className="fixed inset-0 z-30 flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-black/60" onClick={closeListing} />
-          <div className="relative w-full sm:max-w-lg max-h-[90vh] bg-card border border-border rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-30 bg-background flex flex-col">
+          <div className="h-14 shrink-0 border-b border-border flex items-center justify-between gap-3 px-4">
+            <h3 className="font-semibold text-foreground truncate">{selected.name}</h3>
             <button
               onClick={closeListing}
-              className="absolute top-3 right-3 h-8 w-8 rounded-full bg-background/80 flex items-center justify-center z-10"
+              className="h-9 w-9 shrink-0 rounded-full hover:bg-muted flex items-center justify-center"
+              aria-label="Fechar"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
+          </div>
 
-            <div className="aspect-video bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
-              {activeMedia ? (
-                activeMedia.kind === 'video' ? (
-                  getYoutubeEmbedUrl(activeMedia.url) ? (
-                    <iframe
-                      src={getYoutubeEmbedUrl(activeMedia.url)!}
-                      className="h-full w-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  ) : (
-                    <video src={resolveMediaUrl(activeMedia.url)} className="h-full w-full object-cover" controls />
-                  )
-                ) : (
-                  <img src={resolveMediaUrl(activeMedia.url)} alt={selected.name} className="h-full w-full object-cover" />
-                )
-              ) : (
-                <Home className="h-10 w-10 text-muted-foreground" />
-              )}
-            </div>
-
-            {selectMediaGallery.length > 1 && (
-              <div className="flex gap-1.5 px-4 pt-2 overflow-x-auto shrink-0">
-                {selectMediaGallery.map((m, idx) => (
-                  <button
-                    key={`${m.url}-${idx}`}
-                    onClick={() => setGalleryIndex(idx)}
-                    className={`h-12 w-12 rounded-md overflow-hidden border-2 shrink-0 ${idx === galleryIndex ? 'border-primary' : 'border-transparent'}`}
-                  >
-                    {m.kind === 'video' ? (
-                      <div className="h-full w-full bg-muted flex items-center justify-center text-[10px]">vídeo</div>
+          <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+            <div className="lg:h-full lg:grid lg:grid-cols-2">
+              {/* Galeria */}
+              <div className="lg:h-full lg:overflow-y-auto bg-muted/10 lg:border-r lg:border-border">
+                <div className="aspect-video lg:aspect-auto lg:h-[60vh] bg-black flex items-center justify-center overflow-hidden">
+                  {activeMedia ? (
+                    activeMedia.kind === 'video' ? (
+                      getYoutubeEmbedUrl(activeMedia.url) ? (
+                        <iframe
+                          src={getYoutubeEmbedUrl(activeMedia.url)!}
+                          className="h-full w-full"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      ) : (
+                        <video src={resolveMediaUrl(activeMedia.url)} className="h-full w-full object-cover" controls />
+                      )
                     ) : (
-                      <img src={resolveMediaUrl(m.url)} alt="" className="h-full w-full object-cover" />
+                      <img src={resolveMediaUrl(activeMedia.url)} alt={selected.name} className="h-full w-full object-cover" />
+                    )
+                  ) : (
+                    <Home className="h-10 w-10 text-muted-foreground" />
+                  )}
+                </div>
+
+                {selectMediaGallery.length > 1 && (
+                  <div className="flex gap-1.5 p-3 overflow-x-auto">
+                    {selectMediaGallery.map((m, idx) => (
+                      <button
+                        key={`${m.url}-${idx}`}
+                        onClick={() => setGalleryIndex(idx)}
+                        className={`h-14 w-14 rounded-md overflow-hidden border-2 shrink-0 ${idx === galleryIndex ? 'border-primary' : 'border-transparent'}`}
+                      >
+                        {m.kind === 'video' ? (
+                          <div className="h-full w-full bg-muted flex items-center justify-center text-[10px]">vídeo</div>
+                        ) : (
+                          <img src={resolveMediaUrl(m.url)} alt="" className="h-full w-full object-cover" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Informações */}
+              <div className="lg:h-full lg:overflow-y-auto">
+                <div className="p-5 space-y-4 max-w-2xl mx-auto lg:mx-0">
+                  <div>
+                    {(selected.bairro || selected.cidade) && (
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5" /> {[selected.bairro, selected.cidade, selected.estado].filter(Boolean).join(', ')}
+                      </p>
                     )}
-                  </button>
-                ))}
-              </div>
-            )}
+                    <p className="text-2xl font-bold text-foreground mt-1">{formatCurrency(selected.price, selected.currency)}</p>
+                  </div>
 
-            <div className="p-5 space-y-3 overflow-y-auto">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">{selected.name}</h3>
-                {(selected.bairro || selected.cidade) && (
-                  <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                    <MapPin className="h-3.5 w-3.5" /> {[selected.bairro, selected.cidade, selected.estado].filter(Boolean).join(', ')}
-                  </p>
-                )}
-              </div>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground border-y border-border py-3">
+                    {selected.quartos != null && (
+                      <span className="flex items-center gap-1.5">
+                        <Bed className="h-4 w-4" /> {selected.quartos} quartos
+                      </span>
+                    )}
+                    {selected.banheiros != null && (
+                      <span className="flex items-center gap-1.5">
+                        <Bath className="h-4 w-4" /> {selected.banheiros} banheiros
+                      </span>
+                    )}
+                    {selected.vagas != null && (
+                      <span className="flex items-center gap-1.5">
+                        <Car className="h-4 w-4" /> {selected.vagas} vagas
+                      </span>
+                    )}
+                  </div>
 
-              <p className="text-xl font-bold text-foreground">{formatCurrency(selected.price, selected.currency)}</p>
+                  {selected.description && <p className="text-sm text-foreground">{selected.description}</p>}
 
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                {selected.quartos != null && (
-                  <span className="flex items-center gap-1.5">
-                    <Bed className="h-4 w-4" /> {selected.quartos} quartos
-                  </span>
-                )}
-                {selected.banheiros != null && (
-                  <span className="flex items-center gap-1.5">
-                    <Bath className="h-4 w-4" /> {selected.banheiros} banheiros
-                  </span>
-                )}
-                {selected.vagas != null && (
-                  <span className="flex items-center gap-1.5">
-                    <Car className="h-4 w-4" /> {selected.vagas} vagas
-                  </span>
-                )}
-              </div>
+                  {selected.vantagens && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Vantagens</p>
+                      <p className="text-sm text-foreground whitespace-pre-line">{selected.vantagens}</p>
+                    </div>
+                  )}
 
-              {selected.description && <p className="text-sm text-foreground">{selected.description}</p>}
+                  {(selected.condominio || selected.iptu) && (
+                    <div className="flex gap-4 text-xs text-muted-foreground">
+                      {selected.condominio != null && <span>Condomínio: {formatCurrency(selected.condominio, selected.currency)}</span>}
+                      {selected.iptu != null && <span>IPTU: {formatCurrency(selected.iptu, selected.currency)}</span>}
+                    </div>
+                  )}
 
-              {selected.vantagens && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Vantagens</p>
-                  <p className="text-sm text-foreground whitespace-pre-line">{selected.vantagens}</p>
+                  {(selected.tags ?? []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {(selected.tags ?? []).map((tag) => (
+                        <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {getCoordinates(selected) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5" /> Localização
+                      </p>
+                      <div ref={detailMapContainerRef} className="h-56 w-full rounded-lg overflow-hidden border border-border" />
+                    </div>
+                  )}
                 </div>
-              )}
-
-              {(selected.condominio || selected.iptu) && (
-                <div className="flex gap-4 text-xs text-muted-foreground">
-                  {selected.condominio != null && <span>Condomínio: {formatCurrency(selected.condominio, selected.currency)}</span>}
-                  {selected.iptu != null && <span>IPTU: {formatCurrency(selected.iptu, selected.currency)}</span>}
-                </div>
-              )}
-
-              {(selected.tags ?? []).length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {(selected.tags ?? []).map((tag) => (
-                    <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {whatsappLink && (
-                <a
-                  href={whatsappLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full text-center h-11 leading-[44px] rounded-full bg-green-600 text-white font-medium hover:bg-green-700 transition-colors"
-                >
-                  Falar sobre este imóvel
-                </a>
-              )}
+              </div>
             </div>
           </div>
+
+          {/* Barra de contato fixa — fora das áreas com rolagem, então o botão
+             de WhatsApp está sempre visível, sem precisar rolar a tela. */}
+          {whatsappLink && (
+            <div className="shrink-0 border-t border-border p-3 bg-background">
+              <a
+                href={whatsappLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full max-w-2xl mx-auto text-center h-12 leading-[48px] rounded-full bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors"
+              >
+                Falar sobre este imóvel
+              </a>
+            </div>
+          )}
         </div>
       )}
 

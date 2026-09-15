@@ -19,7 +19,7 @@ import {
   Switch,
   Badge,
 } from '@evoapi/design-system';
-import { Plus, PlayCircle, Upload, X } from 'lucide-react';
+import { Plus, PlayCircle, Star, Upload, X } from 'lucide-react';
 import type { Product, ProductFormData, ProductStatus, ProductCurrency, ProductMedia, ProductMediaKind } from '@/types/products';
 import { productsService } from '@/services/products/productsService';
 
@@ -84,16 +84,23 @@ function emptyForm(): RealEstateFormState {
   };
 }
 
-function MediaItem({ item, onRemove }: { item: ProductMedia; onRemove: () => void }) {
+interface MediaItemProps {
+  item: ProductMedia;
+  isCover: boolean;
+  onRemove: () => void;
+  onSetCover: () => void;
+}
+
+function MediaItem({ item, isCover, onRemove, onSetCover }: MediaItemProps) {
   const url = resolveMediaUrl(item.url);
   return (
-    <div className="relative group border rounded-md overflow-hidden aspect-square">
+    <div className={`relative group border rounded-md overflow-hidden aspect-square ${isCover ? 'ring-2 ring-primary' : ''}`}>
       {item.kind === 'video' ? (
         <video src={url} className="w-full h-full object-cover" muted playsInline />
       ) : (
         <img src={url} alt={item.url} className="w-full h-full object-cover" />
       )}
-      <span className="absolute top-1.5 left-1.5">
+      <span className="absolute top-1.5 left-1.5 flex gap-1">
         {item.kind === 'video' ? (
           <Badge variant="secondary" className="gap-1 text-[10px] px-1.5">
             <PlayCircle className="w-3 h-3" /> vídeo
@@ -101,7 +108,23 @@ function MediaItem({ item, onRemove }: { item: ProductMedia; onRemove: () => voi
         ) : (
           <Badge variant="secondary" className="text-[10px] px-1.5">foto</Badge>
         )}
+        {isCover && (
+          <Badge className="gap-1 text-[10px] px-1.5">
+            <Star className="w-3 h-3" /> capa
+          </Badge>
+        )}
       </span>
+      {!isCover && (
+        <button
+          type="button"
+          onClick={onSetCover}
+          className="absolute bottom-1 left-1 rounded-full bg-black/50 text-white p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary"
+          aria-label="Definir como capa"
+          title="Definir como capa"
+        >
+          <Star className="w-3 h-3" />
+        </button>
+      )}
       <button
         type="button"
         onClick={onRemove}
@@ -486,15 +509,28 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
           <div className="border-t pt-4 space-y-3">
             <h3 className="text-sm font-medium">Fotos e vídeos</h3>
             {media.length > 0 && (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {media.map((m, idx) => (
-                  <MediaItem
-                    key={`${m.url}-${idx}`}
-                    item={m}
-                    onRemove={() => setMedia((prev) => prev.filter((_, i) => i !== idx))}
-                  />
-                ))}
-              </div>
+              <>
+                <p className="text-xs text-muted-foreground">
+                  A primeira foto (marcada como "capa") é a imagem principal exibida na grade e ao abrir o imóvel no site.
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {media.map((m, idx) => (
+                    <MediaItem
+                      key={`${m.url}-${idx}`}
+                      item={m}
+                      isCover={idx === 0}
+                      onRemove={() => setMedia((prev) => prev.filter((_, i) => i !== idx))}
+                      onSetCover={() =>
+                        setMedia((prev) => {
+                          const copy = [...prev];
+                          const [picked] = copy.splice(idx, 1);
+                          return [picked, ...copy];
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              </>
             )}
             <div className="flex items-center gap-2">
               <input
