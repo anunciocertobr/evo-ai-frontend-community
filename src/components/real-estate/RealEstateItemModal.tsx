@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -19,10 +19,12 @@ import {
   Switch,
   Badge,
 } from '@evoapi/design-system';
-import { Plus, PlayCircle, X } from 'lucide-react';
+import { Plus, PlayCircle, Upload, X } from 'lucide-react';
 import type { Product, ProductFormData, ProductStatus, ProductCurrency, ProductMedia, ProductMediaKind } from '@/types/products';
+import { productsService } from '@/services/products/productsService';
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const VIDEO_RE = /^video\//i;
 
 const resolveMediaUrl = (url: string): string => {
   if (!url) return '';
@@ -126,6 +128,8 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
   const [media, setMedia] = useState<ProductMedia[]>([]);
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaKind, setMediaKind] = useState<ProductMediaKind>('image');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -167,6 +171,30 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
   }, [open, item]);
 
   const isEdit = useMemo(() => Boolean(item?.id), [item]);
+
+  const handleMediaFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const res = await productsService.uploadMediaFile(file);
+        const url = res.data?.file_url;
+        if (url) {
+          setMedia((prev) => [
+            ...prev,
+            { kind: VIDEO_RE.test(file.type) ? 'video' : 'image', source: 'upload', url },
+          ]);
+        }
+      }
+      toast.success('Mídia enviada com sucesso');
+    } catch (err) {
+      console.error(err);
+      toast.error('Falha ao enviar mídia');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleAddMediaUrl = () => {
     const url = mediaUrl.trim();
@@ -468,6 +496,26 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
                 ))}
               </div>
             )}
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                className="hidden"
+                onChange={(e) => handleMediaFiles(e.target.files)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {uploading ? 'Enviando...' : 'Subir arquivo'}
+              </Button>
+            </div>
             <div className="flex items-center gap-2">
               <Select value={mediaKind} onValueChange={(v) => setMediaKind(v as ProductMediaKind)}>
                 <SelectTrigger className="w-28">
