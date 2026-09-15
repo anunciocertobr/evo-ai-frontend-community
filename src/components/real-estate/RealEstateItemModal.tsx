@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import {
   Dialog,
   DialogContent,
@@ -19,12 +21,13 @@ import {
   Switch,
   Badge,
 } from '@evoapi/design-system';
-import { Plus, PlayCircle, Star, Upload, X } from 'lucide-react';
+import { Plus, PlayCircle, Search, Star, Upload, X } from 'lucide-react';
 import type { Product, ProductFormData, ProductStatus, ProductCurrency, ProductMedia, ProductMediaKind } from '@/types/products';
 import { productsService } from '@/services/products/productsService';
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 const VIDEO_RE = /^video\//i;
+const DEFAULT_MAP_CENTER: [number, number] = [-14.235, -51.9253]; // Brasil
 
 const resolveMediaUrl = (url: string): string => {
   if (!url) return '';
@@ -55,6 +58,7 @@ interface RealEstateFormState {
   vantagens: string;
   latitude: number | null;
   longitude: number | null;
+  contact_mode: 'whatsapp' | 'formulario';
 }
 
 function emptyForm(): RealEstateFormState {
@@ -81,6 +85,7 @@ function emptyForm(): RealEstateFormState {
     vantagens: '',
     latitude: null,
     longitude: null,
+    contact_mode: 'whatsapp',
   };
 }
 
@@ -153,6 +158,10 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
   const [mediaKind, setMediaKind] = useState<ProductMediaKind>('image');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [geocoding, setGeocoding] = useState(false);
+  const mapPickerContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapPickerRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -185,6 +194,7 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
             vantagens: asString(metadata.vantagens),
             latitude: asNumber(metadata.latitude),
             longitude: asNumber(metadata.longitude),
+            contact_mode: metadata.contact_mode === 'formulario' ? 'formulario' : 'whatsapp',
           }
         : emptyForm(),
     );
@@ -194,6 +204,111 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
   }, [open, item]);
 
   const isEdit = useMemo(() => Boolean(item?.id), [item]);
+
+  // Cria (ou move, se já existir) um marker arrastável em (lat, lng) e
+  // atualiza o form — usado tanto pelo clique no mapa quanto pelo resultado
+  // da busca por endereço, e pelo próprio drag do pino.
+  const placeMarker = (map: L.Map, lat: number, lng: number) => {
+    if (markerRef.current) {
+      markerRef.current.setLatLng([lat, lng]);
+    } else {
+      const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      marker.on('dragend', () => {
+        const pos = marker.getLatLng();
+        setForm((prev) => ({ ...prev, latitude: pos.lat, longitude: pos.lng }));
+      });
+      markerRef.current = marker;
+    }
+    setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+  };
+
+  // Mapa pra escolher a localização do imóvel: nasce centrado nas
+  // coordenadas já salvas (se houver) ou no Brasil inteiro; clicar nele (ou
+  // arrastar o pino) atualiza latitude/longitude automaticamente. Só o
+  // cleanup deste effect remove a instância — nunca um handler de clique/
+  // drag (mesmo cuidado do mapa público, ver RealEstatePage.tsx: chamar
+  // map.remove() fora do cleanup, no meio do dispatch de um evento do
+  // próprio Leaflet, deixa o container "reused by another instance" da
+  // próxima vez que o modal abrir).
+  useEffect(() => {
+    if (!open || !mapPickerContainerRef.current) return;
+
+    const metadata = (item?.metadata ?? {}) as Record<string, unknown>;
+    const asNumber = (v: unknown): number | null => (typeof v === 'number' ? v : v ? Number(v) : null);
+    const initialLat = asNumber(metadata.latitude);
+    const initialLng = asNumber(metadata.longitude);
+    const hasInitialCoords = initialLat != null && initialLng != null;
+
+    const map = L.map(mapPickerContainerRef.current).setView(
+      hasInitialCoords ? [initialLat as number, initialLng as number] : DEFAULT_MAP_CENTER,
+      hasInitialCoords ? 15 : 4,
+    );
+    mapPickerRef.current = map;
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+    }).addTo(map);
+
+    if (hasInitialCoords) {
+      const marker = L.marker([initialLat as number, initialLng as number], { draggable: true }).addTo(map);
+      marker.on('dragend', () => {
+        const pos = marker.getLatLng();
+        setForm((prev) => ({ ...prev, latitude: pos.lat, longitude: pos.lng }));
+      });
+      markerRef.current = marker;
+    }
+
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      placeMarker(map, e.latlng.lat, e.latlng.lng);
+    });
+
+    setTimeout(() => map.invalidateSize(), 50);
+
+    return () => {
+      map.remove();
+      mapPickerRef.current = null;
+      markerRef.current = null;
+    };
+  }, [open, item]);
+
+  // Busca o endereço digitado no OpenStreetMap (Nominatim) e centraliza o
+  // mapa + posiciona o pino lá — o admin ainda pode arrastar o pino ou
+  // clicar no mapa pra ajustar o ponto exato depois.
+  const handleGeocodeAddress = async () => {
+    const query = [form.endereco, form.numero, form.bairro, form.cidade, form.estado, 'Brasil']
+      .filter((part) => part && part.trim())
+      .join(', ');
+    if (!query) {
+      toast.error('Preencha ao menos a cidade ou o endereço pra buscar no mapa');
+      return;
+    }
+
+    setGeocoding(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
+      );
+      const results: Array<{ lat: string; lon: string }> = await res.json();
+      if (!results.length) {
+        toast.error('Endereço não encontrado. Clique no mapa pra marcar o local manualmente.');
+        return;
+      }
+      const lat = Number(results[0].lat);
+      const lng = Number(results[0].lon);
+      const map = mapPickerRef.current;
+      if (map) {
+        map.setView([lat, lng], 16);
+        placeMarker(map, lat, lng);
+      } else {
+        setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+      }
+      toast.success('Endereço encontrado — arraste o pino se precisar ajustar');
+    } catch (err) {
+      console.error(err);
+      toast.error('Falha ao buscar o endereço');
+    } finally {
+      setGeocoding(false);
+    }
+  };
 
   const handleMediaFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -277,6 +392,7 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
         vantagens: form.vantagens || null,
         latitude: form.latitude,
         longitude: form.longitude,
+        contact_mode: form.contact_mode,
       },
     };
 
@@ -357,6 +473,27 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="re-contact-mode">Forma de contato</Label>
+              <Select
+                value={form.contact_mode}
+                onValueChange={(v) => setForm({ ...form, contact_mode: v as 'whatsapp' | 'formulario' })}
+              >
+                <SelectTrigger id="re-contact-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="whatsapp">WhatsApp direto</SelectItem>
+                  <SelectItem value="formulario">Formulário (o cliente preenche os dados antes de ir pro WhatsApp)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {form.contact_mode === 'formulario'
+                  ? 'O botão do site abre um formulário; ao enviar, o lead entra no kanban "Imobiliária" e o cliente é redirecionado pro WhatsApp.'
+                  : 'O botão do site abre o WhatsApp direto, sem formulário nem registro no CRM.'}
+              </p>
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="re-tags">Tags (separadas por vírgula)</Label>
               <Input
                 id="re-tags"
@@ -394,6 +531,24 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
                 <Label htmlFor="re-cep">CEP</Label>
                 <Input id="re-cep" value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label>Localização no mapa</Label>
+                <Button type="button" variant="outline" size="sm" onClick={handleGeocodeAddress} disabled={geocoding}>
+                  <Search className="h-3.5 w-3.5 mr-1.5" />
+                  {geocoding ? 'Buscando...' : 'Buscar endereço no mapa'}
+                </Button>
+              </div>
+              <div ref={mapPickerContainerRef} className="h-56 w-full rounded-md overflow-hidden border" />
+              <p className="text-xs text-muted-foreground">
+                Clique no mapa (ou arraste o pino) pra ajustar o ponto exato — sem latitude/longitude o imóvel
+                aparece na grade, mas não no mapa do site.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="re-lat">Latitude</Label>
                 <Input
@@ -415,9 +570,6 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
                 />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Sem latitude/longitude o imóvel aparece na grade, mas não no mapa.
-            </p>
           </div>
 
           <div className="border-t pt-4 space-y-3">

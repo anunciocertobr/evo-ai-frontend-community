@@ -25,6 +25,7 @@ export interface PublicRealEstateListing {
   vantagens?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  contact_mode?: 'whatsapp' | 'formulario' | null;
 }
 
 export interface PublicRealEstateSettings {
@@ -45,6 +46,14 @@ export interface PublicRealEstate {
   settings: PublicRealEstateSettings;
 }
 
+export interface RealEstateLeadPayload {
+  product_id: string;
+  name: string;
+  email: string;
+  phone: string;
+  message?: string;
+}
+
 /**
  * Service para a API pública (anônima) do site de imóveis.
  * Endpoint: GET /public/api/v1/real_estate. Não requer autenticação — lista
@@ -55,6 +64,13 @@ class RealEstateService {
   async getListings(): Promise<PublicRealEstate> {
     const { data } = await apiPublic.get<{ data: PublicRealEstate }>('/real_estate');
     return data.data;
+  }
+
+  // Usado quando o imóvel está configurado com contact_mode "formulario":
+  // cria o lead no kanban "Imobiliária" antes de redirecionar pro WhatsApp
+  // (ver RealEstateItemModal.tsx e Public::RealEstate::LeadCreationService).
+  async submitLead(payload: RealEstateLeadPayload): Promise<void> {
+    await apiPublic.post('/real_estate/leads', payload);
   }
 }
 

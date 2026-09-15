@@ -109,6 +109,10 @@ const RealEstatePage = () => {
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
+  const [leadFormOpen, setLeadFormOpen] = useState(false);
+  const [leadForm, setLeadForm] = useState({ name: '', email: '', phone: '', message: '' });
+  const [submittingLead, setSubmittingLead] = useState(false);
+
   const [mapOpen, setMapOpen] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const detailMapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -200,6 +204,8 @@ const RealEstatePage = () => {
     setSelected(listing);
     setGalleryIndex(0);
     setLightboxOpen(false);
+    setLeadFormOpen(false);
+    setLeadForm({ name: '', email: '', phone: '', message: '' });
     pushToDataLayer(
       { event: 'view_item', ecommerce: { items: [{ item_id: listing.id, item_name: listing.name, price: listing.price }] } },
       trackingProfileRef.current,
@@ -209,6 +215,7 @@ const RealEstatePage = () => {
   const closeListing = () => {
     setSelected(null);
     setLightboxOpen(false);
+    setLeadFormOpen(false);
   };
 
   const openMap = () => setMapOpen(true);
@@ -314,6 +321,29 @@ const RealEstatePage = () => {
         `Olá, tenho interesse no imóvel: ${selected.name}. Gostaria de agendar uma visita.`,
       )
     : null;
+
+  // Cria o lead no kanban "Imobiliária" e só depois abre o WhatsApp — o link
+  // abre mesmo se a criação do lead falhar, já que o contato pelo WhatsApp é
+  // a parte essencial pro visitante; o registro no CRM é um adicional.
+  const handleSubmitLead = async () => {
+    if (!selected || !leadForm.name.trim() || !leadForm.email.trim() || !leadForm.phone.trim()) return;
+    setSubmittingLead(true);
+    try {
+      await realEstateService.submitLead({
+        product_id: selected.id,
+        name: leadForm.name.trim(),
+        email: leadForm.email.trim(),
+        phone: leadForm.phone.trim(),
+        message: leadForm.message.trim() || undefined,
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmittingLead(false);
+      setLeadFormOpen(false);
+      if (whatsappLink) window.open(whatsappLink, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   return (
     <div
@@ -617,8 +647,21 @@ const RealEstatePage = () => {
           </div>
 
           {/* Barra de contato fixa — fora das áreas com rolagem, então o botão
-             de WhatsApp está sempre visível, sem precisar rolar a tela. */}
-          {whatsappLink && (
+             de WhatsApp está sempre visível, sem precisar rolar a tela.
+             Imóvel com contact_mode "formulario" abre o formulário antes de
+             ir pro WhatsApp (ver handleSubmitLead); o padrão continua sendo
+             o link direto. */}
+          {whatsappLink && selected.contact_mode === 'formulario' ? (
+            <div className="shrink-0 border-t border-border p-3 bg-background">
+              <button
+                type="button"
+                onClick={() => setLeadFormOpen(true)}
+                className="block w-full max-w-2xl mx-auto text-center h-12 leading-[48px] rounded-full bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors"
+              >
+                Falar sobre este imóvel
+              </button>
+            </div>
+          ) : whatsappLink ? (
             <div className="shrink-0 border-t border-border p-3 bg-background">
               <a
                 href={whatsappLink}
@@ -629,7 +672,82 @@ const RealEstatePage = () => {
                 Falar sobre este imóvel
               </a>
             </div>
-          )}
+          ) : null}
+        </div>
+      )}
+
+      {/* Formulário de contato — só quando o imóvel usa contact_mode
+         "formulario". Ao enviar, cria o lead no kanban "Imobiliária" e só
+         então abre o WhatsApp (o link continua funcionando mesmo se a
+         criação do lead falhar — a experiência do visitante não pode travar
+         nisso). */}
+      {leadFormOpen && selected && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="relative w-full sm:max-w-md bg-card border border-border rounded-t-2xl sm:rounded-2xl overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <h3 className="font-semibold text-foreground">Falar sobre este imóvel</h3>
+              <button
+                onClick={() => setLeadFormOpen(false)}
+                className="h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSubmitLead();
+              }}
+              className="p-4 space-y-3"
+            >
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome *</label>
+                <input
+                  required
+                  value={leadForm.name}
+                  onChange={(e) => setLeadForm((prev) => ({ ...prev, name: e.target.value }))}
+                  className="w-full h-10 rounded-md border border-border bg-muted/30 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">E-mail *</label>
+                <input
+                  required
+                  type="email"
+                  value={leadForm.email}
+                  onChange={(e) => setLeadForm((prev) => ({ ...prev, email: e.target.value }))}
+                  className="w-full h-10 rounded-md border border-border bg-muted/30 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">WhatsApp *</label>
+                <input
+                  required
+                  placeholder="11 91234-1234"
+                  value={leadForm.phone}
+                  onChange={(e) => setLeadForm((prev) => ({ ...prev, phone: e.target.value }))}
+                  className="w-full h-10 rounded-md border border-border bg-muted/30 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Mensagem</label>
+                <textarea
+                  value={leadForm.message}
+                  onChange={(e) => setLeadForm((prev) => ({ ...prev, message: e.target.value }))}
+                  rows={2}
+                  className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={submittingLead}
+                className="w-full h-11 rounded-full bg-green-600 text-white font-medium hover:bg-green-700 transition-colors disabled:opacity-60"
+              >
+                {submittingLead ? 'Enviando...' : 'Enviar e abrir WhatsApp'}
+              </button>
+            </form>
+          </div>
         </div>
       )}
 
