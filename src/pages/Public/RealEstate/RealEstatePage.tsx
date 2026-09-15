@@ -110,7 +110,6 @@ const RealEstatePage = () => {
 
   const [mapOpen, setMapOpen] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
 
   const trackingProfileRef = useRef<Record<string, string>>({});
   const homeEventFiredRef = useRef(false);
@@ -207,11 +206,14 @@ const RealEstatePage = () => {
   const closeListing = () => setSelected(null);
 
   const openMap = () => setMapOpen(true);
-  const closeMap = () => {
-    setMapOpen(false);
-    mapInstanceRef.current?.remove();
-    mapInstanceRef.current = null;
-  };
+  // Só troca o estado — a limpeza do mapa é sempre feita pelo cleanup do
+  // useEffect abaixo (nunca aqui). Chamar map.remove() aqui, de dentro do
+  // próprio handler de clique de um marker, remove o mapa enquanto o
+  // Leaflet ainda está no meio do dispatch daquele evento; o cleanup do
+  // effect roda de novo logo em seguida (mapOpen virou false) e tenta
+  // remover a mesma instância uma segunda vez, deixando o container marcado
+  // como "reused by another instance" da próxima vez que o modal abre.
+  const closeMap = () => setMapOpen(false);
 
   // Inicializa o Leaflet só quando o modal do mapa abre (o container precisa
   // estar no DOM e visível), e reconstrói os pinos sempre que o filtro muda —
@@ -220,7 +222,6 @@ const RealEstatePage = () => {
     if (!mapOpen || !mapContainerRef.current) return;
 
     const map = L.map(mapContainerRef.current).setView(DEFAULT_CENTER, 12);
-    mapInstanceRef.current = map;
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap',
     }).addTo(map);
@@ -249,7 +250,6 @@ const RealEstatePage = () => {
 
     return () => {
       map.remove();
-      mapInstanceRef.current = null;
     };
   }, [mapOpen, filteredListings]);
 
