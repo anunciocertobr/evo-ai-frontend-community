@@ -16,11 +16,21 @@ import {
 import { Plus, Pencil, Trash2, Users } from 'lucide-react';
 import { adminConfigService } from '@/services/admin/adminConfigService';
 
+export interface OpeningHours {
+  open: string;
+  close: string;
+  closed: boolean;
+}
+
+// Mesma convenção de chave de dia usada em Unidade.horarios (OrganizationDataPage.tsx)
+// e no back-end (Public::RealEstate::AgentAssignmentService::WEEKDAY_KEYS).
+export type WeekdayKey = 'dom' | 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab';
+
 export interface RealEstateAgent {
   id: string;
   name: string;
   identification: string;
-  business_hours: string;
+  business_hours: Record<WeekdayKey, OpeningHours>;
   phone: string;
   email: string;
   status: 'active' | 'paused';
@@ -29,11 +39,62 @@ export interface RealEstateAgent {
 const CONFIG_TYPE = 'real_estate';
 const CONFIG_KEY = 'REAL_ESTATE_AGENTS';
 
+const WEEKDAYS: Array<{ key: WeekdayKey; label: string }> = [
+  { key: 'seg', label: 'Seg' },
+  { key: 'ter', label: 'Ter' },
+  { key: 'qua', label: 'Qua' },
+  { key: 'qui', label: 'Qui' },
+  { key: 'sex', label: 'Sex' },
+  { key: 'sab', label: 'Sáb' },
+  { key: 'dom', label: 'Dom' },
+];
+
+function defaultBusinessHours(): RealEstateAgent['business_hours'] {
+  return {
+    seg: { open: '09:00', close: '18:00', closed: false },
+    ter: { open: '09:00', close: '18:00', closed: false },
+    qua: { open: '09:00', close: '18:00', closed: false },
+    qui: { open: '09:00', close: '18:00', closed: false },
+    sex: { open: '09:00', close: '18:00', closed: false },
+    sab: { open: '09:00', close: '13:00', closed: true },
+    dom: { open: '09:00', close: '13:00', closed: true },
+  };
+}
+
+// Resumo curto pra caber na coluna da tabela — não precisa ser exaustivo,
+// só dar uma ideia rápida sem abrir o corretor pra editar.
+function summarizeHours(hours: RealEstateAgent['business_hours']): string {
+  const openDays = WEEKDAYS.filter((d) => !hours[d.key]?.closed);
+  if (openDays.length === 0) return 'Fechado';
+
+  const first = openDays[0];
+  const sameSchedule = openDays.every(
+    (d) => hours[d.key].open === hours[first.key].open && hours[d.key].close === hours[first.key].close,
+  );
+  const range = sameSchedule ? `${hours[first.key].open}–${hours[first.key].close}` : 'horários variados';
+
+  if (openDays.length === 7) return `Todos os dias, ${range}`;
+
+  const indices = openDays.map((d) => WEEKDAYS.findIndex((w) => w.key === d.key));
+  const isConsecutive = indices.every((idx, i) => i === 0 || idx === indices[i - 1] + 1);
+  if (isConsecutive) return `${first.label} a ${openDays[openDays.length - 1].label}, ${range}`;
+  return `${openDays.map((d) => d.label).join('/')}, ${range}`;
+}
+
 function safeParseAgents(raw: unknown): RealEstateAgent[] {
   if (typeof raw !== 'string' || !raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // Normaliza registros antigos/incompletos — evita quebrar a grade de
+    // horário se `business_hours` vier ausente ou num formato inesperado.
+    return parsed.map((a) => ({
+      ...a,
+      business_hours:
+        a?.business_hours && typeof a.business_hours === 'object' && !Array.isArray(a.business_hours)
+          ? { ...defaultBusinessHours(), ...a.business_hours }
+          : defaultBusinessHours(),
+    }));
   } catch {
     return [];
   }
@@ -43,7 +104,7 @@ const emptyAgent = (): RealEstateAgent => ({
   id: crypto.randomUUID(),
   name: '',
   identification: '',
-  business_hours: '',
+  business_hours: defaultBusinessHours(),
   phone: '',
   email: '',
   status: 'active',
@@ -92,7 +153,7 @@ export function RealEstateAgentsDialog({ open, onOpenChange }: RealEstateAgentsD
   };
 
   const openEdit = (agent: RealEstateAgent) => {
-    setFormAgent({ ...agent });
+    setFormAgent({ ...agent, business_hours: { ...agent.business_hours } });
     setIsNewAgent(false);
   };
 
@@ -125,6 +186,14 @@ export function RealEstateAgentsDialog({ open, onOpenChange }: RealEstateAgentsD
     const ok = await persist(next);
     if (ok) toast.success('Corretor removido');
     setConfirmDelete(null);
+  };
+
+  const updateFormDay = (day: WeekdayKey, updates: Partial<OpeningHours>) => {
+    if (!formAgent) return;
+    setFormAgent({
+      ...formAgent,
+      business_hours: { ...formAgent.business_hours, [day]: { ...formAgent.business_hours[day], ...updates } },
+    });
   };
 
   return (
@@ -172,7 +241,9 @@ export function RealEstateAgentsDialog({ open, onOpenChange }: RealEstateAgentsD
                     <tr key={agent.id} className="border-t hover:bg-muted/30">
                       <td className="px-3 py-2 font-medium">{agent.name}</td>
                       <td className="px-3 py-2 text-muted-foreground">{agent.identification || '—'}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{agent.business_hours || '—'}</td>
+                      <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
+                        {summarizeHours(agent.business_hours)}
+                      </td>
                       <td className="px-3 py-2 text-muted-foreground">{agent.phone || '—'}</td>
                       <td className="px-3 py-2 text-muted-foreground">{agent.email || '—'}</td>
                       <td className="px-3 py-2">
@@ -213,7 +284,7 @@ export function RealEstateAgentsDialog({ open, onOpenChange }: RealEstateAgentsD
 
       {/* Form de criação/edição de corretor */}
       <Dialog open={Boolean(formAgent)} onOpenChange={(o) => !o && setFormAgent(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{isNewAgent ? 'Novo corretor' : 'Editar corretor'}</DialogTitle>
           </DialogHeader>
@@ -235,14 +306,6 @@ export function RealEstateAgentsDialog({ open, onOpenChange }: RealEstateAgentsD
                   placeholder="Ex: CRECI 123456-F"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label>Horário de atendimento</Label>
-                <Input
-                  value={formAgent.business_hours}
-                  onChange={(e) => setFormAgent({ ...formAgent, business_hours: e.target.value })}
-                  placeholder="Ex: Seg a Sex, 9h às 18h"
-                />
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Telefone</Label>
@@ -260,6 +323,43 @@ export function RealEstateAgentsDialog({ open, onOpenChange }: RealEstateAgentsD
                     onChange={(e) => setFormAgent({ ...formAgent, email: e.target.value })}
                     placeholder="corretor@empresa.com"
                   />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Horário de atendimento</Label>
+                <p className="text-xs text-muted-foreground">
+                  Usado pela distribuição automática de leads quando "respeitar horário" está
+                  ativo (Organização &gt; Imobiliária).
+                </p>
+                <div className="grid grid-cols-7 gap-1 text-xs">
+                  {WEEKDAYS.map(({ key, label }) => {
+                    const day = formAgent.business_hours[key];
+                    return (
+                      <div key={key} className="border rounded p-1 space-y-1">
+                        <div className="text-center font-medium text-muted-foreground">{label}</div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={!day.closed}
+                            onCheckedChange={(v) => updateFormDay(key, { closed: !v })}
+                          />
+                        </div>
+                        <Input
+                          type="time"
+                          value={day.open}
+                          disabled={day.closed}
+                          onChange={(e) => updateFormDay(key, { open: e.target.value })}
+                          className="p-0 text-[0.65rem] h-6 text-center"
+                        />
+                        <Input
+                          type="time"
+                          value={day.close}
+                          disabled={day.closed}
+                          onChange={(e) => updateFormDay(key, { close: e.target.value })}
+                          className="p-0 text-[0.65rem] h-6 text-center"
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               <div className="flex items-center justify-between pt-1">

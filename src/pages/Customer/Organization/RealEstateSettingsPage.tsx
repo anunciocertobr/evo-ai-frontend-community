@@ -1,12 +1,26 @@
 import { useEffect, useState } from 'react';
-import { Palette, MessageSquare, Code2, Save, ExternalLink, Users } from 'lucide-react';
+import { Palette, MessageSquare, Code2, Save, ExternalLink, Users, Shuffle } from 'lucide-react';
 import { toast } from 'sonner';
 import { BaseHeader } from '@/components/base';
-import { Button, Input, Label } from '@evoapi/design-system';
+import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+} from '@evoapi/design-system';
 import { adminConfigService } from '@/services/admin/adminConfigService';
-import { RealEstateAgentsDialog } from '@/components/real-estate/RealEstateAgentsDialog';
+import { RealEstateAgentsDialog, type RealEstateAgent } from '@/components/real-estate/RealEstateAgentsDialog';
 
 const CONFIG_TYPE = 'real_estate';
+const AGENTS_CONFIG_KEY = 'REAL_ESTATE_AGENTS';
+
+type DistributionMode = 'queue' | 'random' | 'single';
+type AgentScope = 'active' | 'all';
 
 interface RealEstateSettings {
   REAL_ESTATE_COMPANY_NAME: string;
@@ -19,6 +33,10 @@ interface RealEstateSettings {
   REAL_ESTATE_COMPANY_NAME_COLOR: string;
   REAL_ESTATE_GTM_ID: string;
   REAL_ESTATE_WHATSAPP_NUMBER: string;
+  REAL_ESTATE_LEAD_DISTRIBUTION_MODE: DistributionMode;
+  REAL_ESTATE_LEAD_DISTRIBUTION_AGENT_SCOPE: AgentScope;
+  REAL_ESTATE_LEAD_DISTRIBUTION_RESPECT_HOURS: string;
+  REAL_ESTATE_LEAD_DISTRIBUTION_SINGLE_AGENT_ID: string;
 }
 
 const DEFAULTS: RealEstateSettings = {
@@ -32,7 +50,21 @@ const DEFAULTS: RealEstateSettings = {
   REAL_ESTATE_COMPANY_NAME_COLOR: '#ffffff',
   REAL_ESTATE_GTM_ID: '',
   REAL_ESTATE_WHATSAPP_NUMBER: '',
+  REAL_ESTATE_LEAD_DISTRIBUTION_MODE: 'queue',
+  REAL_ESTATE_LEAD_DISTRIBUTION_AGENT_SCOPE: 'active',
+  REAL_ESTATE_LEAD_DISTRIBUTION_RESPECT_HOURS: 'false',
+  REAL_ESTATE_LEAD_DISTRIBUTION_SINGLE_AGENT_ID: '',
 };
+
+function safeParseAgents(raw: unknown): RealEstateAgent[] {
+  if (typeof raw !== 'string' || !raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 const COLOR_FIELDS: Array<{ key: keyof RealEstateSettings; label: string }> = [
   { key: 'REAL_ESTATE_HEADER_COLOR', label: 'Cor do header' },
@@ -46,31 +78,49 @@ const COLOR_FIELDS: Array<{ key: keyof RealEstateSettings; label: string }> = [
 
 export default function RealEstateSettingsPage() {
   const [settings, setSettings] = useState<RealEstateSettings>(DEFAULTS);
+  const [agents, setAgents] = useState<RealEstateAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [agentsDialogOpen, setAgentsDialogOpen] = useState(false);
 
+  const loadConfig = async () => {
+    try {
+      const config = await adminConfigService.getConfig(CONFIG_TYPE);
+      setSettings((prev) => ({
+        ...prev,
+        ...Object.fromEntries(
+          Object.entries(config).filter(([, v]) => v !== null && v !== undefined),
+        ),
+      }));
+      setAgents(safeParseAgents(config[AGENTS_CONFIG_KEY]));
+    } catch {
+      toast.error('Erro ao carregar configurações do site de imóveis');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const config = await adminConfigService.getConfig(CONFIG_TYPE);
-        setSettings((prev) => ({
-          ...prev,
-          ...Object.fromEntries(
-            Object.entries(config).filter(([, v]) => v !== null && v !== undefined),
-          ),
-        }));
-      } catch {
-        toast.error('Erro ao carregar configurações do site de imóveis');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    loadConfig();
   }, []);
+
+  // Corretores podem ter sido adicionados/removidos dentro do diálogo — recarrega
+  // a lista ao fechar, pra o seletor de "único corretor" abaixo ficar atualizado.
+  const handleAgentsDialogChange = (open: boolean) => {
+    setAgentsDialogOpen(open);
+    if (!open) loadConfig();
+  };
 
   const set = (key: keyof RealEstateSettings, value: string) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const setMode = (value: DistributionMode) => {
+    setSettings((prev) => ({ ...prev, REAL_ESTATE_LEAD_DISTRIBUTION_MODE: value }));
+  };
+
+  const setScope = (value: AgentScope) => {
+    setSettings((prev) => ({ ...prev, REAL_ESTATE_LEAD_DISTRIBUTION_AGENT_SCOPE: value }));
   };
 
   const handleSave = async () => {
@@ -115,7 +165,7 @@ export default function RealEstateSettingsPage() {
         </div>
       </div>
 
-      <RealEstateAgentsDialog open={agentsDialogOpen} onOpenChange={setAgentsDialogOpen} />
+      <RealEstateAgentsDialog open={agentsDialogOpen} onOpenChange={handleAgentsDialogChange} />
 
       {/* Identidade */}
       <section className="rounded-lg border border-border bg-card p-4 space-y-3">
@@ -164,6 +214,86 @@ export default function RealEstateSettingsPage() {
             value={settings.REAL_ESTATE_GTM_ID}
             onChange={(e) => set('REAL_ESTATE_GTM_ID', e.target.value)}
             placeholder="GTM-XXXXXXX"
+          />
+        </div>
+      </section>
+
+      {/* Distribuição de Leads */}
+      <section className="rounded-lg border border-border bg-card p-4 space-y-3">
+        <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Shuffle className="w-4 h-4 text-primary" /> Distribuição de leads
+        </h4>
+        <p className="text-xs text-muted-foreground">
+          Define qual corretor recebe cada lead novo do formulário do site de imóveis.
+        </p>
+
+        <div className="space-y-1.5 max-w-sm">
+          <Label>Modo de distribuição</Label>
+          <Select value={settings.REAL_ESTATE_LEAD_DISTRIBUTION_MODE} onValueChange={(v) => setMode(v as DistributionMode)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="queue">Fila (revezamento entre os corretores)</SelectItem>
+              <SelectItem value="random">Aleatório</SelectItem>
+              <SelectItem value="single">Um único corretor</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {settings.REAL_ESTATE_LEAD_DISTRIBUTION_MODE === 'single' && (
+          <div className="space-y-1.5 max-w-sm">
+            <Label>Corretor</Label>
+            <Select
+              value={settings.REAL_ESTATE_LEAD_DISTRIBUTION_SINGLE_AGENT_ID}
+              onValueChange={(v) => set('REAL_ESTATE_LEAD_DISTRIBUTION_SINGLE_AGENT_ID', v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um corretor" />
+              </SelectTrigger>
+              <SelectContent>
+                {agents.map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.name || 'Sem nome'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {agents.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Nenhum corretor cadastrado ainda — use o botão "Corretores" acima.
+              </p>
+            )}
+          </div>
+        )}
+
+        {settings.REAL_ESTATE_LEAD_DISTRIBUTION_MODE !== 'single' && (
+          <div className="space-y-1.5 max-w-sm">
+            <Label>Quais corretores participam</Label>
+            <Select value={settings.REAL_ESTATE_LEAD_DISTRIBUTION_AGENT_SCOPE} onValueChange={(v) => setScope(v as AgentScope)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Somente corretores ativos</SelectItem>
+                <SelectItem value="all">Ativos e pausados</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between max-w-sm pt-1">
+          <div>
+            <Label>Respeitar horário de atendimento</Label>
+            <p className="text-xs text-muted-foreground">
+              Só distribui para corretores que estão dentro do próprio horário agora.
+            </p>
+          </div>
+          <Switch
+            checked={settings.REAL_ESTATE_LEAD_DISTRIBUTION_RESPECT_HOURS === 'true'}
+            onCheckedChange={(checked) =>
+              set('REAL_ESTATE_LEAD_DISTRIBUTION_RESPECT_HOURS', checked ? 'true' : 'false')
+            }
           />
         </div>
       </section>
