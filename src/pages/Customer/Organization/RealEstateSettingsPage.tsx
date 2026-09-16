@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Palette, MessageSquare, Code2, Save, ExternalLink } from 'lucide-react';
+import { Palette, MessageSquare, Code2, Save, ExternalLink, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { BaseHeader } from '@/components/base';
 import { Button, Input, Label } from '@evoapi/design-system';
 import { adminConfigService } from '@/services/admin/adminConfigService';
+import { RealEstateAgentsDialog } from '@/components/real-estate/RealEstateAgentsDialog';
 
 const CONFIG_TYPE = 'real_estate';
 
@@ -47,6 +48,7 @@ export default function RealEstateSettingsPage() {
   const [settings, setSettings] = useState<RealEstateSettings>(DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [agentsDialogOpen, setAgentsDialogOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -101,11 +103,19 @@ export default function RealEstateSettingsPage() {
         >
           Ver site de imóveis <ExternalLink className="w-3.5 h-3.5" />
         </a>
-        <Button onClick={handleSave} disabled={saving}>
-          <Save className="w-4 h-4 mr-2" />
-          {saving ? 'Salvando...' : 'Salvar'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setAgentsDialogOpen(true)}>
+            <Users className="w-4 h-4 mr-2" />
+            Corretores
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            <Save className="w-4 h-4 mr-2" />
+            {saving ? 'Salvando...' : 'Salvar'}
+          </Button>
+        </div>
       </div>
+
+      <RealEstateAgentsDialog open={agentsDialogOpen} onOpenChange={setAgentsDialogOpen} />
 
       {/* Identidade */}
       <section className="rounded-lg border border-border bg-card p-4 space-y-3">
