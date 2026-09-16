@@ -5,21 +5,24 @@ import {
   Input,
   Label,
   Badge,
+  Checkbox,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@evoapi/design-system';
-import { Plus, X, Search, Users2, Sparkles } from 'lucide-react';
+import { Plus, X, Search, Users2, Sparkles, ListPlus, Trash2, ArrowLeftRight } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
-import { MetaAdAccountPicker } from '@/components/marketing/MetaAdAccountPicker';
+import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
+import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import {
   metaCreationService,
   type TargetingCategory,
   type TargetingItem,
   type ChosenTargetingItem,
   type TargetingSpec,
+  type TargetingList,
 } from '@/services/marketing/metaCreationService';
 
 const CATEGORY_LABEL: Record<TargetingCategory, string> = {
@@ -82,6 +85,100 @@ export function TargetingBuilder() {
   const [audienceName, setAudienceName] = useState('');
   const [savingAudience, setSavingAudience] = useState(false);
 
+  // Listas de direcionamento salvas (locais ao CRM) — um recorte nomeado de
+  // itens (ex: "Medicina" = médico + veterinário + estudante + enfermagem)
+  // que depois pode ser puxado, no todo ou em parte, pra dentro de
+  // Incluir/Restringir/Excluir na hora de montar um público de verdade.
+  const [savedLists, setSavedLists] = useState<TargetingList[] | null>(null);
+  const [loadingLists, setLoadingLists] = useState(false);
+
+  const [newListName, setNewListName] = useState('');
+  const [newListCategory, setNewListCategory] = useState<TargetingCategory>('interests');
+  const [newListQuery, setNewListQuery] = useState('');
+  const debouncedNewListQuery = useDebounce(newListQuery, 400);
+  const [newListResults, setNewListResults] = useState<TargetingItem[]>([]);
+  const [newListSearching, setNewListSearching] = useState(false);
+  const [newListItems, setNewListItems] = useState<ChosenTargetingItem[]>([]);
+  const [savingList, setSavingList] = useState(false);
+
+  const [listSelections, setListSelections] = useState<Record<string, Set<string>>>({});
+
+  const loadLists = () => {
+    setLoadingLists(true);
+    metaCreationService
+      .listTargetingLists()
+      .then(setSavedLists)
+      .catch(() => toast.error('Erro ao carregar as listas de direcionamento'))
+      .finally(() => setLoadingLists(false));
+  };
+
+  useEffect(() => {
+    loadLists();
+  }, []);
+
+  useEffect(() => {
+    if (!debouncedNewListQuery.trim()) {
+      setNewListResults([]);
+      return;
+    }
+    setNewListSearching(true);
+    metaCreationService
+      .searchTargeting(newListCategory, debouncedNewListQuery.trim())
+      .then(setNewListResults)
+      .catch(() => toast.error('Erro ao buscar direcionamento'))
+      .finally(() => setNewListSearching(false));
+  }, [newListCategory, debouncedNewListQuery]);
+
+  const newListChosenIds = useMemo(() => new Set(newListItems.map((i) => i.id)), [newListItems]);
+  const visibleNewListResults = newListResults.filter((item) => !newListChosenIds.has(item.id));
+
+  const addToNewListDraft = (item: TargetingItem) => {
+    setNewListItems((prev) => (prev.some((i) => i.id === item.id) ? prev : [...prev, { ...item, category: newListCategory }]));
+  };
+  const removeFromNewListDraft = (id: string) => setNewListItems((prev) => prev.filter((i) => i.id !== id));
+
+  const handleSaveList = async () => {
+    if (!newListName.trim()) {
+      toast.error('Informe um nome para a lista');
+      return;
+    }
+    if (newListItems.length === 0) {
+      toast.error('Adicione ao menos um item à lista');
+      return;
+    }
+    setSavingList(true);
+    try {
+      await metaCreationService.createTargetingList(newListName.trim(), newListItems);
+      toast.success('Lista salva!');
+      setNewListName('');
+      setNewListItems([]);
+      setNewListQuery('');
+      loadLists();
+    } catch {
+      toast.error('Erro ao salvar a lista');
+    } finally {
+      setSavingList(false);
+    }
+  };
+
+  const handleDeleteList = async (id: string) => {
+    try {
+      await metaCreationService.deleteTargetingList(id);
+      setSavedLists((prev) => (prev || []).filter((l) => l.id !== id));
+    } catch {
+      toast.error('Erro ao excluir a lista');
+    }
+  };
+
+  const toggleListItemSelection = (listId: string, itemId: string) => {
+    setListSelections((prev) => {
+      const current = new Set(prev[listId] || []);
+      if (current.has(itemId)) current.delete(itemId);
+      else current.add(itemId);
+      return { ...prev, [listId]: current };
+    });
+  };
+
   // Busca ao digitar (categoria atual)
   useEffect(() => {
     if (!debouncedQuery.trim()) {
@@ -143,6 +240,31 @@ export function TargetingBuilder() {
   const bucketState = { include, narrow, exclude } as const;
   const bucketSetters = { include: setInclude, narrow: setNarrow, exclude: setExclude } as const;
 
+  // Sem nenhum item marcado, "adicionar" leva a lista inteira — marcar
+  // alguns restringe ao subconjunto escolhido, exatamente o comportamento
+  // pedido ("se eu quiser montar um público só com dois dessa lista tudo
+  // bem, se quiser montar mais tudo bem").
+  const addListSelectionToBucket = (list: TargetingList) => {
+    const selected = listSelections[list.id];
+    const itemsToAdd = selected && selected.size > 0 ? list.items.filter((i) => selected.has(i.id)) : list.items;
+    if (itemsToAdd.length === 0) return;
+    bucketSetters[activeBucket]((prev) => {
+      const existingIds = new Set(prev.map((i) => i.id));
+      const additions = itemsToAdd.filter((i) => !existingIds.has(i.id));
+      return [...prev, ...additions];
+    });
+    toast.success(`${itemsToAdd.length} item(ns) adicionados em "${BUCKET_LABEL[activeBucket]}"`);
+  };
+
+  // Um item escolhido em QUALQUER grupo some da lista de resultados — não
+  // faz sentido oferecer pra adicionar de novo em Incluir/Restringir/Excluir
+  // ao mesmo tempo, e evita a sensação de "cliquei e não aconteceu nada".
+  const chosenIds = useMemo(
+    () => new Set([...include, ...narrow, ...exclude].map((i) => i.id)),
+    [include, narrow, exclude],
+  );
+  const visibleResults = results.filter((item) => !chosenIds.has(item.id));
+
   const addItem = (item: TargetingItem) => {
     const chosen: ChosenTargetingItem = { ...item, category };
     const list = bucketState[activeBucket];
@@ -199,21 +321,22 @@ export function TargetingBuilder() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <MetaAdAccountPicker onSelect={setAccount} />
-        {account && (
-          <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-            <Users2 className="w-3.5 h-3.5" /> {account.name}
-          </span>
-        )}
-      </div>
-
       {!account ? (
-        <div className="text-center text-sm text-muted-foreground py-10 border border-dashed rounded-md">
-          Selecione uma conta de anúncio pra montar o direcionamento.
-        </div>
+        <MetaScopedEntityPicker
+          stepTwoLabel="Conta de anúncio"
+          fetchStepTwo={(bmId) => clientGoalsService.listAdAccountsForBm(bmId)}
+          onSelect={setAccount}
+        />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="lg:col-span-2 flex items-center gap-2">
+            <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+              <Users2 className="w-3.5 h-3.5" /> {account.name}
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => setAccount(null)}>
+              <ArrowLeftRight className="w-3.5 h-3.5 mr-1" /> Trocar
+            </Button>
+          </div>
           {/* Coluna esquerda: básico + busca */}
           <div className="space-y-4">
             <section className="rounded-lg border border-border bg-card p-4 space-y-3">
@@ -288,12 +411,12 @@ export function TargetingBuilder() {
               <div className="max-h-56 overflow-y-auto border rounded-md divide-y">
                 {searching ? (
                   <p className="text-sm text-muted-foreground text-center py-4">Buscando...</p>
-                ) : results.length === 0 ? (
+                ) : visibleResults.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     {query ? 'Nenhum resultado.' : 'Digite acima pra buscar.'}
                   </p>
                 ) : (
-                  results.map((item) => (
+                  visibleResults.map((item) => (
                     <button
                       key={item.id}
                       type="button"
@@ -338,6 +461,123 @@ export function TargetingBuilder() {
                       ))}
                   </div>
                 </div>
+              )}
+            </section>
+
+            <section className="rounded-lg border border-border bg-card p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                <ListPlus className="w-4 h-4" /> Listas de direcionamento
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Monte um recorte nomeado de itens (ex: "Medicina" com Médico, Veterinário, Estudante...) pra
+                reaproveitar depois — ao usar, dá pra puxar a lista inteira ou só alguns itens marcados.
+              </p>
+
+              <div className="space-y-2 rounded-md border border-dashed p-2">
+                <Input value={newListName} onChange={(e) => setNewListName(e.target.value)} placeholder="Nome da lista" />
+                <div className="flex gap-2">
+                  <Select value={newListCategory} onValueChange={(v) => setNewListCategory(v as TargetingCategory)}>
+                    <SelectTrigger className="w-44 shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="interests">Interesses</SelectItem>
+                      <SelectItem value="behaviors">Comportamentos</SelectItem>
+                      <SelectItem value="demographics">Dados demográficos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={newListQuery}
+                      onChange={(e) => setNewListQuery(e.target.value)}
+                      placeholder="Buscar pra adicionar à lista..."
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
+
+                {newListQuery.trim() && (
+                  <div className="max-h-40 overflow-y-auto border rounded-md divide-y">
+                    {newListSearching ? (
+                      <p className="text-sm text-muted-foreground text-center py-3">Buscando...</p>
+                    ) : visibleNewListResults.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-3">Nenhum resultado.</p>
+                    ) : (
+                      visibleNewListResults.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => addToNewListDraft(item)}
+                          className="w-full flex items-center justify-between gap-2 p-2 text-sm text-left hover:bg-muted/40"
+                        >
+                          <span className="truncate">{item.name}</span>
+                          <Plus className="w-3.5 h-3.5 text-primary shrink-0" />
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-1.5 min-h-[1.75rem]">
+                  {newListItems.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">Nenhum item ainda.</span>
+                  ) : (
+                    newListItems.map((item) => (
+                      <Badge key={item.id} variant="outline" className="gap-1">
+                        {item.name}
+                        <button type="button" onClick={() => removeFromNewListDraft(item.id)}>
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))
+                  )}
+                </div>
+
+                <Button size="sm" onClick={handleSaveList} disabled={savingList}>
+                  {savingList ? 'Salvando...' : 'Salvar lista'}
+                </Button>
+              </div>
+
+              {loadingLists ? (
+                <p className="text-sm text-muted-foreground text-center py-3">Carregando listas...</p>
+              ) : savedLists && savedLists.length > 0 ? (
+                <div className="space-y-2">
+                  {savedLists.map((list) => {
+                    const selected = listSelections[list.id] || new Set<string>();
+                    return (
+                      <div key={list.id} className="rounded-md border p-2 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <h5 className="text-sm font-medium truncate">{list.name}</h5>
+                          <button type="button" onClick={() => handleDeleteList(list.id)} title="Excluir lista">
+                            <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {list.items.map((item) => (
+                            <label
+                              key={item.id}
+                              className="flex items-center gap-1 text-xs px-1.5 py-1 rounded border cursor-pointer"
+                            >
+                              <Checkbox
+                                checked={selected.has(item.id)}
+                                onCheckedChange={() => toggleListItemSelection(list.id, item.id)}
+                              />
+                              {item.name}
+                            </label>
+                          ))}
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => addListSelectionToBucket(list)}>
+                          <Plus className="w-3 h-3 mr-1" />
+                          {selected.size > 0 ? `Adicionar ${selected.size} selecionado(s)` : 'Adicionar lista inteira'} em "
+                          {BUCKET_LABEL[activeBucket].split(' ')[0]}"
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-2">Nenhuma lista salva ainda.</p>
               )}
             </section>
           </div>

@@ -2,6 +2,11 @@ import api from '@/services/core/api';
 
 const ENDPOINT = '/reports/meta_ads_manager';
 
+export interface FacebookPageOption {
+  id: string;
+  name: string;
+}
+
 export interface LeadForm {
   id: string;
   name: string;
@@ -10,11 +15,118 @@ export interface LeadForm {
   created_time?: string;
 }
 
+export interface LeadQuestionOption {
+  key: string;
+  value: string;
+}
+
 export interface LeadQuestion {
-  type: 'FULL_NAME' | 'EMAIL' | 'PHONE' | 'CUSTOM';
+  type: string;
   key?: string;
   label?: string;
+  options?: LeadQuestionOption[];
 }
+
+export interface LeadFormDetail {
+  id: string;
+  name: string;
+  status: string;
+  questions: LeadQuestion[];
+  legal_content?: { privacy_policy?: { url: string; link_text: string } };
+  context_card?: { title: string; content: string[]; button_text: string };
+  thank_you_page?: {
+    title: string;
+    body: string;
+    button_type: string;
+    button_text: string;
+    website_url?: string;
+  };
+  follow_up_action_url?: string;
+}
+
+// Catálogo de perguntas padrão da Meta, agrupado como no Gerenciador de
+// Anúncios — confirmado contra a Graph API real (v23.0): pedir um tipo fora
+// desta lista responde 400 listando o enum aceito.
+export const QUESTION_CATEGORIES: Array<{ label: string; options: Array<{ type: string; label: string }> }> = [
+  {
+    label: 'Contato',
+    options: [
+      { type: 'FULL_NAME', label: 'Nome completo' },
+      { type: 'FIRST_NAME', label: 'Primeiro nome' },
+      { type: 'LAST_NAME', label: 'Sobrenome' },
+      { type: 'EMAIL', label: 'Email' },
+      { type: 'PHONE', label: 'Telefone' },
+      { type: 'WHATSAPP_NUMBER', label: 'WhatsApp' },
+    ],
+  },
+  {
+    label: 'Informações do usuário',
+    options: [
+      { type: 'CITY', label: 'Cidade' },
+      { type: 'STATE', label: 'Estado' },
+      { type: 'PROVINCE', label: 'Província' },
+      { type: 'COUNTRY', label: 'País' },
+      { type: 'ZIP', label: 'CEP' },
+      { type: 'POST_CODE', label: 'Código postal' },
+      { type: 'STREET_ADDRESS', label: 'Endereço' },
+      { type: 'ADDRESS_LINE_TWO', label: 'Complemento' },
+      { type: 'DOB', label: 'Data de nascimento' },
+      { type: 'GENDER', label: 'Gênero' },
+    ],
+  },
+  {
+    label: 'Dados demográficos',
+    options: [
+      { type: 'MARITIAL_STATUS', label: 'Estado civil' },
+      { type: 'RELATIONSHIP_STATUS', label: 'Situação de relacionamento' },
+      { type: 'MILITARY_STATUS', label: 'Situação militar' },
+      { type: 'EDUCATION_LEVEL', label: 'Escolaridade' },
+    ],
+  },
+  {
+    label: 'Informações profissionais',
+    options: [
+      { type: 'JOB_TITLE', label: 'Cargo' },
+      { type: 'COMPANY_NAME', label: 'Empresa' },
+      { type: 'WORK_EMAIL', label: 'Email profissional' },
+      { type: 'WORK_PHONE_NUMBER', label: 'Telefone profissional' },
+    ],
+  },
+  {
+    label: 'Documento de identidade',
+    options: [
+      { type: 'ID_CPF', label: 'CPF (Brasil)' },
+      { type: 'ID_AR_DNI', label: 'DNI (Argentina)' },
+      { type: 'ID_CL_RUT', label: 'RUT (Chile)' },
+      { type: 'ID_CO_CC', label: 'Cédula (Colômbia)' },
+      { type: 'ID_EC_CI', label: 'Cédula (Equador)' },
+      { type: 'ID_PE_DNI', label: 'DNI (Peru)' },
+      { type: 'ID_MX_RFC', label: 'RFC (México)' },
+    ],
+  },
+  {
+    label: 'Agendamento',
+    options: [{ type: 'DATE_TIME', label: 'Data e hora marcada' }],
+  },
+];
+
+// Enum confirmado contra a Graph API real (pedir um valor inválido responde
+// 400 listando os aceitos): VIEW_WEBSITE, CALL_BUSINESS, MESSAGE_BUSINESS,
+// DOWNLOAD, SCHEDULE_APPOINTMENT, VIEW_ON_FACEBOOK, PROMO_CODE, NONE,
+// WHATSAPP, P2B_MESSENGER, BOOK_ON_WEBSITE.
+export const THANK_YOU_BUTTON_TYPES: Array<{ value: string; label: string }> = [
+  { value: 'VIEW_WEBSITE', label: 'Ir para o site' },
+  { value: 'DOWNLOAD', label: 'Ver arquivos' },
+  { value: 'CALL_BUSINESS', label: 'Ligar para a empresa' },
+  { value: 'WHATSAPP', label: 'Conversar no WhatsApp' },
+  { value: 'MESSAGE_BUSINESS', label: 'Enviar mensagem' },
+  { value: 'P2B_MESSENGER', label: 'Mensagem no Messenger' },
+  { value: 'PROMO_CODE', label: 'Resgatar código promocional' },
+  { value: 'SCHEDULE_APPOINTMENT', label: 'Agendar horário' },
+  { value: 'BOOK_ON_WEBSITE', label: 'Agendar no site' },
+  { value: 'VIEW_ON_FACEBOOK', label: 'Ver no Facebook' },
+  { value: 'NONE', label: 'Nenhuma ação' },
+];
 
 export interface CustomAudience {
   id: string;
@@ -59,6 +171,15 @@ export interface TargetingSpec {
   exclusions?: Partial<Record<TargetingCategory, Array<{ id: string; name: string }>>>;
 }
 
+// Lista curada e reutilizável de itens de direcionamento, salva localmente
+// no CRM (a Graph API não tem esse conceito solto) — serve como "banco" de
+// onde um público/grupo de direcionamento pode puxar um subconjunto.
+export interface TargetingList {
+  id: string;
+  name: string;
+  items: ChosenTargetingItem[];
+}
+
 export interface ReachEstimate {
   estimate_mau_lower_bound?: number;
   estimate_mau_upper_bound?: number;
@@ -66,25 +187,101 @@ export interface ReachEstimate {
   estimate_dau_upper_bound?: number;
 }
 
+export interface LeadFormCreatePayload {
+  pageId: string;
+  name: string;
+  questions: LeadQuestion[];
+  privacyPolicyUrl?: string;
+  privacyPolicyLinkText?: string;
+  greetingTitle?: string;
+  greetingContent?: string[];
+  greetingButtonText?: string;
+  thankYouTitle?: string;
+  thankYouBody?: string;
+  thankYouButtonType?: string;
+  thankYouButtonText?: string;
+  thankYouWebsiteUrl?: string;
+}
+
 class MetaCreationService {
   // --- Formulários de Lead ---
+  // Formulários pertencem a uma PÁGINA (não à conta de anúncio) — por isso
+  // o fluxo é BM > Página, não BM > Conta como nas outras abas.
 
-  async listLeadForms(): Promise<LeadForm[]> {
-    const response = await api.post<LeadForm[]>(ENDPOINT, { acao: 'listar_formularios_lead' });
+  async listPagesForBm(businessId: string): Promise<FacebookPageOption[]> {
+    const response = await api.post<FacebookPageOption[]>(ENDPOINT, {
+      acao: 'listar_paginas',
+      id_bm: businessId,
+    });
     return response.data || [];
   }
 
-  async createLeadForm(payload: {
-    name: string;
-    questions: LeadQuestion[];
-    privacy_policy_url: string;
-    thank_you_title?: string;
-    thank_you_body?: string;
-  }): Promise<{ id: string }> {
+  async listLeadForms(pageId: string): Promise<LeadForm[]> {
+    const response = await api.post<LeadForm[]>(ENDPOINT, {
+      acao: 'listar_formularios_lead',
+      id_pagina: pageId,
+    });
+    return response.data || [];
+  }
+
+  async getLeadFormDetail(pageId: string, formId: string): Promise<LeadFormDetail> {
+    const response = await api.post<LeadFormDetail>(ENDPOINT, {
+      acao: 'detalhe_formulario_lead',
+      id_pagina: pageId,
+      id_formulario: formId,
+    });
+    return response.data;
+  }
+
+  async updateLeadFormStatus(pageId: string, formId: string, status: 'ACTIVE' | 'ARCHIVED'): Promise<void> {
+    await api.post(ENDPOINT, {
+      acao: 'atualizar_status_formulario_lead',
+      id_pagina: pageId,
+      id_formulario: formId,
+      status,
+    });
+  }
+
+  private toLeadFormParams(payload: LeadFormCreatePayload) {
+    return {
+      id_pagina: payload.pageId,
+      name: payload.name,
+      questions: JSON.stringify(payload.questions),
+      privacy_policy_url: payload.privacyPolicyUrl,
+      privacy_policy_link_text: payload.privacyPolicyLinkText,
+      greeting_title: payload.greetingTitle,
+      greeting_content: payload.greetingContent ? JSON.stringify(payload.greetingContent) : undefined,
+      greeting_button_text: payload.greetingButtonText,
+      thank_you_title: payload.thankYouTitle,
+      thank_you_body: payload.thankYouBody,
+      thank_you_button_type: payload.thankYouButtonType,
+      thank_you_button_text: payload.thankYouButtonText,
+      thank_you_website_url: payload.thankYouWebsiteUrl,
+    };
+  }
+
+  async createLeadForm(payload: LeadFormCreatePayload): Promise<{ id: string }> {
     const response = await api.post<{ id: string }>(ENDPOINT, {
       acao: 'criar_formulario_lead',
-      ...payload,
-      questions: JSON.stringify(payload.questions),
+      ...this.toLeadFormParams(payload),
+    });
+    return response.data;
+  }
+
+  async duplicateLeadForm(params: {
+    sourcePageId: string;
+    formId: string;
+    targetPageId: string;
+    overrides: Partial<LeadFormCreatePayload>;
+  }): Promise<{ id: string }> {
+    const overrideParams = this.toLeadFormParams(params.overrides as LeadFormCreatePayload);
+    delete (overrideParams as { id_pagina?: string }).id_pagina;
+    const response = await api.post<{ id: string }>(ENDPOINT, {
+      acao: 'duplicar_formulario_lead',
+      id_pagina_origem: params.sourcePageId,
+      id_formulario: params.formId,
+      id_pagina_destino: params.targetPageId,
+      overrides: overrideParams,
     });
     return response.data;
   }
@@ -204,6 +401,36 @@ class MetaCreationService {
       targeting: JSON.stringify(targeting),
     });
     return response.data;
+  }
+
+  // --- Listas de direcionamento (salvas localmente, não na Meta) ---
+
+  async listTargetingLists(): Promise<TargetingList[]> {
+    const response = await api.post<TargetingList[]>(ENDPOINT, { acao: 'listar_listas_direcionamento' });
+    return response.data || [];
+  }
+
+  async createTargetingList(name: string, items: ChosenTargetingItem[]): Promise<TargetingList> {
+    const response = await api.post<TargetingList>(ENDPOINT, {
+      acao: 'criar_lista_direcionamento',
+      name,
+      items: JSON.stringify(items),
+    });
+    return response.data;
+  }
+
+  async updateTargetingList(id: string, updates: { name?: string; items?: ChosenTargetingItem[] }): Promise<TargetingList> {
+    const response = await api.post<TargetingList>(ENDPOINT, {
+      acao: 'atualizar_lista_direcionamento',
+      id,
+      name: updates.name,
+      items: updates.items ? JSON.stringify(updates.items) : undefined,
+    });
+    return response.data;
+  }
+
+  async deleteTargetingList(id: string): Promise<void> {
+    await api.post(ENDPOINT, { acao: 'excluir_lista_direcionamento', id });
   }
 }
 
