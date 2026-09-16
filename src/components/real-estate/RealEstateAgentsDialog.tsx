@@ -12,9 +12,12 @@ import {
   Label,
   Badge,
   Switch,
+  Checkbox,
 } from '@evoapi/design-system';
 import { Plus, Pencil, Trash2, Users } from 'lucide-react';
 import { adminConfigService } from '@/services/admin/adminConfigService';
+import { getAgentsKanbanStats, type AgentKanbanStats } from '@/services/realEstate/realEstateAgentsService';
+import { RealEstateAgentLeadsDialog } from './RealEstateAgentLeadsDialog';
 
 export interface OpeningHours {
   open: string;
@@ -47,6 +50,18 @@ const WEEKDAYS: Array<{ key: WeekdayKey; label: string }> = [
   { key: 'sex', label: 'Sex' },
   { key: 'sab', label: 'Sáb' },
   { key: 'dom', label: 'Dom' },
+];
+
+// Nomes por extenso pro checklist do formulário (a tabela usa a versão
+// abreviada de WEEKDAYS acima, que já cabe melhor na coluna).
+const WEEKDAYS_FULL: Array<{ key: WeekdayKey; label: string }> = [
+  { key: 'seg', label: 'Segunda' },
+  { key: 'ter', label: 'Terça' },
+  { key: 'qua', label: 'Quarta' },
+  { key: 'qui', label: 'Quinta' },
+  { key: 'sex', label: 'Sexta' },
+  { key: 'sab', label: 'Sábado' },
+  { key: 'dom', label: 'Domingo' },
 ];
 
 function defaultBusinessHours(): RealEstateAgent['business_hours'] {
@@ -117,11 +132,13 @@ interface RealEstateAgentsDialogProps {
 
 export function RealEstateAgentsDialog({ open, onOpenChange }: RealEstateAgentsDialogProps) {
   const [agents, setAgents] = useState<RealEstateAgent[]>([]);
+  const [kanbanStats, setKanbanStats] = useState<Record<string, AgentKanbanStats>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formAgent, setFormAgent] = useState<RealEstateAgent | null>(null);
   const [isNewAgent, setIsNewAgent] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<RealEstateAgent | null>(null);
+  const [leadsAgent, setLeadsAgent] = useState<RealEstateAgent | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -131,6 +148,11 @@ export function RealEstateAgentsDialog({ open, onOpenChange }: RealEstateAgentsD
       .then((config) => setAgents(safeParseAgents(config[CONFIG_KEY])))
       .catch(() => toast.error('Erro ao carregar corretores'))
       .finally(() => setLoading(false));
+    // Melhor esforço: se essa chamada falhar, a tabela só mostra "—" na
+    // coluna do Kanban, sem travar o carregamento da lista de corretores.
+    getAgentsKanbanStats()
+      .then(setKanbanStats)
+      .catch(() => setKanbanStats({}));
   }, [open]);
 
   const persist = async (next: RealEstateAgent[]) => {
@@ -228,47 +250,70 @@ export function RealEstateAgentsDialog({ open, onOpenChange }: RealEstateAgentsD
                 <thead className="bg-muted/40 text-left sticky top-0">
                   <tr>
                     <th className="px-3 py-2">Nome</th>
-                    <th className="px-3 py-2">Identificação</th>
-                    <th className="px-3 py-2">Horário</th>
                     <th className="px-3 py-2">Telefone</th>
                     <th className="px-3 py-2">Email</th>
-                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Ativo</th>
+                    <th className="px-3 py-2">Horários</th>
+                    <th className="px-3 py-2">Identificação</th>
+                    <th className="px-3 py-2">Kanban</th>
                     <th className="px-3 py-2 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {agents.map((agent) => (
-                    <tr key={agent.id} className="border-t hover:bg-muted/30">
-                      <td className="px-3 py-2 font-medium">{agent.name}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{agent.identification || '—'}</td>
-                      <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
-                        {summarizeHours(agent.business_hours)}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">{agent.phone || '—'}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{agent.email || '—'}</td>
-                      <td className="px-3 py-2">
-                        <button type="button" onClick={() => handleToggleStatus(agent)} disabled={saving}>
-                          <Badge variant={agent.status === 'active' ? 'default' : 'secondary'}>
-                            {agent.status === 'active' ? 'Ativo' : 'Pausado'}
-                          </Badge>
-                        </button>
-                      </td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(agent)} title="Editar">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setConfirmDelete(agent)}
-                          title="Excluir"
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  {agents.map((agent) => {
+                    const stats = kanbanStats[agent.id];
+                    return (
+                      <tr key={agent.id} className="border-t hover:bg-muted/30">
+                        <td className="px-3 py-2 font-medium">{agent.name}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{agent.phone || '—'}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{agent.email || '—'}</td>
+                        <td className="px-3 py-2">
+                          <button type="button" onClick={() => handleToggleStatus(agent)} disabled={saving}>
+                            <Badge variant={agent.status === 'active' ? 'default' : 'secondary'}>
+                              {agent.status === 'active' ? 'Ativo' : 'Pausado'}
+                            </Badge>
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
+                          {summarizeHours(agent.business_hours)}
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground">{agent.identification || '—'}</td>
+                        <td className="px-3 py-2 text-muted-foreground">
+                          {stats ? (
+                            <button
+                              type="button"
+                              onClick={() => setLeadsAgent(agent)}
+                              className="text-left hover:underline"
+                              title="Ver leads deste corretor"
+                            >
+                              <div className="font-medium text-primary">
+                                {stats.total} lead{stats.total === 1 ? '' : 's'}
+                              </div>
+                              <div className="text-[0.65rem] text-muted-foreground">
+                                {stats.stages.map((s) => `${s.name}: ${s.count}`).join(' · ')}
+                              </div>
+                            </button>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right whitespace-nowrap">
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(agent)} title="Editar">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setConfirmDelete(agent)}
+                            title="Excluir"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -331,31 +376,30 @@ export function RealEstateAgentsDialog({ open, onOpenChange }: RealEstateAgentsD
                   Usado pela distribuição automática de leads quando "respeitar horário" está
                   ativo (Organização &gt; Imobiliária).
                 </p>
-                <div className="grid grid-cols-7 gap-1 text-xs">
-                  {WEEKDAYS.map(({ key, label }) => {
+                <div className="space-y-1.5">
+                  {WEEKDAYS_FULL.map(({ key, label }) => {
                     const day = formAgent.business_hours[key];
                     return (
-                      <div key={key} className="border rounded p-1 space-y-1">
-                        <div className="text-center font-medium text-muted-foreground">{label}</div>
-                        <div className="flex justify-center">
-                          <Switch
-                            checked={!day.closed}
-                            onCheckedChange={(v) => updateFormDay(key, { closed: !v })}
-                          />
-                        </div>
+                      <div key={key} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={!day.closed}
+                          onCheckedChange={(checked) => updateFormDay(key, { closed: !checked })}
+                        />
+                        <span className="w-20 shrink-0 text-sm">{label}</span>
                         <Input
                           type="time"
                           value={day.open}
                           disabled={day.closed}
                           onChange={(e) => updateFormDay(key, { open: e.target.value })}
-                          className="p-0 text-[0.65rem] h-6 text-center"
+                          className="h-8 w-28"
                         />
+                        <span className="text-xs text-muted-foreground">até</span>
                         <Input
                           type="time"
                           value={day.close}
                           disabled={day.closed}
                           onChange={(e) => updateFormDay(key, { close: e.target.value })}
-                          className="p-0 text-[0.65rem] h-6 text-center"
+                          className="h-8 w-28"
                         />
                       </div>
                     );
@@ -408,6 +452,8 @@ export function RealEstateAgentsDialog({ open, onOpenChange }: RealEstateAgentsD
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RealEstateAgentLeadsDialog agent={leadsAgent} onOpenChange={(o) => !o && setLeadsAgent(null)} />
     </>
   );
 }
