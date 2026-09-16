@@ -80,6 +80,7 @@ import RecibosPage from '@/pages/Customer/Finances/RecibosPage';
 import GtmPage from '@/pages/Customer/Marketing/GtmPage';
 import GestorPostsPage from '@/pages/Customer/Marketing/GestorPostsPage';
 import ClientGoalsPage from '@/pages/Customer/Marketing/ClientGoalsPage';
+import MetaCreationPage from '@/pages/Customer/Marketing/MetaCreationPage';
 import MarketingAlertsSettingsPage from '@/pages/Customer/Marketing/MarketingAlertsSettingsPage';
 import OrdersPage from '@/pages/Customer/Orders/OrdersPage';
 import IfoodOrdersPage from '@/pages/Customer/Orders/IfoodOrdersPage';
@@ -689,6 +690,20 @@ const AppRouter = () => {
                 <CustomerRoute>
                   <MainLayout>
                     <ClientGoalsPage />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* Marketing > Criação Meta: criar formulários de lead (Instant Forms) e públicos (Custom Audiences) direto na Meta Ads */}
+          <Route
+            path="/marketing/criacao-meta"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <MetaCreationPage />
                   </MainLayout>
                 </CustomerRoute>
               </PrivateRoute>

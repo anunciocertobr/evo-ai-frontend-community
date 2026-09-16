@@ -50,6 +50,7 @@ import {
   Target,
   Bell,
   Home,
+  Sparkles,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -225,6 +226,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
       // via a rota genérica /editor/content/:nodeId.
       { name: 'Relatórios', href: '/editor/content/mtlsot4v-cf6f9s', icon: PieChart },
       { name: 'Metas de Clientes', href: '/marketing/metas-clientes', icon: Target },
+      { name: 'Criação Meta', href: '/marketing/criacao-meta', icon: Sparkles },
       { name: 'Alertas e Relatórios', href: '/marketing/alertas', icon: Bell },
       { name: 'Painel Tráfego', href: '/editor/content/mtlsqe9g-44xt89', icon: Megaphone },
       { name: 'Setup Marketing (Meta/GA4/Ads)', href: '/editor/content/setupbm-36c48c9d', icon: Settings },
