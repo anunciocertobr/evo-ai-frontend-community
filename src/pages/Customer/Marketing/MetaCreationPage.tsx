@@ -8,12 +8,13 @@ import {
   TabsList,
   TabsTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2 } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaAdAccountPicker } from '@/components/marketing/MetaAdAccountPicker';
 import { LeadFormCreateDialog } from '@/components/marketing/LeadFormCreateDialog';
 import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialog';
 import { AudienceContactsPickerDialog } from '@/components/marketing/AudienceContactsPickerDialog';
+import { TargetingBuilder } from '@/components/marketing/TargetingBuilder';
 import { metaCreationService, type LeadForm, type CustomAudience } from '@/services/marketing/metaCreationService';
 
 const SUBTYPE_LABEL: Record<string, string> = {
@@ -79,6 +80,9 @@ export default function MetaCreationPage() {
           </TabsTrigger>
           <TabsTrigger value="audiences">
             <Users className="w-4 h-4 mr-1.5" /> Públicos
+          </TabsTrigger>
+          <TabsTrigger value="targeting">
+            <Crosshair className="w-4 h-4 mr-1.5" /> Direcionamento
           </TabsTrigger>
         </TabsList>
 
@@ -184,6 +188,11 @@ export default function MetaCreationPage() {
             onOpenChange={(open) => !open && setPendingCustomerList(null)}
             onDone={() => setPendingCustomerList(null)}
           />
+        </TabsContent>
+
+        {/* --- Direcionamento Detalhado --- */}
+        <TabsContent value="targeting">
+          <TargetingBuilder />
         </TabsContent>
       </Tabs>
     </div>
