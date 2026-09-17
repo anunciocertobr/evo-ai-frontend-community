@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Button,
-  Badge,
   Input,
   Checkbox,
   Select,
@@ -19,7 +18,7 @@ import {
   CommandGroup,
   CommandItem,
 } from '@evoapi/design-system';
-import { ArrowLeftRight, Building2, ChevronLeft, ChevronRight, Loader2, Search, Settings2 } from 'lucide-react';
+import { ArrowLeftRight, Building2, ChevronLeft, ChevronRight, Clock, Loader2, Search, Settings2 } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import { trafficPanelService, type TrafficAccount } from '@/services/marketing/trafficPanelService';
@@ -35,6 +34,8 @@ import {
 import {
   METRIC_ORDER,
   METRIC_LABELS,
+  METRIC_COLORS,
+  METRIC_ICONS,
   ZERO_HIDDEN_METRICS,
   DEFAULT_METRIC_VISIBILITY,
   formatMetricValue,
@@ -64,6 +65,18 @@ const SORT_OPTIONS: Array<{ value: string; label: string; key: SortKey; directio
 
 const METRIC_VISIBILITY_STORAGE_KEY = 'traffic-panel-metric-visibility';
 const SETTINGS_STORAGE_KEY = 'traffic-panel-settings';
+const DAYS_LEFT_SPEND_WINDOW = 30;
+
+// Cor do título do card por nível — igual ao original (account=slate-200,
+// campaign=sky-300, adset=teal-300, ad=yellow-300).
+const LEVEL_TITLE_COLOR: Record<DrillLevelForColor, string> = {
+  accounts: 'text-slate-200',
+  campaigns: 'text-sky-300',
+  adsets: 'text-teal-300',
+  ads: 'text-yellow-300',
+};
+
+type DrillLevelForColor = 'accounts' | 'campaigns' | 'adsets' | 'ads';
 
 function formatDateLocal(d: Date): string {
   const year = d.getFullYear();
@@ -128,16 +141,56 @@ interface Entity {
   name: string;
 }
 
-type DrillLevel = 'accounts' | 'campaigns' | 'adsets' | 'ads';
+type DrillLevel = DrillLevelForColor;
 
+// Ponto colorido de status — igual ao getStatusDotHTML do original (bolinha,
+// não badge com texto).
+function StatusDot({ status }: { status: string }) {
+  const upper = (status || 'UNKNOWN').toUpperCase();
+  let colorClass = 'bg-red-500';
+  let label = 'Erro/Outro';
+  if (upper === 'ACTIVE') {
+    colorClass = 'bg-green-500';
+    label = 'Ativa';
+  } else if (upper === 'PAUSED' || upper === 'INACTIVE') {
+    colorClass = 'bg-gray-500';
+    label = 'Pausada';
+  } else if (upper === 'PENDING_REVIEW' || upper === 'DISAPPROVED') {
+    colorClass = 'bg-yellow-500';
+    label = 'Revisão/Reprovada';
+  }
+  return <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ml-2 ${colorClass}`} title={`Status: ${label} (${upper})`} />;
+}
+
+function getDaysLeftColor(daysLeft: number): string {
+  if (daysLeft > 14) return 'text-green-400';
+  if (daysLeft > 7) return 'text-yellow-400';
+  return 'text-red-400';
+}
+
+function computeDaysLeft(account: TrafficAccount): number {
+  const balance = parseFloat(account.balance || '0');
+  const periodSpend = parseFloat(account.insights_30d?.[0]?.spend || '0');
+  const dailySpend = periodSpend / DAYS_LEFT_SPEND_WINDOW;
+  if (!(dailySpend > 0) || !(balance > 0)) return 0;
+  return balance / dailySpend;
+}
+
+// Ícone + rótulo colorido à esquerda, valor colorido (mesma cor) à direita —
+// mesmo layout e paleta do renderMetricRow original.
 function MetricRow({ metricKey, value, visible }: { metricKey: MetricKey; value: number; visible: boolean }) {
   if (!visible) return null;
   if (ZERO_HIDDEN_METRICS.includes(metricKey) && !(value > 0)) return null;
+  const Icon = METRIC_ICONS[metricKey];
+  const colorClass = METRIC_COLORS[metricKey];
   return (
-    <p className="text-xs flex items-center justify-between gap-2">
-      <span className="text-muted-foreground">{METRIC_LABELS[metricKey]}:</span>
-      <span className="font-medium">{formatMetricValue(metricKey, value)}</span>
-    </p>
+    <div className="flex items-center justify-between text-xs">
+      <div className="flex items-center gap-1.5">
+        <Icon className={`w-3.5 h-3.5 shrink-0 ${colorClass}`} />
+        <span className="font-medium text-slate-400">{METRIC_LABELS[metricKey]}:</span>
+      </div>
+      <span className={`font-semibold ${colorClass}`}>{formatMetricValue(metricKey, value)}</span>
+    </div>
   );
 }
 
@@ -356,12 +409,12 @@ export default function TrafficPanelPage() {
   const settingsPanel = (
     <Popover>
       <PopoverTrigger asChild>
-        <Button size="icon" variant="outline" title="Métricas visíveis">
+        <Button size="icon" variant="outline" className="border-slate-600 bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-slate-100" title="Métricas visíveis">
           <Settings2 className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64" align="end">
-        <p className="text-xs font-semibold mb-2 text-muted-foreground">Métricas visíveis</p>
+      <PopoverContent className="w-64 bg-slate-800 border-slate-700 text-slate-200" align="end">
+        <p className="text-xs font-semibold mb-2 text-slate-400">Métricas visíveis</p>
         <div className="space-y-1.5 max-h-80 overflow-auto">
           {METRIC_ORDER.map((key) => (
             <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -374,13 +427,15 @@ export default function TrafficPanelPage() {
     </Popover>
   );
 
+  const selectTriggerClass = 'w-40 bg-slate-700 text-slate-300 border-slate-600 focus:ring-sky-500';
+
   const toolbar = (
     <div className="flex items-center gap-2 flex-wrap">
       <Select value={datePreset} onValueChange={(v) => setDatePreset(v as DatePreset)}>
-        <SelectTrigger className="w-40">
+        <SelectTrigger className={selectTriggerClass}>
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
           {(Object.keys(DATE_PRESET_LABELS) as DatePreset[]).map((key) => (
             <SelectItem key={key} value={key}>
               {DATE_PRESET_LABELS[key]}
@@ -389,10 +444,10 @@ export default function TrafficPanelPage() {
         </SelectContent>
       </Select>
       <Select value={sortValue} onValueChange={setSortValue}>
-        <SelectTrigger className="w-44">
+        <SelectTrigger className="w-44 bg-slate-700 text-slate-300 border-slate-600 focus:ring-sky-500">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
           {SORT_OPTIONS.map((opt) => (
             <SelectItem key={opt.value} value={opt.value}>
               {opt.label}
@@ -404,137 +459,171 @@ export default function TrafficPanelPage() {
     </div>
   );
 
+  const cardBaseClass =
+    'text-left rounded-lg p-4 shadow-xl flex flex-col justify-between bg-slate-800 border border-slate-700 transition-all duration-300';
+  const cardInteractiveClass = 'cursor-pointer hover:-translate-y-0.5 hover:shadow-sky-500/10 active:scale-[0.98]';
+
   return (
     <div className="space-y-4 pb-8">
       <BaseHeader title="Painel Tráfego" subtitle="Contas, campanhas, conjuntos e anúncios direto na Meta Ads." />
 
-      {!selectedBm ? (
-        <div className="rounded-lg border border-border bg-card">
-          <Command>
-            <CommandInput placeholder="Buscar Business Manager..." />
-            {loadingBms ? (
-              <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Carregando...
-              </div>
-            ) : (
-              <>
-                <CommandEmpty>Nenhuma Business Manager encontrada.</CommandEmpty>
-                <CommandGroup heading="Business Manager" className="max-h-96 overflow-auto">
-                  {(bms || []).map((bm) => (
-                    <CommandItem key={bm.id} value={bm.name} onSelect={() => selectBm(bm)}>
-                      {bm.name}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-          </Command>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-              {level !== 'accounts' && (
-                <Button size="icon" variant="ghost" onClick={goBack} title="Voltar">
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-              )}
-              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5" /> {selectedBm.name}
-              </span>
-              {selectedAccount && (
+      <div className="rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 p-4 sm:p-6">
+        {!selectedBm ? (
+          <div className="rounded-lg border border-slate-700 bg-slate-800">
+            <Command className="bg-transparent">
+              <CommandInput placeholder="Buscar Business Manager..." className="text-slate-200" />
+              {loadingBms ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando...
+                </div>
+              ) : (
                 <>
-                  <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">{selectedAccount.name}</span>
+                  <CommandEmpty className="text-slate-400">Nenhuma Business Manager encontrada.</CommandEmpty>
+                  <CommandGroup heading="Business Manager" className="max-h-96 overflow-auto text-slate-200">
+                    {(bms || []).map((bm) => (
+                      <CommandItem key={bm.id} value={bm.name} onSelect={() => selectBm(bm)} className="text-slate-200 aria-selected:bg-slate-700">
+                        {bm.name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
                 </>
               )}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setSelectedBm(null);
-                  setAccounts(null);
-                  setSelectedAccount(null);
-                  setLevel('accounts');
-                }}
-              >
-                <ArrowLeftRight className="w-3.5 h-3.5 mr-1" /> Trocar
-              </Button>
+            </Command>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                {level !== 'accounts' && (
+                  <Button size="icon" variant="ghost" onClick={goBack} title="Voltar" className="text-slate-300 hover:bg-slate-700 hover:text-slate-100">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                )}
+                <span className="text-sm text-slate-300 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5" /> {selectedBm.name}
+                </span>
+                {selectedAccount && (
+                  <>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="text-sm text-slate-300">{selectedAccount.name}</span>
+                  </>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-slate-300 hover:bg-slate-700 hover:text-slate-100"
+                  onClick={() => {
+                    setSelectedBm(null);
+                    setAccounts(null);
+                    setSelectedAccount(null);
+                    setLevel('accounts');
+                  }}
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5 mr-1" /> Trocar
+                </Button>
+              </div>
+              {toolbar}
             </div>
-            {toolbar}
-          </div>
 
-          <div className="relative max-w-sm">
-            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por nome..." className="pl-8" />
-          </div>
+            <div className="relative max-w-sm">
+              <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar por nome..."
+                className="pl-8 bg-slate-700 border-slate-600 text-slate-200 placeholder:text-slate-500 focus-visible:ring-sky-500"
+              />
+            </div>
 
-          {level === 'accounts' ? (
-            loadingAccounts ? (
-              <div className="text-center text-sm text-muted-foreground py-10">Carregando...</div>
-            ) : filteredAccounts.length === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-10 border border-dashed rounded-md">
-                Nenhuma conta encontrada.
+            {level === 'accounts' ? (
+              loadingAccounts ? (
+                <div className="text-center text-sm text-slate-400 py-10">Carregando...</div>
+              ) : filteredAccounts.length === 0 ? (
+                <div className="text-center text-sm text-slate-400 py-10 border border-dashed border-slate-700 rounded-md">
+                  Nenhuma conta encontrada.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {filteredAccounts.map((account) => {
+                    const values = accountToMetricValues(account);
+                    const daysLeft = computeDaysLeft(account);
+                    return (
+                      <button
+                        key={account.id}
+                        type="button"
+                        onClick={() => selectAccount(account)}
+                        className={`${cardBaseClass} ${cardInteractiveClass}`}
+                      >
+                        <div className="mb-2 pb-1">
+                          <h3 className={`text-sm font-bold line-clamp-2 leading-tight ${LEVEL_TITLE_COLOR.accounts}`} title={account.name}>
+                            {account.name}
+                          </h3>
+                          {account.is_prepay_account && daysLeft > 0 && (
+                            <span
+                              className={`inline-flex items-center gap-1 text-xs font-bold ${getDaysLeftColor(daysLeft)} bg-slate-700/50 px-2 py-0.5 rounded-full mt-1`}
+                              title={`Orçamento dura ${daysLeft.toFixed(1)} dias`}
+                            >
+                              <Clock className="w-3 h-3" /> {daysLeft.toFixed(0)} dias restantes
+                            </span>
+                          )}
+                        </div>
+                        <div className="space-y-1 pt-2">
+                          {METRIC_ORDER.map((key) => (
+                            <MetricRow key={key} metricKey={key} value={values[key] ?? 0} visible={visibility[key]} />
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )
+            ) : loadingTree ? (
+              <div className="text-center text-sm text-slate-400 py-10">Carregando...</div>
+            ) : sortedItems.length === 0 ? (
+              <div className="text-center text-sm text-slate-400 py-10 border border-dashed border-slate-700 rounded-md">
+                Nenhum item encontrado.
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {filteredAccounts.map((account) => {
-                  const values = accountToMetricValues(account);
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {sortedItems.map((item) => {
+                  const values = itemToMetricValues(item);
+                  const canDrill = level === 'campaigns' || level === 'adsets';
                   return (
-                    <button
-                      key={account.id}
-                      type="button"
-                      onClick={() => selectAccount(account)}
-                      className="text-left rounded-lg border border-border bg-card p-4 space-y-1.5 hover:bg-muted/40 transition-colors"
+                    <div
+                      key={item.id}
+                      role={canDrill ? 'button' : undefined}
+                      tabIndex={canDrill ? 0 : undefined}
+                      onClick={canDrill ? () => (level === 'campaigns' ? openCampaign(item) : openAdSet(item)) : undefined}
+                      onKeyDown={
+                        canDrill
+                          ? (e) => {
+                              if (e.key !== 'Enter') return;
+                              if (level === 'campaigns') openCampaign(item);
+                              else openAdSet(item);
+                            }
+                          : undefined
+                      }
+                      className={`${cardBaseClass} ${canDrill ? cardInteractiveClass : ''}`}
                     >
-                      <h4 className="text-sm font-semibold truncate mb-1.5" title={account.name}>
-                        {account.name}
-                      </h4>
-                      {METRIC_ORDER.map((key) => (
-                        <MetricRow key={key} metricKey={key} value={values[key] ?? 0} visible={visibility[key]} />
-                      ))}
-                    </button>
+                      <div className="flex items-start justify-between mb-2 pb-1 border-b border-slate-700">
+                        <h3 className={`text-sm font-bold line-clamp-2 leading-tight pr-1 ${LEVEL_TITLE_COLOR[level]}`} title={item.name}>
+                          {item.name}
+                        </h3>
+                        <StatusDot status={item.status} />
+                      </div>
+                      <div className="space-y-1 pt-2">
+                        {METRIC_ORDER.filter((k) => k !== 'balance').map((key) => (
+                          <MetricRow key={key} metricKey={key} value={values[key] ?? 0} visible={visibility[key]} />
+                        ))}
+                      </div>
+                    </div>
                   );
                 })}
               </div>
-            )
-          ) : loadingTree ? (
-            <div className="text-center text-sm text-muted-foreground py-10">Carregando...</div>
-          ) : sortedItems.length === 0 ? (
-            <div className="text-center text-sm text-muted-foreground py-10 border border-dashed rounded-md">
-              Nenhum item encontrado.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {sortedItems.map((item) => {
-                const values = itemToMetricValues(item);
-                const canDrill = level === 'campaigns' || level === 'adsets';
-                const Wrapper = canDrill ? 'button' : 'div';
-                return (
-                  <Wrapper
-                    key={item.id}
-                    type={canDrill ? 'button' : undefined}
-                    onClick={canDrill ? () => (level === 'campaigns' ? openCampaign(item) : openAdSet(item)) : undefined}
-                    className={`text-left rounded-lg border border-border bg-card p-4 space-y-1.5 ${canDrill ? 'hover:bg-muted/40 transition-colors' : ''}`}
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <h4 className="text-sm font-semibold truncate" title={item.name}>
-                        {item.name}
-                      </h4>
-                      <Badge variant={item.status === 'ACTIVE' ? 'default' : 'secondary'} className="shrink-0">
-                        {item.status}
-                      </Badge>
-                    </div>
-                    {METRIC_ORDER.filter((k) => k !== 'balance').map((key) => (
-                      <MetricRow key={key} metricKey={key} value={values[key] ?? 0} visible={visibility[key]} />
-                    ))}
-                  </Wrapper>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
