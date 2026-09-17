@@ -228,7 +228,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
       { name: 'Metas de Clientes', href: '/marketing/metas-clientes', icon: Target },
       { name: 'Criação Meta', href: '/marketing/criacao-meta', icon: Sparkles },
       { name: 'Alertas e Relatórios', href: '/marketing/alertas', icon: Bell },
-      { name: 'Painel Tráfego', href: '/editor/content/mtlsqe9g-44xt89', icon: Megaphone },
+      { name: 'Painel Tráfego', href: '/marketing/painel-trafego', icon: Megaphone },
       { name: 'Setup Marketing (Meta/GA4/Ads)', href: '/editor/content/setupbm-36c48c9d', icon: Settings },
       { name: 'Copy de Tráfego (Meta)', href: '/editor/content/mktia-copytrafego', icon: PenTool },
       { name: 'Gerar Áudio (ElevenLabs)', href: '/editor/content/mktia-audioeleven', icon: AudioWaveform },

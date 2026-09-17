@@ -81,6 +81,7 @@ import GtmPage from '@/pages/Customer/Marketing/GtmPage';
 import GestorPostsPage from '@/pages/Customer/Marketing/GestorPostsPage';
 import ClientGoalsPage from '@/pages/Customer/Marketing/ClientGoalsPage';
 import MetaCreationPage from '@/pages/Customer/Marketing/MetaCreationPage';
+import TrafficPanelPage from '@/pages/Customer/Marketing/TrafficPanelPage';
 import MarketingAlertsSettingsPage from '@/pages/Customer/Marketing/MarketingAlertsSettingsPage';
 import OrdersPage from '@/pages/Customer/Orders/OrdersPage';
 import IfoodOrdersPage from '@/pages/Customer/Orders/IfoodOrdersPage';
@@ -704,6 +705,24 @@ const AppRouter = () => {
                 <CustomerRoute>
                   <MainLayout>
                     <MetaCreationPage />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* Marketing > Painel Tráfego: versão nativa (Fase 1 — só visualização) do
+              dashboard legado que vivia como HTML solto no Editor (node
+              mtlsqe9g-44xt89) — ver dashboards-src/painel_trafego.html no backend
+              pra histórico. Ações de escrita (criar/editar/duplicar/arquivar
+              campanha) ainda não foram portadas, ficam pra uma fase seguinte. */}
+          <Route
+            path="/marketing/painel-trafego"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <TrafficPanelPage />
                   </MainLayout>
                 </CustomerRoute>
               </PrivateRoute>
