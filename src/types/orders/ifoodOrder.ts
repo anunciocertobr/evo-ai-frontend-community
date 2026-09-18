@@ -28,6 +28,13 @@ export interface IfoodStatus {
   status_message?: string;
 }
 
+// Campo exato retornado pelo iFood (cancelCodeId/description) — repassado
+// sem transformação pelo backend a partir de GET .../cancellationReasons.
+export interface IfoodCancellationReason {
+  cancelCodeId: string;
+  description: string;
+}
+
 export interface IfoodInterruption {
   id: string;
   description: string;

@@ -47,6 +47,7 @@ import type {
   IfoodOrder,
   IfoodStatus,
   IfoodInterruption,
+  IfoodCancellationReason,
   IfoodCategory,
   IfoodSettlements,
   IfoodReviews,
@@ -396,16 +397,46 @@ export default function IfoodOrdersPage() {
     }
   };
 
-  const handleCancel = async (order: IfoodOrder) => {
-    setActioningId(order.id);
+  // Homologação do iFood exige buscar os motivos válidos PRA ESTE PEDIDO
+  // (mudam conforme o status atual dele) e deixar quem opera escolher — não
+  // dá pra mandar um motivo fixo direto.
+  const [cancelOrderTarget, setCancelOrderTarget] = useState<IfoodOrder | null>(null);
+  const [cancelReasons, setCancelReasons] = useState<IfoodCancellationReason[] | null>(null);
+  const [loadingCancelReasons, setLoadingCancelReasons] = useState(false);
+  const [selectedCancelReasonId, setSelectedCancelReasonId] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+
+  const openCancelDialog = async (order: IfoodOrder) => {
+    setCancelOrderTarget(order);
+    setCancelReasons(null);
+    setSelectedCancelReasonId('');
+    setLoadingCancelReasons(true);
     try {
-      const updated = await ifoodService.cancelOrder(order.id, 'Cancelado pela loja');
-      setOrders((prev) => prev.map((o) => (o.id === order.id ? updated : o)));
+      const reasons = await ifoodService.getCancellationReasons(order.id);
+      setCancelReasons(reasons);
+    } catch {
+      toast.error('Erro ao buscar os motivos de cancelamento no iFood');
+      setCancelOrderTarget(null);
+    } finally {
+      setLoadingCancelReasons(false);
+    }
+  };
+
+  const confirmCancel = async () => {
+    if (!cancelOrderTarget || !selectedCancelReasonId) return;
+    const reason = cancelReasons?.find((r) => r.cancelCodeId === selectedCancelReasonId);
+    if (!reason) return;
+
+    setCancelling(true);
+    try {
+      const updated = await ifoodService.cancelOrder(cancelOrderTarget.id, reason.cancelCodeId, reason.description);
+      setOrders((prev) => prev.map((o) => (o.id === cancelOrderTarget.id ? updated : o)));
       toast.success('Pedido cancelado');
+      setCancelOrderTarget(null);
     } catch {
       toast.error('Erro ao cancelar pedido no iFood');
     } finally {
-      setActioningId(null);
+      setCancelling(false);
     }
   };
 
@@ -895,7 +926,7 @@ export default function IfoodOrdersPage() {
                           variant="outline"
                           className="text-destructive hover:text-destructive"
                           disabled={busy}
-                          onClick={() => handleCancel(order)}
+                          onClick={() => openCancelDialog(order)}
                         >
                           Cancelar
                         </Button>
@@ -908,6 +939,52 @@ export default function IfoodOrdersPage() {
           )}
         </div>
       )}
+
+      <Dialog open={Boolean(cancelOrderTarget)} onOpenChange={(open) => !open && setCancelOrderTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar pedido {cancelOrderTarget?.display_id || cancelOrderTarget?.id}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Escolha o motivo do cancelamento — a lista abaixo vem direto do iFood e varia conforme o status atual
+              deste pedido.
+            </p>
+            {loadingCancelReasons ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">Carregando motivos...</p>
+            ) : !cancelReasons || cancelReasons.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center border border-dashed rounded-md">
+                O iFood não retornou nenhum motivo de cancelamento pra este pedido.
+              </p>
+            ) : (
+              <Select value={selectedCancelReasonId} onValueChange={setSelectedCancelReasonId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o motivo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cancelReasons.map((reason) => (
+                    <SelectItem key={reason.cancelCodeId} value={reason.cancelCodeId}>
+                      {reason.description}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelOrderTarget(null)}>
+              Voltar
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!selectedCancelReasonId || cancelling}
+              onClick={confirmCancel}
+            >
+              {cancelling ? 'Cancelando...' : 'Confirmar cancelamento'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {tab === 'status' && (
         <div className="space-y-4">

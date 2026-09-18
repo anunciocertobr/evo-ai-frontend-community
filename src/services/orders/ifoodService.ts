@@ -4,6 +4,7 @@ import type {
   IfoodOrder,
   IfoodStatus,
   IfoodInterruption,
+  IfoodCancellationReason,
   IfoodCategory,
   IfoodSettlements,
   IfoodSales,
@@ -60,8 +61,19 @@ class IfoodService {
     return extractData<IfoodOrder>(response);
   }
 
-  async cancelOrder(id: string, reason?: string): Promise<IfoodOrder> {
-    const response = await api.post(`${this.baseUrl}/orders/${id}/cancel`, { reason });
+  // Exigido pela homologação do iFood: os motivos válidos mudam conforme o
+  // status atual do pedido, então precisam ser buscados por pedido — nunca
+  // um código fixo.
+  async getCancellationReasons(id: string): Promise<IfoodCancellationReason[]> {
+    const response = await api.get(`${this.baseUrl}/orders/${id}/cancellation_reasons`);
+    return extractData<IfoodCancellationReason[]>(response);
+  }
+
+  async cancelOrder(id: string, cancellationCode: string, reason: string): Promise<IfoodOrder> {
+    const response = await api.post(`${this.baseUrl}/orders/${id}/cancel`, {
+      cancellation_code: cancellationCode,
+      reason,
+    });
     return extractData<IfoodOrder>(response);
   }
 
