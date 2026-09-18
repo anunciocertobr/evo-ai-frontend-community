@@ -51,6 +51,7 @@ import {
   Bell,
   Home,
   Sparkles,
+  Brain,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -236,6 +237,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
       { name: 'Roteiro de Vídeo', href: '/editor/content/mktia-roteirovideo', icon: Video },
       { name: 'Suíte de Mídia', href: '/editor/content/mktia-suitemidia', icon: Layers },
       { name: 'Quadro de Desenho', href: '/editor/content/mktia-quadrodesenho', icon: Paintbrush },
+      { name: 'Mapa Mental', href: '/editor/content/mktia-mapamental', icon: Brain },
     ],
   },
   {
