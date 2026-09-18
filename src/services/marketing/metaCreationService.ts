@@ -144,6 +144,18 @@ export interface MetaPixel {
   name: string;
 }
 
+// Usado só ao duplicar um público pra outra conta — retention_days e
+// lookalike_spec (ratio/país) são reaproveitáveis; pixel/público de origem
+// não (são da conta de destino, nunca os mesmos ids da conta de origem).
+export interface AudienceDetail {
+  id: string;
+  name: string;
+  subtype: string;
+  description?: string;
+  retention_days?: number;
+  lookalike_spec?: { ratio?: number; country?: string };
+}
+
 export type TargetingCategory = 'interests' | 'behaviors' | 'demographics';
 
 export interface TargetingItem {
@@ -178,6 +190,17 @@ export interface TargetingList {
   id: string;
   name: string;
   items: ChosenTargetingItem[];
+}
+
+// Público salvo de verdade na Meta (geo/idade/gênero/interesses completo,
+// vinculado a uma conta de anúncio específica) — diferente da TargetingList
+// acima, que é só um recorte de itens salvo localmente sem conta associada.
+export interface SavedAudience {
+  id: string;
+  name: string;
+  description?: string;
+  targeting: TargetingSpec;
+  approximate_count?: number;
 }
 
 export interface ReachEstimate {
@@ -304,6 +327,14 @@ class MetaCreationService {
     return response.data || [];
   }
 
+  async getAudienceDetail(audienceId: string): Promise<AudienceDetail> {
+    const response = await api.post<AudienceDetail>(ENDPOINT, {
+      acao: 'detalhe_publico',
+      id_publico: audienceId,
+    });
+    return response.data;
+  }
+
   async createWebsiteAudience(payload: {
     adAccountId: string;
     name: string;
@@ -399,6 +430,31 @@ class MetaCreationService {
       id_conta_anuncio: adAccountId,
       name,
       targeting: JSON.stringify(targeting),
+    });
+    return response.data;
+  }
+
+  async listSavedAudiences(adAccountId: string): Promise<SavedAudience[]> {
+    const response = await api.post<SavedAudience[]>(ENDPOINT, {
+      acao: 'listar_publicos_salvos',
+      id_conta_anuncio: adAccountId,
+    });
+    return response.data || [];
+  }
+
+  async duplicateSavedAudience(params: {
+    sourceAudienceId: string;
+    targetAccountId: string;
+    overrides?: { name?: string; targeting?: TargetingSpec };
+  }): Promise<{ id: string }> {
+    const response = await api.post<{ id: string }>(ENDPOINT, {
+      acao: 'duplicar_publico_salvo',
+      id_publico_salvo: params.sourceAudienceId,
+      id_conta_destino: params.targetAccountId,
+      overrides: {
+        name: params.overrides?.name,
+        targeting: params.overrides?.targeting ? JSON.stringify(params.overrides.targeting) : undefined,
+      },
     });
     return response.data;
   }

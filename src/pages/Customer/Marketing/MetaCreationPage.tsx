@@ -59,6 +59,7 @@ export default function MetaCreationPage() {
   const [loadingAudiences, setLoadingAudiences] = useState(false);
   const [audienceDialogOpen, setAudienceDialogOpen] = useState(false);
   const [pendingCustomerList, setPendingCustomerList] = useState<CustomAudience | null>(null);
+  const [duplicateAudienceFrom, setDuplicateAudienceFrom] = useState<CustomAudience | null>(null);
 
   const loadForms = useCallback((pageId: string) => {
     setLoadingForms(true);
@@ -278,6 +279,11 @@ export default function MetaCreationPage() {
                       {a.delivery_status?.description && (
                         <p className="text-[0.65rem] text-muted-foreground">{a.delivery_status.description}</p>
                       )}
+                      <div className="pt-1">
+                        <Button size="sm" variant="outline" onClick={() => setDuplicateAudienceFrom(a)}>
+                          <Copy className="w-3.5 h-3.5 mr-1" /> Duplicar
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -288,6 +294,19 @@ export default function MetaCreationPage() {
                 onOpenChange={setAudienceDialogOpen}
                 adAccountId={account.id}
                 existingAudiences={audiences || []}
+                onCreated={() => loadAudiences(account.id)}
+                onCustomerListCreated={(audience) => {
+                  setPendingCustomerList(audience);
+                  loadAudiences(account.id);
+                }}
+              />
+
+              <AudienceCreateDialog
+                open={Boolean(duplicateAudienceFrom)}
+                onOpenChange={(open) => !open && setDuplicateAudienceFrom(null)}
+                adAccountId={account.id}
+                existingAudiences={audiences || []}
+                duplicateFrom={duplicateAudienceFrom}
                 onCreated={() => loadAudiences(account.id)}
                 onCustomerListCreated={(audience) => {
                   setPendingCustomerList(audience);

@@ -11,8 +11,14 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@evoapi/design-system';
-import { Plus, X, Search, Users2, Sparkles, ListPlus, Trash2, ArrowLeftRight } from 'lucide-react';
+import { Plus, X, Search, Users2, Sparkles, ListPlus, Trash2, ArrowLeftRight, Copy } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -23,6 +29,7 @@ import {
   type ChosenTargetingItem,
   type TargetingSpec,
   type TargetingList,
+  type SavedAudience,
 } from '@/services/marketing/metaCreationService';
 
 const CATEGORY_LABEL: Record<TargetingCategory, string> = {
@@ -84,6 +91,16 @@ export function TargetingBuilder() {
 
   const [audienceName, setAudienceName] = useState('');
   const [savingAudience, setSavingAudience] = useState(false);
+
+  // Públicos salvos já existentes nesta conta (pra listar e permitir
+  // duplicar pra outra conta — a Graph API não lista isso automaticamente
+  // em nenhum outro lugar da tela).
+  const [savedAudiences, setSavedAudiences] = useState<SavedAudience[] | null>(null);
+  const [loadingSavedAudiences, setLoadingSavedAudiences] = useState(false);
+  const [duplicateSource, setDuplicateSource] = useState<SavedAudience | null>(null);
+  const [duplicateTargetAccount, setDuplicateTargetAccount] = useState<{ id: string; name: string } | null>(null);
+  const [duplicateName, setDuplicateName] = useState('');
+  const [duplicatingSaved, setDuplicatingSaved] = useState(false);
 
   // Listas de direcionamento salvas (locais ao CRM) — um recorte nomeado de
   // itens (ex: "Medicina" = médico + veterinário + estudante + enfermagem)
@@ -284,6 +301,19 @@ export function TargetingBuilder() {
     bucketSetters[bucket]((prev) => prev.filter((i) => i.id !== id));
   };
 
+  const loadSavedAudiences = (accountId: string) => {
+    setLoadingSavedAudiences(true);
+    metaCreationService
+      .listSavedAudiences(accountId)
+      .then(setSavedAudiences)
+      .catch(() => toast.error('Erro ao carregar públicos salvos'))
+      .finally(() => setLoadingSavedAudiences(false));
+  };
+
+  useEffect(() => {
+    if (account) loadSavedAudiences(account.id);
+  }, [account]);
+
   const handleSaveAudience = async () => {
     if (!account) return;
     if (!audienceName.trim()) {
@@ -295,10 +325,40 @@ export function TargetingBuilder() {
       await metaCreationService.createSavedAudience(account.id, audienceName.trim(), buildSpec);
       toast.success('Público salvo na Meta! Já pode ser usado em novas campanhas.');
       setAudienceName('');
+      loadSavedAudiences(account.id);
     } catch {
       toast.error('Erro ao salvar o público na Meta');
     } finally {
       setSavingAudience(false);
+    }
+  };
+
+  const openDuplicateSaved = (audience: SavedAudience) => {
+    setDuplicateSource(audience);
+    setDuplicateTargetAccount(null);
+    setDuplicateName(`${audience.name} - Cópia`);
+  };
+
+  const handleDuplicateSaved = async () => {
+    if (!duplicateSource || !duplicateTargetAccount) return;
+    if (!duplicateName.trim()) {
+      toast.error('Informe um nome para a cópia');
+      return;
+    }
+    setDuplicatingSaved(true);
+    try {
+      await metaCreationService.duplicateSavedAudience({
+        sourceAudienceId: duplicateSource.id,
+        targetAccountId: duplicateTargetAccount.id,
+        overrides: { name: duplicateName.trim() },
+      });
+      toast.success('Público salvo duplicado!');
+      setDuplicateSource(null);
+      if (duplicateTargetAccount.id === account?.id) loadSavedAudiences(account.id);
+    } catch {
+      toast.error('Erro ao duplicar o público salvo');
+    } finally {
+      setDuplicatingSaved(false);
     }
   };
 
@@ -622,9 +682,84 @@ export function TargetingBuilder() {
                 Fica disponível pra usar em qualquer campanha nova, direto no Gerenciador de Anúncios da Meta.
               </p>
             </section>
+
+            <section className="rounded-lg border border-border bg-card p-4 space-y-2">
+              <h4 className="text-sm font-semibold">Públicos salvos nesta conta</h4>
+              {loadingSavedAudiences ? (
+                <p className="text-sm text-muted-foreground text-center py-3">Carregando...</p>
+              ) : !savedAudiences || savedAudiences.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-2">Nenhum público salvo ainda.</p>
+              ) : (
+                <div className="space-y-2">
+                  {savedAudiences.map((sa) => (
+                    <div key={sa.id} className="rounded-md border p-2.5 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate" title={sa.name}>
+                          {sa.name}
+                        </p>
+                        {sa.approximate_count != null && (
+                          <p className="text-xs text-muted-foreground">
+                            {sa.approximate_count.toLocaleString('pt-BR')} pessoas
+                          </p>
+                        )}
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => openDuplicateSaved(sa)} className="shrink-0">
+                        <Copy className="w-3.5 h-3.5 mr-1" /> Duplicar
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         </div>
       )}
+
+      <Dialog open={Boolean(duplicateSource)} onOpenChange={(open) => !open && setDuplicateSource(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Duplicar público salvo</DialogTitle>
+            <DialogDescription>
+              Escolha pra qual conta de anúncio a cópia é criada — o direcionamento (localização, idade, interesses)
+              é copiado como está.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!duplicateTargetAccount ? (
+            <MetaScopedEntityPicker
+              stepTwoLabel="Conta de anúncio"
+              fetchStepTwo={(bmId) => clientGoalsService.listAdAccountsForBm(bmId)}
+              onSelect={setDuplicateTargetAccount}
+            />
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2">
+                <span className="text-sm">
+                  Conta de destino: <span className="font-medium">{duplicateTargetAccount.name}</span>
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => setDuplicateTargetAccount(null)}>
+                  Trocar
+                </Button>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nome da cópia</Label>
+                <Input value={duplicateName} onChange={(e) => setDuplicateName(e.target.value)} />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDuplicateSource(null)} disabled={duplicatingSaved}>
+              Cancelar
+            </Button>
+            {duplicateTargetAccount && (
+              <Button onClick={handleDuplicateSaved} disabled={duplicatingSaved}>
+                {duplicatingSaved ? 'Duplicando...' : 'Criar cópia'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
