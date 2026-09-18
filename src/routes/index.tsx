@@ -81,6 +81,7 @@ import GtmPage from '@/pages/Customer/Marketing/GtmPage';
 import GestorPostsPage from '@/pages/Customer/Marketing/GestorPostsPage';
 import ClientGoalsPage from '@/pages/Customer/Marketing/ClientGoalsPage';
 import MetaCreationPage from '@/pages/Customer/Marketing/MetaCreationPage';
+import GoogleAdsCreationPage from '@/pages/Customer/Marketing/GoogleAdsCreationPage';
 import TrafficPanelPage from '@/pages/Customer/Marketing/TrafficPanelPage';
 import MarketingAlertsSettingsPage from '@/pages/Customer/Marketing/MarketingAlertsSettingsPage';
 import OrdersPage from '@/pages/Customer/Orders/OrdersPage';
@@ -705,6 +706,20 @@ const AppRouter = () => {
                 <CustomerRoute>
                   <MainLayout>
                     <MetaCreationPage />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* Marketing > Criação Google Ads: públicos personalizados, palavras-chave e títulos/descrições — sem API do Google Ads ligada ainda, fica salvo local pra publicar depois */}
+          <Route
+            path="/marketing/criacao-google-ads"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <GoogleAdsCreationPage />
                   </MainLayout>
                 </CustomerRoute>
               </PrivateRoute>
