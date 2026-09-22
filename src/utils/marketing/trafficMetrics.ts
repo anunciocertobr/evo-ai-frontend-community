@@ -31,10 +31,40 @@ export interface RawInsightRow {
   actions?: MetaAction[];
 }
 
+export interface AdCreative {
+  name?: string;
+  body?: string;
+  title?: string;
+  image_url?: string;
+  video_id?: string;
+}
+
+export interface AdSetTargeting {
+  age_min?: number;
+  age_max?: number;
+  genders?: number[];
+  geo_locations?: {
+    cities?: Array<{ name?: string; radius?: number; distance_unit?: string }>;
+    places?: Array<{ name?: string; radius?: number; distance_unit?: string }>;
+    countries?: string[];
+  };
+  publisher_platforms?: string[];
+  facebook_positions?: string[];
+  instagram_positions?: string[];
+}
+
+export interface PromotedObject {
+  whatsapp_phone_number?: string;
+  pixel_id?: string;
+  custom_event_type?: string;
+  page_id?: string;
+}
+
 export interface StructuralAd {
   id: string;
   name: string;
   status: string;
+  adcreative?: AdCreative;
 }
 
 export interface StructuralAdSet {
@@ -42,6 +72,8 @@ export interface StructuralAdSet {
   name: string;
   status: string;
   daily_budget?: string;
+  targeting?: AdSetTargeting;
+  promoted_object?: PromotedObject;
   optimization_goal?: string;
   bid_strategy?: string;
   start_time?: string;
@@ -73,6 +105,13 @@ export interface AggregatedItem {
   activeAdSetsCount?: number;
   totalAds?: number;
   activeAdsCount?: number;
+  // Campos crus (não agregados) — usados pelo painel de detalhes (1 clique)
+  // e pelos modais de editar, que precisam do estado atual do objeto na
+  // Graph API, não da métrica somada.
+  dailyBudget?: string;
+  targeting?: AdSetTargeting;
+  promotedObject?: PromotedObject;
+  adCreative?: AdCreative;
   impressions: number;
   reach: number;
   spend: number;
@@ -190,6 +229,9 @@ export function aggregateDataForLevel(
               optimization_goal: adset.optimization_goal,
               totalAds,
               activeAdsCount,
+              dailyBudget: adset.daily_budget,
+              targeting: adset.targeting,
+              promotedObject: adset.promoted_object,
             },
             raw: emptyBucket(),
           });
@@ -207,6 +249,7 @@ export function aggregateDataForLevel(
                 parentName: adset.name,
                 adSetId: adset.id,
                 campaignId: campaign.id,
+                adCreative: ad.adcreative,
               },
               raw: emptyBucket(),
             });
