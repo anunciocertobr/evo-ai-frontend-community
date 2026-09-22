@@ -843,12 +843,19 @@ function EditAdModal({
 }) {
   const [name, setName] = useState('');
   const [status, setStatus] = useState<'ACTIVE' | 'PAUSED'>('PAUSED');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [newImageFile, setNewImageFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const isVideo = !!item?.adCreative?.video_id;
 
   useEffect(() => {
     if (item) {
       setName(item.name);
       setStatus(item.status === 'ACTIVE' ? 'ACTIVE' : 'PAUSED');
+      setTitle(item.adCreative?.title || '');
+      setBody(item.adCreative?.body || '');
+      setNewImageFile(null);
     }
   }, [item]);
 
@@ -864,6 +871,16 @@ function EditAdModal({
       const edicao: Record<string, string> = {};
       if (trimmed !== item.name) edicao.name = trimmed;
       if (status !== item.status) edicao.status = status;
+
+      const creativeEdit: Record<string, string> = {};
+      if (body.trim() !== (item.adCreative?.body || '')) creativeEdit.body = body.trim();
+      if (title.trim() !== (item.adCreative?.title || '')) creativeEdit.title = title.trim();
+      if (newImageFile) {
+        creativeEdit.asset_base64 = await fileToBase64(newImageFile);
+        creativeEdit.asset_mimetype = newImageFile.type;
+      }
+      if (Object.keys(creativeEdit).length > 0) edicao.ad_creative = JSON.stringify(creativeEdit);
+
       if (Object.keys(edicao).length === 0) {
         toast('Nenhuma alteração para salvar.');
         onOpenChange(false);
@@ -882,11 +899,11 @@ function EditAdModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200">
+      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar Anúncio</DialogTitle>
           <DialogDescription className="text-slate-400">
-            Edição de título/texto/criativo do anúncio ainda não está disponível por aqui — use o Gerenciador de Anúncios da Meta para isso.
+            Trocar o criativo cria um novo criativo na Meta e aponta o anúncio pra ele — o anterior continua existindo, só deixa de ser usado.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -897,6 +914,33 @@ function EditAdModal({
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium text-slate-300">Status Ativo</Label>
             <Checkbox checked={status === 'ACTIVE'} onCheckedChange={(checked) => setStatus(checked ? 'ACTIVE' : 'PAUSED')} />
+          </div>
+          <div>
+            <Label className="text-xs text-slate-400">Título</Label>
+            <Input value={title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)} className="bg-slate-700 border-slate-600 text-slate-200" />
+          </div>
+          <div>
+            <Label className="text-xs text-slate-400">Texto (corpo do anúncio)</Label>
+            <Textarea value={body} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setBody(e.target.value)} rows={3} className="bg-slate-700 border-slate-600 text-slate-200" />
+          </div>
+          <div>
+            <Label className="text-xs text-slate-400">Imagem</Label>
+            {isVideo ? (
+              <p className="text-xs text-amber-400 mt-1">Este anúncio usa vídeo — trocar o vídeo não é suportado por aqui.</p>
+            ) : (
+              <>
+                {item?.adCreative?.image_url && !newImageFile && (
+                  <img src={item.adCreative.image_url} alt="Criativo atual" className="w-24 h-24 object-cover rounded-md border border-slate-600 mt-1 mb-2" />
+                )}
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setNewImageFile(e.target.files?.[0] || null)}
+                  className="bg-slate-700 border-slate-600 text-slate-200"
+                />
+                {newImageFile && <p className="text-xs text-slate-400 mt-1">Nova imagem: {newImageFile.name}</p>}
+              </>
+            )}
           </div>
         </div>
         <DialogFooter>
