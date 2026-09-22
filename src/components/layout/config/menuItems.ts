@@ -212,6 +212,8 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
       { name: 'Holerite', href: '/finances/holerite', icon: ScrollText },
       { name: 'Nota Fiscal', href: '/finances/nota-fiscal', icon: Receipt },
       { name: 'Notas/Recibos', href: '/finances/recibos', icon: ScanLine },
+      { name: 'Nota Fiscal de Serviço', href: '/finances/nota-fiscal-servico', icon: FileText },
+      { name: 'Emissores de NFS-e', href: '/finances/fiscal-establishments', icon: Building2 },
     ],
   },
   {

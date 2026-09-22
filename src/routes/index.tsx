@@ -77,6 +77,8 @@ import FinancesPage from '@/pages/Customer/Finances/FinancesPage';
 import HoleritePage from '@/pages/Customer/Finances/HoleritePage';
 import NotaFiscalPage from '@/pages/Customer/Finances/NotaFiscalPage';
 import RecibosPage from '@/pages/Customer/Finances/RecibosPage';
+import FiscalEstablishmentsPage from '@/pages/Customer/Finances/FiscalEstablishmentsPage';
+import NotaFiscalServicoPage from '@/pages/Customer/Finances/NotaFiscalServicoPage';
 import GtmPage from '@/pages/Customer/Marketing/GtmPage';
 import GestorPostsPage from '@/pages/Customer/Marketing/GestorPostsPage';
 import ClientGoalsPage from '@/pages/Customer/Marketing/ClientGoalsPage';
@@ -650,6 +652,36 @@ const AppRouter = () => {
                 <CustomerRoute>
                   <MainLayout>
                     <RecibosPage />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* NFS-e: cadastro de estabelecimentos fiscais (certificado A1 + inscrição
+              municipal) por município — rota estática antes de /finances/:escopo */}
+          <Route
+            path="/finances/fiscal-establishments"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <FiscalEstablishmentsPage />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* NFS-e: emissão/lista de notas fiscais de serviço, direto com a
+              prefeitura (sem gateway pago) — rota estática antes de /finances/:escopo */}
+          <Route
+            path="/finances/nota-fiscal-servico"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <NotaFiscalServicoPage />
                   </MainLayout>
                 </CustomerRoute>
               </PrivateRoute>
