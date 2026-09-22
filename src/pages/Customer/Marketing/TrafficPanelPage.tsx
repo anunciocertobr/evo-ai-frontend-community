@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { toast } from 'sonner';
 import {
   Button,
@@ -605,6 +607,13 @@ function EditAdSetModal({
   const [name, setName] = useState('');
   const [status, setStatus] = useState<'ACTIVE' | 'PAUSED'>('PAUSED');
   const [budget, setBudget] = useState('');
+  const [ageMin, setAgeMin] = useState('18');
+  const [ageMax, setAgeMax] = useState('65');
+  const [savedAudienceName, setSavedAudienceName] = useState('');
+  const [detailedTargeting, setDetailedTargeting] = useState('');
+  const [geoLocationName, setGeoLocationName] = useState('');
+  const [geoRadius, setGeoRadius] = useState('');
+  const [platforms, setPlatforms] = useState<string[]>(['facebook', 'instagram']);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -612,8 +621,21 @@ function EditAdSetModal({
       setName(item.name);
       setStatus(item.status === 'ACTIVE' ? 'ACTIVE' : 'PAUSED');
       setBudget((parseFloat(item.dailyBudget || '0') / 100).toFixed(2));
+      setAgeMin(String(item.targeting?.age_min || 18));
+      setAgeMax(String(item.targeting?.age_max || 65));
+      setSavedAudienceName('');
+      setDetailedTargeting('');
+      const geo = item.targeting?.geo_locations;
+      const firstCity = geo?.cities?.[0];
+      const firstPlace = geo?.places?.[0];
+      setGeoLocationName(firstCity?.name || firstPlace?.name || geo?.countries?.join(', ') || '');
+      setGeoRadius(String(firstCity?.radius || firstPlace?.radius || ''));
+      setPlatforms(item.targeting?.publisher_platforms?.length ? item.targeting.publisher_platforms : ['facebook', 'instagram']);
     }
   }, [item]);
+
+  const togglePlatform = (value: string) =>
+    setPlatforms((prev) => (prev.includes(value) ? prev.filter((p) => p !== value) : [...prev, value]));
 
   const handleSave = async () => {
     if (!item) return;
@@ -627,6 +649,12 @@ function EditAdSetModal({
       toast.error('Informe um orçamento diário válido.');
       return;
     }
+    const ageMinNum = parseInt(ageMin, 10);
+    const ageMaxNum = parseInt(ageMax, 10);
+    if (ageMinNum > ageMaxNum) {
+      toast.error('Idade mínima não pode ser maior que a máxima.');
+      return;
+    }
     setSaving(true);
     try {
       const edicao: Record<string, string> = {};
@@ -634,6 +662,33 @@ function EditAdSetModal({
       if (status !== item.status) edicao.status = status;
       const budgetCents = Math.round(budgetValue * 100).toString();
       if (budgetCents !== item.dailyBudget) edicao.daily_budget = budgetCents;
+
+      // `targeting` precisa chegar como STRING JSON (não objeto aninhado) —
+      // o helper `update()` do backend faz `set_form_data` direto sem
+      // serializar campos aninhados (só os caminhos dedicados de criar/
+      // duplicar fazem `.to_json` antes de mandar pra Graph API). Pré-
+      // serializando aqui, o valor chega como string e passa incólume pelo
+      // `JSON.parse("{...}")` do controller — sem precisar mudar backend.
+      const detailedTargetingManual = detailedTargeting
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      const radiusNum = parseFloat(geoRadius);
+      const targeting: Record<string, unknown> = {
+        age_min: ageMinNum,
+        age_max: ageMaxNum,
+        publisher_platforms: platforms.length > 0 ? platforms : ['facebook', 'instagram'],
+      };
+      if (savedAudienceName.trim()) targeting.custom_audience_id = savedAudienceName.trim();
+      if (detailedTargetingManual.length > 0) targeting.detailed_targeting_manual = detailedTargetingManual;
+      if (geoLocationName.trim()) {
+        targeting.geo_locations = {
+          location_types: ['home', 'recent'],
+          cities: [{ name: geoLocationName.trim(), radius: radiusNum > 0 ? radiusNum : 15, distance_unit: 'kilometer' }],
+        };
+      }
+      edicao.targeting = JSON.stringify(targeting);
+
       if (Object.keys(edicao).length === 0) {
         toast('Nenhuma alteração para salvar.');
         onOpenChange(false);
@@ -652,16 +707,20 @@ function EditAdSetModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200">
+      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar Conjunto de Anúncios</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          <div className="flex items-center justify-between border-b border-slate-700 pb-4">
+            <Label className="text-sm font-medium text-slate-300">Status Ativo</Label>
+            <Checkbox checked={status === 'ACTIVE'} onCheckedChange={(checked) => setStatus(checked ? 'ACTIVE' : 'PAUSED')} />
+          </div>
           <div>
             <Label className="text-xs text-slate-400">Nome do Conjunto</Label>
             <Input value={name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)} className="bg-slate-700 border-slate-600 text-slate-200" />
           </div>
-          <div>
+          <div className="border-b border-slate-700 pb-4">
             <Label className="text-xs text-slate-400">Orçamento Diário (R$)</Label>
             <Input
               type="number"
@@ -672,9 +731,90 @@ function EditAdSetModal({
               className="bg-slate-700 border-slate-600 text-slate-200"
             />
           </div>
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium text-slate-300">Status Ativo</Label>
-            <Checkbox checked={status === 'ACTIVE'} onCheckedChange={(checked) => setStatus(checked ? 'ACTIVE' : 'PAUSED')} />
+
+          <div className="space-y-3 border-b border-slate-700 pb-4">
+            <h4 className="text-sm font-semibold text-slate-200">Público Alvo</h4>
+            <div>
+              <Label className="text-xs text-slate-400">Público Salvo (nome, opcional)</Label>
+              <Input
+                value={savedAudienceName}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSavedAudienceName(e.target.value)}
+                placeholder="Em branco para público personalizado"
+                className="bg-slate-700 border-slate-600 text-slate-200"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 border-b border-slate-700 pb-4">
+            <div>
+              <Label className="text-xs text-slate-400">Idade Mínima</Label>
+              <Input
+                type="number"
+                min={13}
+                max={65}
+                value={ageMin}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgeMin(e.target.value)}
+                className="bg-slate-700 border-slate-600 text-slate-200"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-slate-400">Idade Máxima</Label>
+              <Input
+                type="number"
+                min={17}
+                max={65}
+                value={ageMax}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgeMax(e.target.value)}
+                className="bg-slate-700 border-slate-600 text-slate-200"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 border-b border-slate-700 pb-4">
+            <div className="flex-grow">
+              <Label className="text-xs text-slate-400">Localização (nome da cidade/país)</Label>
+              <Input
+                value={geoLocationName}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGeoLocationName(e.target.value)}
+                placeholder="Ex: São Paulo"
+                className="bg-slate-700 border-slate-600 text-slate-200"
+              />
+            </div>
+            <div className="w-24">
+              <Label className="text-xs text-slate-400">Raio (km)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={80}
+                value={geoRadius}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGeoRadius(e.target.value)}
+                placeholder="15"
+                className="bg-slate-700 border-slate-600 text-slate-200"
+              />
+            </div>
+          </div>
+
+          <div className="border-b border-slate-700 pb-4">
+            <Label className="text-xs text-slate-400">Direcionamento Detalhado (interesses, opcional)</Label>
+            <Textarea
+              value={detailedTargeting}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDetailedTargeting(e.target.value)}
+              rows={2}
+              placeholder="Ex: Marketing Digital, Compras Online"
+              className="bg-slate-700 border-slate-600 text-slate-200"
+            />
+          </div>
+
+          <div>
+            <Label className="text-xs text-slate-400 block mb-1">Plataformas</Label>
+            <div className="flex gap-4">
+              {PLATFORM_OPTIONS.map((p) => (
+                <label key={p.value} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                  <Checkbox checked={platforms.includes(p.value)} onCheckedChange={() => togglePlatform(p.value)} />
+                  {p.label}
+                </label>
+              ))}
+            </div>
           </div>
         </div>
         <DialogFooter>
@@ -845,10 +985,17 @@ function RenameModal({
 // objetivo — mesmo raciocínio documentado em Meta::AdsManagerService).
 // Escopo desta versão: duplica dentro da MESMA conta de anúncio (sem os
 // seletores em cascata de BM/conta de destino do legado — ver relatório).
+// Seletor em cascata do destino (BM -> Conta -> Campanha -> Conjunto),
+// igual ao dupLoadAccountsInto/dupLoadCampaignsInto/dupLoadAdsetsInto do
+// painel legado — reaproveita os MESMOS serviços já usados no resto da
+// página (clientGoalsService/trafficPanelService), sem chamada nova.
 function DuplicateModal({
   item,
   level,
+  currentBmId,
   adAccountId,
+  dateStart,
+  dateStop,
   campaigns,
   allAdSets,
   open,
@@ -857,7 +1004,10 @@ function DuplicateModal({
 }: {
   item: AggregatedItem | null;
   level: 'campaigns' | 'adsets' | 'ads' | null;
+  currentBmId: string | null;
   adAccountId: string | null;
+  dateStart: string;
+  dateStop: string;
   campaigns: AggregatedItem[];
   allAdSets: AggregatedItem[];
   open: boolean;
@@ -866,22 +1016,96 @@ function DuplicateModal({
 }) {
   const [name, setName] = useState('');
   const [newObjectiveKey, setNewObjectiveKey] = useState<ObjectiveKey | ''>('');
-  const [targetCampaignId, setTargetCampaignId] = useState('');
-  const [targetAdSetId, setTargetAdSetId] = useState('');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (item) {
-      setName(`${item.name} - Cópia`);
-      setNewObjectiveKey('');
-      setTargetCampaignId(item.campaignId || campaigns[0]?.id || '');
-      setTargetAdSetId(allAdSets[0]?.id || '');
+  const [targetBms, setTargetBms] = useState<Entity[]>([]);
+  const [targetBmId, setTargetBmId] = useState('');
+  const [targetAccounts, setTargetAccounts] = useState<TrafficAccount[]>([]);
+  const [targetAccountId, setTargetAccountId] = useState('');
+  const [targetCampaigns, setTargetCampaigns] = useState<AggregatedItem[]>(campaigns);
+  const [targetCampaignId, setTargetCampaignId] = useState('');
+  const [targetAdSets, setTargetAdSets] = useState<AggregatedItem[]>(allAdSets);
+  const [targetAdSetId, setTargetAdSetId] = useState('');
+  const [loadingTargets, setLoadingTargets] = useState(false);
+
+  const loadCampaignsForAccount = async (accountId: string, preselectCampaignId?: string) => {
+    if (!accountId) return;
+    setLoadingTargets(true);
+    try {
+      const { structural, insights } = await trafficPanelService.getCampaignsTree(accountId, dateStart, dateStop);
+      const fetchedCampaigns = aggregateDataForLevel(structural, insights, 'campaign');
+      setTargetCampaigns(fetchedCampaigns);
+      const selectedCampaignId = preselectCampaignId || fetchedCampaigns[0]?.id || '';
+      setTargetCampaignId(selectedCampaignId);
+      if (level === 'ads') {
+        const fetchedAdSets = aggregateDataForLevel(structural, insights, 'adset');
+        setTargetAdSets(fetchedAdSets);
+        setTargetAdSetId(item?.adSetId && accountId === adAccountId ? item.adSetId : fetchedAdSets[0]?.id || '');
+      }
+    } catch {
+      toast.error('Não foi possível carregar as campanhas dessa conta.');
+    } finally {
+      setLoadingTargets(false);
     }
+  };
+
+  const loadAccountsForBm = async (bmId: string, preselectAccountId?: string) => {
+    setLoadingTargets(true);
+    try {
+      const fetchedAccounts = await trafficPanelService.listAccounts(bmId, dateStart, dateStop);
+      setTargetAccounts(fetchedAccounts);
+      const selectedAccountId = preselectAccountId || fetchedAccounts[0]?.id || '';
+      setTargetAccountId(selectedAccountId);
+      if (level !== 'campaigns' && selectedAccountId) {
+        await loadCampaignsForAccount(selectedAccountId, selectedAccountId === adAccountId ? item?.campaignId : undefined);
+      }
+    } catch {
+      toast.error('Não foi possível carregar as contas dessa Business Manager.');
+    } finally {
+      setLoadingTargets(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!item || !open) return;
+    setName(`${item.name} - Cópia`);
+    setNewObjectiveKey('');
+    // Pré-seleciona BM/conta/campanha/conjunto atuais — o usuário só mexe
+    // nos seletores se quiser duplicar pra outro lugar.
+    setTargetCampaigns(campaigns);
+    setTargetAdSets(allAdSets);
+    setTargetCampaignId(item.campaignId || campaigns[0]?.id || '');
+    setTargetAdSetId(item.adSetId || allAdSets[0]?.id || '');
+    if (currentBmId) {
+      setTargetBmId(currentBmId);
+      clientGoalsService
+        .listBusinessManagers()
+        .then((bms) => setTargetBms(bms))
+        .catch(() => toast.error('Não foi possível carregar as Business Managers.'));
+    }
+    if (adAccountId) setTargetAccountId(adAccountId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item]);
+  }, [item, open]);
+
+  const handleTargetBmChange = (bmId: string) => {
+    setTargetBmId(bmId);
+    loadAccountsForBm(bmId);
+  };
+
+  const handleTargetAccountChange = (accountId: string) => {
+    setTargetAccountId(accountId);
+    if (level !== 'campaigns') loadCampaignsForAccount(accountId);
+  };
+
+  const handleTargetCampaignChange = (campaignId: string) => {
+    setTargetCampaignId(campaignId);
+    if (level === 'ads') loadCampaignsForAccount(targetAccountId, campaignId);
+  };
 
   const handleSave = async () => {
-    if (!item || !level || !adAccountId) return;
+    if (!item || !level) return;
+    const effectiveAdAccountId = targetAccountId || adAccountId;
+    if (!effectiveAdAccountId) return;
     const trimmed = name.trim();
     if (!trimmed) {
       toast.error('Informe o nome do novo item.');
@@ -893,7 +1117,7 @@ function DuplicateModal({
         const objMap = newObjectiveKey ? OBJECTIVE_MAP[newObjectiveKey] : null;
         await metaAdsManagerService.duplicateCampaignWithObjective({
           campaignId: item.id,
-          adAccountId,
+          adAccountId: effectiveAdAccountId,
           newName: trimmed,
           newObjective: objMap ? objMap.objective : item.objective || '',
           newOptimizationGoal: objMap?.optimizationGoal,
@@ -906,7 +1130,7 @@ function DuplicateModal({
         }
         await metaAdsManagerService.duplicateAdSetToCampaign({
           adSetId: item.id,
-          adAccountId,
+          adAccountId: effectiveAdAccountId,
           targetCampaignId,
           newName: trimmed,
         });
@@ -918,7 +1142,7 @@ function DuplicateModal({
         }
         await metaAdsManagerService.duplicateAdToAdSet({
           adId: item.id,
-          adAccountId,
+          adAccountId: effectiveAdAccountId,
           targetAdSetId,
           newName: trimmed,
         });
@@ -935,11 +1159,11 @@ function DuplicateModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 max-w-sm">
+      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 max-w-sm max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Duplicar {level ? ITEM_TYPE_LABEL[level] : ''}</DialogTitle>
           <DialogDescription className="text-slate-400">
-            Recria do zero com o mesmo público e criativo, dentro da mesma conta de anúncio.
+            Recria do zero com o mesmo público e criativo — pode apontar pra qualquer BM/conta/campanha/conjunto que você tenha acesso.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -967,41 +1191,97 @@ function DuplicateModal({
             </div>
           )}
 
-          {level === 'adsets' && (
+          <div className="space-y-3 border-t border-slate-700 pt-3">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Duplicar para</p>
             <div>
-              <Label className="text-xs text-slate-400">Campanha de destino</Label>
-              <Select value={targetCampaignId} onValueChange={setTargetCampaignId}>
+              <Label className="text-xs text-slate-400">Business Manager</Label>
+              <Select value={targetBmId} onValueChange={handleTargetBmChange}>
                 <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
-                  <SelectValue placeholder="Selecione a campanha" />
+                  <SelectValue placeholder="Selecione a BM" />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
-                  {campaigns.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
+                  {targetBms.map((bm) => (
+                    <SelectItem key={bm.id} value={bm.id}>
+                      {bm.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          )}
+            <div>
+              <Label className="text-xs text-slate-400">Conta de anúncio</Label>
+              <Select value={targetAccountId} onValueChange={handleTargetAccountChange}>
+                <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+                  <SelectValue placeholder="Selecione a conta" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                  {targetAccounts.map((acc) => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {level === 'ads' && (
-            <div>
-              <Label className="text-xs text-slate-400">Conjunto de destino</Label>
-              <Select value={targetAdSetId} onValueChange={setTargetAdSetId}>
-                <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
-                  <SelectValue placeholder="Selecione o conjunto" />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
-                  {allAdSets.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+            {level === 'adsets' && (
+              <div>
+                <Label className="text-xs text-slate-400">Campanha de destino</Label>
+                <Select value={targetCampaignId} onValueChange={handleTargetCampaignChange}>
+                  <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+                    <SelectValue placeholder="Selecione a campanha" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                    {targetCampaigns.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {level === 'ads' && (
+              <>
+                <div>
+                  <Label className="text-xs text-slate-400">Campanha</Label>
+                  <Select value={targetCampaignId} onValueChange={handleTargetCampaignChange}>
+                    <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+                      <SelectValue placeholder="Selecione a campanha" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                      {targetCampaigns.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-400">Conjunto de destino</Label>
+                  <Select value={targetAdSetId} onValueChange={setTargetAdSetId}>
+                    <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+                      <SelectValue placeholder="Selecione o conjunto" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                      {targetAdSets.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            {loadingTargets && (
+              <p className="text-xs text-slate-500">
+                <Loader2 className="w-3 h-3 inline animate-spin mr-1" /> Carregando...
+              </p>
+            )}
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} className="border-slate-600 text-slate-300">
@@ -1036,7 +1316,7 @@ function DeleteConfirmDialog({
     setDeleting(true);
     try {
       await metaAdsManagerService.deleteItem(LEVEL_TO_META_LEVEL[level], item.id);
-      toast.success(`${ITEM_TYPE_LABEL[level]} '${item.name}' excluída com sucesso.`);
+      toast.success(`${ITEM_TYPE_LABEL[level]} '${item.name}' arquivada (excluída) com sucesso.`);
       onOpenChange(false);
       onDeleted();
     } catch (error) {
@@ -1050,10 +1330,10 @@ function DeleteConfirmDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="bg-slate-800 border-slate-700 text-slate-200">
         <AlertDialogHeader>
-          <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+          <AlertDialogTitle>Arquivar/Excluir {level ? ITEM_TYPE_LABEL[level] : 'Item'}</AlertDialogTitle>
           <AlertDialogDescription className="text-slate-400">
-            Tem certeza que deseja excluir permanentemente {level ? ITEM_TYPE_LABEL[level].toLowerCase() : 'este item'} &quot;{item?.name}
-            &quot;? Esta ação é irreversível.
+            Tem certeza que deseja <strong>ARQUIVAR</strong> (excluir logicamente) {level ? ITEM_TYPE_LABEL[level].toLowerCase() : 'este item'} &quot;
+            {item?.name}&quot;? Esta ação pode ser irreversível no Meta Ads (Status: ARCHIVED).
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -1061,7 +1341,7 @@ function DeleteConfirmDialog({
             Cancelar
           </AlertDialogCancel>
           <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-red-600 hover:bg-red-700">
-            {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Excluir Permanentemente
+            {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Arquivar/Excluir
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -1084,10 +1364,435 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-// Modal "Criar Campanha" — versão simplificada de 1 conjunto + 1 anúncio
-// (sem o construtor dinâmico de múltiplos conjuntos/anúncios do legado, e
-// sem o mapa interativo — geolocalização aqui é por país, ver relatório
-// final pra detalhes da simplificação).
+let uidSeq = 0;
+const nextUid = () => `x${Date.now()}-${uidSeq++}`;
+
+interface LocationEntry {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  radius: number;
+}
+
+interface NominatimResult {
+  display_name: string;
+  lat: string;
+  lon: string;
+}
+
+// Mapa interativo (pin arrastável + raio) via Leaflet — mesma lib e mesmo
+// padrão de integração com React (ref callback em vez de useRef+useEffect,
+// necessário porque o mapa vive dentro de um Dialog do Radix, que monta/
+// desmonta o conteúdo de verdade a cada abertura) já usado em
+// RealEstateItemModal.tsx. Busca de endereço via Nominatim (OpenStreetMap),
+// mesma API sem chave que o painel legado usava. Cada conjunto de anúncios
+// tem sua própria instância, com sua própria lista de localizações.
+function LocationMapPicker({ locations, onChange }: { locations: LocationEntry[]; onChange: (locations: LocationEntry[]) => void }) {
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+  const circleRef = useRef<L.Circle | null>(null);
+  const extraLayersRef = useRef<L.Layer[]>([]);
+  const locationsRef = useRef(locations);
+  locationsRef.current = locations;
+
+  const [pin, setPin] = useState({ name: 'São Paulo', lat: -23.5505, lng: -46.6333, radius: 15 });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  const placePin = (map: L.Map, lat: number, lng: number, radius: number) => {
+    if (markerRef.current) {
+      markerRef.current.setLatLng([lat, lng]);
+    } else {
+      const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      marker.on('dragend', () => {
+        const pos = marker.getLatLng();
+        setPin((prev) => ({ ...prev, lat: pos.lat, lng: pos.lng, name: 'Localização Personalizada (Arrastada)' }));
+      });
+      markerRef.current = marker;
+    }
+    if (circleRef.current) map.removeLayer(circleRef.current);
+    circleRef.current = L.circle([lat, lng], { radius: radius * 1000, color: '#fbbf24', fillColor: '#fbbf24', fillOpacity: 0.1, weight: 2 }).addTo(map);
+  };
+
+  const redrawExtras = (map: L.Map) => {
+    extraLayersRef.current.forEach((layer) => map.removeLayer(layer));
+    extraLayersRef.current = [];
+    locationsRef.current.forEach((loc) => {
+      const marker = L.marker([loc.lat, loc.lng], { opacity: 0.6, title: `${loc.name} (${loc.radius}km)` }).addTo(map);
+      const circle = L.circle([loc.lat, loc.lng], { radius: loc.radius * 1000, color: '#10b981', fillColor: '#10b981', fillOpacity: 0.08, weight: 1.5 }).addTo(map);
+      extraLayersRef.current.push(marker, circle);
+    });
+  };
+
+  // Ref callback (não useRef+useEffect) — o Dialog do Radix só monta este
+  // <div> de verdade quando abre, então é aqui (container != null) que o
+  // mapa precisa nascer; a limpeza (container === null) roda no fechamento.
+  const initMap = useCallback((container: HTMLDivElement | null) => {
+    if (mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+      circleRef.current = null;
+    }
+    if (!container) return;
+
+    const map = L.map(container).setView([pin.lat, pin.lng], 10);
+    mapRef.current = map;
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+
+    placePin(map, pin.lat, pin.lng, pin.radius);
+    redrawExtras(map);
+
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      setPin((prev) => ({ ...prev, lat: e.latlng.lat, lng: e.latlng.lng, name: 'Localização Personalizada (Clique)' }));
+    });
+
+    setTimeout(() => map.invalidateSize(), 50);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (mapRef.current) placePin(mapRef.current, pin.lat, pin.lng, pin.radius);
+  }, [pin.lat, pin.lng, pin.radius]);
+
+  useEffect(() => {
+    if (mapRef.current) redrawExtras(mapRef.current);
+  }, [locations]);
+
+  useEffect(() => {
+    if (searchQuery.trim().length < 3) {
+      setSuggestions([]);
+      return undefined;
+    }
+    const timeout = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=5&countrycodes=BR`;
+        const response = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
+        const data = (await response.json()) as NominatimResult[];
+        setSuggestions(data);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [searchQuery]);
+
+  const selectSuggestion = (result: NominatimResult) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    const displayName = result.display_name.split(',').slice(0, 3).map((s) => s.trim()).join(', ');
+    setPin((prev) => ({ ...prev, lat, lng, name: displayName }));
+    setSearchQuery(displayName);
+    setSuggestions([]);
+  };
+
+  const addLocation = () => {
+    if (!(pin.radius > 0)) {
+      toast.error('Informe um raio maior que 0.');
+      return;
+    }
+    const isDuplicate = locations.some((loc) => loc.name === pin.name && loc.radius === pin.radius);
+    if (isDuplicate) {
+      toast.error('Esta localização com o mesmo raio já foi adicionada.');
+      return;
+    }
+    onChange([...locations, { id: nextUid(), name: pin.name, lat: pin.lat, lng: pin.lng, radius: pin.radius }]);
+  };
+
+  const removeLocation = (id: string) => onChange(locations.filter((loc) => loc.id !== id));
+
+  return (
+    <div className="space-y-3">
+      <div className="relative">
+        <Input
+          value={searchQuery}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+          placeholder="Buscar cidade, CEP ou endereço..."
+          className="bg-slate-700 border-slate-600 text-slate-200"
+        />
+        {suggestions.length > 0 && (
+          <div className="absolute w-full z-20 bg-slate-800 border border-slate-700 rounded-lg shadow-xl mt-1 max-h-60 overflow-y-auto">
+            {suggestions.map((s, i) => (
+              <div
+                key={i}
+                onClick={() => selectSuggestion(s)}
+                className="p-3 cursor-pointer hover:bg-sky-700/50 transition-colors text-sm border-b border-slate-700 last:border-b-0 truncate text-slate-200"
+              >
+                {s.display_name}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <Label className="text-xs text-slate-400">Raio de Cobertura (km)</Label>
+        <div className="flex items-center gap-3">
+          <input
+            type="range"
+            min={1}
+            max={80}
+            step={1}
+            value={pin.radius}
+            onChange={(e) => setPin((prev) => ({ ...prev, radius: parseInt(e.target.value, 10) }))}
+            className="flex-grow h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+          />
+          <span className="text-sm text-sky-400 font-semibold w-14 text-right">{pin.radius} km</span>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Input value={pin.name} readOnly className="bg-slate-700 text-slate-400 border-slate-600 text-sm flex-grow" />
+        <Button type="button" onClick={addLocation} size="sm" className="shrink-0">
+          <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar
+        </Button>
+      </div>
+
+      <div className="space-y-2 max-h-32 overflow-y-auto border border-slate-700 p-2 rounded-lg bg-slate-900/50">
+        {locations.length === 0 ? (
+          <p className="text-xs text-slate-500 italic text-center">Nenhuma localização adicionada.</p>
+        ) : (
+          locations.map((loc) => (
+            <div key={loc.id} className="flex items-center justify-between p-2 text-sm bg-slate-700/70 rounded-md border border-slate-600">
+              <div className="truncate pr-2">
+                <span className="font-semibold text-sky-300">{loc.name}</span> <span className="text-xs text-slate-400">({loc.radius} km)</span>
+              </div>
+              <button type="button" onClick={() => removeLocation(loc.id)} className="text-red-400 hover:text-red-300 p-1 shrink-0" title="Remover">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {searching && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+
+      <div ref={initMap} className="w-full h-56 bg-slate-700 rounded-lg border border-slate-600 shadow-inner" />
+    </div>
+  );
+}
+
+interface AdFormState {
+  key: string;
+  name: string;
+  title: string;
+  body: string;
+  mediaFile: File | null;
+}
+
+interface AdSetFormState {
+  key: string;
+  name: string;
+  budget: string;
+  ageMin: string;
+  ageMax: string;
+  platforms: string[];
+  savedAudienceName: string;
+  detailedTargeting: string;
+  locations: LocationEntry[];
+  ads: AdFormState[];
+}
+
+function newAd(): AdFormState {
+  return { key: nextUid(), name: '', title: '', body: '', mediaFile: null };
+}
+
+function newAdSet(): AdSetFormState {
+  return {
+    key: nextUid(),
+    name: '',
+    budget: '100.00',
+    ageMin: '25',
+    ageMax: '65',
+    platforms: ['facebook', 'instagram'],
+    savedAudienceName: '',
+    detailedTargeting: '',
+    locations: [{ id: nextUid(), name: 'São Paulo', lat: -23.5505, lng: -46.6333, radius: 15 }],
+    ads: [newAd()],
+  };
+}
+
+// Bloco de UM anúncio dentro de um conjunto — nome/título/texto/mídia.
+function AdBlock({ ad, onChange, onRemove, removable }: { ad: AdFormState; onChange: (patch: Partial<AdFormState>) => void; onRemove: () => void; removable: boolean }) {
+  return (
+    <div className="space-y-3 p-3 border border-slate-700/70 rounded-lg bg-slate-900/30">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs text-slate-400">Nome do Anúncio</Label>
+        {removable && (
+          <button type="button" onClick={onRemove} className="text-red-400 hover:text-red-300" title="Remover anúncio">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+      <Input
+        value={ad.name}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ name: e.target.value })}
+        placeholder="Ex: Ad 01 - Criativo Oferta"
+        className="bg-slate-700 border-slate-600 text-slate-200"
+      />
+      <div>
+        <Label className="text-xs text-slate-400">Título (Headline)</Label>
+        <Input
+          value={ad.title}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ title: e.target.value })}
+          placeholder="Ex: Compre Agora e Ganhe Desconto!"
+          className="bg-slate-700 border-slate-600 text-slate-200"
+        />
+      </div>
+      <div>
+        <Label className="text-xs text-slate-400">Texto Principal</Label>
+        <Textarea
+          value={ad.body}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange({ body: e.target.value })}
+          rows={2}
+          placeholder="Use gatilhos de escassez e urgência."
+          className="bg-slate-700 border-slate-600 text-slate-200"
+        />
+      </div>
+      <div>
+        <Label className="text-xs text-slate-400 block mb-1">Mídia (imagem ou vídeo)</Label>
+        <label className="flex items-center gap-2 text-sm text-sky-300 cursor-pointer hover:text-sky-200">
+          <ImagePlus className="w-4 h-4" />
+          {ad.mediaFile ? ad.mediaFile.name : 'Selecionar arquivo'}
+          <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => onChange({ mediaFile: e.target.files?.[0] || null })} />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+// Bloco de UM conjunto de anúncios — nome/orçamento/público/idade/mapa +
+// seus anúncios (1 ou mais). O "Duplicar Conjunto"/"Duplicar Anúncio" do
+// legado viram, aqui, "Adicionar Conjunto" (na barra de ações do modal) e
+// "Adicionar Anúncio" (dentro de cada conjunto).
+function AdSetBlock({
+  adSet,
+  index,
+  onChange,
+  onRemove,
+  removable,
+}: {
+  adSet: AdSetFormState;
+  index: number;
+  onChange: (patch: Partial<AdSetFormState>) => void;
+  onRemove: () => void;
+  removable: boolean;
+}) {
+  const togglePlatform = (value: string) =>
+    onChange({ platforms: adSet.platforms.includes(value) ? adSet.platforms.filter((p) => p !== value) : [...adSet.platforms, value] });
+
+  const updateAd = (adKey: string, patch: Partial<AdFormState>) =>
+    onChange({ ads: adSet.ads.map((a) => (a.key === adKey ? { ...a, ...patch } : a)) });
+  const addAd = () => onChange({ ads: [...adSet.ads, newAd()] });
+  const removeAd = (adKey: string) => onChange({ ads: adSet.ads.filter((a) => a.key !== adKey) });
+
+  return (
+    <section className="space-y-4 p-4 border border-slate-700 rounded-lg">
+      <div className="flex items-center justify-between border-b border-slate-700 pb-2">
+        <h4 className="text-lg font-bold text-teal-400">Conjunto {index + 1}</h4>
+        {removable && (
+          <Button type="button" variant="ghost" size="sm" onClick={onRemove} className="text-red-400 hover:text-red-300 hover:bg-red-900/30">
+            <Trash2 className="w-3.5 h-3.5 mr-1" /> Remover Conjunto
+          </Button>
+        )}
+      </div>
+      <div>
+        <Label className="text-xs text-slate-400">Nome do Conjunto</Label>
+        <Input
+          value={adSet.name}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ name: e.target.value })}
+          placeholder="Ex: Idade 25-45 - SP Capital"
+          className="bg-slate-700 border-slate-600 text-slate-200"
+        />
+      </div>
+      <div>
+        <Label className="text-xs text-slate-400">Orçamento Diário (R$)</Label>
+        <Input
+          type="number"
+          step="0.01"
+          min="0"
+          value={adSet.budget}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ budget: e.target.value })}
+          className="bg-slate-700 border-slate-600 text-slate-200"
+        />
+      </div>
+      <div>
+        <Label className="text-xs text-slate-400">Público Salvo (nome, opcional)</Label>
+        <Input
+          value={adSet.savedAudienceName}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ savedAudienceName: e.target.value })}
+          placeholder="Em branco para usar segmentação detalhada"
+          className="bg-slate-700 border-slate-600 text-slate-200"
+        />
+      </div>
+      <div>
+        <Label className="text-xs text-slate-400">Direcionamento Detalhado (interesses, opcional)</Label>
+        <Textarea
+          value={adSet.detailedTargeting}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange({ detailedTargeting: e.target.value })}
+          rows={2}
+          placeholder="Ex: Marketing Digital, Compras Online"
+          className="bg-slate-700 border-slate-600 text-slate-200"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label className="text-xs text-slate-400">Idade Mínima</Label>
+          <Input
+            type="number"
+            min={13}
+            max={65}
+            value={adSet.ageMin}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ ageMin: e.target.value })}
+            className="bg-slate-700 border-slate-600 text-slate-200"
+          />
+        </div>
+        <div>
+          <Label className="text-xs text-slate-400">Idade Máxima</Label>
+          <Input
+            type="number"
+            min={17}
+            max={65}
+            value={adSet.ageMax}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ ageMax: e.target.value })}
+            className="bg-slate-700 border-slate-600 text-slate-200"
+          />
+        </div>
+      </div>
+      <div>
+        <Label className="text-xs text-slate-400 block mb-2">Segmentação Geográfica (mapa)</Label>
+        <LocationMapPicker locations={adSet.locations} onChange={(locations) => onChange({ locations })} />
+      </div>
+      <div>
+        <Label className="text-xs text-slate-400 block mb-1">Plataformas</Label>
+        <div className="flex gap-4">
+          {PLATFORM_OPTIONS.map((p) => (
+            <label key={p.value} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+              <Checkbox checked={adSet.platforms.includes(p.value)} onCheckedChange={() => togglePlatform(p.value)} />
+              {p.label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-3 border-t border-slate-700 pt-4">
+        <h5 className="text-sm font-semibold text-yellow-400">Anúncios deste conjunto</h5>
+        {adSet.ads.map((ad) => (
+          <AdBlock key={ad.key} ad={ad} onChange={(patch) => updateAd(ad.key, patch)} onRemove={() => removeAd(ad.key)} removable={adSet.ads.length > 1} />
+        ))}
+        <Button type="button" variant="outline" size="sm" onClick={addAd} className="border-slate-600 text-teal-400 hover:bg-slate-700">
+          <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Anúncio
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 function CreateCampaignModal({
   open,
   onOpenChange,
@@ -1103,27 +1808,28 @@ function CreateCampaignModal({
   const [status, setStatus] = useState<'ACTIVE' | 'PAUSED'>('PAUSED');
   const [objectiveKey, setObjectiveKey] = useState<ObjectiveKey>('messages');
   const [link, setLink] = useState('');
-
-  const [adSetName, setAdSetName] = useState('');
-  const [adSetBudget, setAdSetBudget] = useState('100.00');
-  const [ageMin, setAgeMin] = useState('25');
-  const [ageMax, setAgeMax] = useState('65');
-  const [country, setCountry] = useState('BR');
-  const [platforms, setPlatforms] = useState<string[]>(['facebook', 'instagram']);
-  const [savedAudienceName, setSavedAudienceName] = useState('');
-  const [detailedTargeting, setDetailedTargeting] = useState('');
-
-  const [adName, setAdName] = useState('');
-  const [adTitle, setAdTitle] = useState('');
-  const [adBody, setAdBody] = useState('');
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [adSets, setAdSets] = useState<AdSetFormState[]>(() => [newAdSet()]);
 
   const [saving, setSaving] = useState(false);
 
   const objectiveMeta = OBJECTIVE_MAP[objectiveKey];
 
-  const togglePlatform = (value: string) =>
-    setPlatforms((prev) => (prev.includes(value) ? prev.filter((p) => p !== value) : [...prev, value]));
+  // Reseta pro estado inicial (1 conjunto + 1 anúncio) toda vez que o modal
+  // abre — mesmo comportamento do showCreateCampaignModal do legado.
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setStatus('PAUSED');
+      setObjectiveKey('messages');
+      setLink('');
+      setAdSets([newAdSet()]);
+    }
+  }, [open]);
+
+  const updateAdSet = (key: string, patch: Partial<AdSetFormState>) =>
+    setAdSets((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));
+  const addAdSet = () => setAdSets((prev) => [...prev, newAdSet()]);
+  const removeAdSet = (key: string) => setAdSets((prev) => prev.filter((a) => a.key !== key));
 
   const handleCreate = async () => {
     if (!adAccountId) {
@@ -1131,79 +1837,100 @@ function CreateCampaignModal({
       return;
     }
     const trimmedName = name.trim();
-    const trimmedAdSetName = adSetName.trim();
-    const trimmedAdName = adName.trim();
     if (!trimmedName) {
       toast.error('Preencha o Nome da Campanha.');
       return;
     }
-    const budgetValue = parseFloat(adSetBudget.replace(',', '.'));
-    if (!trimmedAdSetName || !(budgetValue > 0)) {
-      toast.error('Preencha o Nome e o Orçamento Diário do Conjunto.');
-      return;
-    }
-    const ageMinNum = parseInt(ageMin, 10);
-    const ageMaxNum = parseInt(ageMax, 10);
-    if (ageMinNum > ageMaxNum) {
-      toast.error('Idade mínima não pode ser maior que a máxima.');
-      return;
-    }
-    if (!country.trim()) {
-      toast.error('Informe o país de segmentação.');
-      return;
-    }
-    if (!trimmedAdName) {
-      toast.error('Preencha o Nome do Anúncio.');
-      return;
-    }
-    if (!mediaFile) {
-      toast.error('Carregue uma imagem ou vídeo para o Anúncio.');
-      return;
+
+    for (const adSet of adSets) {
+      const trimmedAdSetName = adSet.name.trim();
+      const budgetValue = parseFloat(adSet.budget.replace(',', '.'));
+      if (!trimmedAdSetName || !(budgetValue > 0)) {
+        toast.error(`Preencha o Nome e o Orçamento Diário do conjunto "${trimmedAdSetName || adSet.name}".`);
+        return;
+      }
+      const ageMinNum = parseInt(adSet.ageMin, 10);
+      const ageMaxNum = parseInt(adSet.ageMax, 10);
+      if (ageMinNum > ageMaxNum) {
+        toast.error(`Idade mínima não pode ser maior que a máxima (conjunto "${trimmedAdSetName}").`);
+        return;
+      }
+      if (adSet.locations.length === 0) {
+        toast.error(`Adicione pelo menos uma localização geográfica no conjunto "${trimmedAdSetName}".`);
+        return;
+      }
+      for (const ad of adSet.ads) {
+        if (!ad.name.trim()) {
+          toast.error(`Preencha o Nome do Anúncio (conjunto "${trimmedAdSetName}").`);
+          return;
+        }
+        if (!ad.mediaFile) {
+          toast.error(`Carregue uma imagem ou vídeo pro anúncio "${ad.name}" (conjunto "${trimmedAdSetName}").`);
+          return;
+        }
+      }
     }
 
     setSaving(true);
     try {
-      const assetBase64 = await fileToBase64(mediaFile);
-      const detailedTargetingManual = detailedTargeting
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
+      const adsetsPayload = await Promise.all(
+        adSets.map(async (adSet) => {
+          const budgetValue = parseFloat(adSet.budget.replace(',', '.'));
+          const detailedTargetingManual = adSet.detailedTargeting
+            .split(',')
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+          const geoCities = adSet.locations.map((loc) => ({
+            key: 'custom_location_pin',
+            name: loc.name,
+            radius: loc.radius,
+            distance_unit: 'kilometer',
+            latitude: loc.lat,
+            longitude: loc.lng,
+          }));
+
+          const adsPayload = await Promise.all(
+            adSet.ads.map(async (ad) => ({
+              ad_name: ad.name.trim(),
+              ad_status: status,
+              title: ad.title.trim() || undefined,
+              body: ad.body.trim() || undefined,
+              asset_base64: await fileToBase64(ad.mediaFile as File),
+              asset_mimetype: (ad.mediaFile as File).type || 'image/jpeg',
+            })),
+          );
+
+          return {
+            adset_name: adSet.name.trim(),
+            adset_status: status,
+            daily_budget: Math.round(budgetValue * 100).toString(),
+            optimization_goal: objectiveMeta.optimizationGoal,
+            bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+            targeting: {
+              age_min: parseInt(adSet.ageMin, 10),
+              age_max: parseInt(adSet.ageMax, 10),
+              publisher_platforms: adSet.platforms.length > 0 ? adSet.platforms : ['facebook', 'instagram'],
+              custom_audience_id: adSet.savedAudienceName.trim() || undefined,
+              detailed_targeting_manual: detailedTargetingManual.length > 0 ? detailedTargetingManual : undefined,
+              geo_locations: {
+                location_types: ['home', 'recent'],
+                // `cities` aqui carrega os pins do mapa (key=custom_location_pin) —
+                // o backend (Meta::AdsManagerService#normalize_geo) converte pra
+                // geo_locations.custom_locations no formato real da Graph API.
+                cities: geoCities,
+              },
+            },
+            ads: adsPayload,
+          };
+        }),
+      );
 
       const campanha: CreateCampaignPayload = {
         name: trimmedName,
         status,
         objective: objectiveMeta.objective,
         link: objectiveMeta.needsLink ? link.trim() || undefined : undefined,
-        adsets: [
-          {
-            adset_name: trimmedAdSetName,
-            adset_status: status,
-            daily_budget: Math.round(budgetValue * 100).toString(),
-            optimization_goal: objectiveMeta.optimizationGoal,
-            bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-            targeting: {
-              age_min: ageMinNum,
-              age_max: ageMaxNum,
-              publisher_platforms: platforms.length > 0 ? platforms : ['facebook', 'instagram'],
-              custom_audience_id: savedAudienceName.trim() || undefined,
-              detailed_targeting_manual: detailedTargetingManual.length > 0 ? detailedTargetingManual : undefined,
-              geo_locations: {
-                location_types: ['home', 'recent'],
-                countries: [country.trim().toUpperCase()],
-              },
-            },
-            ads: [
-              {
-                ad_name: trimmedAdName,
-                ad_status: status,
-                title: adTitle.trim() || undefined,
-                body: adBody.trim() || undefined,
-                asset_base64: assetBase64,
-                asset_mimetype: mediaFile.type || 'image/jpeg',
-              },
-            ],
-          },
-        ],
+        adsets: adsetsPayload,
       };
 
       await metaAdsManagerService.createCampaign(adAccountId, campanha);
@@ -1226,7 +1953,7 @@ function CreateCampaignModal({
 
         <div className="space-y-8 py-2">
           <section className="space-y-4 p-4 border border-slate-700 rounded-lg">
-            <h4 className="text-lg font-bold text-sky-400 border-b border-slate-700 pb-2">1. Campanha</h4>
+            <h4 className="text-lg font-bold text-sky-400 border-b border-slate-700 pb-2">Campanha</h4>
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium text-slate-300">Status Ativo</Label>
               <Checkbox checked={status === 'ACTIVE'} onCheckedChange={(checked) => setStatus(checked ? 'ACTIVE' : 'PAUSED')} />
@@ -1269,137 +1996,20 @@ function CreateCampaignModal({
             )}
           </section>
 
-          <section className="space-y-4 p-4 border border-slate-700 rounded-lg">
-            <h4 className="text-lg font-bold text-teal-400 border-b border-slate-700 pb-2">2. Conjunto de Anúncios</h4>
-            <div>
-              <Label className="text-xs text-slate-400">Nome do Conjunto</Label>
-              <Input
-                value={adSetName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAdSetName(e.target.value)}
-                placeholder="Ex: Idade 25-45 - SP Capital"
-                className="bg-slate-700 border-slate-600 text-slate-200"
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-slate-400">Orçamento Diário (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={adSetBudget}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAdSetBudget(e.target.value)}
-                className="bg-slate-700 border-slate-600 text-slate-200"
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-slate-400">Público Salvo (nome, opcional)</Label>
-              <Input
-                value={savedAudienceName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSavedAudienceName(e.target.value)}
-                placeholder="Em branco para usar segmentação detalhada"
-                className="bg-slate-700 border-slate-600 text-slate-200"
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-slate-400">Direcionamento Detalhado (interesses, opcional)</Label>
-              <Textarea
-                value={detailedTargeting}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDetailedTargeting(e.target.value)}
-                rows={2}
-                placeholder="Ex: Marketing Digital, Compras Online"
-                className="bg-slate-700 border-slate-600 text-slate-200"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-xs text-slate-400">Idade Mínima</Label>
-                <Input
-                  type="number"
-                  min={13}
-                  max={65}
-                  value={ageMin}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgeMin(e.target.value)}
-                  className="bg-slate-700 border-slate-600 text-slate-200"
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-slate-400">Idade Máxima</Label>
-                <Input
-                  type="number"
-                  min={17}
-                  max={65}
-                  value={ageMax}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgeMax(e.target.value)}
-                  className="bg-slate-700 border-slate-600 text-slate-200"
-                />
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs text-slate-400">País de segmentação (código, ex: BR)</Label>
-              <Input
-                value={country}
-                maxLength={2}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCountry(e.target.value.toUpperCase())}
-                className="bg-slate-700 border-slate-600 text-slate-200 w-24"
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-slate-400 block mb-1">Plataformas</Label>
-              <div className="flex gap-4">
-                {PLATFORM_OPTIONS.map((p) => (
-                  <label key={p.value} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
-                    <Checkbox checked={platforms.includes(p.value)} onCheckedChange={() => togglePlatform(p.value)} />
-                    {p.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-          </section>
+          {adSets.map((adSet, index) => (
+            <AdSetBlock
+              key={adSet.key}
+              adSet={adSet}
+              index={index}
+              onChange={(patch) => updateAdSet(adSet.key, patch)}
+              onRemove={() => removeAdSet(adSet.key)}
+              removable={adSets.length > 1}
+            />
+          ))}
 
-          <section className="space-y-4 p-4 border border-slate-700 rounded-lg">
-            <h4 className="text-lg font-bold text-yellow-400 border-b border-slate-700 pb-2">3. Anúncio e Criativo</h4>
-            <div>
-              <Label className="text-xs text-slate-400">Nome do Anúncio</Label>
-              <Input
-                value={adName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAdName(e.target.value)}
-                placeholder="Ex: Ad 01 - Criativo Oferta"
-                className="bg-slate-700 border-slate-600 text-slate-200"
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-slate-400">Título (Headline)</Label>
-              <Input
-                value={adTitle}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAdTitle(e.target.value)}
-                placeholder="Ex: Compre Agora e Ganhe Desconto!"
-                className="bg-slate-700 border-slate-600 text-slate-200"
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-slate-400">Texto Principal</Label>
-              <Textarea
-                value={adBody}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setAdBody(e.target.value)}
-                rows={3}
-                placeholder="Use gatilhos de escassez e urgência."
-                className="bg-slate-700 border-slate-600 text-slate-200"
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-slate-400 block mb-1">Mídia (imagem ou vídeo)</Label>
-              <label className="flex items-center gap-2 text-sm text-sky-300 cursor-pointer hover:text-sky-200">
-                <ImagePlus className="w-4 h-4" />
-                {mediaFile ? mediaFile.name : 'Selecionar arquivo'}
-                <input
-                  type="file"
-                  accept="image/*,video/*"
-                  className="hidden"
-                  onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
-                />
-              </label>
-            </div>
-          </section>
+          <Button type="button" variant="outline" onClick={addAdSet} className="border-slate-600 text-teal-400 hover:bg-slate-700 w-full">
+            <Plus className="w-4 h-4 mr-2" /> Adicionar Conjunto de Anúncios
+          </Button>
         </div>
 
         <DialogFooter>
@@ -1896,7 +2506,10 @@ export default function TrafficPanelPage() {
       <DuplicateModal
         item={duplicateTarget?.item || null}
         level={duplicateTarget?.level || null}
+        currentBmId={selectedBm?.id || null}
         adAccountId={selectedAccount?.id || null}
+        dateStart={dateStart}
+        dateStop={dateStop}
         campaigns={campaigns}
         allAdSets={allAdSets}
         open={!!duplicateTarget}

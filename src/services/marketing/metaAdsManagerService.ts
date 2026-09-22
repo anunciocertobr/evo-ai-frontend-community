@@ -29,6 +29,10 @@ export interface CreateCampaignTargeting {
   geo_locations: {
     location_types: string[];
     countries?: string[];
+    // Pin do mapa (lat/lng + raio) — `key: 'custom_location_pin'` é o
+    // formato que Meta::AdsManagerService#normalize_geo já sabe converter
+    // pra `geo_locations.custom_locations` (formato real da Graph API).
+    cities?: Array<{ key: string; name: string; radius: number; distance_unit: string; latitude: number; longitude: number }>;
   };
 }
 
@@ -83,9 +87,10 @@ class MetaAdsManagerService {
   }
 
   // Excluir campanha/conjunto/anúncio na Graph API é, na prática, marcar
-  // status=DELETED — não existe uma "lixeira" de verdade, ação irreversível.
+  // status=ARCHIVED — mesmo valor usado pelo painel legado (não DELETED),
+  // ação sem uma "lixeira" real por trás, pode ser irreversível.
   async deleteItem(nivel: MetaLevel, id: string): Promise<void> {
-    await this.updateItem(nivel, id, { status: 'DELETED' });
+    await this.updateItem(nivel, id, { status: 'ARCHIVED' });
   }
 
   async duplicateCampaignWithObjective(params: {
