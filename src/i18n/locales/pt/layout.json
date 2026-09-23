@@ -73,8 +73,8 @@
     "collapse": "Recolher barra lateral",
     "closeSubmenu": "Fechar submenu",
     "footer": {
-      "brand": "Evo CRM",
-      "copyright": "© {{year}} Evolution Foundation. All rights reserved.",
+      "brand": "Anuncio Certo CRM",
+      "copyright": "© {{year}} Anuncio Certo. All rights reserved.",
       "documentation": "Documentação",
       "support": "Preciso de suporte"
     }

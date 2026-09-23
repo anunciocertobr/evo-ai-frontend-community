@@ -518,7 +518,7 @@ const NotificationsProviderInner: React.FC<NotificationsProviderProps> = ({ chil
             ? i18n.t('layout:notifications.push.bodyWithAssignee', { name: assigneeName })
             : undefined;
           const desktopNotification = new Notification(title, {
-            icon: '/favicon.ico',
+            icon: '/favicon.png',
             tag: `notification-${notification.id}`,
             body,
           });
