@@ -32,10 +32,8 @@ import {
   AlertDialogTitle,
 } from '@evoapi/design-system';
 import {
-  ArrowLeftRight,
   Building2,
   ChevronLeft,
-  ChevronRight,
   Clock,
   Copy,
   Edit2,
@@ -52,7 +50,6 @@ import {
   Settings2,
   Trash2,
 } from 'lucide-react';
-import { BaseHeader } from '@/components/base';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import { trafficPanelService, type TrafficAccount } from '@/services/marketing/trafficPanelService';
 import {
@@ -2369,20 +2366,42 @@ export default function TrafficPanelPage() {
     setExpandedId(null);
   };
 
-  const goBack = () => {
-    if (level === 'ads') {
-      setLevel('adsets');
-      setAdSetId(null);
-    } else if (level === 'adsets') {
-      setLevel('campaigns');
-      setCampaignId(null);
-    } else if (level === 'campaigns') {
+  // Navegação por breadcrumb clicável (BM / Contas / Campanhas / Conjuntos /
+  // Anúncios) — igual renderBreadcrumb/handleBackButtonClick do legado.
+  const goToLevel = (target: 'bm' | 'accounts' | 'campaigns' | 'adsets') => {
+    if (target === 'bm') {
+      setSelectedBm(null);
+      setAccounts(null);
       setSelectedAccount(null);
       setLevel('accounts');
+      setCampaignId(null);
+      setAdSetId(null);
+    } else if (target === 'accounts') {
+      setSelectedAccount(null);
+      setLevel('accounts');
+      setCampaignId(null);
+      setAdSetId(null);
+    } else if (target === 'campaigns') {
+      setLevel('campaigns');
+      setCampaignId(null);
+      setAdSetId(null);
+    } else {
+      setLevel('adsets');
+      setAdSetId(null);
     }
     setQuery('');
     setExpandedId(null);
   };
+
+  const breadcrumbSteps: Array<{ key: 'bm' | 'accounts' | 'campaigns' | 'adsets' | 'ads'; label: string }> = [
+    { key: 'bm', label: 'BM' },
+    { key: 'accounts', label: 'Contas' },
+    { key: 'campaigns', label: 'Campanhas' },
+    { key: 'adsets', label: 'Conjuntos' },
+    { key: 'ads', label: 'Anúncios' },
+  ];
+  const currentStepKey: 'bm' | 'accounts' | 'campaigns' | 'adsets' | 'ads' = !selectedBm ? 'bm' : level;
+  const currentStepIndex = breadcrumbSteps.findIndex((st) => st.key === currentStepKey);
 
   const toggleExpanded = (itemId: string) => setExpandedId((prev) => (prev === itemId ? null : itemId));
 
@@ -2490,15 +2509,47 @@ export default function TrafficPanelPage() {
   return (
     <div className="pb-8">
       <div className="rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 p-4 sm:p-6 space-y-4">
-        <BaseHeader
-          title="Painel Tráfego"
-          subtitle="Contas, campanhas, conjuntos e anúncios direto na Meta Ads."
-          primaryAction={{
-            label: 'Criar Campanha',
-            icon: <Plus className="w-4 h-4" />,
-            onClick: openCreateCampaignModal,
-          }}
-        />
+        <header className="relative flex flex-col items-center justify-center pb-2">
+          <h1 className="text-3xl font-bold text-slate-200 text-center">Painel Tráfego</h1>
+          <nav className="mt-2 text-sm font-medium flex items-center flex-wrap justify-center gap-1">
+            {currentStepIndex > 0 && (
+              <button
+                type="button"
+                title="Voltar"
+                onClick={() => goToLevel(breadcrumbSteps[currentStepIndex - 1].key as 'bm' | 'accounts' | 'campaigns' | 'adsets')}
+                className="text-slate-300 hover:text-sky-400 transition-colors mr-2"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            )}
+            {breadcrumbSteps.slice(0, currentStepIndex + 1).map((st, idx) => (
+              <span key={st.key} className="flex items-center gap-1">
+                {idx > 0 && <span className="mx-1 text-slate-600">/</span>}
+                {idx === currentStepIndex ? (
+                  <span className="text-slate-400">{st.label}</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="text-sky-400 hover:underline cursor-pointer"
+                    onClick={() => goToLevel(st.key as 'bm' | 'accounts' | 'campaigns' | 'adsets')}
+                  >
+                    {st.label}
+                  </button>
+                )}
+              </span>
+            ))}
+          </nav>
+          {selectedBm && (
+            <p className="text-slate-400 text-center text-sm mt-1">
+              {selectedBm.name}
+              {selectedAccount ? ` › ${selectedAccount.name}` : ''}
+            </p>
+          )}
+          {!selectedBm && <p className="text-slate-400 text-center text-sm mt-1">Selecione uma Business Manager</p>}
+          <Button onClick={openCreateCampaignModal} className="sm:absolute sm:right-0 sm:top-0 mt-3 sm:mt-0">
+            <Plus className="w-4 h-4 mr-1" /> Criar Campanha
+          </Button>
+        </header>
 
         {!selectedBm ? (
           <div className="space-y-4">
@@ -2547,36 +2598,7 @@ export default function TrafficPanelPage() {
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap">
-                {level !== 'accounts' && (
-                  <Button size="icon" variant="ghost" onClick={goBack} title="Voltar" className="text-slate-300 hover:bg-slate-700 hover:text-slate-100">
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                )}
-                <span className="text-sm text-slate-300 flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5" /> {selectedBm.name}
-                </span>
-                {selectedAccount && (
-                  <>
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="text-sm text-slate-300">{selectedAccount.name}</span>
-                  </>
-                )}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-slate-300 hover:bg-slate-700 hover:text-slate-100"
-                  onClick={() => {
-                    setSelectedBm(null);
-                    setAccounts(null);
-                    setSelectedAccount(null);
-                    setLevel('accounts');
-                    setQuery('');
-                  }}
-                >
-                  <ArrowLeftRight className="w-3.5 h-3.5 mr-1" /> Trocar
-                </Button>
-              </div>
+              <div />
               {toolbar}
             </div>
 
@@ -2613,12 +2635,12 @@ export default function TrafficPanelPage() {
                           <h3 className={`text-sm font-bold line-clamp-2 leading-tight min-h-[2.25rem] ${LEVEL_TITLE_COLOR.accounts}`} title={account.name}>
                             {account.name}
                           </h3>
-                          {account.is_prepay_account && daysLeft > 0 && (
+                          {account.is_prepay_account && (
                             <span
                               className={`inline-flex items-center gap-1 text-xs font-bold ${getDaysLeftColor(daysLeft)} bg-slate-700/50 px-2 py-0.5 rounded-full mt-1`}
                               title={`Orçamento dura ${daysLeft.toFixed(1)} dias`}
                             >
-                              <Clock className="w-3 h-3" /> {daysLeft.toFixed(0)} dias restantes
+                              <Clock className="w-3 h-3" /> {daysLeft.toFixed(0)} dias restantes{daysLeft <= 0 ? ' (sem saldo)' : ''}
                             </span>
                           )}
                         </div>
