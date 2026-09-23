@@ -39,10 +39,12 @@ import {
   Clock,
   Copy,
   Edit2,
+  ExternalLink,
   ImagePlus,
   Loader2,
   MousePointerClick,
   Pause,
+  PlayCircle,
   PenLine,
   Play,
   Plus,
@@ -59,6 +61,7 @@ import {
   type ObjectiveKey,
   type CreateCampaignPayload,
   type MetaLevel,
+  type CreativeDetails,
 } from '@/services/marketing/metaAdsManagerService';
 import { apiErrorMessage } from '@/utils/apiHelpers';
 import {
@@ -427,6 +430,7 @@ function CardDetails({ item, level }: { item: AggregatedItem; level: 'campaigns'
         <span className="font-medium text-slate-400">ID:</span>
         <span className="font-semibold text-yellow-400">{item.id}</span>
       </div>
+      <div className="pt-2 text-center text-slate-500 text-[0.7rem] italic">Clique duplo para ver Criativo</div>
     </div>
   );
 }
@@ -1412,6 +1416,121 @@ function DeleteConfirmDialog({
   );
 }
 
+// Réplica do "Ver Criativo" do painel legado (fetchCreativeDetails) — imagem
+// em preview real, vídeo como thumbnail + link externo (a Graph API não dá
+// um player embutido de graça sem token assinado), e carrossel como grid de
+// cartões. Nenhum dos três formatos existia na versão React antes disso.
+function CreativeViewerModal({ item, open, onOpenChange }: { item: AggregatedItem | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [details, setDetails] = useState<CreativeDetails | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !item) {
+      setDetails(null);
+      return;
+    }
+    setLoading(true);
+    metaAdsManagerService
+      .getCreativeDetails(item.id)
+      .then(setDetails)
+      .catch(() => toast.error(`Não foi possível carregar o criativo de '${item.name}'.`))
+      .finally(() => setLoading(false));
+  }, [open, item]);
+
+  const mediaType = details?.carrossel?.length
+    ? 'Carrossel'
+    : details?.imagem
+      ? 'Imagem'
+      : details?.video
+        ? 'Vídeo (Reel/Story)'
+        : 'Nenhum';
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Criativo do Anúncio</DialogTitle>
+          <DialogDescription className="text-slate-400">{item?.name}</DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400">
+            <Loader2 className="h-4 w-4 animate-spin" /> Buscando criativo...
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {details?.carrossel && details.carrossel.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                {details.carrossel.map((card, i) => (
+                  <div key={i} className="rounded-lg border border-slate-700 overflow-hidden bg-slate-700/50">
+                    {card.imagem ? (
+                      <img src={card.imagem} alt={card.nome || `Cartão ${i + 1}`} className="w-full h-28 object-cover" />
+                    ) : (
+                      <div className="w-full h-28 flex items-center justify-center text-slate-500 text-xs">Sem imagem</div>
+                    )}
+                    <div className="p-2">
+                      <p className="text-xs font-semibold text-slate-200 truncate">{card.nome || 'N/D'}</p>
+                      {card.descricao && <p className="text-[0.7rem] text-slate-400 truncate">{card.descricao}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : details?.imagem ? (
+              <img
+                src={details.imagem}
+                alt="Criativo"
+                className="w-full h-auto max-h-[400px] object-contain rounded-lg shadow-lg border border-slate-700"
+              />
+            ) : details?.video ? (
+              <div
+                className="w-full h-56 rounded-lg border border-slate-700 flex flex-col items-center justify-center gap-3 bg-slate-700/50 bg-cover bg-center"
+                style={details.thumbnail_url ? { backgroundImage: `url(${details.thumbnail_url})` } : undefined}
+              >
+                <PlayCircle className="w-16 h-16 text-white/90 drop-shadow-lg" />
+                <a
+                  href={details.video}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold py-2 px-4 rounded-md transition-colors shadow-lg"
+                >
+                  <ExternalLink className="w-4 h-4" /> Abrir Mídia
+                </a>
+              </div>
+            ) : (
+              <div className="h-32 bg-slate-700/50 rounded-lg flex items-center justify-center text-slate-400 text-sm">
+                Nenhum criativo encontrado
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div className="border border-slate-700 p-3 rounded-lg bg-slate-700/50">
+                <p className="text-slate-400 font-medium mb-1 text-xs">Título:</p>
+                <p className="text-slate-200 text-sm italic">{details?.titulo || 'N/D'}</p>
+              </div>
+              <div className="border border-slate-700 p-3 rounded-lg bg-slate-700/50">
+                <p className="text-slate-400 font-medium mb-1 text-xs">Texto Principal:</p>
+                <p className="text-slate-200 text-sm whitespace-pre-wrap">{details?.texto_principal || 'N/D'}</p>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="font-semibold text-slate-300">Nome do Criativo:</span>
+                <span className="text-sky-400 font-medium text-right max-w-[60%] truncate">{details?.criativo_nome || 'N/D'}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="font-semibold text-slate-300">Tipo de Mídia:</span>
+                <span className="text-sky-400 font-medium">{mediaType}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="font-semibold text-slate-300">ID do Anúncio:</span>
+                <span className="text-slate-400 text-sm truncate max-w-[60%]">{item?.id || 'N/D'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const PLATFORM_OPTIONS = [
   { value: 'facebook', label: 'Facebook' },
   { value: 'instagram', label: 'Instagram' },
@@ -2121,6 +2240,7 @@ export default function TrafficPanelPage() {
   const [duplicateTarget, setDuplicateTarget] = useState<{ item: AggregatedItem; level: 'campaigns' | 'adsets' | 'ads' } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ item: AggregatedItem; level: 'campaigns' | 'adsets' | 'ads' } | null>(null);
   const [createCampaignOpen, setCreateCampaignOpen] = useState(false);
+  const [viewCreativeTarget, setViewCreativeTarget] = useState<AggregatedItem | null>(null);
 
   const { start: dateStart, stop: dateStop } = useMemo(() => getDateRangeForPreset(datePreset), [datePreset]);
 
@@ -2356,23 +2476,30 @@ export default function TrafficPanelPage() {
     </div>
   );
 
+  // justify-start (não justify-between): cards do mesmo grid-row têm altura
+  // igual (grid stretch), mas o número de métricas visíveis varia por item
+  // (ZERO_HIDDEN_METRICS esconde métricas zeradas) — com justify-between, o
+  // bloco de métricas ficava colado embaixo, então "Gasto:" aparecia numa
+  // altura diferente em cada card dependendo de quantas linhas ele tinha.
+  // Com justify-start + min-height no título, todo card começa as métricas
+  // exatamente na mesma posição, alinhado ao original.
   const cardBaseClass =
-    'text-left rounded-lg p-4 shadow-xl flex flex-col justify-between bg-slate-800 border border-slate-700 transition-all duration-300';
+    'text-left rounded-lg p-4 shadow-xl flex flex-col justify-start bg-slate-800 border border-slate-700 transition-all duration-300';
   const cardInteractiveClass = 'cursor-pointer hover:-translate-y-0.5 hover:shadow-sky-500/10 active:scale-[0.98]';
 
   return (
-    <div className="space-y-4 pb-8">
-      <BaseHeader
-        title="Painel Tráfego"
-        subtitle="Contas, campanhas, conjuntos e anúncios direto na Meta Ads."
-        primaryAction={{
-          label: 'Criar Campanha',
-          icon: <Plus className="w-4 h-4" />,
-          onClick: openCreateCampaignModal,
-        }}
-      />
+    <div className="pb-8">
+      <div className="rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 p-4 sm:p-6 space-y-4">
+        <BaseHeader
+          title="Painel Tráfego"
+          subtitle="Contas, campanhas, conjuntos e anúncios direto na Meta Ads."
+          primaryAction={{
+            label: 'Criar Campanha',
+            icon: <Plus className="w-4 h-4" />,
+            onClick: openCreateCampaignModal,
+          }}
+        />
 
-      <div className="rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 p-4 sm:p-6">
         {!selectedBm ? (
           <div className="space-y-4">
             <div className="relative max-w-sm">
@@ -2404,7 +2531,7 @@ export default function TrafficPanelPage() {
                         onClick={() => selectBm(bm)}
                         className={`${cardBaseClass} ${cardInteractiveClass}`}
                       >
-                        <h3 className="text-sm font-bold text-slate-200 line-clamp-2 leading-tight flex items-center gap-2" title={bm.name}>
+                        <h3 className="text-sm font-bold text-slate-200 line-clamp-2 leading-tight flex items-center gap-2 min-h-[2.25rem]" title={bm.name}>
                           <Building2 className="w-4 h-4 text-sky-400 shrink-0" /> {bm.name}
                         </h3>
                         <p className="text-xs text-slate-500 mt-3 flex items-center gap-1">
@@ -2483,7 +2610,7 @@ export default function TrafficPanelPage() {
                         className={`${cardBaseClass} ${cardInteractiveClass}`}
                       >
                         <div className="mb-2 pb-1">
-                          <h3 className={`text-sm font-bold line-clamp-2 leading-tight ${LEVEL_TITLE_COLOR.accounts}`} title={account.name}>
+                          <h3 className={`text-sm font-bold line-clamp-2 leading-tight min-h-[2.25rem] ${LEVEL_TITLE_COLOR.accounts}`} title={account.name}>
                             {account.name}
                           </h3>
                           {account.is_prepay_account && daysLeft > 0 && (
@@ -2515,9 +2642,12 @@ export default function TrafficPanelPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {sortedItems.map((item) => {
                   const values = itemToMetricValues(item);
-                  const canDrill = level === 'campaigns' || level === 'adsets';
                   const isExpanded = expandedId === item.id;
-                  const drillDown = () => (level === 'campaigns' ? openCampaign(item) : openAdSet(item));
+                  const drillDown = () => {
+                    if (level === 'campaigns') openCampaign(item);
+                    else if (level === 'adsets') openAdSet(item);
+                    else setViewCreativeTarget(item);
+                  };
                   return (
                     <div
                       key={item.id}
@@ -2530,14 +2660,14 @@ export default function TrafficPanelPage() {
                         // painel legado, sem precisar de debounce manual.
                         if (e.detail === 1) toggleExpanded(item.id);
                       }}
-                      onDoubleClick={canDrill ? drillDown : undefined}
+                      onDoubleClick={drillDown}
                       onContextMenu={(e) => openContextMenu(e, item, level)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && canDrill) drillDown();
+                        if (e.key === 'Enter') drillDown();
                       }}
                       className={`${cardBaseClass} ${cardInteractiveClass}`}
                     >
-                      <div className="flex items-start justify-between mb-2 pb-1 border-b border-slate-700">
+                      <div className="flex items-start justify-between mb-2 pb-1 border-b border-slate-700 min-h-[3rem]">
                         <h3 className={`text-sm font-bold line-clamp-2 leading-tight pr-1 ${LEVEL_TITLE_COLOR[level]}`} title={item.name}>
                           {item.name}
                         </h3>
@@ -2617,6 +2747,12 @@ export default function TrafficPanelPage() {
         onOpenChange={setCreateCampaignOpen}
         adAccountId={selectedAccount?.id || null}
         onCreated={refreshTree}
+      />
+
+      <CreativeViewerModal
+        item={viewCreativeTarget}
+        open={!!viewCreativeTarget}
+        onOpenChange={(open) => !open && setViewCreativeTarget(null)}
       />
     </div>
   );

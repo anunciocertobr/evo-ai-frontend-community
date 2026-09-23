@@ -149,6 +149,40 @@ class MetaAdsManagerService {
       campanha,
     });
   }
+
+  async getCreativeDetails(adId: string): Promise<CreativeDetails> {
+    const response = await api.post<Array<CreativeDetails>>(ENDPOINT, {
+      acao: 'criativo',
+      id_anuncio: adId,
+    });
+    return (
+      response.data?.[0] || {
+        imagem: null,
+        video: null,
+        thumbnail_url: null,
+        carrossel: [],
+        titulo: null,
+        texto_principal: null,
+        criativo_nome: null,
+      }
+    );
+  }
+}
+
+export interface CreativeCarouselCard {
+  imagem: string | null;
+  nome: string | null;
+  descricao: string | null;
+}
+
+export interface CreativeDetails {
+  imagem: string | null;
+  video: string | null;
+  thumbnail_url: string | null;
+  carrossel: CreativeCarouselCard[];
+  titulo: string | null;
+  texto_principal: string | null;
+  criativo_nome: string | null;
 }
 
 export const metaAdsManagerService = new MetaAdsManagerService();
