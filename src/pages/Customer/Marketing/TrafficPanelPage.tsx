@@ -207,11 +207,14 @@ function getDaysLeftColor(daysLeft: number): string {
   return 'text-red-400';
 }
 
-function computeDaysLeft(account: TrafficAccount): number {
+// null = tem saldo mas sem gasto nos últimos 30 dias (não dá pra projetar);
+// 0 = sem saldo; >0 = dias estimados.
+function computeDaysLeft(account: TrafficAccount): number | null {
   const balance = parseFloat(account.balance || '0');
   const periodSpend = parseFloat(account.insights_30d?.[0]?.spend || '0');
   const dailySpend = periodSpend / DAYS_LEFT_SPEND_WINDOW;
-  if (!(dailySpend > 0) || !(balance > 0)) return 0;
+  if (!(balance > 0)) return 0;
+  if (!(dailySpend > 0)) return null;
   return balance / dailySpend;
 }
 
@@ -2637,10 +2640,11 @@ export default function TrafficPanelPage() {
                           </h3>
                           {account.is_prepay_account && (
                             <span
-                              className={`inline-flex items-center gap-1 text-xs font-bold ${getDaysLeftColor(daysLeft)} bg-slate-700/50 px-2 py-0.5 rounded-full mt-1`}
-                              title={`Orçamento dura ${daysLeft.toFixed(1)} dias`}
+                              className={`inline-flex items-center gap-1 text-xs font-bold ${daysLeft === null ? 'text-slate-400' : getDaysLeftColor(daysLeft)} bg-slate-700/50 px-2 py-0.5 rounded-full mt-1`}
+                              title={daysLeft === null ? 'Tem saldo, mas sem gasto nos últimos 30 dias — não dá pra estimar' : `Orçamento dura ${daysLeft.toFixed(1)} dias`}
                             >
-                              <Clock className="w-3 h-3" /> {daysLeft.toFixed(0)} dias restantes{daysLeft <= 0 ? ' (sem saldo)' : ''}
+                              <Clock className="w-3 h-3" />{' '}
+                              {daysLeft === null ? 'sem gasto recente' : daysLeft <= 0 ? 'sem saldo' : `${daysLeft.toFixed(0)} dias restantes`}
                             </span>
                           )}
                         </div>
