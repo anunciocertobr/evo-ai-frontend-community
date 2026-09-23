@@ -16,11 +16,6 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Command,
-  CommandInput,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -46,6 +41,7 @@ import {
   Edit2,
   ImagePlus,
   Loader2,
+  MousePointerClick,
   Pause,
   PenLine,
   Play,
@@ -345,12 +341,27 @@ function CardDetails({ item, level }: { item: AggregatedItem; level: 'campaigns'
     const budget = formatCurrencyBRL(parseFloat(item.dailyBudget || '0') / 100);
     const geo = item.targeting?.geo_locations;
     let locationDetail = 'N/D';
-    if (geo?.cities?.length) locationDetail = geo.cities[0].name || 'N/D';
-    else if (geo?.places?.length) locationDetail = geo.places[0].name || 'N/D';
-    else if (geo?.countries?.length) locationDetail = geo.countries.join(', ');
+    let radiusDetail = 'N/D';
+    if (geo?.cities?.length) {
+      const city = geo.cities[0];
+      locationDetail = city.name || 'N/D';
+      radiusDetail = city.radius ? `${city.radius} ${city.distance_unit === 'kilometer' ? 'km' : 'mi'}` : 'N/D';
+    } else if (geo?.places?.length) {
+      const place = geo.places[0];
+      locationDetail = place.name || 'N/D';
+      radiusDetail = place.radius ? `${place.radius} ${place.distance_unit === 'kilometer' ? 'km' : 'mi'}` : 'N/D';
+    } else if (geo?.countries?.length) {
+      locationDetail = geo.countries.join(', ');
+      radiusDetail = 'País Completo';
+    }
 
     const platforms = item.targeting?.publisher_platforms || [];
     const platformDetail = platforms.length > 0 ? platforms.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(', ') : 'Automático';
+
+    const positions: string[] = [];
+    if (item.targeting?.facebook_positions?.length) positions.push(`FB: ${item.targeting.facebook_positions.join(', ')}`);
+    if (item.targeting?.instagram_positions?.length) positions.push(`IG: ${item.targeting.instagram_positions.join(', ')}`);
+    const placementDetail = positions.length > 0 ? positions.join(', ') : 'Automático / N/D';
 
     const promoted = item.promotedObject;
     let objectiveDetail = 'N/D';
@@ -379,8 +390,16 @@ function CardDetails({ item, level }: { item: AggregatedItem; level: 'campaigns'
           <span className="font-semibold text-red-400 text-right">{locationDetail}</span>
         </div>
         <div className="flex justify-between items-center text-slate-300">
+          <span className="font-medium text-slate-400">Raio:</span>
+          <span className="font-semibold text-red-400 text-right">{radiusDetail}</span>
+        </div>
+        <div className="flex justify-between items-center text-slate-300">
           <span className="font-medium text-slate-400">Plataformas:</span>
           <span className="font-semibold text-sky-400 text-right">{platformDetail}</span>
+        </div>
+        <div className="flex justify-between items-center text-slate-300">
+          <span className="font-medium text-slate-400">Posicionamentos:</span>
+          <span className="font-semibold text-indigo-400 text-right text-[0.65rem] leading-tight max-w-[50%] line-clamp-2">{placementDetail}</span>
         </div>
         <div className="flex justify-between items-center text-slate-300">
           <span className="font-medium text-slate-400">Idade:</span>
@@ -2142,6 +2161,7 @@ export default function TrafficPanelPage() {
     setAccounts(null);
     setSelectedAccount(null);
     setLevel('accounts');
+    setQuery('');
     loadAccounts(bm.id);
   };
 
@@ -2354,26 +2374,48 @@ export default function TrafficPanelPage() {
 
       <div className="rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 p-4 sm:p-6">
         {!selectedBm ? (
-          <div className="rounded-lg border border-slate-700 bg-slate-800">
-            <Command className="bg-transparent">
-              <CommandInput placeholder="Buscar Business Manager..." className="text-slate-200" />
-              {loadingBms ? (
-                <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-400">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando...
-                </div>
-              ) : (
-                <>
-                  <CommandEmpty className="text-slate-400">Nenhuma Business Manager encontrada.</CommandEmpty>
-                  <CommandGroup heading="Business Manager" className="max-h-96 overflow-auto text-slate-200">
-                    {(bms || []).map((bm) => (
-                      <CommandItem key={bm.id} value={bm.name} onSelect={() => selectBm(bm)} className="text-slate-200 aria-selected:bg-slate-700">
-                        {bm.name}
-                      </CommandItem>
+          <div className="space-y-4">
+            <div className="relative max-w-sm">
+              <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar Business Manager..."
+                className="pl-8 bg-slate-700 border-slate-600 text-slate-200 placeholder:text-slate-500 focus-visible:ring-sky-500"
+              />
+            </div>
+            {loadingBms ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-400">
+                <Loader2 className="h-4 w-4 animate-spin" /> Carregando...
+              </div>
+            ) : (
+              (() => {
+                const filteredBms = (bms || []).filter((bm) => bm.name.toLowerCase().includes(query.toLowerCase()));
+                return filteredBms.length === 0 ? (
+                  <div className="text-center text-sm text-slate-400 py-10 border border-dashed border-slate-700 rounded-md">
+                    Nenhuma Business Manager encontrada.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {filteredBms.map((bm) => (
+                      <button
+                        key={bm.id}
+                        type="button"
+                        onClick={() => selectBm(bm)}
+                        className={`${cardBaseClass} ${cardInteractiveClass}`}
+                      >
+                        <h3 className="text-sm font-bold text-slate-200 line-clamp-2 leading-tight flex items-center gap-2" title={bm.name}>
+                          <Building2 className="w-4 h-4 text-sky-400 shrink-0" /> {bm.name}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-3 flex items-center gap-1">
+                          <MousePointerClick className="w-3 h-3" /> Toque para ver as contas
+                        </p>
+                      </button>
                     ))}
-                  </CommandGroup>
-                </>
-              )}
-            </Command>
+                  </div>
+                );
+              })()
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -2402,6 +2444,7 @@ export default function TrafficPanelPage() {
                     setAccounts(null);
                     setSelectedAccount(null);
                     setLevel('accounts');
+                    setQuery('');
                   }}
                 >
                   <ArrowLeftRight className="w-3.5 h-3.5 mr-1" /> Trocar
