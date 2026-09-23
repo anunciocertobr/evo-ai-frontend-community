@@ -8,7 +8,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, ArrowLeftRight } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, ArrowLeftRight, Images } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -16,6 +16,7 @@ import { LeadFormCreateDialog } from '@/components/marketing/LeadFormCreateDialo
 import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialog';
 import { AudienceContactsPickerDialog } from '@/components/marketing/AudienceContactsPickerDialog';
 import { TargetingBuilder } from '@/components/marketing/TargetingBuilder';
+import { MediaLibraryBrowser } from '@/components/marketing/MediaLibraryBrowser';
 import {
   metaCreationService,
   type LeadForm,
@@ -130,6 +131,9 @@ export default function MetaCreationPage() {
           </TabsTrigger>
           <TabsTrigger value="targeting">
             <Crosshair className="w-4 h-4 mr-1.5" /> Direcionamento
+          </TabsTrigger>
+          <TabsTrigger value="media">
+            <Images className="w-4 h-4 mr-1.5" /> Biblioteca de mídias
           </TabsTrigger>
         </TabsList>
 
@@ -325,6 +329,14 @@ export default function MetaCreationPage() {
         </TabsContent>
 
         {/* --- Direcionamento Detalhado --- */}
+        <TabsContent value="media" className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Guarde imagens e vídeos no seu Google Drive ou Dropbox e use direto nos anúncios (Painel Tráfego &gt; Criar Campanha / Editar
+            Anúncio). Crie pastas para organizar por cliente ou campanha.
+          </p>
+          <MediaLibraryBrowser mode="manage" />
+        </TabsContent>
+
         <TabsContent value="targeting">
           <TargetingBuilder />
         </TabsContent>

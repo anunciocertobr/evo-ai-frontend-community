@@ -39,6 +39,7 @@ import {
   Edit2,
   ExternalLink,
   ImagePlus,
+  Images,
   Loader2,
   MousePointerClick,
   Pause,
@@ -61,6 +62,7 @@ import {
   type CreativeDetails,
 } from '@/services/marketing/metaAdsManagerService';
 import { apiErrorMessage } from '@/utils/apiHelpers';
+import { MediaLibraryPickerDialog } from '@/components/marketing/MediaLibraryPickerDialog';
 import {
   aggregateDataForLevel,
   sortAggregatedItems,
@@ -869,6 +871,7 @@ function EditAdModal({
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [newImageFile, setNewImageFile] = useState<File | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const isVideo = !!item?.adCreative?.video_id;
 
@@ -961,7 +964,22 @@ function EditAdModal({
                   onChange={(e) => setNewImageFile(e.target.files?.[0] || null)}
                   className="bg-slate-700 border-slate-600 text-slate-200"
                 />
+                <button
+                  type="button"
+                  onClick={() => setLibraryOpen(true)}
+                  className="flex items-center gap-2 text-sm text-teal-300 hover:text-teal-200 mt-2"
+                >
+                  <Images className="w-4 h-4" /> Escolher da biblioteca
+                </button>
                 {newImageFile && <p className="text-xs text-slate-400 mt-1">Nova imagem: {newImageFile.name}</p>}
+                <MediaLibraryPickerDialog
+                  open={libraryOpen}
+                  onOpenChange={setLibraryOpen}
+                  onPick={(file) => {
+                    if (file.type.startsWith('image/')) setNewImageFile(file);
+                    else toast.error('Trocar o criativo por vídeo não é suportado — escolha uma imagem.');
+                  }}
+                />
               </>
             )}
           </div>
@@ -1801,6 +1819,7 @@ function newAdSet(): AdSetFormState {
 
 // Bloco de UM anúncio dentro de um conjunto — nome/título/texto/mídia.
 function AdBlock({ ad, onChange, onRemove, removable }: { ad: AdFormState; onChange: (patch: Partial<AdFormState>) => void; onRemove: () => void; removable: boolean }) {
+  const [libraryOpen, setLibraryOpen] = useState(false);
   return (
     <div className="space-y-3 p-3 border border-slate-700/70 rounded-lg bg-slate-900/30">
       <div className="flex items-center justify-between">
@@ -1838,11 +1857,21 @@ function AdBlock({ ad, onChange, onRemove, removable }: { ad: AdFormState; onCha
       </div>
       <div>
         <Label className="text-xs text-slate-400 block mb-1">Mídia (imagem ou vídeo)</Label>
-        <label className="flex items-center gap-2 text-sm text-sky-300 cursor-pointer hover:text-sky-200">
-          <ImagePlus className="w-4 h-4" />
-          {ad.mediaFile ? ad.mediaFile.name : 'Selecionar arquivo'}
-          <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => onChange({ mediaFile: e.target.files?.[0] || null })} />
-        </label>
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-sky-300 cursor-pointer hover:text-sky-200">
+            <ImagePlus className="w-4 h-4" />
+            {ad.mediaFile ? ad.mediaFile.name : 'Selecionar arquivo'}
+            <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => onChange({ mediaFile: e.target.files?.[0] || null })} />
+          </label>
+          <button
+            type="button"
+            onClick={() => setLibraryOpen(true)}
+            className="flex items-center gap-2 text-sm text-teal-300 hover:text-teal-200"
+          >
+            <Images className="w-4 h-4" /> Escolher da biblioteca
+          </button>
+        </div>
+        <MediaLibraryPickerDialog open={libraryOpen} onOpenChange={setLibraryOpen} onPick={(file) => onChange({ mediaFile: file })} />
       </div>
     </div>
   );

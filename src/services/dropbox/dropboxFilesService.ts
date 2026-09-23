@@ -34,6 +34,9 @@ export const dropboxFilesService = {
   listFolder: (path: string) => call<ListFolderResponse>('listar_arquivos', { path }),
   createFolder: (path: string) => call('criar_pasta', { path }),
   deleteEntry: (path: string) => call('excluir_arquivo', { path }),
+  downloadFile: (path: string) =>
+    call<{ name: string; mimetype: string; size: number; base64: string }>('baixar_arquivo', { path }),
+  getThumbnail: (path: string) => call<{ base64: string; mimetype: string }>('miniatura', { path }),
   getTemporaryLink: (path: string) => call<{ link: string }>('link_temporario', { path }),
   uploadFile: async (file: File, folderPath: string): Promise<void> => {
     const formData = new FormData();

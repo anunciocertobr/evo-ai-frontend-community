@@ -21,6 +21,18 @@ export interface ListFilesResponse {
   files: DriveFile[];
 }
 
+export interface DownloadedFile {
+  name: string;
+  mimetype: string;
+  size: number;
+  base64: string;
+}
+
+export interface ThumbnailResponse {
+  base64: string;
+  mimetype: string;
+}
+
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 export const isDriveFolder = (file: DriveFile) => file.mimeType === FOLDER_MIME;
 
@@ -37,6 +49,8 @@ export const googleDriveService = {
   createFolder: (name: string, parentId?: string | null) =>
     call<DriveFile>('criar_pasta', { name, parent_id: parentId }),
   deleteFile: (fileId: string) => call('excluir_arquivo', { file_id: fileId }),
+  downloadFile: (fileId: string) => call<DownloadedFile>('baixar_arquivo', { file_id: fileId }),
+  getThumbnail: (fileId: string) => call<ThumbnailResponse>('miniatura', { file_id: fileId }),
   uploadFile: async (file: File, parentId?: string | null): Promise<DriveFile> => {
     const formData = new FormData();
     formData.append('acao', 'subir_arquivo');
