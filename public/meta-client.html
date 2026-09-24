@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Autorizar acesso ao Facebook</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #020617; color: #e2e8f0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem;
+    }
+    .card {
+      width: 100%; max-width: 24rem; background: #1e293b; border: 1px solid #334155; border-radius: 1rem;
+      padding: 1.5rem; box-shadow: 0 20px 50px rgba(0,0,0,.5); text-align: center;
+    }
+    .icon { width: 3rem; height: 3rem; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: .75rem; }
+    .icon.fb { background: rgba(37, 99, 235, .2); }
+    .icon.ok { background: rgba(16, 185, 129, .2); }
+    .icon.err { background: rgba(248, 113, 113, .2); }
+    h1 { font-size: 1.125rem; font-weight: 600; margin-bottom: .35rem; }
+    p { font-size: .75rem; color: #94a3b8; line-height: 1.55; }
+    button {
+      width: 100%; margin-top: 1rem; border: 0; cursor: pointer; font-weight: 500; font-size: .875rem;
+      padding: .8rem 1rem; border-radius: .5rem; display: inline-flex; align-items: center; justify-content: center;
+      gap: .5rem; transition: background .15s;
+    }
+    button.primary { background: #2563eb; color: #fff; }
+    button.primary:hover { background: #3b82f6; }
+    button.ghost { background: transparent; color: #cbd5e1; border: 1px solid #475569; margin-top: .5rem; }
+    button.ghost:hover { border-color: #64748b; }
+    .spin { width: 1.5rem; height: 1.5rem; border: 2px solid #3b82f6; border-top-color: transparent;
+      border-radius: 9999px; animation: rot 1s linear infinite; margin: .75rem auto; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="pnl-loading">
+      <div class="icon fb"><svg width="22" height="22" viewBox="0 0 24 24" fill="#3b82f6"><path d="M14 13.5h2.5l1-4H14v-2c0-1.03 0-2 2-2h1.5V2.14c-.326-.043-1.557-.14-2.857-.14C11.928 2 10 3.657 10 6.7v2.8H7v4h3V22h4v-8.5z"/></svg></div>
+      <h1>Conectando com o Facebook</h1>
+      <p>Preparando a autorização...</p>
+      <div class="spin"></div>
+    </div>
+
+    <div id="pnl-ready" class="hidden">
+      <div class="icon fb"><svg width="22" height="22" viewBox="0 0 24 24" fill="#3b82f6"><path d="M14 13.5h2.5l1-4H14v-2c0-1.03 0-2 2-2h1.5V2.14c-.326-.043-1.557-.14-2.857-.14C11.928 2 10 3.657 10 6.7v2.8H7v4h3V22h4v-8.5z"/></svg></div>
+      <h1>Autorizar o acesso do cliente</h1>
+      <p>O dono da Business Manager confirma quem é e o acesso fica registrado. O token é guardado em segurança.</p>
+      <button id="btn-login" class="primary">Autorizar com Facebook</button>
+    </div>
+
+    <div id="pnl-success" class="hidden">
+      <div class="icon ok"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+      <h1>Tudo certo!</h1>
+      <p id="msg-success">Acesso concedido com sucesso! Pode fechar esta janela.</p>
+    </div>
+
+    <div id="pnl-error" class="hidden">
+      <div class="icon err"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+      <h1>Algo deu errado</h1>
+      <p id="msg-error"></p>
+      <button id="btn-retry" class="ghost">Tentar novamente</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // Endpoint público que recebe o token quando o link foi gerado com grant
+      // (cliente abriu o link copiável SEM sessão no CRM).
+      var API_BASE = 'https://api-crmcerto.anunciocertobr.com.br';
+      var SDK_SRC = 'https://connect.facebook.net/en_US/sdk.js';
+
+      var params = new URLSearchParams(window.location.search);
+      var appId = params.get('app_id');
+      var scope = params.get('scope');
+      var grant = params.get('grant');
+      var isGrantMode = !!grant;
+      var sdkReady = false;
+      var knownStatus = null;
+      var ranLogin = false;
+      var closeTimer = null;
+
+      var pnl = {
+        loading: document.getElementById('pnl-loading'),
+        ready: document.getElementById('pnl-ready'),
+        success: document.getElementById('pnl-success'),
+        error: document.getElementById('pnl-error')
+      };
+      var msgError = document.getElementById('msg-error');
+      var msgSuccess = document.getElementById('msg-success');
+      var btnLogin = document.getElementById('btn-login');
+      var btnRetry = document.getElementById('btn-retry');
+
+      function show(name, payload) {
+        Object.keys(pnl).forEach(function (k) { pnl[k].classList.add('hidden'); });
+        pnl[name].classList.remove('hidden');
+        if (name === 'error') msgError.textContent = payload || 'Tente novamente.';
+        if (name === 'success' && payload) msgSuccess.textContent = payload;
+      }
+
+      function loadSdk() {
+        return new Promise(function (resolve, reject) {
+          if (window.FB) { resolve(); return; }
+          if (document.getElementById('facebook-jssdk')) {
+            var t0 = Date.now();
+            var w = setInterval(function () {
+              if (window.FB) { clearInterval(w); resolve(); }
+              else if (Date.now() - t0 > 15000) { clearInterval(w); reject(new Error('Tempo esgotado ao carregar o SDK do Facebook.')); }
+            }, 100);
+            return;
+          }
+          var s = document.createElement('script');
+          s.id = 'facebook-jssdk'; s.async = true; s.defer = true; s.src = SDK_SRC;
+          s.onerror = function () { reject(new Error('Não foi possível carregar o SDK do Facebook.')); };
+          document.head.appendChild(s);
+          var t0 = Date.now();
+          var w = setInterval(function () {
+            if (window.FB) { clearInterval(w); resolve(); }
+            else if (Date.now() - t0 > 15000) { clearInterval(w); reject(new Error('Tempo esgotado ao carregar o SDK do Facebook.')); }
+          }, 100);
+        });
+      }
+
+      function notifyOpener(payload) {
+        try { if (window.opener) window.opener.postMessage({ type: 'evo-meta-client-access', status: payload.status, fb_user_id: payload.fb_user_id, token: payload.token, error: payload.error }, '*'); }
+        catch (e) { /* opener ausente — o dashboard cobre com polling */ }
+      }
+
+      function grantModeReport(fbUserId, token) {
+        fetch(API_BASE + '/public/api/v1/meta_client/grants', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ grant: grant, fb_user_id: fbUserId, token: token })
+        }).then(function (res) { return res.json().catch(function () { return null; }); }).then(function (data) {
+          if (data && data.success) {
+            show('success', 'Acesso concedido com sucesso! Pode fechar esta janela.');
+            scheduleClose();
+          } else {
+            show('error', (data && data.error) || 'Falha ao registrar o acesso. Tente novamente.');
+          }
+        }).catch(function () {
+          show('error', 'Falha ao comunicar com o servidor. Verifique sua conexão e tente de novo.');
+        });
+      }
+
+      function afterLogin(fbUserId, token) {
+        if (isGrantMode) {
+          grantModeReport(fbUserId, token);
+          return;
+        }
+        show('success', 'Login OK! Esta janela vai fechar sozinha — confira no dashboard.');
+        notifyOpener({ status: 'ok', fb_user_id: fbUserId, token: token });
+        scheduleClose();
+      }
+
+      function scheduleClose() {
+        if (closeTimer) return;
+        closeTimer = setTimeout(function () { try { window.close(); } catch (e) { /* noop */ } }, 2200);
+      }
+
+      function onStatus(response) {
+        if (response.status === 'connected') {
+          var token = response.authResponse && response.authResponse.accessToken;
+          var fbUserId = String((response.authResponse && response.authResponse.userID) || '');
+          if (!token) { show('error', 'O Facebook não devolveu o token do acesso. Tente novamente.'); return; }
+          afterLogin(fbUserId, token);
+          return;
+        }
+        if (response.status === 'not_authorized') {
+          show('error', 'Autorização não concedida para o app — nenhuma alteração foi feita.');
+        } else {
+          show('error', (response.error && response.error.message) || 'Login cancelado — nenhuma alteração foi feita.');
+        }
+        ranLogin = false;
+      }
+
+      function runLogin() {
+        if (ranLogin || !sdkReady) return;
+        ranLogin = true;
+        // Popup do Facebook precisa nascer do gesto do clique: se já houver
+        // sessão neste navegador, reaproveita o token; senão o FB.login roda
+        // sincronamente no gesto.
+        if (knownStatus && knownStatus.status === 'connected' && knownStatus.authResponse && knownStatus.authResponse.accessToken) {
+          onStatus(knownStatus);
+        } else {
+          try {
+            window.FB.login(onStatus, { scope: scope });
+          } catch (e) {
+            ranLogin = false;
+            show('error', 'Erro ao conectar com o Facebook. Tente novamente.');
+          }
+        }
+        // Aviso se o diálogo não aparecer (popup bloqueado).
+        setTimeout(function () {
+          if (document.getElementById('pnl-ready') && !document.getElementById('pnl-ready').classList.contains('hidden')) {
+            ranLogin = false;
+            show('error', 'Nenhuma janela do Facebook abriu. Libere popups para este site e clique em "Autorizar com Facebook" de novo.');
+          }
+        }, 15000);
+      }
+
+      btnLogin.addEventListener('click', runLogin);
+      btnRetry.addEventListener('click', function () { show('ready'); });
+
+      if (!appId || !scope) {
+        show('error', 'Link inválido — parâmetros de login ausentes. Peça um novo link no painel do CRM.');
+        return;
+      }
+
+      loadSdk().then(function () {
+        window.FB.init({ appId: appId, version: 'v21.0', xfbml: true });
+        sdkReady = true;
+        try {
+          window.FB.getLoginStatus(function (status) { knownStatus = status; }, { force: false });
+        } catch (e) { /* status desconhecido é ok */ }
+        show('ready');
+      }).catch(function (err) {
+        show('error', err.message || 'Erro ao carregar o conector do Facebook.');
+      });
+    })();
+  </script>
+</body>
+</html>
