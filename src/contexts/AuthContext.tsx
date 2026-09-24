@@ -55,10 +55,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const validityCheckCalled = React.useRef(false);
 
   useEffect(() => {
-    const isWidgetPublicRoute =
+    const isPublicBypassRoute =
       window.location.pathname === '/widget' ||
-      window.location.pathname.startsWith('/survey/responses/');
-    if (isWidgetPublicRoute) {
+      window.location.pathname.startsWith('/survey/responses/') ||
+      window.location.pathname === '/meta-client-login';
+    if (isPublicBypassRoute) {
       validityCheckCalled.current = true;
       setLoading(false);
       return;
@@ -91,10 +92,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Periodic token validation (every 5 minutes)
   useEffect(() => {
-    const isWidgetPublicRoute =
+    const isPublicBypassRoute =
       window.location.pathname === '/widget' ||
-      window.location.pathname.startsWith('/survey/responses/');
-    if (isWidgetPublicRoute) return;
+      window.location.pathname.startsWith('/survey/responses/') ||
+      window.location.pathname === '/meta-client-login';
+    if (isPublicBypassRoute) return;
     if (!isAuthenticated || !user) return;
 
     const interval = setInterval(async () => {
