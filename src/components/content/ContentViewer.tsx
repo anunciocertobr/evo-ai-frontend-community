@@ -169,7 +169,7 @@ export function ContentViewer({
         ref={iframeRef}
         title={title || 'Conteúdo'}
         srcDoc={srcDoc}
-        sandbox="allow-scripts allow-popups allow-forms"
+        sandbox="allow-scripts allow-popups allow-forms allow-popups-to-escape-sandbox"
         className="flex-1 w-full border-0 bg-white"
         onLoad={handleIframeLoad}
       />

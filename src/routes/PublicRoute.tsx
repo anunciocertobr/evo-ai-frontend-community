@@ -58,6 +58,7 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
     const isAuthConfirmationRoute = location.pathname.startsWith('/auth/');
     const isInstagramCallback = location.pathname === '/instagram/callback';
     const isGoogleCallback = location.pathname === '/google/callback';
+    const isMetaClientLogin = location.pathname === '/meta-client-login';
     const isGoogleWorkspaceCallback = location.pathname === '/settings/integrations/google-workspace/callback';
     const isGoogleCalendarCallback = location.pathname === '/google-calendar/callback';
     const isGoogleSheetsCallback = location.pathname === '/google-sheets/callback';
@@ -81,6 +82,7 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
       isAuthConfirmationRoute ||
       isInstagramCallback ||
       isGoogleCallback ||
+      isMetaClientLogin ||
       isGoogleWorkspaceCallback ||
       isGoogleCalendarCallback ||
       isGoogleSheetsCallback ||

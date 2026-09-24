@@ -16,6 +16,7 @@ import EmailConfirmation from '@/components/auth/EmailConfirmation';
 import ResetPassword from '@/components/auth/ResetPassword';
 import InstagramCallback from '@/pages/InstagramCallback';
 import GoogleCallback from '@/pages/GoogleCallback';
+import MetaClientLogin from '@/pages/MetaClientLogin';
 import GoogleCalendarCallback from '@/pages/GoogleCalendarCallback';
 import GoogleSheetsCallback from '@/pages/GoogleSheetsCallback';
 import GitHubCallback from '@/pages/GitHubCallback';
@@ -233,6 +234,16 @@ const AppRouter = () => {
             element={
               <PublicRoute>
                 <ResetPassword />
+              </PublicRoute>
+            }
+          />
+
+          {/* Facebook "Conceder Acessos" popup — Setup Marketing (login via SDK, sem redirect URI da Meta) */}
+          <Route
+            path="/meta-client-login"
+            element={
+              <PublicRoute>
+                <MetaClientLogin />
               </PublicRoute>
             }
           />
