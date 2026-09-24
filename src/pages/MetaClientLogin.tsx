@@ -27,6 +27,11 @@ export default function MetaClientLogin() {
   const [searchParams] = useSearchParams();
   const appId = searchParams.get('app_id');
   const scope = searchParams.get('scope');
+  const grant = searchParams.get('grant');
+  // grant presente = cliente abriu o link copiável SEM sessão: o token tem
+  // que ir direto pro endpoint público. Sem grant = popup aberto pelo
+  // dashboard: devolve pro opener (iframe) via postMessage.
+  const isGrantMode = Boolean(grant);
   const startedRef = useRef(false);
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [message, setMessage] = useState('Conectando com o Facebook...');
@@ -39,24 +44,58 @@ export default function MetaClientLogin() {
     }
   };
 
-  const finish = (payload: Record<string, unknown>, willClose = true) => {
+  const closeAfter = (payload: Record<string, unknown>) => {
     notifyOpener(payload);
-    if (willClose) {
-      setTimeout(() => window.close(), 2000);
+    setTimeout(() => window.close(), 2000);
+  };
+
+  const afterLogin = async (fbUserId: string, token: string) => {
+    if (isGrantMode) {
+      try {
+        const base = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(`${base}/public/api/v1/meta_client/grants`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ grant, fb_user_id: fbUserId, token }),
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success) {
+          setStatus('success');
+          setMessage('Acesso concedido com sucesso! Esta janela vai fechar sozinha.');
+          setTimeout(() => window.close(), 2000);
+        } else {
+          setStatus('error');
+          setMessage(data?.error || 'Falha ao registrar o acesso. Tente novamente.');
+          setTimeout(() => window.close(), 3000);
+        }
+      } catch {
+        setStatus('error');
+        setMessage('Falha ao comunicar com o servidor. Verifique sua conexão e tente de novo.');
+        setTimeout(() => window.close(), 3000);
+      }
+      return;
     }
+    setStatus('success');
+    setMessage('Login OK! Esta janela vai fechar sozinha — confira no dashboard.');
+    closeAfter({ status: 'ok', fb_user_id: fbUserId, token });
   };
 
   const loadSdk = () =>
-    new Promise<void>((resolve) => {
+    new Promise<void>((resolve, reject) => {
       if (window.FB) {
         resolve();
         return;
       }
+      const started = Date.now();
       const timer = window.setInterval(() => {
         if (window.FB) {
           window.clearInterval(timer);
           resolve();
           return;
+        }
+        if (Date.now() - started > 15_000) {
+          window.clearInterval(timer);
+          reject(new Error('Tempo esgotado ao carregar o SDK do Facebook.'));
         }
       }, 100);
       const existing = document.querySelector(`script[src="${SDK_SRC}"]`);
@@ -66,6 +105,10 @@ export default function MetaClientLogin() {
       script.async = true;
       script.defer = true;
       script.src = SDK_SRC;
+      script.onerror = () => {
+        window.clearInterval(timer);
+        reject(new Error('Não foi possível carregar o SDK do Facebook.'));
+      };
       document.head.appendChild(script);
     });
 
@@ -75,8 +118,8 @@ export default function MetaClientLogin() {
 
     if (!appId || !scope) {
       setStatus('error');
-      setMessage('Parâmetros de login ausentes — abra esta janela pelo dashboard.');
-      finish({ status: 'erro', error: 'Parâmetros ausentes' }, false);
+      setMessage('Parâmetros de login ausentes — abra esta janela pelo dashboard ou pelo link enviado.');
+      setTimeout(() => window.close(), 3000);
       return;
     }
 
@@ -84,38 +127,48 @@ export default function MetaClientLogin() {
       try {
         await loadSdk();
         window.FB.init({ appId, version: 'v21.0', xfbml: true });
+
+        // Se nada responder, deixa claro o que pode ter acontecido em vez de
+        // travar em "Autorizando..." (ex.: popup de login bloqueado).
+        const pendente = window.setTimeout(() => {
+          setMessage(
+            'Aguardando o login do Facebook... Se você não viu a tela de login, verifique se o bloqueador de popups não impediu.',
+          );
+        }, 12_000);
+        const resetPendente = () => window.clearTimeout(pendente);
+
         window.FB.login(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (response: any) => {
+            resetPendente();
             if (response.status === 'connected') {
               const token = response.authResponse?.accessToken;
               const fbUserId = String(response.authResponse?.userID ?? '');
               if (!token) {
                 setStatus('error');
                 setMessage('Facebook não devolveu o token do acesso.');
-                finish({ status: 'erro', error: 'Sem token' });
+                window.setTimeout(() => window.close(), 3000);
                 return;
               }
-              setStatus('success');
-              setMessage('Login OK! Esta janela vai fechar sozinha — confira no dashboard.');
-              finish({ status: 'ok', fb_user_id: fbUserId, token });
+              void afterLogin(fbUserId, token);
             } else if (response.status === 'not_authorized') {
               setStatus('error');
               setMessage('Autorização não concedida para o app — nenhuma alteração foi feita.');
-              finish({ status: 'erro', error: 'Não autorizado' });
+              closeAfter({ status: 'erro', error: 'Não autorizado' });
             } else {
               const erro = response.error?.message || 'Login cancelado — nenhuma alteração foi feita.';
               setStatus('error');
               setMessage(erro);
-              finish({ status: 'erro', error: response.error?.message || 'Cancelado' });
+              closeAfter({ status: 'erro', error: response.error?.message || 'Cancelado' });
             }
           },
           { scope },
         );
-      } catch {
+      } catch (e) {
         setStatus('error');
-        setMessage('Erro ao conectar com o Facebook.');
-        finish({ status: 'erro', error: 'SDK falhou' }, false);
+        setMessage(e instanceof Error ? e.message : 'Erro ao conectar com o Facebook.');
+        notifyOpener({ status: 'erro', error: 'SDK falhou' });
+        window.setTimeout(() => window.close(), 3000);
       }
     };
 
