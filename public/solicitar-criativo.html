@@ -573,23 +573,25 @@
                     title: { container: 'container-title-texts', cls: 'title-text-input', ph: 'Digite o título igual ao Gerenciador de Anúncios.', label: 'TÍTULO' },
                     desc: { container: 'container-desc-texts', cls: 'desc-text-input', ph: 'Digite a descrição exibida no rodapé do Feed.', label: 'DESCRIÇÃO' }
                 };
-                var cfg = map[type];
-                var container = document.getElementById(cfg.container);
-                if (!container) return;
-                container.innerHTML = '';
-                state.variations[type].forEach(function (val, i) {
-                    var el = document.createElement('div');
-                    el.className = 'text-block bg-slate-950 p-2.5 rounded-lg border border-slate-800 space-y-1.5';
-                    var isMain = type === 'main';
-                    el.innerHTML = '<div class="flex items-center justify-between"><span class="text-[10px] font-semibold text-slate-500">VARIAÇÃO #' + (i + 1) + '</span>'
-                        + (state.variations[type].length > 1 ? '<button onclick="removeTextVariation(\'' + type + '\',' + i + ')" class="text-[10px] text-red-400 hover:text-red-300"><i class="fa-solid fa-trash-can"></i></button>' : '')
-                        + '</div>'
-                        + (isMain
-                            ? '<textarea oninput="textChanged(\'main\',' + i + ',this.value)" class="main-text-input w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition resize-y min-h-[60px]" rows="2" placeholder="' + cfg.ph + '"></textarea>'
-                            : '<input type="text" oninput="textChanged(\'' + type + '\',' + i + ',this.value)" class="' + cfg.cls + ' w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition" placeholder="' + cfg.ph + '" />');
-                    container.appendChild(el);
+                ['main', 'title', 'desc'].forEach(function (type) {
+                    var cfg = map[type];
+                    var container = document.getElementById(cfg.container);
+                    if (!container) return;
+                    container.innerHTML = '';
+                    state.variations[type].forEach(function (val, i) {
+                        var el = document.createElement('div');
+                        el.className = 'text-block bg-slate-950 p-2.5 rounded-lg border border-slate-800 space-y-1.5';
+                        var isMain = type === 'main';
+                        el.innerHTML = '<div class="flex items-center justify-between"><span class="text-[10px] font-semibold text-slate-500">VARIAÇÃO #' + (i + 1) + '</span>'
+                            + (state.variations[type].length > 1 ? '<button onclick="removeTextVariation(\'' + type + '\',' + i + ')" class="text-[10px] text-red-400 hover:text-red-300"><i class="fa-solid fa-trash-can"></i></button>' : '')
+                            + '</div>'
+                            + (isMain
+                                ? '<textarea oninput="textChanged(\'main\',' + i + ',this.value)" class="main-text-input w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition resize-y min-h-[60px]" rows="2" placeholder="' + cfg.ph + '"></textarea>'
+                                : '<input type="text" oninput="textChanged(\'' + type + '\',' + i + ',this.value)" class="' + cfg.cls + ' w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition" placeholder="' + cfg.ph + '" />');
+                        container.appendChild(el);
+                    });
+                    document.getElementById('count-' + type).innerText = state.variations[type].length;
                 });
-                document.getElementById('count-' + (type === 'main' ? 'main' : type === 'title' ? 'title' : 'desc')).innerText = state.variations[type].length;
             }
 
             function removeTextVariation(type, index) {
