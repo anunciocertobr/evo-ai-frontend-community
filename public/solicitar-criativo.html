@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="robots" content="noindex">
+    <title>Solicitar Criativo - Meta Ads</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        meta: { blue: '#1877F2', darkBlue: '#0d65d9', gradientStart: '#833ab4', gradientMid: '#fd1d1d', gradientEnd: '#fcb045' }
+                    },
+                    screens: { 'xs': '480px', '2xl': '1440px' }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        .tab-btn.active { background-color: rgba(30, 58, 138, 0.5); border-color: #3b82f6; color: #ffffff; }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans overflow-x-hidden antialiased text-slate-200 bg-slate-950">
+
+    <!-- TELA DE VALIDAÇÃO DO LINK -->
+    <div id="pnl-validate" class="flex-1 flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center">
+            <div class="w-12 h-12 mx-auto rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center text-xl mb-4">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+            </div>
+            <h1 class="text-lg font-bold text-white mb-1">Solicitar Criativo</h1>
+            <p class="text-xs text-slate-400 mb-4">Validando o seu link de envio...</p>
+            <div class="w-6 h-6 mx-auto border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+    </div>
+
+    <div id="pnl-error" class="flex-1 hidden items-center justify-center p-4">
+        <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center">
+            <div class="w-12 h-12 mx-auto rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center text-xl mb-4">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h1 class="text-lg font-bold text-white mb-1">Link inválido</h1>
+            <p id="msg-error" class="text-xs text-slate-400 mb-4">Este link de solicitação é inválido ou expirou.</p>
+        </div>
+    </div>
+
+    <!-- GESTOR (só aparece se o grant for válido) -->
+    <div id="pnl-app" class="hidden flex-col flex-1 min-h-[100vh]">
+
+        <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-3 md:px-5 py-2.5 flex flex-wrap items-center justify-between shrink-0 shadow-sm gap-2">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold text-base shadow-md shadow-blue-500/20">
+                    <i class="fa-brands fa-meta"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-sm md:text-base text-white leading-tight flex items-center gap-2">
+                        Meta Ads Hub <span class="hidden sm:inline-block text-[10px] font-medium bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30">v2.5</span>
+                    </h1>
+                    <p class="text-[10px] text-slate-400 hidden xs:block">Central de Solicitações e Estúdio de Criativos</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                <button onclick="switchAppMode('studio')" id="tab-mode-studio" class="tab-btn active px-3 py-1.5 rounded-lg border border-transparent font-medium text-slate-400 hover:text-white transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-cloud-arrow-up text-blue-400"></i> <span>Enviar Mídia</span>
+                </button>
+                <button onclick="switchAppMode('new-campaign')" id="tab-mode-new-campaign" class="tab-btn px-3 py-1.5 rounded-lg border border-transparent font-medium text-slate-400 hover:text-white transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-rocket text-emerald-400"></i> <span>Solicitar Nova Campanha</span>
+                </button>
+                <button onclick="switchAppMode('edit-request')" id="tab-mode-edit-request" class="tab-btn px-3 py-1.5 rounded-lg border border-transparent font-medium text-slate-400 hover:text-white transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-pen-to-square text-amber-400"></i> <span>Solicitar Edição</span>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button onclick="scrollToPreview()" id="mobile-toggle-btn" class="px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold flex items-center gap-1.5 shadow hover:bg-blue-500 transition">
+                    <i class="fa-solid fa-eye"></i> <span id="mobile-toggle-txt">Ver Prévia</span>
+                </button>
+                <button onclick="submitCurrentMode()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-md shadow-blue-600/30 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-paper-plane"></i> <span class="hidden sm:inline">Enviar</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- AVISO DA PASTA DE DESTINO -->
+        <div class="max-w-4xl mx-auto w-full px-3 sm:px-6 pt-4">
+            <div class="flex items-center gap-2 bg-emerald-950/30 border border-emerald-800/40 rounded-lg px-3 py-2 text-[11px] text-emerald-300/90">
+                <i class="fa-solid fa-folder-open text-emerald-400 shrink-0"></i>
+                <span>Ao enviar, os arquivos ficam salvos em: <strong id="dest-pasta"></strong></span>
+            </div>
+        </div>
+
+        <!-- MODO 1: ENVIAR MÍDIA & ESTÚDIO -->
+        <main id="mode-view-studio" class="flex-1 overflow-y-auto bg-slate-950">
+            <section id="editor-section" class="max-w-4xl mx-auto p-3 sm:p-6 space-y-6">
+
+                <div id="block-media" class="space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-2">
+                            <i class="fa-solid fa-photo-film text-xs"></i> 1. Mídias & Formato
+                        </h2>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-300">Tipo de Formato Meta Ads</span>
+                            <span class="text-[11px] text-slate-500">Selecione para ajustar layout</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <label class="relative flex items-center p-2.5 rounded-lg border-2 border-blue-500 bg-blue-950/30 cursor-pointer transition" id="format-single-label">
+                                <input type="radio" name="format_type" value="single" checked onchange="toggleFormat('single')" class="hidden">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded bg-blue-600/20 text-blue-400 flex items-center justify-center text-sm shrink-0"><i class="fa-solid fa-image"></i></div>
+                                    <div>
+                                        <p class="font-bold text-xs text-white leading-tight">Imagem / Vídeo Único</p>
+                                        <p class="text-[10px] text-slate-400">Adaptação por posicionamento</p>
+                                    </div>
+                                </div>
+                            </label>
+                            <label class="relative flex items-center p-2.5 rounded-lg border-2 border-slate-800 bg-slate-900 cursor-pointer hover:border-slate-700 transition" id="format-carousel-label">
+                                <input type="radio" name="format_type" value="carousel" onchange="toggleFormat('carousel')" class="hidden">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded bg-purple-600/20 text-purple-400 flex items-center justify-center text-sm shrink-0"><i class="fa-solid fa-layer-group"></i></div>
+                                    <div>
+                                        <p class="font-bold text-xs text-white leading-tight">Carrossel de Cards</p>
+                                        <p class="text-[10px] text-slate-400">2 a 10 cards em sequência</p>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                            <div>
+                                <h3 class="text-xs font-bold uppercase tracking-wider text-blue-400">Mídias e Filas de Criativos</h3>
+                                <p class="text-[11px] text-slate-400">Arquivos de imagem ou vídeo para Feed, Story e Coluna.</p>
+                            </div>
+                        </div>
+                        <div id="media-rows-container" class="space-y-4"></div>
+                        <button onclick="addMediaRow()" class="w-full py-2.5 border-2 border-dashed border-slate-800 hover:border-blue-500/60 bg-slate-950/60 hover:bg-blue-950/30 rounded-xl text-xs font-semibold text-blue-400 hover:text-blue-300 transition flex items-center justify-center gap-2 shadow-sm group">
+                            <i class="fa-solid fa-plus-circle text-blue-500 group-hover:scale-110 transition-transform"></i>
+                            <span>+ Adicionar Nova Fila de Criativos</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="block-copy" class="space-y-4 pt-2 border-t border-slate-800/80">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles text-xs text-yellow-400"></i> 2. Textos
+                        </h2>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2">
+                        <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                            <i class="fa-solid fa-sliders text-blue-400"></i> Prompt para Inteligência Artificial
+                        </label>
+                        <input id="ai-instructions" type="text" placeholder="Ex: Tom persuasivo, foco em frete grátis, público jovem, adicione emojis e CTA direto..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500 transition">
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                                Textos Principais (Primary Text)
+                                <span id="count-main" class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded-full font-normal">1</span>
+                            </span>
+                            <button onclick="addTextVariation('main')" class="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1"><i class="fa-solid fa-plus-circle"></i> + Variação</button>
+                        </div>
+                        <div id="container-main-texts" class="space-y-2.5"></div>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                                Títulos do Anúncio (Headlines)
+                                <span id="count-title" class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded-full font-normal">1</span>
+                            </span>
+                            <button onclick="addTextVariation('title')" class="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1"><i class="fa-solid fa-plus-circle"></i> + Variação</button>
+                        </div>
+                        <div id="container-title-texts" class="space-y-2.5"></div>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                                Descrições (Rodapé do Feed)
+                                <span id="count-desc" class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded-full font-normal">1</span>
+                            </span>
+                            <button onclick="addTextVariation('desc')" class="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1"><i class="fa-solid fa-plus-circle"></i> + Variação</button>
+                        </div>
+                        <div id="container-desc-texts" class="space-y-2.5"></div>
+                    </div>
+                </div>
+
+                <div id="block-preview" class="space-y-4 pt-4 border-t-2 border-slate-800">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+                            <i class="fa-solid fa-eye text-xs"></i> Prévia do Anúncio
+                        </h2>
+                        <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-medium">Atualizado ao vivo</span>
+                    </div>
+                    <div class="flex flex-col items-center justify-center space-y-4 bg-slate-900/60 p-4 border border-slate-800 rounded-2xl">
+                        <div class="w-full max-w-md space-y-3">
+                            <div class="flex items-center justify-between bg-slate-900 p-2 rounded-xl border border-slate-800 shadow-sm">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-eye text-blue-400"></i> Posicionamento:</span>
+                                <div class="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                                    <button onclick="setPlacement('feed')" id="placement-btn-feed" class="px-2.5 py-1 rounded text-xs font-semibold bg-blue-600 text-white transition"><i class="fa-solid fa-newspaper"></i> Feed</button>
+                                    <button onclick="setPlacement('story')" id="placement-btn-story" class="px-2.5 py-1 rounded text-xs font-semibold text-slate-400 hover:text-white transition"><i class="fa-solid fa-mobile-screen"></i> Story</button>
+                                    <button onclick="setPlacement('right')" id="placement-btn-right" class="px-2.5 py-1 rounded text-xs font-semibold text-slate-400 hover:text-white transition"><i class="fa-solid fa-desktop"></i> Horizontal</button>
+                                </div>
+                            </div>
+
+                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-2.5 space-y-1.5 text-xs">
+                                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex justify-between">
+                                    <span>Matriz Ativa</span>
+                                    <span class="text-blue-400" id="matrix-total-combos">1 Combinação</span>
+                                </div>
+                                <div class="grid grid-cols-3 gap-1.5 text-[11px]">
+                                    <div class="bg-slate-950 p-1.5 rounded border border-slate-800 flex items-center justify-between">
+                                        <button onclick="cycleVariation('main', -1)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-[10px]"><i class="fa-solid fa-chevron-left"></i></button>
+                                        <span id="preview-main-idx" class="font-bold text-white text-[10px]">Texto 1/1</span>
+                                        <button onclick="cycleVariation('main', 1)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-[10px]"><i class="fa-solid fa-chevron-right"></i></button>
+                                    </div>
+                                    <div class="bg-slate-950 p-1.5 rounded border border-slate-800 flex items-center justify-between">
+                                        <button onclick="cycleVariation('mediaRow', -1)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-[10px]"><i class="fa-solid fa-chevron-left"></i></button>
+                                        <span id="preview-media-idx" class="font-bold text-white text-[10px]">Fila 1</span>
+                                        <button onclick="cycleVariation('mediaRow', 1)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-[10px]"><i class="fa-solid fa-chevron-right"></i></button>
+                                    </div>
+                                    <div class="bg-slate-950 p-1.5 rounded border border-slate-800 flex items-center justify-between">
+                                        <button onclick="cycleVariation('title', -1)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-[10px]"><i class="fa-solid fa-chevron-left"></i></button>
+                                        <span id="preview-title-idx" class="font-bold text-white text-[10px]">Título 1/1</span>
+                                        <button onclick="cycleVariation('title', 1)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-[10px]"><i class="fa-solid fa-chevron-right"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="meta-ad-card" class="bg-white text-slate-900 rounded-xl shadow-2xl overflow-hidden border border-slate-200 transition-all duration-300 max-w-full">
+                                <div class="p-2.5 flex items-center justify-between border-b border-slate-100">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow">SM</div>
+                                        <div>
+                                            <div class="flex items-center gap-1"><span class="font-bold text-xs text-slate-900 leading-none">Sua Marca Oficial</span><i class="fa-solid fa-circle-check text-blue-500 text-[10px]"></i></div>
+                                            <span class="text-[9px] text-slate-500 leading-none block mt-0.5">Patrocinado</span>
+                                        </div>
+                                    </div>
+                                    <button class="text-slate-400 text-xs hover:text-slate-600"><i class="fa-solid fa-ellipsis"></i></button>
+                                </div>
+                                <div class="px-2.5 py-1.5 text-xs text-slate-800 leading-snug break-words max-h-24 overflow-y-auto" id="mock-main-text"></div>
+                                <div class="relative bg-slate-100 w-full aspect-square flex items-center justify-center overflow-hidden transition-all duration-300" id="mock-media-container">
+                                    <img id="mock-image" src="" alt="Preview Ad" class="w-full h-full object-cover">
+                                    <div id="mock-media-tag" class="absolute bottom-2 right-2 bg-black/70 backdrop-blur text-white text-[8px] px-1.5 py-0.5 rounded font-mono">FEED (1:1)</div>
+                                </div>
+                                <div class="bg-slate-50 p-2.5 flex items-center justify-between border-t border-slate-200 gap-2">
+                                    <div class="space-y-0.5 min-w-0">
+                                        <span class="text-[9px] uppercase text-slate-500 font-medium tracking-wider block truncate">SUAMARCA.COM.BR</span>
+                                        <h4 id="mock-title" class="font-bold text-xs text-slate-900 truncate"></h4>
+                                        <p id="mock-desc" class="text-[10px] text-slate-500 truncate"></p>
+                                    </div>
+                                    <button class="px-3 py-1 bg-slate-200 hover:bg-slate-300 font-bold text-slate-800 text-xs rounded border border-slate-300 transition shrink-0">Saiba mais</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+
+        <!-- MODO 2: SOLICITAR NOVA CAMPANHA -->
+        <main id="mode-view-new-campaign" class="flex-1 overflow-y-auto bg-slate-950 p-4 md:p-8 hidden">
+            <div class="max-w-3xl mx-auto bg-slate-900 border border-slate-800 rounded-2xl p-5 md:p-8 space-y-6 shadow-xl">
+                <div class="border-b border-slate-800 pb-4 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl shrink-0"><i class="fa-solid fa-rocket"></i></div>
+                    <div>
+                        <h2 class="text-lg font-bold text-white">Solicitar Nova Campanha Meta Ads</h2>
+                        <p class="text-xs text-slate-400">Preencha os parâmetros e diretrizes para a criação da nova estrutura de tráfego.</p>
+                    </div>
+                </div>
+
+                <form id="form-new-campaign" onsubmit="handleFormSubmit(event, 'new-campaign')" class="space-y-5">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-300">Nome do Cliente / Projeto *</label>
+                            <input type="text" required placeholder="Ex: E-commerce Moda Praia / Barbearia Silva" data-campo="nome_cliente" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-300">Objetivo Principal *</label>
+                            <select required data-campo="objetivo" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                                <option value="sales">Vendas / Conversão de Vendas Direct</option>
+                                <option value="leads">Geração de Cadastro / Leads</option>
+                                <option value="traffic">Tráfego para Site / Landing Page</option>
+                                <option value="engagement">Engajamento / Mensagens no Direct</option>
+                                <option value="brand">Reconhecimento de Marca / Alcance</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-300">Orçamento Diário Estimado (R$) *</label>
+                            <input type="number" required placeholder="Ex: 50.00" step="0.01" data-campo="orcamento_diario" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-300">Data de Início Prevista</label>
+                            <input type="date" data-campo="data_inicio" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                        </div>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-300">Público-Alvo e Segmentação *</label>
+                        <textarea rows="3" required placeholder="Descreva idade, gênero, localização e interesses do cliente ideal..." data-campo="publico" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"></textarea>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-300">Link de Destino / WhatsApp / Landing Page *</label>
+                        <input type="url" required placeholder="https://seu-site.com.br/oferta ou https://wa.me/55..." data-campo="link_destino" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-300">Oferta, Promoção ou CTA do Anúncio</label>
+                        <textarea rows="2" placeholder="Ex: Frete Grátis acima de R$199, 20% OFF, Consultoria Gratuita..." data-campo="oferta" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"></textarea>
+                    </div>
+                    <div class="pt-3 border-t border-slate-800 flex items-center justify-end">
+                        <button type="submit" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white shadow-lg shadow-emerald-600/30 transition flex items-center gap-2">
+                            <i class="fa-solid fa-paper-plane"></i> Enviar Solicitação de Campanha
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </main>
+
+        <!-- MODO 3: SOLICITAR EDIÇÃO -->
+        <main id="mode-view-edit-request" class="flex-1 overflow-y-auto bg-slate-950 p-4 md:p-8 hidden">
+            <div class="max-w-3xl mx-auto bg-slate-900 border border-slate-800 rounded-2xl p-5 md:p-8 space-y-6 shadow-xl">
+                <div class="border-b border-slate-800 pb-4 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl shrink-0"><i class="fa-solid fa-pen-to-square"></i></div>
+                    <div>
+                        <h2 class="text-lg font-bold text-white">Solicitar Edição / Ajuste em Campanha Existente</h2>
+                        <p class="text-xs text-slate-400">Informe detalhadamente quais mudanças devem ser realizadas.</p>
+                    </div>
+                </div>
+
+                <form id="form-edit-request" onsubmit="handleFormSubmit(event, 'edit-request')" class="space-y-5">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-300">Nome da Campanha ou Anúncio Existente *</label>
+                            <input type="text" required placeholder="Ex: [Vendas] - Verão 2026 - Conjunto Feed" data-campo="nome_campanha" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-300">Grau de Urgência *</label>
+                            <select required data-campo="urgencia" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500">
+                                <option value="medium">Média (Ajustar em até 24h)</option>
+                                <option value="high">Alta (Ajustar no mesmo dia)</option>
+                                <option value="critical">Urgente (Anúncio pausado / Erro crítico)</option>
+                                <option value="low">Baixa (Ajuste de rotina)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-300">Instruções Detalhadas do que Alterar *</label>
+                        <textarea rows="4" required placeholder="Explique exatamente o que deve ser modificado..." data-campo="instrucoes" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500"></textarea>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-300">Link para Arquivos / Drive / Novas Mídias (Opcional)</label>
+                        <input type="url" placeholder="https://drive.google.com/..." data-campo="link_arquivos" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div class="pt-3 border-t border-slate-800 flex items-center justify-end">
+                        <button type="submit" class="px-5 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 font-bold text-xs text-white shadow-lg shadow-amber-600/30 transition flex items-center gap-2">
+                            <i class="fa-solid fa-paper-plane"></i> Enviar Solicitação de Edição
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal de resultado -->
+    <div id="custom-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 max-w-sm w-full shadow-2xl space-y-4">
+            <div class="flex items-center gap-3">
+                <div id="modal-icon" class="w-10 h-10 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center text-lg shrink-0"><i class="fa-solid fa-circle-info"></i></div>
+                <div>
+                    <h3 id="modal-title" class="font-bold text-sm text-white">Notificação</h3>
+                    <p id="modal-desc" class="text-xs text-slate-400 leading-relaxed mt-0.5"></p>
+                </div>
+            </div>
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <button onclick="closeModal()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition">Entendido</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+
+            var API_BASE = 'https://api-crmcerto.anunciocertobr.com.br';
+            var params = new URLSearchParams(window.location.search);
+            var GRANT = params.get('grant');
+
+            // ---------- ESTADO ----------
+            var state = {
+                currentMode: 'studio',
+                format: 'single',
+                placement: 'feed',
+                activeMediaRowIndex: 0,
+                mediaRows: [
+                    { id: Date.now(), feed: { file: null, name: '' }, story: { file: null, name: '' }, right: { file: null, name: '' } }
+                ],
+                variations: { main: [''], title: [''], desc: [''] },
+                currentIdx: { main: 0, title: 0, desc: 0 },
+                linkInfo: null
+            };
+
+            function showPane(id) {
+                ['pnl-validate', 'pnl-error', 'pnl-app'].forEach(function (p) {
+                    var el = document.getElementById(p);
+                    if (!el) return;
+                    if (p === id) { el.classList.remove('hidden'); el.classList.add('flex'); }
+                    else { el.classList.add('hidden'); el.classList.remove('flex'); }
+                });
+            }
+
+            // ---------- VALIDAÇÃO DO GRANT ----------
+            function validarLink() {
+                if (!GRANT) { showError('Faltou o código de solicitação no link.'); return; }
+                fetch(API_BASE + '/public/api/v1/meta_client/criativos/' + encodeURIComponent(GRANT))
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data.success) { showError(data.error || 'Link inválido ou já utilizado.'); return; }
+                        state.linkInfo = data.data || {};
+                        document.getElementById('dest-pasta').innerText = state.linkInfo.pasta_nome || state.linkInfo.nome || 'Pasta configurada';
+                        showPane('pnl-app');
+                        renderMediaRows();
+                        updateLivePreview();
+                    })
+                    .catch(function () { showError('Não foi possível validar o link. Tente novamente.'); });
+            }
+
+            function showError(msg) {
+                document.getElementById('msg-error').innerText = msg;
+                showPane('pnl-error');
+            }
+
+            // ---------- NAVEGAÇÃO DE MODOS ----------
+            function switchAppMode(mode) {
+                state.currentMode = mode;
+                ['mode-view-studio', 'mode-view-new-campaign', 'mode-view-edit-request'].forEach(function (id) {
+                    document.getElementById(id).classList.add('hidden');
+                });
+                document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+                if (mode === 'studio') {
+                    document.getElementById('mode-view-studio').classList.remove('hidden');
+                    document.getElementById('tab-mode-studio').classList.add('active');
+                    document.getElementById('mobile-toggle-btn').classList.remove('hidden');
+                } else if (mode === 'new-campaign') {
+                    document.getElementById('mode-view-new-campaign').classList.remove('hidden');
+                    document.getElementById('tab-mode-new-campaign').classList.add('active');
+                    document.getElementById('mobile-toggle-btn').classList.add('hidden');
+                } else {
+                    document.getElementById('mode-view-edit-request').classList.remove('hidden');
+                    document.getElementById('tab-mode-edit-request').classList.add('active');
+                    document.getElementById('mobile-toggle-btn').classList.add('hidden');
+                }
+            }
+
+            // ---------- MÍDIAS ----------
+            function addMediaRow() {
+                state.mediaRows.push({ id: Date.now(), feed: { file: null, name: '' }, story: { file: null, name: '' }, right: { file: null, name: '' } });
+                state.activeMediaRowIndex = state.mediaRows.length - 1;
+                renderMediaRows();
+                updateLivePreview();
+            }
+
+            function removeMediaRow(rowIndex) {
+                if (state.mediaRows.length <= 1) return;
+                state.mediaRows.splice(rowIndex, 1);
+                state.activeMediaRowIndex = Math.min(state.activeMediaRowIndex, state.mediaRows.length - 1);
+                renderMediaRows();
+                updateLivePreview();
+            }
+
+            function setActiveRow(rowIndex) {
+                state.activeMediaRowIndex = rowIndex;
+                renderMediaRows();
+                updateLivePreview();
+            }
+
+            function handleSingleUpload(event, rowIndex, slotKey) {
+                var file = event.target.files[0];
+                if (!file) return;
+                state.mediaRows[rowIndex][slotKey].file = file;
+                state.mediaRows[rowIndex][slotKey].name = file.name.replace(/\.[^/.]+$/, '') || 'midia';
+                state.activeMediaRowIndex = rowIndex;
+                renderMediaRows();
+                updateLivePreview();
+            }
+
+            function updateMediaName(rowIndex, slotKey, value) {
+                var clean = value.replace(/\.[^/.]+$/, '').trim();
+                state.mediaRows[rowIndex][slotKey].name = clean;
+            }
+
+            function clearSlotMedia(rowIndex, slotKey) {
+                state.mediaRows[rowIndex][slotKey].file = null;
+                state.mediaRows[rowIndex][slotKey].name = '';
+                renderMediaRows();
+            }
+
+            function renderSlotCard(rowIndex, slotKey, title, iconClass, colorClass) {
+                var slot = state.mediaRows[rowIndex][slotKey];
+                var has = !!slot.file;
+                var preview = has ? URL.createObjectURL(slot.file) : '';
+                return '<div class="border border-dashed ' + (has ? 'border-slate-700' : 'border-slate-800 hover:border-slate-700') + ' bg-slate-900/60 rounded-xl p-1.5 sm:p-2 flex flex-col justify-between relative group">'
+                    + '<div class="flex items-center justify-between text-[9px] sm:text-[10px] font-medium text-slate-300 mb-1">'
+                    + '<span class="truncate"><i class="fa-solid ' + iconClass + ' ' + colorClass + '"></i> ' + title + '</span></div>'
+                    + '<div class="h-20 sm:h-24 rounded-lg bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-slate-500 overflow-hidden relative">'
+                    + (has
+                        ? '<img src="' + preview + '" class="w-full h-full object-cover">'
+                        + '<button onclick="clearSlotMedia(' + rowIndex + ', \'' + slotKey + '\')" class="absolute top-1 right-1 bg-black/70 hover:bg-red-600 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center transition z-10" title="Remover"><i class="fa-solid fa-xmark"></i></button>'
+                        : '<i class="fa-solid fa-cloud-arrow-up text-base sm:text-lg mb-0.5 group-hover:scale-110 transition"></i><span class="text-[8px] sm:text-[9px]">Carregar</span><input type="file" accept="image/*,video/*" onchange="handleSingleUpload(event, ' + rowIndex + ', \'' + slotKey + '\')" class="absolute inset-0 opacity-0 cursor-pointer">')
+                    + '</div>'
+                    + '<div class="mt-1 space-y-0.5">'
+                    + '<label class="text-[7px] sm:text-[8px] font-semibold text-slate-500 uppercase tracking-wider block truncate">Nome da Mídia</label>'
+                    + '<div class="flex items-center bg-slate-950 border border-slate-800 rounded px-1 py-0.5 focus-within:border-blue-500 transition">'
+                    + '<input type="text" value="' + (slot.name || '').replace(/"/g, '&quot;') + '" placeholder="Nome" onchange="updateMediaName(' + rowIndex + ', \'' + slotKey + '\', this.value)" class="w-full bg-transparent text-[8px] sm:text-[10px] text-slate-200 focus:outline-none truncate" />'
+                    + (slot.file ? '<span class="text-[8px] font-mono text-slate-500 shrink-0 ml-0.5">' + (slot.file.name.split('.').pop() || '') + '</span>' : '')
+                    + '</div></div></div>';
+            }
+
+            function renderMediaRows() {
+                var container = document.getElementById('media-rows-container');
+                if (!container) return;
+                container.innerHTML = '';
+                state.mediaRows.forEach(function (row, rowIndex) {
+                    var isOnly = state.mediaRows.length <= 1;
+                    var card = document.createElement('div');
+                    card.className = 'p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2.5 relative shadow-sm';
+                    card.innerHTML = '<div class="flex items-center justify-between border-b border-slate-800/80 pb-2">'
+                        + '<div class="flex items-center gap-2">'
+                        + '<span class="w-2 h-2 rounded-full ' + (rowIndex === state.activeMediaRowIndex ? 'bg-blue-500 animate-pulse' : 'bg-slate-600') + '"></span>'
+                        + '<h4 class="text-xs font-bold text-slate-200"><i class="fa-solid fa-layer-group text-blue-400 mr-1"></i> Fila #' + (rowIndex + 1) + '</h4>'
+                        + '</div>'
+                        + '<div class="flex items-center gap-2">'
+                        + '<button onclick="setActiveRow(' + rowIndex + ')" class="text-[10px] px-2 py-0.5 rounded ' + (rowIndex === state.activeMediaRowIndex ? 'bg-blue-600 text-white font-medium' : 'bg-slate-800 text-slate-400 hover:text-white') + ' transition">' + (rowIndex === state.activeMediaRowIndex ? 'Ativa' : 'Ver na Prévia') + '</button>'
+                        + (isOnly ? '' : '<button onclick="removeMediaRow(' + rowIndex + ')" class="text-xs text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-950/40 transition"><i class="fa-solid fa-trash-can"></i></button>')
+                        + '</div></div>'
+                        + '<div class="grid grid-cols-3 gap-1.5 sm:gap-2.5">'
+                        + renderSlotCard(rowIndex, 'feed', 'Feed (1:1)', 'fa-table-cells', 'text-blue-400')
+                        + renderSlotCard(rowIndex, 'story', 'Story (9:16)', 'fa-mobile-screen', 'text-purple-400')
+                        + renderSlotCard(rowIndex, 'right', 'Coluna (16:9)', 'fa-desktop', 'text-emerald-400')
+                        + '</div>';
+                    container.appendChild(card);
+                });
+                updateCounts();
+            }
+
+            // ---------- TEXTOS ----------
+            function addTextVariation(type) {
+                state.variations[type].push('');
+                renderTextBlocks();
+                updateLivePreview();
+            }
+
+            function renderTextBlocks() {
+                var map = {
+                    main: { container: 'container-main-texts', cls: 'main-text-input', ph: 'Digite o texto principal do anúncio...', label: 'PRINCIPAL' },
+                    title: { container: 'container-title-texts', cls: 'title-text-input', ph: 'Digite o título igual ao Gerenciador de Anúncios.', label: 'TÍTULO' },
+                    desc: { container: 'container-desc-texts', cls: 'desc-text-input', ph: 'Digite a descrição exibida no rodapé do Feed.', label: 'DESCRIÇÃO' }
+                };
+                var cfg = map[type];
+                var container = document.getElementById(cfg.container);
+                if (!container) return;
+                container.innerHTML = '';
+                state.variations[type].forEach(function (val, i) {
+                    var el = document.createElement('div');
+                    el.className = 'text-block bg-slate-950 p-2.5 rounded-lg border border-slate-800 space-y-1.5';
+                    var isMain = type === 'main';
+                    el.innerHTML = '<div class="flex items-center justify-between"><span class="text-[10px] font-semibold text-slate-500">VARIAÇÃO #' + (i + 1) + '</span>'
+                        + (state.variations[type].length > 1 ? '<button onclick="removeTextVariation(\'' + type + '\',' + i + ')" class="text-[10px] text-red-400 hover:text-red-300"><i class="fa-solid fa-trash-can"></i></button>' : '')
+                        + '</div>'
+                        + (isMain
+                            ? '<textarea oninput="textChanged(\'main\',' + i + ',this.value)" class="main-text-input w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition resize-y min-h-[60px]" rows="2" placeholder="' + cfg.ph + '"></textarea>'
+                            : '<input type="text" oninput="textChanged(\'' + type + '\',' + i + ',this.value)" class="' + cfg.cls + ' w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition" placeholder="' + cfg.ph + '" />');
+                    container.appendChild(el);
+                });
+                document.getElementById('count-' + (type === 'main' ? 'main' : type === 'title' ? 'title' : 'desc')).innerText = state.variations[type].length;
+            }
+
+            function removeTextVariation(type, index) {
+                if (state.variations[type].length <= 1) return;
+                state.variations[type].splice(index, 1);
+                if (state.currentIdx[type] >= state.variations[type].length) state.currentIdx[type] = 0;
+                renderTextBlocks();
+                updateLivePreview();
+            }
+
+            function textChanged(type, index, value) {
+                state.variations[type][index] = value;
+                updateLivePreview();
+            }
+
+            function updateCounts() {
+                document.getElementById('count-main').innerText = state.variations.main.length;
+                document.getElementById('count-title').innerText = state.variations.title.length;
+                document.getElementById('count-desc').innerText = state.variations.desc.length;
+                var combos = state.mediaRows.length * state.variations.main.length * state.variations.title.length * state.variations.desc.length;
+                document.getElementById('matrix-total-combos').innerText = combos + ' Combinação' + (combos === 1 ? '' : 'es');
+            }
+
+            // ---------- PRÉVIA ----------
+            function cycleVariation(type, direction) {
+                if (type === 'mediaRow') {
+                    state.activeMediaRowIndex = (state.activeMediaRowIndex + direction + state.mediaRows.length) % state.mediaRows.length;
+                    renderMediaRows();
+                    updateLivePreview();
+                    return;
+                }
+                var total = state.variations[type].length;
+                state.currentIdx[type] = (state.currentIdx[type] + direction + total) % total;
+                updateLivePreview();
+            }
+
+            function setPlacement(type) {
+                state.placement = type;
+                ['feed', 'story', 'right'].forEach(function (p) {
+                    var btn = document.getElementById('placement-btn-' + p);
+                    if (p === type) btn.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-blue-600 text-white transition';
+                    else btn.className = 'px-2.5 py-1 rounded text-xs font-semibold text-slate-400 hover:text-white transition';
+                });
+                updateLivePreview();
+            }
+
+            function toggleFormat(format) {
+                state.format = format;
+                document.getElementById('format-single-label').className = 'relative flex items-center p-2.5 rounded-lg border-2 ' + (format === 'single' ? 'border-blue-500 bg-blue-950/30' : 'border-slate-800 bg-slate-900') + ' cursor-pointer transition';
+                document.getElementById('format-carousel-label').className = 'relative flex items-center p-2.5 rounded-lg border-2 ' + (format === 'carousel' ? 'border-blue-500 bg-blue-950/30' : 'border-slate-800 bg-slate-900') + ' cursor-pointer transition';
+            }
+
+            function updateLivePreview() {
+                var mainIdx = state.currentIdx.main;
+                var titleIdx = state.currentIdx.title;
+                var descIdx = state.currentIdx.desc;
+
+                document.getElementById('preview-main-idx').innerText = 'Txt ' + (mainIdx + 1) + '/' + state.variations.main.length;
+                document.getElementById('preview-title-idx').innerText = 'Tít ' + (titleIdx + 1) + '/' + state.variations.title.length;
+                document.getElementById('preview-media-idx').innerText = 'Fila ' + (state.activeMediaRowIndex + 1) + '/' + state.mediaRows.length;
+
+                document.getElementById('mock-main-text').innerText = state.variations.main[mainIdx] || '';
+                document.getElementById('mock-title').innerText = state.variations.title[titleIdx] || '';
+                document.getElementById('mock-desc').innerText = state.variations.desc[descIdx] || '';
+
+                var row = state.mediaRows[state.activeMediaRowIndex] || state.mediaRows[0];
+                var slot = row ? row[state.placement] : null;
+                var fallback = row ? row.feed.file : null;
+                var file = (slot && slot.file) ? slot.file : fallback;
+
+                var imgElem = document.getElementById('mock-image');
+                if (file) {
+                    imgElem.src = URL.createObjectURL(file);
+                    document.getElementById('mock-media-tag').innerText = (state.placement.toUpperCase()) + (slot && slot.file ? ' • ' + (slot.name || '') : '');
+                } else {
+                    imgElem.removeAttribute('src');
+                    document.getElementById('mock-media-tag').innerText = 'Sem mídia nesta fila';
+                }
+            }
+
+            function scrollToPreview() {
+                document.getElementById('block-preview').scrollIntoView({ behavior: 'smooth' });
+            }
+
+            // ---------- ENVIO ----------
+            function collectStudioData() {
+                var campos = {
+                    tipo: 'midia_estudio',
+                    formato: state.format,
+                    prompt_ia: document.getElementById('ai-instructions').value || '',
+                    textos: state.variations.main.filter(Boolean),
+                    titulos: state.variations.title.filter(Boolean),
+                    descricoes: state.variations.desc.filter(Boolean)
+                };
+                var arquivos = [];
+                state.mediaRows.forEach(function (row, i) {
+                    ['feed', 'story', 'right'].forEach(function (slotKey) {
+                        if (row[slotKey].file) arquivos.push(row[slotKey].file);
+                    });
+                });
+                return { campos: campos, arquivos: arquivos };
+            }
+
+            function collectFormData(formId, tipo) {
+                var campos = { tipo: tipo };
+                Array.prototype.forEach.call(document.querySelectorAll('#' + formId + ' [data-campo]'), function (el) {
+                    campos[el.getAttribute('data-campo')] = el.value;
+                });
+                return { campos: campos, arquivos: [] };
+            }
+
+            function submitCurrentMode() {
+                var data = {};
+                if (state.currentMode === 'studio') {
+                    data = collectStudioData();
+                    if (data.arquivos.length === 0) { showModal('Nenhum arquivo', 'Selecione ao menos uma mídia na aba Enviar Mídia.'); return; }
+                } else if (state.currentMode === 'new-campaign') {
+                    var nc = document.getElementById('form-new-campaign');
+                    if (!nc.reportValidity()) return;
+                    data = collectFormData('form-new-campaign', 'nova_campanha');
+                } else {
+                    var er = document.getElementById('form-edit-request');
+                    if (!er.reportValidity()) return;
+                    data = collectFormData('form-edit-request', 'edicao');
+                }
+                enviar(data);
+            }
+
+            function handleFormSubmit(event, formType) {
+                event.preventDefault();
+                var data = formType === 'new-campaign'
+                    ? collectFormData('form-new-campaign', 'nova_campanha')
+                    : collectFormData('form-edit-request', 'edicao');
+                enviar(data);
+            }
+
+            function enviar(data) {
+                var fd = new FormData();
+                fd.append('grant', GRANT);
+                fd.append('campos', JSON.stringify(data.campos));
+                data.arquivos.forEach(function (f) { fd.append('arquivos[]', f); });
+
+                var btn = document.querySelector('#pnl-app .bg-blue-600[onclick="submitCurrentMode()"], #mobile-toggle-btn');
+                fetch(API_BASE + '/public/api/v1/meta_client/criativos', { method: 'POST', body: fd })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (res.success) {
+                            var n = (res.data.arquivos || []).length;
+                            showModal('Enviado com sucesso!', n + ' arquivo(s) salvo(s). O time de criação recebeu sua solicitação.');
+                        } else {
+                            showModal('Não foi possível enviar', res.error || 'Tente novamente.');
+                        }
+                    })
+                    .catch(function () { showModal('Erro de conexão', 'Não foi possível enviar. Verifique sua internet e tente de novo.'); });
+            }
+
+            function showModal(title, desc) {
+                document.getElementById('modal-title').innerText = title;
+                document.getElementById('modal-desc').innerText = desc;
+                document.getElementById('custom-modal').classList.remove('hidden');
+            }
+
+            function closeModal() {
+                document.getElementById('custom-modal').classList.add('hidden');
+            }
+
+            // ---------- BOOT ----------
+            window.onload = function () {
+                renderTextBlocks();
+                validarLink();
+            };
+
+            window.switchAppMode = switchAppMode;
+            window.scrollToPreview = scrollToPreview;
+            window.submitCurrentMode = submitCurrentMode;
+            window.addMediaRow = addMediaRow;
+            window.addTextVariation = addTextVariation;
+            window.removeTextVariation = removeTextVariation;
+            window.updateMediaName = updateMediaName;
+            window.clearSlotMedia = clearSlotMedia;
+            window.handleSingleUpload = handleSingleUpload;
+            window.textChanged = textChanged;
+            window.cycleVariation = cycleVariation;
+            window.setPlacement = setPlacement;
+            window.toggleFormat = toggleFormat;
+            window.setActiveRow = setActiveRow;
+            window.removeMediaRow = removeMediaRow;
+            window.handleFormSubmit = handleFormSubmit;
+            window.closeModal = closeModal;
+
+            // campos de mídia: reaplica após render p/ manter valores
+        })();
+    </script>
+</body>
+</html>

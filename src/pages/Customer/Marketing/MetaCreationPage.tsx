@@ -8,7 +8,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, ArrowLeftRight, Images } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, ArrowLeftRight, Images, Link2 } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -17,6 +17,7 @@ import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialo
 import { AudienceContactsPickerDialog } from '@/components/marketing/AudienceContactsPickerDialog';
 import { TargetingBuilder } from '@/components/marketing/TargetingBuilder';
 import { MediaLibraryBrowser } from '@/components/marketing/MediaLibraryBrowser';
+import { CriativoRequestsTab } from '@/components/marketing/CriativoRequestsTab';
 import {
   metaCreationService,
   type LeadForm,
@@ -134,6 +135,9 @@ export default function MetaCreationPage() {
           </TabsTrigger>
           <TabsTrigger value="media">
             <Images className="w-4 h-4 mr-1.5" /> Biblioteca de mídias
+          </TabsTrigger>
+          <TabsTrigger value="solicitar-criativo">
+            <Link2 className="w-4 h-4 mr-1.5" /> Solicitar Criativo
           </TabsTrigger>
         </TabsList>
 
@@ -339,6 +343,11 @@ export default function MetaCreationPage() {
 
         <TabsContent value="targeting">
           <TargetingBuilder />
+        </TabsContent>
+
+        {/* --- Solicitar Criativo --- */}
+        <TabsContent value="solicitar-criativo">
+          <CriativoRequestsTab />
         </TabsContent>
       </Tabs>
     </div>
