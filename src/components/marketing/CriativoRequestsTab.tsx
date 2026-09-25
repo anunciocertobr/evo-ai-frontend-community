@@ -2,18 +2,35 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Check,
+  CheckCircle2,
   ChevronRight,
   Cloud,
   Copy,
+  ExternalLink,
+  Eye,
+  FileText,
   Folder,
   HardDrive,
   Home,
   Link2,
   Loader2,
+  PlayCircle,
   RefreshCw,
   Send,
+  Trash2,
+  XCircle,
 } from 'lucide-react';
-import { Button, Badge, Input } from '@evoapi/design-system';
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+} from '@evoapi/design-system';
 import { toast } from 'sonner';
 import { apiErrorMessage } from '@/utils/apiHelpers';
 import { formatDateTime } from '@/utils/time';
@@ -23,7 +40,9 @@ import {
   type CriativoLink,
   type CriativoProvider,
   type CriativoSolicitacao,
+  type CriativoSolicitacaoDetalhe,
   type CriativoStatus,
+  type CriativoStatusSubmissao,
 } from '@/services/marketing/criativoRequestsService';
 
 interface Crumb {
@@ -38,6 +57,42 @@ const PROVIDERS: Array<{ key: MediaProvider; label: string; icon: typeof HardDri
 
 function PROV_LABEL(p: CriativoProvider): string {
   return p === 'drive' ? 'Google Drive' : 'Dropbox';
+}
+
+const STATUS_LABEL: Record<CriativoStatusSubmissao, string> = {
+  recebido: 'Recebido',
+  produzindo: 'Produzindo',
+  finalizado: 'Finalizado',
+  recusado: 'Recusado',
+};
+
+const STATUS_BADGE: Record<CriativoStatusSubmissao, 'default' | 'outline' | 'secondary' | 'destructive'> = {
+  recebido: 'outline',
+  produzindo: 'secondary',
+  finalizado: 'default',
+  recusado: 'destructive',
+};
+
+const CAMPO_LABEL: Record<string, string> = {
+  nome_cliente: 'Nome do Cliente / Projeto',
+  objetivo: 'Objetivo Principal',
+  orcamento_diario: 'Orçamento Diário Estimado (R$)',
+  data_inicio: 'Data de Início Prevista',
+  publico: 'Público-Alvo e Segmentação',
+  localizacoes: 'Localização Geográfica (mapa)',
+  link_destino: 'Link de Destino / WhatsApp / Landing Page',
+  oferta: 'Oferta, Promoção ou CTA do Anúncio',
+  nome_campanha: 'Nome da Campanha ou Anúncio Existente',
+  urgencia: 'Grau de Urgência',
+  instrucoes: 'Instruções Detalhadas do que Alterar',
+  link_arquivos: 'Link para Arquivos / Drive / Novas Mídias',
+};
+
+function formatBytes(n?: number): string {
+  if (!n) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function copyLink(url: string) {
@@ -58,6 +113,12 @@ export function CriativoRequestsTab() {
   const [generated, setGenerated] = useState<CriativoLink | null>(null);
   const [solicitacoes, setSolicitacoes] = useState<CriativoSolicitacao[]>([]);
   const [loadingSolicitacoes, setLoadingSolicitacoes] = useState(false);
+  const [urlsDialogOpen, setUrlsDialogOpen] = useState(false);
+  const [detalheGrant, setDetalheGrant] = useState<string | null>(null);
+  const [detalhe, setDetalhe] = useState<CriativoSolicitacaoDetalhe | null>(null);
+  const [loadingDetalhe, setLoadingDetalhe] = useState(false);
+  const [busyStatus, setBusyStatus] = useState<string | null>(null);
+  const [deletandoGrant, setDeletandoGrant] = useState<string | null>(null);
 
   const location = crumbs[crumbs.length - 1].ref;
   const locationName = crumbs[crumbs.length - 1].name;
@@ -131,6 +192,69 @@ export function CriativoRequestsTab() {
       toast.error(apiErrorMessage(error) || 'Erro ao gerar o link.');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const openDetail = useCallback(async (grant: string) => {
+    setDetalheGrant(grant);
+    setDetalhe(null);
+    setLoadingDetalhe(true);
+    try {
+      setDetalhe(await criativoRequestsService.detalhe(grant));
+    } catch (error) {
+      toast.error(apiErrorMessage(error) || 'Erro ao carregar o conteúdo enviado.');
+      setDetalheGrant(null);
+    } finally {
+      setLoadingDetalhe(false);
+    }
+  }, []);
+
+  const aplicarStatus = async (subId: string, next: CriativoStatusSubmissao) => {
+    if (!detalheGrant) return;
+    if (
+      next === 'recusado' &&
+      !window.confirm('Recusar este envio exclui os arquivos dele do Drive/Dropbox. Continuar?')
+    ) {
+      return;
+    }
+    setBusyStatus(`${subId}:${next}`);
+    try {
+      await criativoRequestsService.atualizarStatus(detalheGrant, subId, next);
+      toast.success(
+        next === 'recusado'
+          ? 'Envio recusado e arquivos excluídos.'
+          : `Status atualizado para "${STATUS_LABEL[next]}".`
+      );
+      setDetalhe(await criativoRequestsService.detalhe(detalheGrant));
+      loadSolicitacoes();
+    } catch (error) {
+      toast.error(apiErrorMessage(error) || 'Erro ao atualizar o status.');
+    } finally {
+      setBusyStatus(null);
+    }
+  };
+
+  const removerLink = async (grant: string) => {
+    if (
+      !window.confirm(
+        'Excluir este link apaga as submissões e os arquivos enviados pelo cliente no Drive/Dropbox. Continuar?'
+      )
+    ) {
+      return;
+    }
+    setDeletandoGrant(grant);
+    try {
+      await criativoRequestsService.removerLink(grant);
+      toast.success('Link excluído.');
+      if (detalheGrant === grant) {
+        setDetalheGrant(null);
+        setDetalhe(null);
+      }
+      loadSolicitacoes();
+    } catch (error) {
+      toast.error(apiErrorMessage(error) || 'Erro ao excluir o link.');
+    } finally {
+      setDeletandoGrant(null);
     }
   };
 
@@ -265,9 +389,14 @@ export function CriativoRequestsTab() {
           <h4 className="text-sm font-semibold flex items-center gap-1.5">
             <Send className="w-4 h-4" /> Solicitações recebidas
           </h4>
-          <Button size="sm" variant="ghost" onClick={loadSolicitacoes} disabled={loadingSolicitacoes} title="Atualizar">
-            <RefreshCw className={`w-4 h-4 ${loadingSolicitacoes ? 'animate-spin' : ''}`} />
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setUrlsDialogOpen(true)}>
+              <Link2 className="w-3.5 h-3.5 mr-1.5" /> Ver URLs geradas
+            </Button>
+            <Button size="sm" variant="ghost" onClick={loadSolicitacoes} disabled={loadingSolicitacoes} title="Atualizar">
+              <RefreshCw className={`w-4 h-4 ${loadingSolicitacoes ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
         </div>
 
         {loadingSolicitacoes ? (
@@ -284,7 +413,12 @@ export function CriativoRequestsTab() {
               <div key={s.grant} className="p-4 space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h5 className="text-sm font-semibold">{s.nome || '(Sem nome)'}</h5>
-                  <Badge variant="outline">{PROV_LABEL(s.provedor)}</Badge>
+                  <div className="flex items-center gap-2">
+                    {s.ultima_status && s.ultima_status !== 'recebido' && (
+                      <Badge variant={STATUS_BADGE[s.ultima_status]}>{STATUS_LABEL[s.ultima_status]}</Badge>
+                    )}
+                    <Badge variant="outline">{PROV_LABEL(s.provedor)}</Badge>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>
@@ -305,13 +439,29 @@ export function CriativoRequestsTab() {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button size="sm" variant="outline" disabled={!s.url} onClick={() => s.url && copyLink(s.url)}>
                     <Copy className="w-3.5 h-3.5 mr-1.5" /> Copiar link
                   </Button>
+                  <Button size="sm" variant="outline" onClick={() => openDetail(s.grant)}>
+                    <Eye className="w-3.5 h-3.5 mr-1.5" /> Ver envios
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={deletandoGrant === s.grant}
+                    onClick={() => removerLink(s.grant)}
+                  >
+                    {deletandoGrant === s.grant ? (
+                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                    )}
+                    Excluir
+                  </Button>
                   {s.submissoes > 0 && (
                     <span className="flex items-center text-xs text-emerald-600 gap-1">
-                      <Check className="w-3.5 h-3.5" /> Cliente ja enviou
+                      <Check className="w-3.5 h-3.5" /> Cliente já enviou
                     </span>
                   )}
                 </div>
@@ -320,6 +470,217 @@ export function CriativoRequestsTab() {
           </div>
         )}
       </div>
+
+      <Dialog open={urlsDialogOpen} onOpenChange={setUrlsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>URLs geradas</DialogTitle>
+            <DialogDescription>
+              Links públicos enviados aos clientes. Cada um pode ser copiado ou excluído (a exclusão apaga também os
+              arquivos enviados no Drive/Dropbox).
+            </DialogDescription>
+          </DialogHeader>
+          {solicitacoes.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground border border-dashed border-border rounded-lg">
+              Nenhum link gerado ainda.
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+              {solicitacoes.map((s) => (
+                <div
+                  key={s.grant}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card p-3"
+                >
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-xs font-semibold">{s.nome || '(Sem nome)'}</p>
+                    <code className="text-[11px] break-all text-muted-foreground">{s.url}</code>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button size="sm" variant="outline" disabled={!s.url} onClick={() => s.url && copyLink(s.url)}>
+                      <Copy className="w-3.5 h-3.5 mr-1.5" /> Copiar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={deletandoGrant === s.grant}
+                      onClick={() => removerLink(s.grant)}
+                    >
+                      {deletandoGrant === s.grant ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3.5 h-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={detalheGrant !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetalheGrant(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{detalhe?.nome || 'Envio do cliente'}</DialogTitle>
+            <DialogDescription>
+              {detalhe && (
+                <>
+                  {PROV_LABEL(detalhe.provedor)} · Pasta {detalhe.pasta_nome || detalhe.pasta_ref}
+                  {detalhe.url && (
+                    <>
+                      {' · '}
+                      <button
+                        type="button"
+                        className="underline underline-offset-2 font-medium"
+                        onClick={() => detalhe.url && copyLink(detalhe.url)}
+                      >
+                        Copiar link do cliente
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingDetalhe ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
+            </div>
+          ) : !detalhe || detalhe.submissoes.length === 0 ? (
+            <div className="text-center py-10 text-sm text-muted-foreground border border-dashed border-border rounded-lg">
+              Nenhum envio até agora.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {detalhe.submissoes.map((sub, i) => (
+                <div key={sub.id} className="rounded-lg border border-border bg-card p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm">
+                      <span className="font-semibold">
+                        Envio {i + 1} de {detalhe.submissoes.length}
+                      </span>
+                      <span className="text-muted-foreground"> · {formatDateTime(sub.criado_em)}</span>
+                    </div>
+                    <Badge variant={STATUS_BADGE[sub.status]}>{STATUS_LABEL[sub.status]}</Badge>
+                  </div>
+
+                  {Object.values(sub.campos).some((v) => (v || '').trim() !== '') && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                      {Object.entries(sub.campos)
+                        .filter(([, v]) => (v || '').trim() !== '')
+                        .map(([key, value]) => (
+                          <div key={key}>
+                            <span className="text-muted-foreground">{CAMPO_LABEL[key] || key}: </span>
+                            <span className="text-foreground whitespace-pre-wrap">{value}</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+
+                  {sub.arquivos.length > 0 && (
+                    <div className="flex flex-wrap gap-3">
+                      {sub.arquivos.map((arq) => (
+                        <div
+                          key={`${sub.id}-${arq.nome}`}
+                          className="flex items-center gap-3 rounded-md border border-border bg-muted/30 p-2 pr-3"
+                        >
+                          {arq.preview ? (
+                            <a href={arq.preview} target="_blank" rel="noopener noreferrer" title={arq.nome}>
+                              <img src={arq.preview} alt={arq.nome} className="w-16 h-16 rounded object-cover" />
+                            </a>
+                          ) : (
+                            <div className="w-16 h-16 rounded bg-background border border-border flex items-center justify-center">
+                              <FileText className="w-6 h-6 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="space-y-0.5">
+                            <p className="text-xs font-medium max-w-[200px] truncate" title={arq.nome}>
+                              {arq.nome}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {formatBytes(arq.tamanho)}
+                              {arq.tipo ? ` · ${arq.tipo}` : ''}
+                            </p>
+                            {arq.download && (
+                              <a
+                                href={arq.download}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary inline-flex items-center gap-1"
+                              >
+                                <ExternalLink className="w-3 h-3" /> Baixar / visualizar
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {sub.status !== 'finalizado' && (
+                    <div className="flex flex-wrap gap-2">
+                      {sub.status === 'recebido' && (
+                        <Button
+                          size="sm"
+                          onClick={() => aplicarStatus(sub.id, 'produzindo')}
+                          disabled={busyStatus !== null}
+                        >
+                          {busyStatus === `${sub.id}:produzindo` ? (
+                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                          ) : (
+                            <PlayCircle className="w-3.5 h-3.5 mr-1.5" />
+                          )}
+                          Produzir
+                        </Button>
+                      )}
+                      {sub.status === 'produzindo' && (
+                        <Button
+                          size="sm"
+                          onClick={() => aplicarStatus(sub.id, 'finalizado')}
+                          disabled={busyStatus !== null}
+                        >
+                          {busyStatus === `${sub.id}:finalizado` ? (
+                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                          )}
+                          Finalizar
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => aplicarStatus(sub.id, 'recusado')}
+                        disabled={busyStatus !== null}
+                      >
+                        {busyStatus === `${sub.id}:recusado` ? (
+                          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                        ) : (
+                          <XCircle className="w-3.5 h-3.5 mr-1.5" />
+                        )}
+                        Recusar e excluir
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button size="sm" variant="outline" onClick={() => setDetalheGrant(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

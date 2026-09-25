@@ -4,6 +4,8 @@ const ENDPOINT = '/reports/criativos';
 
 export type CriativoProvider = 'drive' | 'dropbox';
 
+export type CriativoStatusSubmissao = 'recebido' | 'produzindo' | 'finalizado' | 'recusado';
+
 export interface CriativoSolicitacao {
   grant: string;
   url?: string;
@@ -16,6 +18,40 @@ export interface CriativoSolicitacao {
   submissoes: number;
   arquivos: number;
   ultima_submissao?: string;
+  ultima_status?: CriativoStatusSubmissao;
+}
+
+export interface CriativoArquivoSubmissao {
+  nome: string;
+  tamanho?: number;
+  tipo?: string;
+  ref?: string;
+  preview?: string;
+  download?: string;
+}
+
+export interface CriativoSubmissao {
+  id: string;
+  criado_em: string;
+  status: CriativoStatusSubmissao;
+  campos: Record<string, string>;
+  arquivos: CriativoArquivoSubmissao[];
+}
+
+export interface CriativoSolicitacaoDetalhe {
+  grant: string;
+  url?: string;
+  nome?: string;
+  provedor: CriativoProvider;
+  pasta_ref: string;
+  pasta_nome?: string;
+  criado_em?: string;
+  submissoes: CriativoSubmissao[];
+}
+
+export interface CriativoRemocao {
+  removido: boolean;
+  erros_ao_excluir?: string[];
 }
 
 export interface CriativoStatus {
@@ -56,6 +92,22 @@ class CriativoRequestsService {
 
   solicitacoes(): Promise<CriativoSolicitacao[]> {
     return call<Array<{ solicitacoes: CriativoSolicitacao[] }>>('solicitacoes').then((r) => r?.[0]?.solicitacoes ?? []);
+  }
+
+  detalhe(grant: string): Promise<CriativoSolicitacaoDetalhe> {
+    return call<CriativoSolicitacaoDetalhe>('detalhe', { grant });
+  }
+
+  atualizarStatus(grant: string, submissaoId: string, status: CriativoStatusSubmissao): Promise<CriativoSubmissao | CriativoRemocao> {
+    return call<CriativoSubmissao | CriativoRemocao>('atualizar_status', {
+      grant,
+      submissao_id: submissaoId,
+      status,
+    });
+  }
+
+  removerLink(grant: string): Promise<CriativoRemocao> {
+    return call<CriativoRemocao>('remover_link', { grant });
   }
 }
 
