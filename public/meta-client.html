@@ -195,13 +195,16 @@
             show('error', 'Erro ao conectar com o Facebook. Tente novamente.');
           }
         }
-        // Aviso se o diálogo não aparecer (popup bloqueado).
+        // Aviso se o diálogo não aparecer — mas apenas se já passou do tempo
+        // e o painel ainda está lá (o FB.login abre janela própria e o
+        // callback só volta quando ela fecha, então o ready continua visível
+        // por mais tempo).
         setTimeout(function () {
           if (document.getElementById('pnl-ready') && !document.getElementById('pnl-ready').classList.contains('hidden')) {
             ranLogin = false;
             show('error', 'Nenhuma janela do Facebook abriu. Libere popups para este site e clique em "Autorizar com Facebook" de novo.');
           }
-        }, 15000);
+        }, 25000);
       }
 
       btnLogin.addEventListener('click', runLogin);
