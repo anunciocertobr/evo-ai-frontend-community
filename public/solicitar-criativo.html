@@ -161,11 +161,31 @@
                         </h2>
                     </div>
 
-                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2.5">
                         <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                             <i class="fa-solid fa-sliders text-blue-400"></i> Prompt para Inteligência Artificial
                         </label>
                         <input id="ai-instructions" type="text" placeholder="Ex: Tom persuasivo, foco em frete grátis, público jovem, adicione emojis e CTA direto..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500 transition">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label for="ai-provider" class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Provedor de IA</label>
+                                <select id="ai-provider" onchange="onAiProviderChange()" class="mt-1 w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition">
+                                    <option value="groq">Groq</option>
+                                    <option value="openai">ChatGPT (OpenAI)</option>
+                                    <option value="gemini">Google Gemini</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="ai-model" class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Modelo</label>
+                                <select id="ai-model" class="mt-1 w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition">
+                                    <option value="">Carregando...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button id="ai-generate-btn" type="button" onclick="gerarTextosIA()" class="w-full py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar Textos com IA
+                        </button>
+                        <p id="ai-status" class="text-[11px] text-slate-500 min-h-[16px]"></p>
                     </div>
 
                     <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2.5">
@@ -205,7 +225,7 @@
                 <div id="block-preview" class="space-y-4 pt-4 border-t-2 border-slate-800">
                     <div class="flex items-center justify-between border-b border-slate-800 pb-2">
                         <h2 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
-                            <i class="fa-solid fa-eye text-xs"></i> Prévia do Anúncio
+                            <i class="fa-solid fa-eye text-xs"></i> 3. Prévia do Anúncio
                         </h2>
                         <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-medium">Atualizado ao vivo</span>
                     </div>
@@ -476,6 +496,7 @@
                         showPane('pnl-app');
                         renderMediaRows();
                         updateLivePreview();
+                        loadAiModels();
                     })
                     .catch(function () { showError('Não foi possível validar o link. Tente novamente.'); });
             }
@@ -628,6 +649,7 @@
                             + (isMain
                                 ? '<textarea oninput="textChanged(\'main\',' + i + ',this.value)" class="main-text-input w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition resize-y min-h-[60px]" rows="2" placeholder="' + cfg.ph + '"></textarea>'
                                 : '<input type="text" oninput="textChanged(\'' + type + '\',' + i + ',this.value)" class="' + cfg.cls + ' w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition" placeholder="' + cfg.ph + '" />');
+                        el.querySelector((isMain ? 'textarea' : 'input')).value = val || ''; // mantém valores ao re-render
                         container.appendChild(el);
                     });
                     document.getElementById('count-' + type).innerText = state.variations[type].length;
@@ -645,6 +667,94 @@
             function textChanged(type, index, value) {
                 state.variations[type][index] = value;
                 updateLivePreview();
+            }
+
+            // ---------- IA DE TEXTOS ----------
+            var AI_PROVIDER_LABELS = { groq: 'Groq', openai: 'ChatGPT (OpenAI)', gemini: 'Google Gemini' };
+            var AI_FIELD_MAP = { main: 'principal', title: 'titulo', desc: 'descricao' };
+
+            function aiGrantUrl() {
+                return API_BASE + '/public/api/v1/meta_client/criativos/' + encodeURIComponent(GRANT);
+            }
+
+            function setAiStatus(msg, isError) {
+                var el = document.getElementById('ai-status');
+                if (!el) return;
+                el.innerText = msg || '';
+                el.className = 'text-[11px] min-h-[16px] ' + (isError ? 'text-red-400' : 'text-slate-500');
+            }
+
+            function aiToggleBusy(busy) {
+                var btn = document.getElementById('ai-generate-btn');
+                if (!btn) return;
+                btn.disabled = busy;
+                if (busy) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Gerando...';
+                else btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Gerar Textos com IA';
+            }
+
+            function loadAiModels() {
+                var provider = document.getElementById('ai-provider').value;
+                var modelSel = document.getElementById('ai-model');
+                modelSel.innerHTML = '<option value="">Carregando...</option>';
+                setAiStatus('Carregando modelos de ' + (AI_PROVIDER_LABELS[provider] || provider) + '...');
+                fetch(aiGrantUrl() + '/ai_models/' + encodeURIComponent(provider))
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data.success) {
+                            modelSel.innerHTML = '<option value="">Sem modelos disponíveis</option>';
+                            setAiStatus(data.error || 'Falha ao carregar os modelos.', true);
+                            return;
+                        }
+                        var models = (data.data && data.data.modelos) || [];
+                        modelSel.innerHTML = models.length
+                            ? models.map(function (m) { return '<option value="' + m.id + '">' + m.label + '</option>'; }).join('')
+                            : '<option value="">Nenhum modelo disponível</option>';
+                        setAiStatus(models.length + ' modelo(s) carregado(s) — ' + (AI_PROVIDER_LABELS[provider] || provider) + '.');
+                    })
+                    .catch(function () {
+                        modelSel.innerHTML = '<option value="">Sem conexão</option>';
+                        setAiStatus('Falha ao carregar os modelos de IA.', true);
+                    });
+            }
+
+            function onAiProviderChange() {
+                loadAiModels();
+            }
+
+            function gerarTextosIA() {
+                var modelSel = document.getElementById('ai-model');
+                var model = modelSel.value;
+                if (!model) { setAiStatus('Escolha um modelo de IA antes de gerar.', true); return; }
+
+                var prompt = document.getElementById('ai-instructions').value || 'Crie textos persuasivos para um anúncio de tráfego no Facebook e Instagram.';
+                var provider = document.getElementById('ai-provider').value;
+                aiToggleBusy(true);
+                setAiStatus('Gerando textos...');
+                fetch(aiGrantUrl() + '/gerar_textos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ grant: GRANT, provider: provider, model: model, prompt: prompt })
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data.success) { setAiStatus(data.error || 'Falha ao gerar os textos.', true); return; }
+                        var d = data.data || {};
+                        var gerados = 0;
+                        ['main', 'title', 'desc'].forEach(function (type) {
+                            var val = (d[AI_FIELD_MAP[type]] || '').trim();
+                            if (!val) return;
+                            var arr = state.variations[type];
+                            if (arr.length === 1 && !(arr[0] || '').trim()) arr[0] = val;
+                            else arr.push(val);
+                            gerados++;
+                        });
+                        renderTextBlocks();
+                        updateLivePreview();
+                        updateCounts();
+                        setAiStatus(gerados === 3 ? 'Textos gerados e adicionados às variações!' : 'IA parcial — confira cada campo gerado.');
+                    })
+                    .catch(function () { setAiStatus('Erro de conexão ao gerar os textos.', true); })
+                    .finally(function () { aiToggleBusy(false); });
             }
 
             function updateCounts() {
@@ -959,6 +1069,8 @@
             window.camRemoveLocation = camRemoveLocation;
             window.addTextVariation = addTextVariation;
             window.removeTextVariation = removeTextVariation;
+            window.onAiProviderChange = onAiProviderChange;
+            window.gerarTextosIA = gerarTextosIA;
             window.updateMediaName = updateMediaName;
             window.clearSlotMedia = clearSlotMedia;
             window.handleSingleUpload = handleSingleUpload;
