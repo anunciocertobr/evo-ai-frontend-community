@@ -25,6 +25,10 @@ export interface CreateCampaignTargeting {
   facebook_positions?: string[];
   instagram_positions?: string[];
   custom_audience_id?: string;
+  // Nome do público salvo escolhido no seletor — o backend
+  // (Meta::AdsManagerService#resolve_audience) busca por nome na Meta e
+  // reaproveita o targeting inteiro salvo (aba Direcionamento).
+  saved_audience_name?: string;
   detailed_targeting_manual?: string[];
   geo_locations: {
     location_types: string[];
