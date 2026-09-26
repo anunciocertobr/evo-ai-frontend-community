@@ -2,6 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+// O CSS do Leaflet referencia os PNGs do marcador padrão com caminho relativo
+// ("images/marker-icon.png"). No build do Vite esse caminho não existe (nada é
+// copiado pra public/), então o pino aparece quebrado/sem imagem. Importando os
+// arquivos do próprio pacote, o Vite emite o asset com hash e o mergeOptions
+// aponta o Leaflet pra ele. Sem isso, clicar no mapa não mostra nenhum pino.
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +36,17 @@ import { productsService } from '@/services/products/productsService';
 const API_ORIGIN = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 const VIDEO_RE = /^video\//i;
 const DEFAULT_MAP_CENTER: [number, number] = [-14.235, -51.9253]; // Brasil
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+const formatCep = (value: string): string => {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+};
 
 const resolveMediaUrl = (url: string): string => {
   if (!url) return '';
@@ -159,6 +178,8 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [geocoding, setGeocoding] = useState(false);
+  const [cepLoading, setCepLoading] = useState(false);
+  const lastCepLookupRef = useRef<string>('');
   const mapPickerRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
 
@@ -200,6 +221,8 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
     setMedia(item?.media ?? []);
     setMediaUrl('');
     setMediaKind('image');
+    // Novo imóvel/mudou o item: o próximo CEP digitado volta a ser consultado.
+    lastCepLookupRef.current = '';
   }, [open, item]);
 
   const isEdit = useMemo(() => Boolean(item?.id), [item]);
@@ -278,11 +301,12 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
     [item],
   );
 
-  // Busca o endereço digitado no OpenStreetMap (Nominatim) e centraliza o
-  // mapa + posiciona o pino lá — o admin ainda pode arrastar o pino ou
-  // clicar no mapa pra ajustar o ponto exato depois.
-  const handleGeocodeAddress = async () => {
-    const query = [form.endereco, form.numero, form.bairro, form.cidade, form.estado, 'Brasil']
+  // Núcleo do geocode: centraliza o mapa e posiciona o pino a partir de um
+  // endereço. Recebe os campos explicitamente (em vez de ler `form`) porque é
+  // chamado de dois lugares — o botão "Buscar endereço no mapa" e o preenchimento
+  // automático via CEP, que tem os dados novos em mãos antes do setForm.
+  const geocodeAddress = async (parts: { endereco: string; numero: string; bairro: string; cidade: string; estado: string }) => {
+    const query = [parts.endereco, parts.numero, parts.bairro, parts.cidade, parts.estado, 'Brasil']
       .filter((part) => part && part.trim())
       .join(', ');
     if (!query) {
@@ -317,6 +341,60 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
       setGeocoding(false);
     }
   };
+
+  // Ao completar 8 dígitos, consulta o ViaCEP e preenche logradouro, bairro,
+  // cidade e estado — mesma integração de CEP do cardápio digital
+  // (ver DigitalMenuPage.tsx). O ViaCEP não devolve coordenadas, então o pino do
+  // mapa é posicionado logo em seguida pelo mesmo geocode usado no botão.
+  const handleCepChange = (rawValue: string) => {
+    const formatted = formatCep(rawValue);
+    setForm((prev) => ({ ...prev, cep: formatted }));
+    const digits = formatted.replace(/\D/g, '');
+    if (digits.length !== 8 || digits === lastCepLookupRef.current) return;
+
+    lastCepLookupRef.current = digits;
+    setCepLoading(true);
+    fetch(`https://viacep.com.br/ws/${digits}/json/`)
+      .then((res) => res.json())
+      .then((data: { logradouro?: string; bairro?: string; localidade?: string; uf?: string; erro?: boolean }) => {
+        if (data?.erro) {
+          lastCepLookupRef.current = '';
+          toast.error('CEP não encontrado');
+          return;
+        }
+        const numero = form.numero;
+        setForm((prev) => ({
+          ...prev,
+          // Só preenche o que veio preenchido — não apaga o que o admin já digitou.
+          endereco: data.logradouro || prev.endereco,
+          bairro: data.bairro || prev.bairro,
+          cidade: data.localidade || prev.cidade,
+          estado: data.uf || prev.estado,
+        }));
+        geocodeAddress({
+          endereco: data.logradouro || form.endereco,
+          numero,
+          bairro: data.bairro || form.bairro,
+          cidade: data.localidade || form.cidade,
+          estado: data.uf || form.estado,
+        });
+      })
+      .catch(() => {
+        lastCepLookupRef.current = '';
+        toast.error('Falha ao consultar o CEP');
+      })
+      .finally(() => setCepLoading(false));
+  };
+
+  // Botão "Buscar endereço no mapa" — usa o que está no formulário agora.
+  const handleGeocodeAddress = () =>
+    geocodeAddress({
+      endereco: form.endereco,
+      numero: form.numero,
+      bairro: form.bairro,
+      cidade: form.cidade,
+      estado: form.estado,
+    });
 
   const handleMediaFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -514,18 +592,23 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
 
           <div className="border-t pt-4 space-y-3">
             <h3 className="text-sm font-medium">Endereço</h3>
+            <p className="text-xs text-muted-foreground">
+              Preencha o CEP e os campos abaixo se preenchem sozinhos.
+            </p>
+            {/* CEP primeiro: é o que o admin sempre tem à mão e destrava todo o
+                resto do endereço (ViaCEP) — inclusive o pino no mapa. */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="re-estado">Estado</Label>
-                <Input id="re-estado" value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="re-cidade">Cidade</Label>
-                <Input id="re-cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="re-bairro">Bairro</Label>
-                <Input id="re-bairro" value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} />
+              <div className="space-y-1.5 sm:col-span-1">
+                <Label htmlFor="re-cep">CEP</Label>
+                <Input
+                  id="re-cep"
+                  value={form.cep}
+                  onChange={(e) => handleCepChange(e.target.value)}
+                  placeholder="00000-000"
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                />
+                {cepLoading && <p className="text-xs text-muted-foreground">Buscando endereço...</p>}
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="re-endereco">Endereço</Label>
@@ -536,8 +619,16 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
                 <Input id="re-numero" value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="re-cep">CEP</Label>
-                <Input id="re-cep" value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} />
+                <Label htmlFor="re-bairro">Bairro</Label>
+                <Input id="re-bairro" value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="re-cidade">Cidade</Label>
+                <Input id="re-cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="re-estado">Estado</Label>
+                <Input id="re-estado" value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })} />
               </div>
             </div>
 
