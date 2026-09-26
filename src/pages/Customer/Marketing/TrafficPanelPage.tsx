@@ -1167,6 +1167,10 @@ function DuplicateModal({
         .listBusinessManagers()
         .then((bms) => setTargetBms(bms))
         .catch(() => toast.error('Não foi possível carregar as Business Managers.'));
+      // Sem isso o select "Conta de anúncio" abre vazio: só o estado do id é
+      // preenchido, mas a LISTA de contas da BM (targetAccounts) nunca é
+      // buscada até o usuário trocar a BM manualmente.
+      loadAccountsForBm(currentBmId, adAccountId || undefined);
     }
     if (adAccountId) setTargetAccountId(adAccountId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
