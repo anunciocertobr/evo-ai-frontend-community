@@ -62,6 +62,7 @@ import {
   type CreativeDetails,
 } from '@/services/marketing/metaAdsManagerService';
 import { apiErrorMessage } from '@/utils/apiHelpers';
+import { metaCreationService, type SavedAudience } from '@/services/marketing/metaCreationService';
 import { MediaLibraryPickerDialog } from '@/components/marketing/MediaLibraryPickerDialog';
 import {
   aggregateDataForLevel,
@@ -621,11 +622,13 @@ function EditCampaignModal({
 function EditAdSetModal({
   item,
   open,
+  adAccountId,
   onOpenChange,
   onSaved,
 }: {
   item: AggregatedItem | null;
   open: boolean;
+  adAccountId: string | null;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
@@ -634,7 +637,9 @@ function EditAdSetModal({
   const [budget, setBudget] = useState('');
   const [ageMin, setAgeMin] = useState('18');
   const [ageMax, setAgeMax] = useState('65');
-  const [savedAudienceName, setSavedAudienceName] = useState('');
+  const [savedAudience, setSavedAudience] = useState<SavedAudience | null>(null);
+  const [savedAudiences, setSavedAudiences] = useState<SavedAudience[] | null>(null);
+  const [loadingSavedAudiences, setLoadingSavedAudiences] = useState(false);
   const [detailedTargeting, setDetailedTargeting] = useState('');
   const [geoLocationName, setGeoLocationName] = useState('');
   const [geoRadius, setGeoRadius] = useState('');
@@ -648,7 +653,7 @@ function EditAdSetModal({
       setBudget((parseFloat(item.dailyBudget || '0') / 100).toFixed(2));
       setAgeMin(String(item.targeting?.age_min || 18));
       setAgeMax(String(item.targeting?.age_max || 65));
-      setSavedAudienceName('');
+      setSavedAudience(null);
       setDetailedTargeting('');
       const geo = item.targeting?.geo_locations;
       const firstCity = geo?.cities?.[0];
@@ -658,6 +663,18 @@ function EditAdSetModal({
       setPlatforms(item.targeting?.publisher_platforms?.length ? item.targeting.publisher_platforms : ['facebook', 'instagram']);
     }
   }, [item]);
+
+  // Puxa os públicos salvos direto da Meta (mesmos criados na aba
+  // Direcionamento) pra o seletor de público salvo deste conjunto.
+  useEffect(() => {
+    if (!open || !adAccountId) return;
+    setLoadingSavedAudiences(true);
+    metaCreationService
+      .listSavedAudiences(adAccountId)
+      .then(setSavedAudiences)
+      .catch(() => toast.error('Erro ao carregar públicos salvos da Meta'))
+      .finally(() => setLoadingSavedAudiences(false));
+  }, [open, adAccountId]);
 
   const togglePlatform = (value: string) =>
     setPlatforms((prev) => (prev.includes(value) ? prev.filter((p) => p !== value) : [...prev, value]));
@@ -699,18 +716,29 @@ function EditAdSetModal({
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
       const radiusNum = parseFloat(geoRadius);
-      const targeting: Record<string, unknown> = {
-        age_min: ageMinNum,
-        age_max: ageMaxNum,
-        publisher_platforms: platforms.length > 0 ? platforms : ['facebook', 'instagram'],
-      };
-      if (savedAudienceName.trim()) targeting.custom_audience_id = savedAudienceName.trim();
-      if (detailedTargetingManual.length > 0) targeting.detailed_targeting_manual = detailedTargetingManual;
-      if (geoLocationName.trim()) {
-        targeting.geo_locations = {
-          location_types: ['home', 'recent'],
-          cities: [{ name: geoLocationName.trim(), radius: radiusNum > 0 ? radiusNum : 15, distance_unit: 'kilometer' }],
-        };
+      // Público salvo selecionado da Meta: aplica o direcionamento inteiro
+      // que está salvo lá (a Graph API não tem campo de "referência" a
+      // público salvo num adset — o adset recebe o targeting expandido).
+      // Só as plataformas continuam vindo do formulário.
+      const targeting: Record<string, unknown> = savedAudience?.targeting
+        ? {
+            ...savedAudience.targeting,
+            publisher_platforms: platforms.length > 0 ? platforms : ['facebook', 'instagram'],
+          }
+        : {
+            age_min: ageMinNum,
+            age_max: ageMaxNum,
+            publisher_platforms: platforms.length > 0 ? platforms : ['facebook', 'instagram'],
+          };
+      if (!savedAudience?.targeting) {
+        const manualTargeting = targeting as Record<string, unknown>;
+        if (detailedTargetingManual.length > 0) manualTargeting.detailed_targeting_manual = detailedTargetingManual;
+        if (geoLocationName.trim()) {
+          manualTargeting.geo_locations = {
+            location_types: ['home', 'recent'],
+            cities: [{ name: geoLocationName.trim(), radius: radiusNum > 0 ? radiusNum : 15, distance_unit: 'kilometer' }],
+          };
+        }
       }
       edicao.targeting = JSON.stringify(targeting);
 
@@ -760,13 +788,30 @@ function EditAdSetModal({
           <div className="space-y-3 border-b border-slate-700 pb-4">
             <h4 className="text-sm font-semibold text-slate-200">Público Alvo</h4>
             <div>
-              <Label className="text-xs text-slate-400">Público Salvo (nome, opcional)</Label>
-              <Input
-                value={savedAudienceName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSavedAudienceName(e.target.value)}
-                placeholder="Em branco para público personalizado"
-                className="bg-slate-700 border-slate-600 text-slate-200"
-              />
+              <Label className="text-xs text-slate-400">Público Salvo (da Meta)</Label>
+              <Select
+                value={savedAudience?.id ?? '__none__'}
+                onValueChange={(v: string) =>
+                  setSavedAudience(v === '__none__' ? null : (savedAudiences?.find((s) => s.id === v) ?? null))
+                }
+              >
+                <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+                  <SelectValue placeholder={loadingSavedAudiences ? 'Carregando públicos da Meta...' : 'Nenhum (público personalizado)'} />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                  <SelectItem value="__none__">Nenhum (público personalizado)</SelectItem>
+                  {savedAudiences?.map((sa) => (
+                    <SelectItem key={sa.id} value={sa.id}>
+                      {sa.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {savedAudience && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Usando o público salvo na Meta — idade, localização e interesses abaixo são ignorados.
+                </p>
+              )}
             </div>
           </div>
 
@@ -1796,7 +1841,7 @@ interface AdSetFormState {
   ageMin: string;
   ageMax: string;
   platforms: string[];
-  savedAudienceName: string;
+  savedAudience: SavedAudience | null;
   detailedTargeting: string;
   locations: LocationEntry[];
   ads: AdFormState[];
@@ -1814,7 +1859,7 @@ function newAdSet(): AdSetFormState {
     ageMin: '25',
     ageMax: '65',
     platforms: ['facebook', 'instagram'],
-    savedAudienceName: '',
+    savedAudience: null,
     detailedTargeting: '',
     locations: [{ id: nextUid(), name: 'São Paulo', lat: -23.5505, lng: -46.6333, radius: 15 }],
     ads: [newAd()],
@@ -1891,12 +1936,16 @@ function AdSetBlock({
   onChange,
   onRemove,
   removable,
+  savedAudiences,
+  loadingSavedAudiences,
 }: {
   adSet: AdSetFormState;
   index: number;
   onChange: (patch: Partial<AdSetFormState>) => void;
   onRemove: () => void;
   removable: boolean;
+  savedAudiences: SavedAudience[] | null;
+  loadingSavedAudiences: boolean;
 }) {
   const togglePlatform = (value: string) =>
     onChange({ platforms: adSet.platforms.includes(value) ? adSet.platforms.filter((p) => p !== value) : [...adSet.platforms, value] });
@@ -1937,13 +1986,30 @@ function AdSetBlock({
         />
       </div>
       <div>
-        <Label className="text-xs text-slate-400">Público Salvo (nome, opcional)</Label>
-        <Input
-          value={adSet.savedAudienceName}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ savedAudienceName: e.target.value })}
-          placeholder="Em branco para usar segmentação detalhada"
-          className="bg-slate-700 border-slate-600 text-slate-200"
-        />
+        <Label className="text-xs text-slate-400">Público Salvo (da Meta)</Label>
+        <Select
+          value={adSet.savedAudience?.id ?? '__none__'}
+          onValueChange={(v: string) =>
+            onChange({ savedAudience: v === '__none__' ? null : (savedAudiences?.find((s) => s.id === v) ?? null) })
+          }
+        >
+          <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+            <SelectValue placeholder={loadingSavedAudiences ? 'Carregando públicos da Meta...' : 'Nenhum (público personalizado)'} />
+          </SelectTrigger>
+          <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+            <SelectItem value="__none__">Nenhum (público personalizado)</SelectItem>
+            {savedAudiences?.map((sa) => (
+              <SelectItem key={sa.id} value={sa.id}>
+                {sa.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {adSet.savedAudience && (
+          <p className="text-xs text-slate-500 mt-1">
+            Usando o público salvo na Meta — idade, mapa e interesses abaixo são ignorados.
+          </p>
+        )}
       </div>
       <div>
         <Label className="text-xs text-slate-400">Direcionamento Detalhado (interesses, opcional)</Label>
@@ -2027,6 +2093,9 @@ function CreateCampaignModal({
 
   const [saving, setSaving] = useState(false);
 
+  const [savedAudiences, setSavedAudiences] = useState<SavedAudience[] | null>(null);
+  const [loadingSavedAudiences, setLoadingSavedAudiences] = useState(false);
+
   const objectiveMeta = OBJECTIVE_MAP[objectiveKey];
 
   // Reseta pro estado inicial (1 conjunto + 1 anúncio) toda vez que o modal
@@ -2040,6 +2109,19 @@ function CreateCampaignModal({
       setAdSets([newAdSet()]);
     }
   }, [open]);
+
+  // Puxa os públicos salvos direto da Meta (aba Direcionamento criou/salvou
+  // eles lá) pra alimentar o seletor de cada conjunto.
+  useEffect(() => {
+    if (!open || !adAccountId) return;
+    setSavedAudiences(null);
+    setLoadingSavedAudiences(true);
+    metaCreationService
+      .listSavedAudiences(adAccountId)
+      .then(setSavedAudiences)
+      .catch(() => toast.error('Erro ao carregar públicos salvos da Meta'))
+      .finally(() => setLoadingSavedAudiences(false));
+  }, [open, adAccountId]);
 
   const updateAdSet = (key: string, patch: Partial<AdSetFormState>) =>
     setAdSets((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));
@@ -2070,7 +2152,7 @@ function CreateCampaignModal({
         toast.error(`Idade mínima não pode ser maior que a máxima (conjunto "${trimmedAdSetName}").`);
         return;
       }
-      if (adSet.locations.length === 0) {
+      if (adSet.locations.length === 0 && !adSet.savedAudience) {
         toast.error(`Adicione pelo menos uma localização geográfica no conjunto "${trimmedAdSetName}".`);
         return;
       }
@@ -2125,7 +2207,7 @@ function CreateCampaignModal({
               age_min: parseInt(adSet.ageMin, 10),
               age_max: parseInt(adSet.ageMax, 10),
               publisher_platforms: adSet.platforms.length > 0 ? adSet.platforms : ['facebook', 'instagram'],
-              custom_audience_id: adSet.savedAudienceName.trim() || undefined,
+              saved_audience_name: adSet.savedAudience?.name ?? undefined,
               detailed_targeting_manual: detailedTargetingManual.length > 0 ? detailedTargetingManual : undefined,
               geo_locations: {
                 location_types: ['home', 'recent'],
@@ -2219,6 +2301,8 @@ function CreateCampaignModal({
               onChange={(patch) => updateAdSet(adSet.key, patch)}
               onRemove={() => removeAdSet(adSet.key)}
               removable={adSets.length > 1}
+              savedAudiences={savedAudiences}
+              loadingSavedAudiences={loadingSavedAudiences}
             />
           ))}
 
@@ -2761,6 +2845,7 @@ export default function TrafficPanelPage() {
       <EditAdSetModal
         item={editTarget?.level === 'adsets' ? editTarget.item : null}
         open={editTarget?.level === 'adsets'}
+        adAccountId={selectedAccount?.id ?? null}
         onOpenChange={(open) => !open && setEditTarget(null)}
         onSaved={refreshTree}
       />
