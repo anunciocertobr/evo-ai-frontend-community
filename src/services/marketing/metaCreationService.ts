@@ -201,6 +201,8 @@ export interface SavedAudience {
   description?: string;
   targeting: TargetingSpec;
   approximate_count?: number;
+  approximate_count_lower_bound?: number;
+  approximate_count_upper_bound?: number;
 }
 
 export interface ReachEstimate {
@@ -439,7 +441,12 @@ class MetaCreationService {
       acao: 'listar_publicos_salvos',
       id_conta_anuncio: adAccountId,
     });
-    return response.data || [];
+    // O backend devolve os bounds da Graph API (o campo `approximate_count`
+    // não existe no edge /saved_audiences); normalizamos pro count exibido.
+    return (response.data || []).map((sa) => ({
+      ...sa,
+      approximate_count: sa.approximate_count ?? sa.approximate_count_lower_bound,
+    }));
   }
 
   async duplicateSavedAudience(params: {
