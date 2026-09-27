@@ -144,16 +144,34 @@ export interface MetaPixel {
   name: string;
 }
 
-// Usado só ao duplicar um público pra outra conta — retention_days e
-// lookalike_spec (ratio/país) são reaproveitáveis; pixel/público de origem
-// não (são da conta de destino, nunca os mesmos ids da conta de origem).
+export interface MetaPageRef {
+  id: string;
+  name: string;
+}
+
+// Usado no duplicar pra preencher o formulário com o que o público de origem
+// REALMENTE é. A Meta não expõe video_id/page_id/app_id na leitura — o que
+// volta é a `rule` (event_sources + filtro de evento/URL), o `data_source*`,
+// `video_group_ids`, `pixel_id`, `origin_audience_id` e o `lookalike_spec` —
+// então o front deduz o tipo a partir disso (ver parseAudienceDetail em
+// AudienceCreateDialog.tsx).
 export interface AudienceDetail {
   id: string;
   name: string;
   subtype: string;
   description?: string;
   retention_days?: number;
-  lookalike_spec?: { ratio?: number; country?: string };
+  prefill?: number;
+  lookalike_spec?: { type?: string; ratio?: number; country?: string; source_spec?: unknown };
+  origin_audience_id?: string;
+  pixel_id?: string;
+  rule?: string;
+  video_group_ids?: string[];
+  facebook_page_id?: string;
+  data_source?: { type?: string; subtype?: string; sub_type?: string };
+  data_source_types?: string[];
+  included_custom_audiences?: Array<{ id?: string | number }>;
+  excluded_custom_audiences?: Array<{ id?: string | number }>;
 }
 
 export type TargetingCategory = 'interests' | 'behaviors' | 'demographics';
@@ -181,6 +199,10 @@ export interface TargetingSpec {
   genders?: number[];
   flexible_spec?: Array<Record<TargetingCategory, Array<{ id: string; name: string }>>>;
   exclusions?: Partial<Record<TargetingCategory, Array<{ id: string; name: string }>>>;
+  // Públicos personalizados e semelhantes incluídos no público salvo — o
+  // Ad Manager permite misturar os dois ("Públicos incluídos" > "Públicos
+  // personalizados"). A Graph API espera só os ids em `custom_audiences`.
+  custom_audiences?: Array<{ id: string }>;
 }
 
 // Lista curada e reutilizável de itens de direcionamento, salva localmente
@@ -211,6 +233,37 @@ export interface ReachEstimate {
   estimate_dau_lower_bound?: number;
   estimate_dau_upper_bound?: number;
 }
+
+// Eventos de engajamento aceitos pela Graph API como `event` da rule de um
+// público de engajamento de Página do Facebook (o mesmo conjunto de
+// "Engagement rules" da doc). A UI também deixa digitar qualquer outro valor.
+export const META_ENGAGEMENT_EVENTS: Array<{ value: string; label: string }> = [
+  { value: 'page_engaged', label: 'Interagiu com a página (qualquer interação)' },
+  { value: 'page_post_interaction', label: 'Interagiu com posts da página (reação, comentário, compartilhamento)' },
+  { value: 'lead_form_open', label: 'Abriu o formulário de lead' },
+  { value: 'instant_experience_open', label: 'Abriu o anúncio de experiência instantânea' },
+];
+
+// Eventos de perfil profissional do Instagram — o `type` do event_source é
+// "page", mas quem distingue é o prefixo `ig_` no filtro de evento.
+export const META_INSTAGRAM_EVENTS: Array<{ value: string; label: string }> = [
+  { value: 'ig_business_profile_engaged', label: 'Interagiu com o perfil ou o conteúdo do Instagram' },
+  { value: 'ig_business_profile_all', label: 'Visitou o perfil OU mandou mensagem (o mais amplo)' },
+  { value: 'ig_user_messaged_business', label: 'Mandou mensagem no direct do Instagram' },
+];
+
+// Eventos de app mais usados — o campo aceita qualquer nome de evento do App
+// Events API, então a UI deixa digitar o que quiser também.
+export const META_APP_EVENTS: Array<{ value: string; label: string }> = [
+  { value: 'any', label: 'Qualquer evento do app (abriu o app)' },
+  { value: 'AddToCart', label: 'AddToCart (adicionou ao carrinho)' },
+  { value: 'Purchase', label: 'Purchase (comprou)' },
+  { value: 'InitiateCheckout', label: 'InitiateCheckout (iniciou o checkout)' },
+  { value: 'CompleteRegistration', label: 'CompleteRegistration (criou conta)' },
+  { value: 'Lead', label: 'Lead (enviou formulário)' },
+  { value: 'Search', label: 'Search (buscou no app)' },
+  { value: 'LevelUp', label: 'LevelUp (subiu de nível)' },
+];
 
 export interface LeadFormCreatePayload {
   pageId: string;
@@ -337,6 +390,113 @@ class MetaCreationService {
     return response.data;
   }
 
+  // Nome de um público (usado pra casar o público de origem de um semelhante
+  // com o público de mesmo nome que existe na conta de destino, ao duplicar).
+  async getAudienceName(audienceId: string): Promise<{ id: string; name: string }> {
+    const response = await api.post<{ id: string; name: string }>(ENDPOINT, {
+      acao: 'nome_publico',
+      id_publico: audienceId,
+    });
+    return response.data;
+  }
+
+  // Páginas + perfis de Instagram, pra montar os públicos de engajamento
+  // (Facebook Page / Instagram) a partir da própria conta de anúncio — quem
+  // chega no diálogo tem o id da conta, não o da BM selecionada na UI.
+  async listPagesForAdAccount(adAccountId: string): Promise<MetaPageRef[]> {
+    const response = await api.post<MetaPageRef[]>(ENDPOINT, {
+      acao: 'listar_paginas_por_conta',
+      id_conta_anuncio: adAccountId,
+    });
+    return response.data || [];
+  }
+
+  async getInstagramAccountForPage(pageId: string): Promise<{ id: string; name: string }> {
+    const response = await api.post<{ id: string; name: string }>(ENDPOINT, {
+      acao: 'conta_instagram_da_pagina',
+      id_pagina: pageId,
+    });
+    return response.data;
+  }
+
+  async createEngagementAudience(payload: {
+    adAccountId: string;
+    name: string;
+    pageId: string;
+    retentionDays: number;
+    eventValue?: string;
+    description?: string;
+  }): Promise<CustomAudience> {
+    const response = await api.post<CustomAudience>(ENDPOINT, {
+      acao: 'criar_publico_engajamento',
+      id_conta_anuncio: payload.adAccountId,
+      name: payload.name,
+      page_id: payload.pageId,
+      retention_days: payload.retentionDays,
+      evento: payload.eventValue,
+      description: payload.description,
+    });
+    return response.data;
+  }
+
+  async createInstagramAudience(payload: {
+    adAccountId: string;
+    name: string;
+    igUserId: string;
+    retentionDays: number;
+    eventValue?: string;
+    description?: string;
+  }): Promise<CustomAudience> {
+    const response = await api.post<CustomAudience>(ENDPOINT, {
+      acao: 'criar_publico_instagram',
+      id_conta_anuncio: payload.adAccountId,
+      name: payload.name,
+      ig_user_id: payload.igUserId,
+      retention_days: payload.retentionDays,
+      evento: payload.eventValue,
+      description: payload.description,
+    });
+    return response.data;
+  }
+
+  async createAppAudience(payload: {
+    adAccountId: string;
+    name: string;
+    appId: string;
+    retentionDays: number;
+    eventName?: string;
+    description?: string;
+  }): Promise<CustomAudience> {
+    const response = await api.post<CustomAudience>(ENDPOINT, {
+      acao: 'criar_publico_app',
+      id_conta_anuncio: payload.adAccountId,
+      name: payload.name,
+      app_id: payload.appId,
+      retention_days: payload.retentionDays,
+      evento: payload.eventName,
+      description: payload.description,
+    });
+    return response.data;
+  }
+
+  async createVideoAudience(payload: {
+    adAccountId: string;
+    name: string;
+    videoId: string;
+    retentionDays: number;
+    description?: string;
+  }): Promise<CustomAudience> {
+    const response = await api.post<CustomAudience>(ENDPOINT, {
+      acao: 'criar_publico_video',
+      id_conta_anuncio: payload.adAccountId,
+      name: payload.name,
+      video_id: payload.videoId,
+      retention_days: payload.retentionDays,
+      description: payload.description,
+    });
+    return response.data;
+  }
+
   async createWebsiteAudience(payload: {
     adAccountId: string;
     name: string;
@@ -360,7 +520,12 @@ class MetaCreationService {
   async createLookalikeAudience(payload: {
     adAccountId: string;
     name: string;
-    originAudienceId: string;
+    originAudienceId?: string;
+    // source_spec: JSON da regra da fonte (site/página/Instagram/app/vídeo).
+    // É o que permite "semelhante de site" etc. sem criar antes o público
+    // semente — além do formato já existente (origin_audience_id).
+    sourceSpec?: Record<string, unknown>;
+    lookalikeType?: 'similarity' | 'reach';
     country: string;
     ratio: number;
   }): Promise<CustomAudience> {
@@ -369,6 +534,8 @@ class MetaCreationService {
       id_conta_anuncio: payload.adAccountId,
       name: payload.name,
       origin_audience_id: payload.originAudienceId,
+      source_spec: payload.sourceSpec ? JSON.stringify(payload.sourceSpec) : undefined,
+      tipo_similaridade: payload.lookalikeType,
       country: payload.country,
       ratio: payload.ratio,
     });
