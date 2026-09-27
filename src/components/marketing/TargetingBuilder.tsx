@@ -24,6 +24,7 @@ import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityP
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import {
   metaCreationService,
+  type CustomAudience,
   type TargetingCategory,
   type TargetingItem,
   type ChosenTargetingItem,
@@ -31,6 +32,7 @@ import {
   type TargetingList,
   type SavedAudience,
 } from '@/services/marketing/metaCreationService';
+import { suggestCopyName } from '@/components/marketing/audienceNaming';
 
 const CATEGORY_LABEL: Record<TargetingCategory, string> = {
   interests: 'Interesses',
@@ -101,6 +103,12 @@ export function TargetingBuilder() {
   // em nenhum outro lugar da tela).
   const [savedAudiences, setSavedAudiences] = useState<SavedAudience[] | null>(null);
   const [loadingSavedAudiences, setLoadingSavedAudiences] = useState(false);
+  // Públicos personalizados/semelhantes da conta pra misturar no público
+  // salvo (no Ad Manager é "Públicos incluídos" > "Públicos personalizados").
+  const [accountAudiences, setAccountAudiences] = useState<CustomAudience[] | null>(null);
+  const [loadingAccountAudiences, setLoadingAccountAudiences] = useState(false);
+  const [includedCustom, setIncludedCustom] = useState<CustomAudience[]>([]);
+  const [customAudienceQuery, setCustomAudienceQuery] = useState('');
   const [duplicateSource, setDuplicateSource] = useState<SavedAudience | null>(null);
   const [duplicateTargetAccount, setDuplicateTargetAccount] = useState<{ id: string; name: string } | null>(null);
   // null = o diálogo ainda não perguntou se a cópia é pra mesma conta ou outra.
@@ -234,15 +242,19 @@ export function TargetingBuilder() {
     const excludeGroup = groupByCategory(exclude);
     if (hasEntries(excludeGroup)) spec.exclusions = excludeGroup;
 
+    // A Graph API espera só os ids em `custom_audiences` (o nome fica de
+    // fora — ela resolve pelo id, que é por conta).
+    if (includedCustom.length > 0) spec.custom_audiences = includedCustom.map((a) => ({ id: a.id }));
+
     return spec;
-  }, [country, ageMin, ageMax, gender, include, narrow, exclude]);
+  }, [country, ageMin, ageMax, gender, include, narrow, exclude, includedCustom]);
 
   const debouncedSpec = useDebounce(buildSpec, 600);
 
   // Estimativa de alcance ao vivo — só depois de ter pelo menos um item
   // escolhido (senão é só "todo mundo no país", pouco útil como feedback).
   useEffect(() => {
-    if (!account || (include.length === 0 && narrow.length === 0)) {
+    if (!account || (include.length === 0 && narrow.length === 0 && includedCustom.length === 0)) {
       setReach(null);
       return;
     }
@@ -320,6 +332,38 @@ export function TargetingBuilder() {
     if (account) loadSavedAudiences(account.id);
   }, [account]);
 
+  // Os públicos personalizados/semelhantes vivem na conta de anúncio, não na
+  // BM — por isso a lista recarrega junto com a troca de conta.
+  useEffect(() => {
+    if (!account) {
+      setAccountAudiences(null);
+      setIncludedCustom([]);
+      return;
+    }
+    setLoadingAccountAudiences(true);
+    setAccountAudiences(null);
+    setIncludedCustom([]);
+    metaCreationService
+      .listAudiences(account.id)
+      .then(setAccountAudiences)
+      .catch(() => {
+        setAccountAudiences([]);
+        toast.error('Erro ao carregar os públicos da conta');
+      })
+      .finally(() => setLoadingAccountAudiences(false));
+  }, [account]);
+
+  const filteredAccountAudiences = useMemo(() => {
+    const query = customAudienceQuery.trim().toLowerCase();
+    return (accountAudiences || []).filter((a) => !query || a.name.toLowerCase().includes(query));
+  }, [accountAudiences, customAudienceQuery]);
+
+  const toggleCustomAudience = (audience: CustomAudience) => {
+    setIncludedCustom((prev) =>
+      prev.some((a) => a.id === audience.id) ? prev.filter((a) => a.id !== audience.id) : [...prev, audience],
+    );
+  };
+
   const handleSaveAudience = async () => {
     if (!account) return;
     if (!audienceName.trim()) {
@@ -342,8 +386,31 @@ export function TargetingBuilder() {
   const openDuplicateSaved = (audience: SavedAudience) => {
     setDuplicateSource(audience);
     setDuplicateTargetAccount(null);
-    setDuplicateName(`${audience.name} - Cópia`);
+    setDuplicateChoice(null);
+    // Mesmo nome do original; o "- Cópia" só entra se o nome já existir na conta
+    // de destino (e a conta de destino ainda é desconhecida aqui — é ajustado
+    // no passo seguinte).
+    setDuplicateName(audience.name);
   };
+
+  // Nome da cópia do público salvo: só a mesma conta dá pra conferir conflito
+  // de nome; em outra conta a Meta aceita o mesmo nome sem problema.
+  useEffect(() => {
+    if (!duplicateSource || !duplicateTargetAccount) return;
+    const sameAccount = duplicateTargetAccount.id === account?.id;
+    const taken = sameAccount ? (savedAudiences || []).map((sa) => sa.name) : [];
+    setDuplicateName(suggestCopyName(duplicateSource.name, taken));
+  }, [duplicateSource, duplicateTargetAccount, account, savedAudiences]);
+
+  // Públicos incluídos são por conta: os ids da origem não existem no destino,
+  // então a cópia para outra conta vem sem eles (e a UI avisa) em vez de a
+  // Graph API rejeitar o payload inteiro.
+  const savedAudienceCustomIds = (audience: SavedAudience | null) => audience?.targeting?.custom_audiences ?? [];
+  const duplicateLosesCustomAudiences =
+    Boolean(duplicateSource) &&
+    savedAudienceCustomIds(duplicateSource).length > 0 &&
+    Boolean(duplicateTargetAccount) &&
+    duplicateTargetAccount?.id !== account?.id;
 
   const handleDuplicateSaved = async () => {
     if (!duplicateSource || !duplicateTargetAccount) return;
@@ -353,12 +420,22 @@ export function TargetingBuilder() {
     }
     setDuplicatingSaved(true);
     try {
+      const overrides: { name: string; targeting?: TargetingSpec } = { name: duplicateName.trim() };
+      if (duplicateLosesCustomAudiences) {
+        const rest = { ...duplicateSource.targeting };
+        delete rest.custom_audiences;
+        overrides.targeting = rest;
+      }
       await metaCreationService.duplicateSavedAudience({
         sourceAudienceId: duplicateSource.id,
         targetAccountId: duplicateTargetAccount.id,
-        overrides: { name: duplicateName.trim() },
+        overrides,
       });
-      toast.success('Público salvo duplicado!');
+      toast.success(
+        duplicateLosesCustomAudiences
+          ? 'Público salvo duplicado (os públicos incluídos não são copiados entre contas — adicione de novo).'
+          : 'Público salvo duplicado!',
+      );
       setDuplicateSource(null);
       if (duplicateTargetAccount.id === account?.id) loadSavedAudiences(account.id);
     } catch {
@@ -702,6 +779,74 @@ export function TargetingBuilder() {
               )}
             </section>
 
+            <section className="rounded-lg border border-border bg-card p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                <Users2 className="w-4 h-4" /> Públicos incluídos
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Mistura públicos personalizados e semelhantes da conta dentro do público salvo — o mesmo
+                "Públicos incluídos &gt; Públicos personalizados" do Gerenciador de Anúncios.
+              </p>
+
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={customAudienceQuery}
+                  onChange={(e) => setCustomAudienceQuery(e.target.value)}
+                  placeholder="Buscar públicos da conta..."
+                  className="pl-8"
+                />
+              </div>
+
+              {includedCustom.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {includedCustom.map((a) => (
+                    <Badge key={a.id} variant="outline" className="gap-1">
+                      {a.name}
+                      <button
+                        type="button"
+                        onClick={() => toggleCustomAudience(a)}
+                        className="hover:text-destructive"
+                        title="Remover"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              <div className="max-h-48 overflow-y-auto border rounded-md divide-y">
+                {loadingAccountAudiences ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Carregando...</p>
+                ) : filteredAccountAudiences.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4 px-2">
+                    {accountAudiences?.length
+                      ? 'Nenhum público com esse nome.'
+                      : 'Esta conta ainda não tem públicos personalizados.'}
+                  </p>
+                ) : (
+                  filteredAccountAudiences.map((a) => (
+                    <label
+                      key={a.id}
+                      className="flex items-center gap-2 p-2 text-sm cursor-pointer hover:bg-muted/40"
+                    >
+                      <Checkbox
+                        checked={includedCustom.some((i) => i.id === a.id)}
+                        onCheckedChange={() => toggleCustomAudience(a)}
+                      />
+                      <span className="min-w-0 flex-1 truncate" title={a.name}>
+                        {a.name}
+                      </span>
+                      <span className="text-[0.65rem] text-muted-foreground shrink-0">
+                        {a.subtype === 'LOOKALIKE' ? 'Semelhante' : a.subtype === 'CUSTOM' ? 'Clientes' : 'Personalizado'}
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </section>
+
             <section className="rounded-lg border border-border bg-card p-4 space-y-2">
               <h4 className="text-sm font-semibold">Salvar como público reutilizável</h4>
               <div className="flex gap-2">
@@ -760,7 +905,7 @@ export function TargetingBuilder() {
           setDuplicateChoice(null);
         }}
       >
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Duplicar público salvo</DialogTitle>
             <DialogDescription>
@@ -829,6 +974,13 @@ export function TargetingBuilder() {
                 <Label>Nome da cópia</Label>
                 <Input value={duplicateName} onChange={(e) => setDuplicateName(e.target.value)} />
               </div>
+              {duplicateLosesCustomAudiences && (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                  Este público tem {savedAudienceCustomIds(duplicateSource).length} público(s) personalizado(s)
+                  incluído(s). Eles pertencem à conta de origem, então a cópia vai sem eles — adicione de novo na
+                  conta de destino.
+                </div>
+              )}
             </div>
           )}
 

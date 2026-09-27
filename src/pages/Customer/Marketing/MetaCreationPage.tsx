@@ -27,8 +27,16 @@ import {
 
 const SUBTYPE_LABEL: Record<string, string> = {
   WEBSITE: 'Site (Pixel)',
-  LOOKALIKE: 'Semelhante',
+  VIDEO: 'Vídeo',
+  ENGAGEMENT: 'Facebook Page',
+  IG_ACCOUNT: 'Instagram',
+  APP: 'App',
+  APP_EVENT: 'App (evento)',
   CUSTOM: 'Lista de clientes',
+  LOOKALIKE: 'Semelhante',
+  SAVED_AUDIENCE: 'Público salvo',
+  SMART_AUDIENCE: 'Público inteligente',
+  MULTI_DATA: 'Público combinado',
 };
 
 function formatSize(a: CustomAudience): string {
@@ -68,6 +76,9 @@ export default function MetaCreationPage() {
   const [audienceDialogOpen, setAudienceDialogOpen] = useState(false);
   const [pendingCustomerList, setPendingCustomerList] = useState<CustomAudience | null>(null);
   const [duplicateAudienceFrom, setDuplicateAudienceFrom] = useState<CustomAudience | null>(null);
+  // Aba controlada: o público salvo (direcionamento completo) é criado em outra
+  // aba, então o diálogo de público personalizado pode mandar o usuário pra lá.
+  const [activeTab, setActiveTab] = useState('forms');
 
   const loadForms = useCallback((pageId: string) => {
     setLoadingForms(true);
@@ -128,7 +139,7 @@ export default function MetaCreationPage() {
     <div className="space-y-4 pb-8">
       <BaseHeader title="Criação Meta" subtitle="Crie formulários de lead e públicos direto na Meta Ads." />
 
-      <Tabs defaultValue="forms">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="forms">
             <FileText className="w-4 h-4 mr-1.5" /> Formulários
@@ -321,9 +332,14 @@ export default function MetaCreationPage() {
                     {account.name}
                   </button>
                 </div>
-                <Button onClick={() => setAudienceDialogOpen(true)}>
-                  <Plus className="w-4 h-4 mr-1.5" /> Novo público
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => setActiveTab('targeting')}>
+                    <Crosshair className="w-4 h-4 mr-1.5" /> Novo público salvo
+                  </Button>
+                  <Button onClick={() => setAudienceDialogOpen(true)}>
+                    <Plus className="w-4 h-4 mr-1.5" /> Novo público
+                  </Button>
+                </div>
               </div>
 
               {loadingAudiences ? (
@@ -365,6 +381,7 @@ export default function MetaCreationPage() {
                 adAccountId={account.id}
                 existingAudiences={audiences || []}
                 onCreated={() => loadAudiences(account.id)}
+                onGoToSavedAudience={() => setActiveTab('targeting')}
                 onCustomerListCreated={(audience) => {
                   setPendingCustomerList(audience);
                   loadAudiences(account.id);
@@ -379,6 +396,7 @@ export default function MetaCreationPage() {
                 existingAudiences={audiences || []}
                 duplicateFrom={duplicateAudienceFrom}
                 onCreated={() => loadAudiences(account.id)}
+                onGoToSavedAudience={() => setActiveTab('targeting')}
                 onCustomerListCreated={(audience) => {
                   setPendingCustomerList(audience);
                   loadAudiences(account.id);
