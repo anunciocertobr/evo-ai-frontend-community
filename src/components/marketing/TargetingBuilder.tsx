@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@evoapi/design-system';
-import { Plus, X, Search, Users2, Sparkles, ListPlus, Trash2, ArrowLeftRight, Copy } from 'lucide-react';
+import { Plus, X, Search, Users2, Sparkles, ListPlus, Trash2, ChevronLeft, Copy } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -68,6 +68,10 @@ function hasEntries(group: Record<string, unknown[]>): boolean {
 
 export function TargetingBuilder() {
   const [account, setAccount] = useState<{ id: string; name: string } | null>(null);
+  // BM selecionada + contador de reset: o breadcrumb (BM / Conta) precisa
+  // devolver o picker pro passo certo sem perder a BM escolhida.
+  const [selectedBm, setSelectedBm] = useState<{ id: string; name: string } | null>(null);
+  const [pickerResetKey, setPickerResetKey] = useState(0);
 
   const [category, setCategory] = useState<TargetingCategory>('interests');
   const [query, setQuery] = useState('');
@@ -99,6 +103,8 @@ export function TargetingBuilder() {
   const [loadingSavedAudiences, setLoadingSavedAudiences] = useState(false);
   const [duplicateSource, setDuplicateSource] = useState<SavedAudience | null>(null);
   const [duplicateTargetAccount, setDuplicateTargetAccount] = useState<{ id: string; name: string } | null>(null);
+  // null = o diálogo ainda não perguntou se a cópia é pra mesma conta ou outra.
+  const [duplicateChoice, setDuplicateChoice] = useState<'mesma' | 'outra' | null>(null);
   const [duplicateName, setDuplicateName] = useState('');
   const [duplicatingSaved, setDuplicatingSaved] = useState(false);
 
@@ -386,16 +392,46 @@ export function TargetingBuilder() {
           stepTwoLabel="Conta de anúncio"
           fetchStepTwo={(bmId) => clientGoalsService.listAdAccountsForBm(bmId)}
           onSelect={setAccount}
+          selectedBm={selectedBm}
+          onSelectBm={setSelectedBm}
+          resetKey={pickerResetKey}
         />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="lg:col-span-2 flex items-center gap-2">
-            <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-              <Users2 className="w-3.5 h-3.5" /> {account.name}
+          {/* Mesma trilha do Painel Tráfego: o nome da BM e o da conta são
+              atalhos. Clicar na BM volta pra seleção de BM; clicar na conta
+              volta pra lista de contas DESSA BM (não mais pro topo). */}
+          <div className="lg:col-span-2 flex items-center gap-2 flex-wrap text-sm">
+            <span className="text-muted-foreground flex items-center gap-1.5 shrink-0">
+              <Users2 className="w-3.5 h-3.5" />
             </span>
-            <Button size="sm" variant="ghost" onClick={() => setAccount(null)}>
-              <ArrowLeftRight className="w-3.5 h-3.5 mr-1" /> Trocar
-            </Button>
+            {selectedBm && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccount(null);
+                    setSelectedBm(null);
+                  }}
+                  className="text-primary hover:underline break-words min-w-0"
+                  title={selectedBm.name}
+                >
+                  {selectedBm.name}
+                </button>
+                <span className="text-muted-foreground/60">/</span>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setAccount(null);
+                setPickerResetKey((k) => k + 1);
+              }}
+              className="text-primary hover:underline break-words min-w-0"
+              title={account.name}
+            >
+              {account.name}
+            </button>
           </div>
           {/* Coluna esquerda: básico + busca */}
           <div className="space-y-4">
@@ -715,29 +751,77 @@ export function TargetingBuilder() {
         </div>
       )}
 
-      <Dialog open={Boolean(duplicateSource)} onOpenChange={(open) => !open && setDuplicateSource(null)}>
-        <DialogContent className="sm:max-w-lg">
+      <Dialog
+        open={Boolean(duplicateSource)}
+        onOpenChange={(open) => {
+          if (open) return;
+          setDuplicateSource(null);
+          setDuplicateTargetAccount(null);
+          setDuplicateChoice(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Duplicar público salvo</DialogTitle>
             <DialogDescription>
-              Escolha pra qual conta de anúncio a cópia é criada — o direcionamento (localização, idade, interesses)
-              é copiado como está.
+              Escolha se a cópia vai para a mesma conta ou para outra — o direcionamento (localização, idade,
+              interesses) é copiado como está.
             </DialogDescription>
           </DialogHeader>
 
-          {!duplicateTargetAccount ? (
-            <MetaScopedEntityPicker
-              stepTwoLabel="Conta de anúncio"
-              fetchStepTwo={(bmId) => clientGoalsService.listAdAccountsForBm(bmId)}
-              onSelect={setDuplicateTargetAccount}
-            />
+          {!duplicateTargetAccount && !duplicateChoice ? (
+            /* Passo 1 — pergunta antes de qualquer coisa: mesma conta ou outra? */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={!account}
+                onClick={() => {
+                  setDuplicateChoice('mesma');
+                  if (account) setDuplicateTargetAccount(account);
+                }}
+                className="text-left rounded-lg border border-border bg-card p-4 space-y-1 hover:border-primary/50 hover:bg-muted/40 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <h4 className="text-sm font-semibold break-words">Mesma conta</h4>
+                <p className="text-xs text-muted-foreground break-words">
+                  {account?.name || 'A conta onde você está agora'}
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDuplicateChoice('outra')}
+                className="text-left rounded-lg border border-border bg-card p-4 space-y-1 hover:border-primary/50 hover:bg-muted/40 transition-colors"
+              >
+                <h4 className="text-sm font-semibold break-words">Outra conta</h4>
+                <p className="text-xs text-muted-foreground">Escolher a conta de destino (BM &gt; Conta de anúncio)</p>
+              </button>
+            </div>
+          ) : !duplicateTargetAccount ? (
+            <div className="space-y-3">
+              <Button variant="ghost" size="sm" onClick={() => setDuplicateChoice(null)}>
+                <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Voltar
+              </Button>
+              <MetaScopedEntityPicker
+                compact
+                stepTwoLabel="Conta de anúncio"
+                fetchStepTwo={(bmId) => clientGoalsService.listAdAccountsForBm(bmId)}
+                onSelect={setDuplicateTargetAccount}
+              />
+            </div>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2">
-                <span className="text-sm">
+              <div className="flex items-start justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+                <span className="text-sm min-w-0 break-words">
                   Conta de destino: <span className="font-medium">{duplicateTargetAccount.name}</span>
                 </span>
-                <Button variant="ghost" size="sm" onClick={() => setDuplicateTargetAccount(null)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => {
+                    setDuplicateTargetAccount(null);
+                    setDuplicateChoice(null);
+                  }}
+                >
                   Trocar
                 </Button>
               </div>

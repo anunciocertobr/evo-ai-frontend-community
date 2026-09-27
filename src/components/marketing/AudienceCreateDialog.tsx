@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { ChevronLeft } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,9 @@ interface AudienceCreateDialogProps {
   // origem são por conta), só depois mostra o resto do formulário
   // pré-preenchido a partir deste público.
   duplicateFrom?: CustomAudience | null;
+  // Nome da conta onde o público foi listado — o passo 1 do duplicar mostra
+  // "Mesma conta (nome)" como atalho, sem obrigar a navegar BM > Conta de novo.
+  currentAccountName?: string | null;
 }
 
 export function AudienceCreateDialog({
@@ -52,10 +56,14 @@ export function AudienceCreateDialog({
   onCustomerListCreated,
   onCreated,
   duplicateFrom,
+  currentAccountName,
 }: AudienceCreateDialogProps) {
   const isDuplicate = Boolean(duplicateFrom);
 
   const [targetAccount, setTargetAccount] = useState<{ id: string; name: string } | null>(null);
+  // null = ainda não escolheu (mostra a pergunta "mesma conta ou outra?");
+  // 'mesma'/'outra' = resposta do passo 1.
+  const [targetChoice, setTargetChoice] = useState<'mesma' | 'outra' | null>(null);
   const [targetAudiences, setTargetAudiences] = useState<CustomAudience[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
@@ -93,6 +101,7 @@ export function AudienceCreateDialog({
     setCountry('BR');
     setRatio(1);
     setTargetAccount(null);
+    setTargetChoice(null);
     setTargetAudiences([]);
   };
 
@@ -207,30 +216,69 @@ export function AudienceCreateDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className={isDuplicate ? 'sm:max-w-2xl' : 'sm:max-w-lg'}>
         <DialogHeader>
           <DialogTitle>{isDuplicate ? 'Duplicar público' : 'Novo público'}</DialogTitle>
           <DialogDescription>
             {isDuplicate
-              ? 'Escolha pra qual conta de anúncio a cópia é criada e ajuste o que precisar.'
+              ? 'Escolha se a cópia vai para a mesma conta ou para outra conta de anúncio.'
               : 'Cria um Custom Audience na conta de anúncio selecionada.'}
           </DialogDescription>
         </DialogHeader>
 
-        {isDuplicate && !targetAccount ? (
-          <MetaScopedEntityPicker
-            stepTwoLabel="Conta de anúncio"
-            fetchStepTwo={(bmId) => clientGoalsService.listAdAccountsForBm(bmId)}
-            onSelect={setTargetAccount}
-          />
+        {isDuplicate && !targetAccount && !targetChoice ? (
+          /* Passo 1 — pergunta antes de qualquer coisa: mesma conta ou outra? */
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setTargetChoice('mesma');
+                setTargetAccount({ id: adAccountId, name: currentAccountName || 'Conta atual' });
+              }}
+              className="text-left rounded-lg border border-border bg-card p-4 space-y-1 hover:border-primary/50 hover:bg-muted/40 transition-colors"
+            >
+              <h4 className="text-sm font-semibold break-words">Mesma conta</h4>
+              <p className="text-xs text-muted-foreground break-words">
+                {currentAccountName || 'A conta onde você está agora'}
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTargetChoice('outra')}
+              className="text-left rounded-lg border border-border bg-card p-4 space-y-1 hover:border-primary/50 hover:bg-muted/40 transition-colors"
+            >
+              <h4 className="text-sm font-semibold break-words">Outra conta</h4>
+              <p className="text-xs text-muted-foreground">Escolher a conta de destino (BM &gt; Conta de anúncio)</p>
+            </button>
+          </div>
+        ) : isDuplicate && !targetAccount ? (
+          <div className="space-y-3">
+            <Button variant="ghost" size="sm" onClick={() => setTargetChoice(null)}>
+              <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Voltar
+            </Button>
+            <MetaScopedEntityPicker
+              compact
+              stepTwoLabel="Conta de anúncio"
+              fetchStepTwo={(bmId) => clientGoalsService.listAdAccountsForBm(bmId)}
+              onSelect={setTargetAccount}
+            />
+          </div>
         ) : (
           <div className="space-y-3">
             {isDuplicate && targetAccount && (
-              <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2">
-                <span className="text-sm">
+              <div className="flex items-start justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+                <span className="text-sm min-w-0 break-words">
                   Conta de destino: <span className="font-medium">{targetAccount.name}</span>
                 </span>
-                <Button variant="ghost" size="sm" onClick={() => setTargetAccount(null)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => {
+                    setTargetAccount(null);
+                    setTargetChoice(null);
+                  }}
+                >
                   Trocar
                 </Button>
               </div>
