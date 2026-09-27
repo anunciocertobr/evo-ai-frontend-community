@@ -2629,44 +2629,51 @@ export default function TrafficPanelPage() {
   return (
     <div className="pb-8">
       <div className="rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 p-4 sm:p-6 space-y-4">
-        <header className="relative flex flex-col items-center justify-center pb-2">
-          <h1 className="text-3xl font-bold text-slate-200 text-center">Painel Tráfego</h1>
-          <nav className="mt-2 text-sm font-medium flex items-center flex-wrap justify-center gap-1">
-            {currentStepIndex > 0 && (
-              <button
-                type="button"
-                title="Voltar"
-                onClick={() => goToLevel(breadcrumbSteps[currentStepIndex - 1].key as 'bm' | 'accounts' | 'campaigns' | 'adsets')}
-                className="text-slate-300 hover:text-sky-400 transition-colors mr-2"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
+        {/* Cabeçalho com o breadcrumb no canto esquerdo: título + trilha
+            (BM / Contas / Campanhas / Conjuntos / Anúncios) + nome do contexto
+            selecionado, com o botão "Criar Campanha" à direita. O passo atual
+            é texto; os anteriores são atalhos que saltam direto praquele
+            nível (mesmo papel do renderBreadcrumb do legado). */}
+        <header className="relative flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-3xl font-bold text-slate-200">Painel Tráfego</h1>
+            <nav className="mt-2 text-sm font-medium flex items-center flex-wrap gap-1">
+              {currentStepIndex > 0 && (
+                <button
+                  type="button"
+                  title="Voltar"
+                  onClick={() => goToLevel(breadcrumbSteps[currentStepIndex - 1].key as 'bm' | 'accounts' | 'campaigns' | 'adsets')}
+                  className="text-slate-300 hover:text-sky-400 transition-colors mr-2"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              )}
+              {breadcrumbSteps.slice(0, currentStepIndex + 1).map((st, idx) => (
+                <span key={st.key} className="flex items-center gap-1">
+                  {idx > 0 && <span className="mx-1 text-slate-600">/</span>}
+                  {idx === currentStepIndex ? (
+                    <span className="text-slate-400">{st.label}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-sky-400 hover:underline cursor-pointer"
+                      onClick={() => goToLevel(st.key as 'bm' | 'accounts' | 'campaigns' | 'adsets')}
+                    >
+                      {st.label}
+                    </button>
+                  )}
+                </span>
+              ))}
+            </nav>
+            {selectedBm && (
+              <p className="text-slate-400 text-sm mt-1 truncate">
+                {selectedBm.name}
+                {selectedAccount ? ` › ${selectedAccount.name}` : ''}
+              </p>
             )}
-            {breadcrumbSteps.slice(0, currentStepIndex + 1).map((st, idx) => (
-              <span key={st.key} className="flex items-center gap-1">
-                {idx > 0 && <span className="mx-1 text-slate-600">/</span>}
-                {idx === currentStepIndex ? (
-                  <span className="text-slate-400">{st.label}</span>
-                ) : (
-                  <button
-                    type="button"
-                    className="text-sky-400 hover:underline cursor-pointer"
-                    onClick={() => goToLevel(st.key as 'bm' | 'accounts' | 'campaigns' | 'adsets')}
-                  >
-                    {st.label}
-                  </button>
-                )}
-              </span>
-            ))}
-          </nav>
-          {selectedBm && (
-            <p className="text-slate-400 text-center text-sm mt-1">
-              {selectedBm.name}
-              {selectedAccount ? ` › ${selectedAccount.name}` : ''}
-            </p>
-          )}
-          {!selectedBm && <p className="text-slate-400 text-center text-sm mt-1">Selecione uma Business Manager</p>}
-          <Button onClick={openCreateCampaignModal} className="sm:absolute sm:right-0 sm:top-0 mt-3 sm:mt-0">
+            {!selectedBm && <p className="text-slate-400 text-sm mt-1">Selecione uma Business Manager</p>}
+          </div>
+          <Button onClick={openCreateCampaignModal} className="shrink-0">
             <Plus className="w-4 h-4 mr-1" /> Criar Campanha
           </Button>
         </header>
