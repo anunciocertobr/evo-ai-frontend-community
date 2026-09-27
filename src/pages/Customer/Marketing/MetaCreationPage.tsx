@@ -8,7 +8,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, ArrowLeftRight, Images, Link2 } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2 } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -48,6 +48,10 @@ export default function MetaCreationPage() {
   // Formulários — pertencem a uma Página (não à conta de anúncio), por isso
   // o seletor aqui é BM > Página, diferente das outras abas (BM > Conta).
   const [page, setPage] = useState<{ id: string; name: string } | null>(null);
+  // BM selecionada + contador de reset: o breadcrumb (BM / Página-Conta)
+  // precisa devolver o picker pro passo certo sem perder a BM escolhida.
+  const [pageBm, setPageBm] = useState<{ id: string; name: string } | null>(null);
+  const [pagePickerKey, setPagePickerKey] = useState(0);
   const [forms, setForms] = useState<LeadForm[] | null>(null);
   const [loadingForms, setLoadingForms] = useState(false);
   const [formDialogOpen, setFormDialogOpen] = useState(false);
@@ -57,6 +61,8 @@ export default function MetaCreationPage() {
 
   // Públicos
   const [account, setAccount] = useState<{ id: string; name: string } | null>(null);
+  const [accountBm, setAccountBm] = useState<{ id: string; name: string } | null>(null);
+  const [accountPickerKey, setAccountPickerKey] = useState(0);
   const [audiences, setAudiences] = useState<CustomAudience[] | null>(null);
   const [loadingAudiences, setLoadingAudiences] = useState(false);
   const [audienceDialogOpen, setAudienceDialogOpen] = useState(false);
@@ -148,17 +154,44 @@ export default function MetaCreationPage() {
               stepTwoLabel="Página"
               fetchStepTwo={(bmId) => metaCreationService.listPagesForBm(bmId)}
               onSelect={setPage}
+              selectedBm={pageBm}
+              onSelectBm={setPageBm}
+              resetKey={pagePickerKey}
             />
           ) : (
             <>
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5" /> {page.name}
+                <div className="flex items-center gap-2 flex-wrap text-sm">
+                  <span className="text-muted-foreground flex items-center gap-1.5 shrink-0">
+                    <Building2 className="w-3.5 h-3.5" />
                   </span>
-                  <Button size="sm" variant="ghost" onClick={() => setPage(null)}>
-                    <ArrowLeftRight className="w-3.5 h-3.5 mr-1" /> Trocar
-                  </Button>
+                  {pageBm && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPage(null);
+                          setPageBm(null);
+                        }}
+                        className="text-primary hover:underline break-words min-w-0"
+                        title={pageBm.name}
+                      >
+                        {pageBm.name}
+                      </button>
+                      <span className="text-muted-foreground/60">/</span>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPage(null);
+                      setPagePickerKey((k) => k + 1);
+                    }}
+                    className="text-primary hover:underline break-words min-w-0"
+                    title={page.name}
+                  >
+                    {page.name}
+                  </button>
                 </div>
                 <Button onClick={() => setFormDialogOpen(true)}>
                   <Plus className="w-4 h-4 mr-1.5" /> Novo formulário
@@ -249,17 +282,44 @@ export default function MetaCreationPage() {
               stepTwoLabel="Conta de anúncio"
               fetchStepTwo={(bmId) => clientGoalsService.listAdAccountsForBm(bmId)}
               onSelect={setAccount}
+              selectedBm={accountBm}
+              onSelectBm={setAccountBm}
+              resetKey={accountPickerKey}
             />
           ) : (
             <>
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5" /> {account.name}
+                <div className="flex items-center gap-2 flex-wrap text-sm">
+                  <span className="text-muted-foreground flex items-center gap-1.5 shrink-0">
+                    <Building2 className="w-3.5 h-3.5" />
                   </span>
-                  <Button size="sm" variant="ghost" onClick={() => setAccount(null)}>
-                    <ArrowLeftRight className="w-3.5 h-3.5 mr-1" /> Trocar
-                  </Button>
+                  {accountBm && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAccount(null);
+                          setAccountBm(null);
+                        }}
+                        className="text-primary hover:underline break-words min-w-0"
+                        title={accountBm.name}
+                      >
+                        {accountBm.name}
+                      </button>
+                      <span className="text-muted-foreground/60">/</span>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccount(null);
+                      setAccountPickerKey((k) => k + 1);
+                    }}
+                    className="text-primary hover:underline break-words min-w-0"
+                    title={account.name}
+                  >
+                    {account.name}
+                  </button>
                 </div>
                 <Button onClick={() => setAudienceDialogOpen(true)}>
                   <Plus className="w-4 h-4 mr-1.5" /> Novo público
@@ -277,10 +337,12 @@ export default function MetaCreationPage() {
                   {audiences.map((a) => (
                     <div key={a.id} className="rounded-lg border border-border bg-card p-4 space-y-2">
                       <div className="flex items-start justify-between gap-2">
-                        <h4 className="text-sm font-semibold truncate" title={a.name}>
+                        <h4 className="text-sm font-semibold break-words min-w-0" title={a.name}>
                           {a.name}
                         </h4>
-                        <Badge variant="outline">{SUBTYPE_LABEL[a.subtype] || a.subtype}</Badge>
+                        <Badge variant="outline" className="shrink-0">
+                          {SUBTYPE_LABEL[a.subtype] || a.subtype}
+                        </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">ID: {a.id}</p>
                       <p className="text-xs font-medium">{formatSize(a)}</p>
@@ -313,6 +375,7 @@ export default function MetaCreationPage() {
                 open={Boolean(duplicateAudienceFrom)}
                 onOpenChange={(open) => !open && setDuplicateAudienceFrom(null)}
                 adAccountId={account.id}
+                currentAccountName={account.name}
                 existingAudiences={audiences || []}
                 duplicateFrom={duplicateAudienceFrom}
                 onCreated={() => loadAudiences(account.id)}
