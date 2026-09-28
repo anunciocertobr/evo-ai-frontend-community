@@ -41,6 +41,26 @@ describe('apiErrorMessage', () => {
     ).toBeUndefined();
   });
 
+  it('reads a 5xx body when the caller opted in, as the Meta ads endpoint needs', () => {
+    // The Meta ads endpoint answers 502 for every Graph API refusal, and the
+    // body carries Meta's own message written for the person on screen.
+    const proxied = rejection(
+      {
+        success: false,
+        error: {
+          code: 'EXTERNAL_SERVICE_ERROR',
+          message: 'Você não pode veicular anúncios de cadastros até sua Página aceitar os Termos (código 1815089)',
+        },
+      },
+      502,
+    );
+
+    expect(apiErrorMessage(proxied)).toBeUndefined();
+    expect(apiErrorMessage(proxied, true)).toBe(
+      'Você não pode veicular anúncios de cadastros até sua Página aceitar os Termos (código 1815089)',
+    );
+  });
+
   it('returns undefined for a rejection with no response at all', () => {
     expect(apiErrorMessage(new Error('Network Error'))).toBeUndefined();
   });

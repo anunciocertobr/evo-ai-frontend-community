@@ -2,6 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { toast } from 'sonner';
+import { AdSetMetaFields } from '@/components/marketing/AdSetMetaFields';
+import {
+  AdAccountPageOption,
+  AdSetMetaValues,
+  destinoKindFor,
+  emptyAdSetMeta,
+} from '@/components/marketing/adSetMetaOptions';
+import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialog';
 import {
   Button,
   Input,
@@ -584,7 +592,7 @@ function EditCampaignModal({
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toast.error(apiErrorMessage(error) || `Erro ao tentar editar a campanha '${item.name}'.`);
+      toast.error(apiErrorMessage(error, true) || `Erro ao tentar editar a campanha '${item.name}'.`);
     } finally {
       setSaving(false);
     }
@@ -752,7 +760,7 @@ function EditAdSetModal({
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toast.error(apiErrorMessage(error) || `Erro ao tentar editar o conjunto '${item.name}'.`);
+      toast.error(apiErrorMessage(error, true) || `Erro ao tentar editar o conjunto '${item.name}'.`);
     } finally {
       setSaving(false);
     }
@@ -962,7 +970,7 @@ function EditAdModal({
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toast.error(apiErrorMessage(error) || `Erro ao tentar editar o anúncio '${item.name}'.`);
+      toast.error(apiErrorMessage(error, true) || `Erro ao tentar editar o anúncio '${item.name}'.`);
     } finally {
       setSaving(false);
     }
@@ -1079,7 +1087,7 @@ function RenameModal({
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toast.error(apiErrorMessage(error) || `Erro ao tentar renomear '${item.name}'.`);
+      toast.error(apiErrorMessage(error, true) || `Erro ao tentar renomear '${item.name}'.`);
     } finally {
       setSaving(false);
     }
@@ -1196,10 +1204,33 @@ function DuplicateModal({
     }
   };
 
+  // Campos do nível do conjunto na cópia: a duplicação reusa o público e o
+  // criativo da origem, mas o destino (página/conversa/conversão) e o
+  // orçamento são escolhidos aqui — senão a cópia sai na página/destino da
+  // campanha original e a Meta recusa com incompatibilidade de criativo.
+  const [pages, setPages] = useState<AdAccountPageOption[]>([]);
+  const [loadingPages, setLoadingPages] = useState(false);
+  const [metaValues, setMetaValues] = useState<AdSetMetaValues>(() => emptyAdSetMeta());
+  const [budgetOverride, setBudgetOverride] = useState('');
+
+  useEffect(() => {
+    if (!open || !targetAccountId) return;
+    setLoadingPages(true);
+    metaAdsManagerService
+      .listPages(targetAccountId)
+      .then((lista) =>
+        setPages(lista.map((p) => ({ id: p.id, name: p.name, hasInstagram: Boolean(p.instagram_business_account?.id) }))),
+      )
+      .catch(() => toast.error('Erro ao carregar as páginas da conta de anúncios'))
+      .finally(() => setLoadingPages(false));
+  }, [open, targetAccountId]);
+
   useEffect(() => {
     if (!item || !open) return;
     setName(`${item.name} - Cópia`);
     setNewObjectiveKey('');
+    setMetaValues(emptyAdSetMeta());
+    setBudgetOverride('');
     // Pré-seleciona BM/conta/campanha/conjunto atuais — o usuário só mexe
     // nos seletores se quiser duplicar pra outro lugar.
     setTargetCampaigns(campaigns);
@@ -1245,6 +1276,31 @@ function DuplicateModal({
       toast.error('Informe o nome do novo item.');
       return;
     }
+    // Só o que a pessoa mexeu vai no overrides — campo vazio não pode ser
+    // enviado, senão o backend entende "escolha explícita" onde a intenção era
+    // "mantém o da origem".
+    const destinoEscolhido: Record<string, unknown> = {
+      page_id: metaValues.pageId || undefined,
+      daily_budget:
+        budgetOverride.trim() && level !== 'ads'
+          ? Math.round(parseFloat(budgetOverride.replace(',', '.')) * 100).toString()
+          : undefined,
+    };
+    // Destino de conversa/local de conversão só faz sentido com o objetivo novo
+    // já escolhido — mandar WhatsApp numa cópia de tráfego é erro garantido.
+    const destinoDoNovoObjetivo = newObjectiveKey ? OBJECTIVE_MAP[newObjectiveKey].optimizationGoal : null;
+    const kindDestino = destinoKindFor(destinoDoNovoObjetivo);
+    if (metaValues.mensagemDestino && kindDestino === 'mensagem') {
+      destinoEscolhido.mensagem_destino = metaValues.mensagemDestino;
+      if (metaValues.mensagemDestino === 'WHATSAPP' && metaValues.whatsappPhone.trim()) {
+        destinoEscolhido.whatsapp_phone_number = metaValues.whatsappPhone.trim();
+      }
+    }
+    if (metaValues.conversionLocation.trim() && kindDestino === 'conversao') {
+      destinoEscolhido.conversion_location = metaValues.conversionLocation.trim();
+      destinoEscolhido.conversion_event = metaValues.conversionEvent;
+    }
+
     setSaving(true);
     try {
       if (level === 'campaigns') {
@@ -1255,6 +1311,7 @@ function DuplicateModal({
           newName: trimmed,
           newObjective: objMap ? objMap.objective : item.objective || '',
           newOptimizationGoal: objMap?.optimizationGoal,
+          overrides: destinoEscolhido,
         });
       } else if (level === 'adsets') {
         if (!targetCampaignId) {
@@ -1267,6 +1324,8 @@ function DuplicateModal({
           adAccountId: effectiveAdAccountId,
           targetCampaignId,
           newName: trimmed,
+          newOptimizationGoal: destinoDoNovoObjetivo ?? undefined,
+          overrides: destinoEscolhido,
         });
       } else {
         if (!targetAdSetId) {
@@ -1285,7 +1344,7 @@ function DuplicateModal({
       onOpenChange(false);
       onSaved();
     } catch (error) {
-      toast.error(apiErrorMessage(error) || `Erro ao tentar duplicar '${item.name}'.`);
+      toast.error(apiErrorMessage(error, true) || `Erro ao tentar duplicar '${item.name}'.`);
     } finally {
       setSaving(false);
     }
@@ -1322,6 +1381,39 @@ function DuplicateModal({
                 </SelectContent>
               </Select>
               <p className="text-xs text-slate-500 mt-1">Recria a campanha do zero com o mesmo público e criativo, só trocando o objetivo.</p>
+            </div>
+          )}
+
+          {(level === 'campaigns' || level === 'adsets') && (
+            <div className="space-y-3 border-t border-slate-700 pt-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                {level === 'adsets' ? 'Ajustes do conjunto' : 'Página e destino do anúncio'}
+              </p>
+              {level === 'campaigns' && (
+                <div>
+                  <Label className="text-xs text-slate-400">Orçamento Diário (R$) — opcional</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={budgetOverride}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBudgetOverride(e.target.value)}
+                    placeholder="Vazio = mesmo orçamento da origem"
+                    className="bg-slate-700 border-slate-600 text-slate-200"
+                  />
+                </div>
+              )}
+              <AdSetMetaFields
+                optimizationGoal={newObjectiveKey ? OBJECTIVE_MAP[newObjectiveKey].optimizationGoal : item?.targeting?.optimization_goal}
+                pages={pages}
+                loadingPages={loadingPages}
+                values={metaValues}
+                onChange={(patch) => setMetaValues((prev) => ({ ...prev, ...patch }))}
+              />
+              <p className="text-xs text-slate-500">
+                Escolher a página e o destino é o que evita o erro da Meta: em campanha de mensagens o criativo, o conjunto e o
+                botão precisam apontar para a mesma conversa.
+              </p>
             </div>
           )}
 
@@ -1454,7 +1546,7 @@ function DeleteConfirmDialog({
       onOpenChange(false);
       onDeleted();
     } catch (error) {
-      toast.error(apiErrorMessage(error) || `Erro ao tentar excluir '${item.name}'.`);
+      toast.error(apiErrorMessage(error, true) || `Erro ao tentar excluir '${item.name}'.`);
     } finally {
       setDeleting(false);
     }
@@ -1841,9 +1933,17 @@ interface AdSetFormState {
   ageMin: string;
   ageMax: string;
   platforms: string[];
+  // Posições por plataforma. A Meta recusa `facebook_positions` com a
+  // plataforma Facebook desligada em `publisher_platforms`, então os dois
+  // campos andam juntos.
+  facebookPositions: string[];
+  instagramPositions: string[];
   savedAudience: SavedAudience | null;
   detailedTargeting: string;
   locations: LocationEntry[];
+  // Campos do nível do conjunto que a Meta decide por objetivo: página,
+  // destino de mensagens e local de conversão. Ver AdSetMetaFields.
+  meta: AdSetMetaValues;
   ads: AdFormState[];
 }
 
@@ -1859,9 +1959,12 @@ function newAdSet(): AdSetFormState {
     ageMin: '25',
     ageMax: '65',
     platforms: ['facebook', 'instagram'],
+    facebookPositions: ['feed'],
+    instagramPositions: ['feed', 'reels'],
     savedAudience: null,
     detailedTargeting: '',
     locations: [{ id: nextUid(), name: 'São Paulo', lat: -23.5505, lng: -46.6333, radius: 15 }],
+    meta: emptyAdSetMeta(),
     ads: [newAd()],
   };
 }
@@ -1938,6 +2041,10 @@ function AdSetBlock({
   removable,
   savedAudiences,
   loadingSavedAudiences,
+  pages,
+  loadingPages,
+  objective,
+  onCreateNewAudience,
 }: {
   adSet: AdSetFormState;
   index: number;
@@ -1946,6 +2053,10 @@ function AdSetBlock({
   removable: boolean;
   savedAudiences: SavedAudience[] | null;
   loadingSavedAudiences: boolean;
+  pages: AdAccountPageOption[];
+  loadingPages: boolean;
+  objective: string;
+  onCreateNewAudience: () => void;
 }) {
   const togglePlatform = (value: string) =>
     onChange({ platforms: adSet.platforms.includes(value) ? adSet.platforms.filter((p) => p !== value) : [...adSet.platforms, value] });
@@ -1989,9 +2100,16 @@ function AdSetBlock({
         <Label className="text-xs text-slate-400">Público Salvo (da Meta)</Label>
         <Select
           value={adSet.savedAudience?.id ?? '__none__'}
-          onValueChange={(v: string) =>
-            onChange({ savedAudience: v === '__none__' ? null : (savedAudiences?.find((s) => s.id === v) ?? null) })
-          }
+          onValueChange={(v: string) => {
+            // "__novo__" não é um público: é o atalho que abre o diálogo de
+            // criação já apontado pra esta conta, e o público novo entra
+            // selecionado no lugar quando o diálogo fecha.
+            if (v === '__novo__') {
+              onCreateNewAudience();
+              return;
+            }
+            onChange({ savedAudience: v === '__none__' ? null : (savedAudiences?.find((s) => s.id === v) ?? null) });
+          }}
         >
           <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
             <SelectValue placeholder={loadingSavedAudiences ? 'Carregando públicos da Meta...' : 'Nenhum (público personalizado)'} />
@@ -2003,6 +2121,9 @@ function AdSetBlock({
                 {sa.name}
               </SelectItem>
             ))}
+            <SelectItem value="__novo__" className="text-teal-400">
+              + Criar novo público
+            </SelectItem>
           </SelectContent>
         </Select>
         {adSet.savedAudience && (
@@ -2061,6 +2182,22 @@ function AdSetBlock({
         </div>
       </div>
 
+      <AdSetMetaFields
+        optimizationGoal={objective}
+        pages={pages}
+        loadingPages={loadingPages}
+        values={adSet.meta}
+        onChange={(meta) => onChange({ meta: { ...adSet.meta, ...meta } })}
+        requirePage
+        positions={{ facebook: adSet.facebookPositions, instagram: adSet.instagramPositions }}
+        onPositionsChange={(patch) =>
+          onChange({
+            facebookPositions: patch.facebook ?? adSet.facebookPositions,
+            instagramPositions: patch.instagram ?? adSet.instagramPositions,
+          })
+        }
+      />
+
       <div className="space-y-3 border-t border-slate-700 pt-4">
         <h5 className="text-sm font-semibold text-yellow-400">Anúncios deste conjunto</h5>
         {adSet.ads.map((ad) => (
@@ -2096,7 +2233,23 @@ function CreateCampaignModal({
   const [savedAudiences, setSavedAudiences] = useState<SavedAudience[] | null>(null);
   const [loadingSavedAudiences, setLoadingSavedAudiences] = useState(false);
 
+  // CBO: com orçamento na campanha a Meta divide o dinheiro entre os conjuntos
+  // e passa a exigir limite de lance em cada um. Vazio = orçamento por conjunto
+  // (comportamento padrão).
+  const [campaignBudget, setCampaignBudget] = useState('');
+  const [bidCap, setBidCap] = useState('');
+
+  const [pages, setPages] = useState<AdAccountPageOption[]>([]);
+  const [loadingPages, setLoadingPages] = useState(false);
+
+  // "+ Criar novo público" dentro do seletor de cada conjunto. O público é
+  // criado na conta da campanha e recarregado na lista; como o painel consome
+  // o público por NOME (o backend procura em saved_audiences/customaudiences),
+  // o recém-criado já entra utilizável.
+  const [audienceDialogAdSetKey, setAudienceDialogAdSetKey] = useState<string | null>(null);
+
   const objectiveMeta = OBJECTIVE_MAP[objectiveKey];
+  const cboAtivo = campaignBudget.trim().length > 0;
 
   // Reseta pro estado inicial (1 conjunto + 1 anúncio) toda vez que o modal
   // abre — mesmo comportamento do showCreateCampaignModal do legado.
@@ -2106,6 +2259,8 @@ function CreateCampaignModal({
       setStatus('PAUSED');
       setObjectiveKey('messages');
       setLink('');
+      setCampaignBudget('');
+      setBidCap('');
       setAdSets([newAdSet()]);
     }
   }, [open]);
@@ -2121,6 +2276,23 @@ function CreateCampaignModal({
       .then(setSavedAudiences)
       .catch(() => toast.error('Erro ao carregar públicos salvos da Meta'))
       .finally(() => setLoadingSavedAudiences(false));
+  }, [open, adAccountId]);
+
+  // Páginas que podem veicular nesta conta de anúncios. A Meta resolve as
+  // páginas pela BM dona da conta, não pela conta — por isso a lista muda
+  // junto com a conta selecionada, e não com a campanha.
+  useEffect(() => {
+    if (!open || !adAccountId) return;
+    setLoadingPages(true);
+    metaAdsManagerService
+      .listPages(adAccountId)
+      .then((lista) => {
+        setPages(
+          lista.map((p) => ({ id: p.id, name: p.name, hasInstagram: Boolean(p.instagram_business_account?.id) })),
+        );
+      })
+      .catch(() => toast.error('Erro ao carregar as páginas desta conta de anúncios'))
+      .finally(() => setLoadingPages(false));
   }, [open, adAccountId]);
 
   const updateAdSet = (key: string, patch: Partial<AdSetFormState>) =>
@@ -2200,20 +2372,33 @@ function CreateCampaignModal({
           return {
             adset_name: adSet.name.trim(),
             adset_status: status,
-            daily_budget: Math.round(budgetValue * 100).toString(),
+            // Com CBO quem manda o valor é a campanha; mandar junto faz a Meta
+            // usar o do conjunto e silenciar o da campanha.
+            daily_budget: cboAtivo ? undefined : Math.round(budgetValue * 100).toString(),
             optimization_goal: objectiveMeta.optimizationGoal,
-            bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+            // CBO exige teto de lance por conjunto — sem ele a Meta recusa com
+            // 1815857. O backend troca a estratégia e valida o valor.
+            bid_strategy: cboAtivo ? 'LOWEST_COST_WITH_BID_CAP' : 'LOWEST_COST_WITHOUT_CAP',
+            bid_amount: cboAtivo && bidCap.trim() ? Math.round(parseFloat(bidCap.replace(',', '.')) * 100).toString() : undefined,
+            page_id: adSet.meta.pageId || undefined,
+            mensagem_destino: adSet.meta.mensagemDestino,
+            whatsapp_phone_number: adSet.meta.whatsappPhone.trim() || undefined,
+            conversion_location: adSet.meta.conversionLocation.trim() || undefined,
+            conversion_event: adSet.meta.conversionEvent,
             targeting: {
               age_min: parseInt(adSet.ageMin, 10),
               age_max: parseInt(adSet.ageMax, 10),
               publisher_platforms: adSet.platforms.length > 0 ? adSet.platforms : ['facebook', 'instagram'],
+              facebook_positions: adSet.platforms.includes('facebook') ? adSet.facebookPositions : undefined,
+              instagram_positions: adSet.platforms.includes('instagram') ? adSet.instagramPositions : undefined,
               saved_audience_name: adSet.savedAudience?.name ?? undefined,
               detailed_targeting_manual: detailedTargetingManual.length > 0 ? detailedTargetingManual : undefined,
               geo_locations: {
-                location_types: ['home', 'recent'],
                 // `cities` aqui carrega os pins do mapa (key=custom_location_pin) —
                 // o backend (Meta::AdsManagerService#normalize_geo) converte pra
                 // geo_locations.custom_locations no formato real da Graph API.
+                // `location_types` NÃO vai: a Graph API atual recusa o array com
+                // o subcode 1870199.
                 cities: geoCities,
               },
             },
@@ -2227,6 +2412,9 @@ function CreateCampaignModal({
         status,
         objective: objectiveMeta.objective,
         link: objectiveMeta.needsLink ? link.trim() || undefined : undefined,
+        // Orçamento diário da campanha (CBO). Só o valor puro — o backend
+        // converte pra centavos.
+        campaign_daily_budget: cboAtivo ? campaignBudget.trim().replace(',', '.') : undefined,
         adsets: adsetsPayload,
       };
 
@@ -2235,7 +2423,7 @@ function CreateCampaignModal({
       onOpenChange(false);
       onCreated();
     } catch (error) {
-      toast.error(apiErrorMessage(error) || `Erro ao tentar criar a campanha '${trimmedName}'.`);
+      toast.error(apiErrorMessage(error, true) || `Erro ao tentar criar a campanha '${trimmedName}'.`);
     } finally {
       setSaving(false);
     }
@@ -2291,6 +2479,40 @@ function CreateCampaignModal({
                 />
               </div>
             )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs text-slate-400">Orçamento Diário da Campanha (CBO) — opcional</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={campaignBudget}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCampaignBudget(e.target.value)}
+                  placeholder="Vazio = orçamento em cada conjunto"
+                  className="bg-slate-700 border-slate-600 text-slate-200"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Preenchendo, a Meta divide o dinheiro entre os conjuntos e o orçamento de cada um é ignorado.
+                </p>
+              </div>
+              {cboAtivo && (
+                <div>
+                  <Label className="text-xs text-slate-400">Limite de Lance por Conjunto (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={bidCap}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBidCap(e.target.value)}
+                    placeholder="Ex: 15,00"
+                    className="bg-slate-700 border-slate-600 text-slate-200"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    A Meta exige limite de lance em cada conjunto quando o orçamento está na campanha.
+                  </p>
+                </div>
+              )}
+            </div>
           </section>
 
           {adSets.map((adSet, index) => (
@@ -2303,6 +2525,10 @@ function CreateCampaignModal({
               removable={adSets.length > 1}
               savedAudiences={savedAudiences}
               loadingSavedAudiences={loadingSavedAudiences}
+              pages={pages}
+              loadingPages={loadingPages}
+              objective={objectiveMeta.optimizationGoal}
+              onCreateNewAudience={() => setAudienceDialogAdSetKey(adSet.key)}
             />
           ))}
 
@@ -2319,6 +2545,29 @@ function CreateCampaignModal({
             {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Publicar
           </Button>
         </DialogFooter>
+
+        {/* O Radix não aninha dois `Dialog` — o segundo sempre aria pro body e
+            perderia o contexto do modal de criação. Por isso o diálogo de
+            público só monta quando o atalho é clicado. */}
+        {audienceDialogAdSetKey && adAccountId && (
+          <AudienceCreateDialog
+            open={Boolean(audienceDialogAdSetKey)}
+            onOpenChange={(open) => !open && setAudienceDialogAdSetKey(null)}
+            adAccountId={adAccountId}
+            existingAudiences={[]}
+            onCustomerListCreated={() => setAudienceDialogAdSetKey(null)}
+            onCreated={() => {
+              metaCreationService
+                .listSavedAudiences(adAccountId)
+                .then((lista) => {
+                  setSavedAudiences(lista);
+                  toast.success('Público criado. Se não aparecer na lista, recarregue a página.');
+                })
+                .catch(() => toast.error('Público criado, mas não consegui recarregar a lista.'))
+                .finally(() => setAudienceDialogAdSetKey(null));
+            }}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -2545,7 +2794,7 @@ export default function TrafficPanelPage() {
           toast.success(`${itemType} '${item.name}' foi ${newStatus === 'ACTIVE' ? 'ativada' : 'pausada'} com sucesso!`);
           refreshTree();
         })
-        .catch((error) => toast.error(apiErrorMessage(error) || `Erro ao tentar mudar o status de '${item.name}'.`));
+        .catch((error) => toast.error(apiErrorMessage(error, true) || `Erro ao tentar mudar o status de '${item.name}'.`));
       return;
     }
     if (action === 'edit') setEditTarget({ item, level: itemLevel });
