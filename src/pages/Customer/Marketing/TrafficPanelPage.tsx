@@ -3107,8 +3107,11 @@ function CreateCampaignModal({
                 // o subcode 1870199.
                 cities: geoCities,
                 // Exclusão: o backend converte estes pins para
-                // `excluded_geo_locations`, que é o campo de "não anunciar
-                // aqui" da Graph API.
+                // `excluded_custom_locations`, que é o campo de "não anunciar
+                // aqui" da Graph API. Testado na conta real: exclusão dentro
+                // de `geo_locations` (excluded_cities/excluded_countries/
+                // excluded_geo_locations) é recusada com o subcode 1487079 —
+                // a Meta só aceita a exclusão na raiz do targeting.
                 excluded_cities: geoExcluidas.length > 0 ? geoExcluidas : undefined,
               },
             },
