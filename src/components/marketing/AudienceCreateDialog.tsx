@@ -23,8 +23,11 @@ import {
   META_ENGAGEMENT_EVENTS,
   META_INSTAGRAM_EVENTS,
   type CustomAudience,
+  type MetaInstagramAccount,
   type MetaPageRef,
   type MetaPixel,
+  type MetaVideo,
+  type MetaVideoSource,
 } from '@/services/marketing/metaCreationService';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { suggestCopyName } from '@/components/marketing/audienceNaming';
@@ -37,6 +40,31 @@ import {
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 
 type LookalikeSource = 'audience' | 'site' | 'engagement' | 'instagram' | 'app';
+
+const VIDEO_SOURCE_LABEL: Record<MetaVideoSource, string> = {
+  page: 'Facebook (página)',
+  ig: 'Instagram',
+  conta: 'Conta do Facebook',
+};
+
+function formatVideoLength(seconds?: number) {
+  const total = Number(seconds);
+  if (!Number.isFinite(total) || total <= 0) return null;
+  const min = Math.floor(total / 60);
+  const sec = Math.round(total % 60);
+  return `${min}:${String(sec).padStart(2, '0')}`;
+}
+
+function formatVideoDate(value?: string) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('pt-BR');
+}
+
+function formatCount(value?: number) {
+  return typeof value === 'number' ? value.toLocaleString('pt-BR') : null;
+}
 
 const KIND_LABEL: Record<AudienceKind, string> = {
   site: 'Site (Pixel)',
@@ -68,6 +96,10 @@ interface AudienceCreateDialogProps {
   // Abre a aba de público salvo (direcionamento detalhado) — usado pelo aviso
   // quando o público de origem é um "público salvo".
   onGoToSavedAudience?: () => void;
+  // BM selecionada na tela. É ela que tem as Páginas/contas de Instagram do
+  // usuário: a conta de anúncio pode ser cliente de outra BM, e aí pedir as
+  // páginas pelo `owner` da conta devolve as páginas erradas (ou nenhuma).
+  businessId?: string | null;
 }
 
 export function AudienceCreateDialog({
@@ -80,6 +112,7 @@ export function AudienceCreateDialog({
   duplicateFrom,
   currentAccountName,
   onGoToSavedAudience,
+  businessId,
 }: AudienceCreateDialogProps) {
   const isDuplicate = Boolean(duplicateFrom);
 
@@ -88,6 +121,7 @@ export function AudienceCreateDialog({
   // 'mesma'/'outra' = resposta do passo 1.
   const [targetChoice, setTargetChoice] = useState<'mesma' | 'outra' | null>(null);
   const [targetAudiences, setTargetAudiences] = useState<CustomAudience[]>([]);
+  const [targetBmId, setTargetBmId] = useState<string | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   const [kind, setKind] = useState<AudienceKind>('site');
@@ -102,11 +136,18 @@ export function AudienceCreateDialog({
   const [pixelId, setPixelId] = useState('');
   const [videoId, setVideoId] = useState('');
   const [videoInput, setVideoInput] = useState('');
+  const [videoSource, setVideoSource] = useState<MetaVideoSource>('page');
+  const [videoSourceId, setVideoSourceId] = useState('');
+  const [igAccounts, setIgAccounts] = useState<MetaInstagramAccount[] | null>(null);
+  const [videos, setVideos] = useState<MetaVideo[] | null>(null);
+  const [loadingVideos, setLoadingVideos] = useState(false);
   const [pageId, setPageId] = useState('');
   const [igUserId, setIgUserId] = useState('');
   const [appId, setAppId] = useState('');
   const [engagementEvent, setEngagementEvent] = useState('page_engaged');
   const [appEvent, setAppEvent] = useState('any');
+  const [videoPercent, setVideoPercent] = useState<number | null>(null);
+  const [videoCount, setVideoCount] = useState(0);
   const [lookalikeSource, setLookalikeSource] = useState<LookalikeSource>('audience');
   const [originAudienceId, setOriginAudienceId] = useState('');
   const [country, setCountry] = useState('BR');
@@ -122,6 +163,9 @@ export function AudienceCreateDialog({
   // criar: a própria (fluxo normal) ou a conta de destino escolhida (duplicar).
   const effectiveAccountId = isDuplicate ? targetAccount?.id : adAccountId;
   const originAudienceOptions = isDuplicate ? targetAudiences : existingAudiences;
+  // BM usada para listar Páginas/contas de Instagram. No duplicar é a BM da
+  // conta escolhida no passo 1; no fluxo normal é a BM da tela.
+  const targetBm = isDuplicate ? targetBmId : (businessId ?? null);
 
   // Site/pixel é limitado a 180 dias de retenção; os demais tipos vão a 365.
   const retentionMax =
@@ -188,6 +232,10 @@ export function AudienceCreateDialog({
     setPixelId('');
     setVideoId('');
     setVideoInput('');
+    setVideoSource('page');
+    setVideoSourceId('');
+    setIgAccounts(null);
+    setVideos(null);
     setPageId('');
     setIgUserId('');
     setAppId('');
@@ -228,7 +276,7 @@ export function AudienceCreateDialog({
       metaCreationService.getAudienceDetail(duplicateFrom.id).catch(() => null),
       metaCreationService.listPixels(targetAccount.id).catch(() => [] as MetaPixel[]),
       metaCreationService.listAudiences(targetAccount.id).catch(() => [] as CustomAudience[]),
-      metaCreationService.listPagesForAdAccount(targetAccount.id).catch(() => [] as MetaPageRef[]),
+      metaCreationService.listPagesForAdAccount(targetAccount.id, targetBmId).catch(() => [] as MetaPageRef[]),
     ])
       .then(async ([detail, pixelList, audienceList, pageList]) => {
         setPixels(pixelList);
@@ -245,6 +293,8 @@ export function AudienceCreateDialog({
         setUrlContains(parsed.urlContains);
         setEngagementEvent(parsed.engagementEvent);
         setAppEvent(parsed.appEvent);
+        setVideoPercent(parsed.videoPercent);
+        setVideoCount(parsed.videoCount);
         setCountry(parsed.country);
         setRatio(parsed.ratio);
         setLookalikeType(parsed.lookalikeType);
@@ -303,7 +353,7 @@ export function AudienceCreateDialog({
         }
       })
       .finally(() => setLoadingDetail(false));
-  }, [isDuplicate, targetAccount, duplicateFrom]);
+  }, [isDuplicate, targetAccount, targetBmId, duplicateFrom]);
 
   // Nome da cópia: mesmo nome do original, com sufixo só em caso de conflito
   // real na conta de destino (e nunca sobrescrevendo o que o usuário digitou).
@@ -327,20 +377,68 @@ export function AudienceCreateDialog({
       .catch(() => toast.error('Erro ao carregar pixels da conta'));
   }, [open, effectiveAccountId, needsPixel, pixels]);
 
-  // Páginas: só interessam a engajamento/Instagram (e ao "semelhante" dessas
-  // fontes). A lista vem da própria conta de anúncio — o usuário não precisa
-  // ter a BM selecionada na UI.
+  // Páginas: interessam a engajamento/Instagram, ao "semelhante" dessas fontes
+  // e à origem de vídeo do Facebook. Sempre com a BM da tela — pedir pelo
+  // `owner` da conta traz a lista errada quando a conta é cliente de outra BM.
   const needsPages =
     kind === 'engagement' ||
     kind === 'instagram' ||
-    (kind === 'lookalike' && (lookalikeSource === 'engagement' || lookalikeSource === 'instagram'));
+    (kind === 'lookalike' && (lookalikeSource === 'engagement' || lookalikeSource === 'instagram')) ||
+    (kind === 'video' && videoSource === 'page');
   useEffect(() => {
     if (!open || !effectiveAccountId || !needsPages || pages !== null) return;
     metaCreationService
-      .listPagesForAdAccount(effectiveAccountId)
+      .listPagesForAdAccount(effectiveAccountId, targetBm)
       .then(setPages)
       .catch(() => toast.error('Erro ao carregar as páginas da conta'));
-  }, [open, effectiveAccountId, needsPages, pages]);
+  }, [open, effectiveAccountId, needsPages, pages, targetBm]);
+
+  // Contas de Instagram (perfil profissional) — origem dos Reels e do público
+  // de engajamento do Instagram. Vem das Páginas da BM, porque é assim que a
+  // Meta associa perfil profissional a página.
+  const needsInstagramAccounts = kind === 'video' && videoSource === 'ig';
+  useEffect(() => {
+    if (!open || !needsInstagramAccounts || !targetBm || igAccounts !== null) return;
+    metaCreationService
+      .listInstagramAccounts(targetBm)
+      .then(setIgAccounts)
+      .catch(() => toast.error('Erro ao carregar as contas de Instagram'));
+  }, [open, needsInstagramAccounts, targetBm, igAccounts]);
+
+  // Vídeos da origem escolhida. Só busca quando a origem está definida
+  // (página/IG) ou quando é a própria conta, que não precisa de id.
+  const videoSourceReady = videoSource === 'conta' || Boolean(videoSourceId);
+  useEffect(() => {
+    if (!open || kind !== 'video' || !videoSourceReady) return;
+    let active = true;
+    setLoadingVideos(true);
+    setVideos(null);
+    metaCreationService
+      .listVideosForSource(videoSource, videoSourceId || undefined)
+      .then((list) => {
+        if (!active) return;
+        setVideos(list);
+        if (list.length === 0) {
+          toast.info(
+            videoSource === 'conta'
+              ? 'A conta do Facebook conectada não tem vídeos na timeline.'
+              : 'Nenhum vídeo encontrado nessa origem.',
+          );
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setVideos([]);
+          toast.error('Não foi possível listar os vídeos dessa origem');
+        }
+      })
+      .finally(() => {
+        if (active) setLoadingVideos(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [open, kind, videoSource, videoSourceId, videoSourceReady]);
 
   // Ao escolher a Página no tipo Instagram, tenta descobrir sozinho o
   // ig_user_id do perfil profissional ligado nela.
@@ -658,6 +756,7 @@ export function AudienceCreateDialog({
               onClick={() => {
                 setTargetChoice('mesma');
                 setTargetAccount({ id: adAccountId, name: currentAccountName || 'Conta atual' });
+                setTargetBmId(businessId ?? null);
               }}
               className="text-left rounded-lg border border-border bg-card p-4 space-y-1 hover:border-primary/50 hover:bg-muted/40 transition-colors"
             >
@@ -684,7 +783,10 @@ export function AudienceCreateDialog({
               compact
               stepTwoLabel="Conta de anúncio"
               fetchStepTwo={(bmId) => clientGoalsService.listAdAccountsForBm(bmId)}
-              onSelect={setTargetAccount}
+              onSelect={(entity) => {
+                setTargetAccount({ id: entity.id, name: entity.name });
+              }}
+              onSelectBm={(bm) => setTargetBmId(bm?.id ?? null)}
             />
           </div>
         ) : (
@@ -702,6 +804,7 @@ export function AudienceCreateDialog({
                     setTargetAccount(null);
                     setTargetChoice(null);
                     setTargetAudiences([]);
+                    setTargetBmId(null);
                     setPixels(null);
                     setPages(null);
                   }}
@@ -775,7 +878,182 @@ export function AudienceCreateDialog({
             {kind === 'video' && (
               <>
                 <div className="space-y-1.5">
-                  <Label>ID ou link do vídeo</Label>
+                  <Label>De onde puxar o vídeo</Label>
+                  {videoPercent !== null && (
+                    <p className="text-xs text-muted-foreground">
+                      O público de origem usa {videoPercent}% das visualizações
+                      {videoCount > 1 ? ` de ${videoCount} vídeos` : ''}. A API da Meta não
+                      permite informar esse percentual na criação — a cópia usa o padrão dela.
+                    </p>
+                  )}
+                  <Select
+                    value={videoSource}
+                    onValueChange={(value) => {
+                      const next = value as MetaVideoSource;
+                      setVideoSource(next);
+                      setVideoSourceId('');
+                      if (next !== 'page') setPageId('');
+                      if (next !== 'ig') setIgUserId('');
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="page">Facebook (página)</SelectItem>
+                      <SelectItem value="ig">Instagram</SelectItem>
+                      <SelectItem value="conta">Conta do Facebook</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {videoSource === 'page' && (
+                  <div className="space-y-1.5">
+                    <Label>Página do Facebook</Label>
+                    <Select
+                      value={videoSourceId}
+                      onValueChange={(value) => {
+                        setVideoSourceId(value);
+                        setPageId(value);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={pages ? 'Selecione a página' : 'Carregando páginas...'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(pages || []).map((page) => (
+                          <SelectItem key={page.id} value={page.id}>
+                            {page.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {videoSource === 'ig' && (
+                  <div className="space-y-1.5">
+                    <Label>Conta de Instagram</Label>
+                    <Select
+                      value={videoSourceId}
+                      onValueChange={(value) => {
+                        setVideoSourceId(value);
+                        setIgUserId(value);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={
+                            igAccounts === null
+                              ? targetBm
+                                ? 'Carregando contas...'
+                                : 'Selecione a BM no topo da tela'
+                              : 'Selecione a conta'
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(igAccounts || []).map((ig) => (
+                          <SelectItem key={ig.id} value={ig.id}>
+                            {ig.name} — {ig.page_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label>Vídeo</Label>
+                  {loadingVideos ? (
+                    <div className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+                      Carregando vídeos de {VIDEO_SOURCE_LABEL[videoSource].toLowerCase()}...
+                    </div>
+                  ) : !videoSourceReady ? (
+                    <div className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+                      {videoSource === 'page'
+                        ? 'Escolha a página para ver os vídeos.'
+                        : 'Escolha a conta de Instagram para ver os Reels.'}
+                    </div>
+                  ) : videos && videos.length > 0 ? (
+                    <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                      {videos.map((video) => {
+                        const selected = videoId === video.id;
+                        const length = formatVideoLength(video.length);
+                        const date = formatVideoDate(video.created_time);
+                        const views = formatCount(video.views_count);
+                        const likes = formatCount(video.like_count);
+                        return (
+                          <button
+                            key={video.id}
+                            type="button"
+                            onClick={() => {
+                              setVideoId(video.id);
+                              setVideoInput(video.id);
+                            }}
+                            className={`flex w-full items-start gap-3 rounded-md border p-2 text-left transition-colors ${
+                              selected
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border hover:border-primary/50 hover:bg-muted/40'
+                            }`}
+                          >
+                            {video.thumbnail_url ? (
+                              <img
+                                src={video.thumbnail_url}
+                                alt=""
+                                className="h-14 w-14 shrink-0 rounded object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-muted text-[0.6rem] text-muted-foreground">
+                                sem imagem
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <p className="truncate text-xs font-medium" title={video.title || video.id}>
+                                {video.title || video.caption || `Vídeo ${video.id}`}
+                              </p>
+                              <p className="truncate text-[0.65rem] text-muted-foreground">
+                                {[video.source_name, date, length].filter(Boolean).join(' • ')}
+                              </p>
+                              <p className="text-[0.65rem] text-muted-foreground">
+                                {[
+                                  views !== null ? `${views} views` : null,
+                                  likes !== null ? `${likes} curtidas` : null,
+                                  video.media_type,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' • ')}
+                              </p>
+                            </div>
+                            {video.permalink_url && (
+                              <span
+                                role="button"
+                                tabIndex={-1}
+                                title="Abrir o vídeo no Facebook/Instagram"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  window.open(video.permalink_url, '_blank', 'noopener,noreferrer');
+                                }}
+                                className="shrink-0 text-muted-foreground hover:text-foreground"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+                      Nenhum vídeo encontrado nessa origem. Se o vídeo não aparece, cole o
+                      link ou o ID abaixo.
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Ou informe o ID / link do vídeo</Label>
                   <Input
                     value={videoInput}
                     onChange={(e) => {
@@ -785,9 +1063,6 @@ export function AudienceCreateDialog({
                     }}
                     placeholder="https://www.facebook.com/reel/1234567890 ou 1234567890"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    O vídeo precisa pertencer à conta (ou a uma Página da conta).
-                  </p>
                 </div>
                 <RetentionField value={retentionDays} onChange={setRetentionDays} />
               </>

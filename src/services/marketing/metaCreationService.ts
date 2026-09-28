@@ -149,29 +149,61 @@ export interface MetaPageRef {
   name: string;
 }
 
+export interface MetaInstagramAccount {
+  id: string;
+  username?: string;
+  name: string;
+  page_id: string;
+  page_name: string;
+}
+
+// Origem do vídeo no público de vídeo, igual às abas do Gerenciador de
+// Anúncios: Página do Facebook, Instagram ou a própria conta conectada.
+// `id` muda de significado conforme a origem (page_id / ig_user_id).
+export type MetaVideoSource = 'page' | 'ig' | 'conta';
+
+export interface MetaVideo {
+  id: string;
+  title?: string;
+  description?: string;
+  caption?: string;
+  source: MetaVideoSource;
+  source_name?: string;
+  media_type?: string;
+  created_time?: string;
+  length?: number;
+  views_count?: number;
+  like_count?: number;
+  comments_count?: number;
+  permalink_url?: string;
+  thumbnail_url?: string;
+}
+
 // Usado no duplicar pra preencher o formulário com o que o público de origem
 // REALMENTE é. A Meta não expõe video_id/page_id/app_id na leitura — o que
 // volta é a `rule` (event_sources + filtro de evento/URL), o `data_source*`,
-// `video_group_ids`, `pixel_id`, `origin_audience_id` e o `lookalike_spec` —
-// então o front deduz o tipo a partir disso (ver parseAudienceDetail em
-// AudienceCreateDialog.tsx).
+// o `pixel_id` e o `lookalike_spec` — então o front deduz o tipo a partir
+// disso (ver parseAudienceDetail). Os campos abaixo são os que a API aceita
+// de verdade: pedir `prefill`, `origin_audience_id`, `video_group_ids`,
+// `facebook_page_id`, `creation_params` ou `event_sources` derruba a leitura
+// INTEIRA do público com "Tried accessing nonexisting field", que era o que
+// fazia o duplicar na mesma conta vir sem formulário preenchido.
 export interface AudienceDetail {
   id: string;
   name: string;
   subtype: string;
   description?: string;
   retention_days?: number;
-  prefill?: number;
   lookalike_spec?: { type?: string; ratio?: number; country?: string; source_spec?: unknown };
-  origin_audience_id?: string;
   pixel_id?: string;
   rule?: string;
-  video_group_ids?: string[];
-  facebook_page_id?: string;
   data_source?: { type?: string; subtype?: string; sub_type?: string };
   data_source_types?: string[];
   included_custom_audiences?: Array<{ id?: string | number }>;
   excluded_custom_audiences?: Array<{ id?: string | number }>;
+  account_id?: string;
+  approximate_count_lower_bound?: number;
+  delivery_status?: number;
 }
 
 export type TargetingCategory = 'interests' | 'behaviors' | 'demographics';
@@ -401,14 +433,47 @@ class MetaCreationService {
   }
 
   // Páginas + perfis de Instagram, pra montar os públicos de engajamento
-  // (Facebook Page / Instagram) a partir da própria conta de anúncio — quem
-  // chega no diálogo tem o id da conta, não o da BM selecionada na UI.
-  async listPagesForAdAccount(adAccountId: string): Promise<MetaPageRef[]> {
+  // (Facebook Page / Instagram) e a origem de vídeo. `businessId` é a BM
+  // selecionada na UI e é obrigatória na prática: a conta de anúncio pode ser
+  // cliente de outra BM, e resolver pelo `owner` da conta traz as Páginas
+  // erradas (ou nenhuma).
+  async listPagesForAdAccount(adAccountId: string, businessId?: string | null): Promise<MetaPageRef[]> {
     const response = await api.post<MetaPageRef[]>(ENDPOINT, {
       acao: 'listar_paginas_por_conta',
       id_conta_anuncio: adAccountId,
+      id_bm: businessId ?? undefined,
     });
     return response.data || [];
+  }
+
+  async listInstagramAccounts(businessId: string): Promise<MetaInstagramAccount[]> {
+    const response = await api.post<MetaInstagramAccount[]>(ENDPOINT, {
+      acao: 'listar_instagram_por_conta',
+      id_bm: businessId,
+    });
+    return response.data || [];
+  }
+
+  // Vídeos disponíveis pra origem do público de vídeo, com as informações
+  // que a tela mostra. A Meta não devolve o `video_id` na leitura do público,
+  // então a lista é a única forma de o usuário escolher o vídeo certo.
+  async listVideosForSource(source: MetaVideoSource, sourceId?: string): Promise<MetaVideo[]> {
+    const response = await api.post<MetaVideo[]>(ENDPOINT, {
+      acao: 'listar_videos_por_origem',
+      origem: source,
+      id_origem: sourceId,
+    });
+    return response.data || [];
+  }
+
+  // Exclusão definitiva do público (DELETE por nó na Graph API). Sem volta:
+  // a UI pede confirmação com o nome antes de chamar.
+  async deleteAudience(audienceId: string): Promise<{ id: string; name: string; deleted: boolean }> {
+    const response = await api.post<{ id: string; name: string; deleted: boolean }>(ENDPOINT, {
+      acao: 'excluir_publico',
+      id_publico: audienceId,
+    });
+    return response.data;
   }
 
   async getInstagramAccountForPage(pageId: string): Promise<{ id: string; name: string }> {
