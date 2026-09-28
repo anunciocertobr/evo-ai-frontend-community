@@ -148,6 +148,9 @@ export interface CreateCampaignTargeting {
   publisher_platforms: string[];
   facebook_positions?: string[];
   instagram_positions?: string[];
+  // Só entra quando a plataforma Audience Network tem posição marcada — a
+  // Meta recusa a plataforma sem posição (e a posição sem a plataforma).
+  audience_network_positions?: string[];
   custom_audience_id?: string;
   // Nome do público salvo escolhido no seletor — o backend
   // (Meta::AdsManagerService#resolve_audience) busca por nome na Meta e
@@ -164,6 +167,10 @@ export interface CreateCampaignTargeting {
     // formato que Meta::AdsManagerService#normalize_geo já sabe converter
     // pra `geo_locations.custom_locations` (formato real da Graph API).
     cities?: Array<{ key: string; name: string; radius: number; distance_unit: string; latitude: number; longitude: number }>;
+    // Pins de EXCLUSÃO (mesmo formato dos de inclusão). O backend converte
+    // para `excluded_geo_locations`, que é a chave que a Graph API lê como
+    // "não anunciar para quem mora ou esteve aqui".
+    excluded_cities?: Array<{ key: string; name: string; radius: number; distance_unit: string; latitude: number; longitude: number }>;
   };
 }
 
@@ -217,8 +224,13 @@ export interface CreateCampaignPayload {
       ad_status: 'ACTIVE' | 'PAUSED';
       title?: string;
       body?: string;
-      asset_base64: string;
-      asset_mimetype: string;
+      // Texto de apoio do anúncio (`link_data.description`).
+      description?: string;
+      // "Duplicar" não manda arquivo: o backend resolve a mídia (imagem ou
+      // vídeo) do anúncio de origem por este id.
+      ad_id_origem?: string;
+      asset_base64?: string;
+      asset_mimetype?: string;
     }>;
   }>;
 }

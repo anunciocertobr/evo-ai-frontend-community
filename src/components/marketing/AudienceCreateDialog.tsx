@@ -100,6 +100,10 @@ interface AudienceCreateDialogProps {
   // usuário: a conta de anúncio pode ser cliente de outra BM, e aí pedir as
   // páginas pelo `owner` da conta devolve as páginas erradas (ou nenhuma).
   businessId?: string | null;
+  // Abre já num tipo específico — o painel de tráfego tem dois botões
+  // ("Criar público" e "Criar público semelhante") e precisa cair direto no
+  // formulário certo em vez de esperar o usuário escolher na lista.
+  initialKind?: 'site' | 'lookalike' | null;
 }
 
 export function AudienceCreateDialog({
@@ -113,6 +117,7 @@ export function AudienceCreateDialog({
   currentAccountName,
   onGoToSavedAudience,
   businessId,
+  initialKind = null,
 }: AudienceCreateDialogProps) {
   const isDuplicate = Boolean(duplicateFrom);
 
@@ -124,7 +129,11 @@ export function AudienceCreateDialog({
   const [targetBmId, setTargetBmId] = useState<string | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const [kind, setKind] = useState<AudienceKind>('site');
+  const [kind, setKind] = useState<AudienceKind>(initialKind === 'lookalike' ? 'lookalike' : 'site');
+
+  useEffect(() => {
+    if (open && initialKind) setKind(initialKind as AudienceKind);
+  }, [open, initialKind]);
   const [name, setName] = useState('');
   // Se o usuário editar o nome, paramos de recalcular o sufixo "- Cópia".
   const [nameTouched, setNameTouched] = useState(false);

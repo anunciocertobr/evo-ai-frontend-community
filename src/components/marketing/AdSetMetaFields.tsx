@@ -16,8 +16,14 @@ import {
   CONVERSAO_DESCRICAO,
   conversaoDisponivel,
   conversaoTiposFor,
+  AUDIENCE_NETWORK_POSITIONS,
+  AUDIENCE_NETWORK_POSITION_OPTIONS,
   FACEBOOK_POSITIONS,
+  FACEBOOK_POSITION_OPTIONS,
   INSTAGRAM_POSITIONS,
+  INSTAGRAM_POSITION_OPTIONS,
+  PLATFORM_OPTIONS,
+  platformWithPositions,
 } from '@/components/marketing/adSetMetaOptions';
 
 const inputClass = 'bg-slate-700 border-slate-600 text-slate-200';
@@ -42,8 +48,8 @@ export function AdSetMetaFields({
   loadingPages: boolean;
   values: AdSetMetaValues;
   onChange: (patch: Partial<AdSetMetaValues>) => void;
-  positions?: { facebook: string[]; instagram: string[] };
-  onPositionsChange?: (patch: { facebook?: string[]; instagram?: string[] }) => void;
+  positions?: { facebook: string[]; instagram: string[]; audienceNetwork?: string[] };
+  onPositionsChange?: (patch: { facebook?: string[]; instagram?: string[]; audienceNetwork?: string[] }) => void;
   whatsappNumbers?: WhatsappNumberOption[];
   loadingWhatsappNumbers?: boolean;
   requirePage?: boolean;
@@ -267,39 +273,33 @@ export function AdSetMetaFields({
       {positions && onPositionsChange && (
         <div className="space-y-2">
           <Label className="text-xs text-slate-400 block">Posições</Label>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {FACEBOOK_POSITIONS.map((p) => (
-              <label key={p.value} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                <Checkbox
-                  checked={positions.facebook.includes(p.value)}
-                  onCheckedChange={() => {
-                    const next = positions.facebook.includes(p.value)
-                      ? positions.facebook.filter((v) => v !== p.value)
-                      : [...positions.facebook, p.value];
-                    onPositionsChange({ facebook: next.length ? next : ['feed'] });
-                  }}
-                />
-                FB · {p.label}
-              </label>
-            ))}
-            {INSTAGRAM_POSITIONS.map((p) => (
-              <label key={p.value} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                <Checkbox
-                  checked={positions.instagram.includes(p.value)}
-                  onCheckedChange={() => {
-                    const next = positions.instagram.includes(p.value)
-                      ? positions.instagram.filter((v) => v !== p.value)
-                      : [...positions.instagram, p.value];
-                    onPositionsChange({ instagram: next.length ? next : ['feed'] });
-                  }}
-                />
-                IG · {p.label}
-              </label>
-            ))}
-          </div>
-          <p className="text-xs text-slate-500">
-            Ao menos uma posição por plataforma marcada precisa continuar ligada, senão a Meta usa o padrão.
-          </p>
+          {([
+            { prefixo: 'FB', lista: FACEBOOK_POSITIONS, ativas: positions.facebook, campo: 'facebook' as const },
+            { prefixo: 'IG', lista: INSTAGRAM_POSITIONS, ativas: positions.instagram, campo: 'instagram' as const },
+            {
+              prefixo: 'AN',
+              lista: AUDIENCE_NETWORK_POSITIONS,
+              ativas: positions.audienceNetwork ?? [],
+              campo: 'audienceNetwork' as const,
+            },
+          ]).map((grupo) => (
+            <div key={grupo.prefixo} className="flex flex-wrap gap-x-4 gap-y-2">
+              {grupo.lista.map((p) => (
+                <label key={p.value} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                  <Checkbox
+                    checked={grupo.ativas.includes(p.value)}
+                    onCheckedChange={() => {
+                      const next = grupo.ativas.includes(p.value)
+                        ? grupo.ativas.filter((v) => v !== p.value)
+                        : [...grupo.ativas, p.value];
+                      onPositionsChange({ [grupo.campo]: next });
+                    }}
+                  />
+                  {grupo.prefixo} · {p.label}
+                </label>
+              ))}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -394,6 +394,80 @@ export function AdSetBudgetFields({
         </>
       )}
       {mode === 'DIARIO' && hint && <p className="text-xs text-slate-500 mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+// Plataforma + posições do conjunto, num bloco só. A Meta recusa
+// `facebook_positions` com a plataforma Facebook desligada (e o inverso
+// também), então os dois campos andam juntos: marcar a plataforma marca
+// TODAS as posições dela e desligar a plataforma desliga todas.
+// Padrão: tudo marcado, MENOS as posições de Audience Network.
+export function AdSetPlatformPositionsFields({
+  platforms,
+  onPlatformsChange,
+  positions,
+  onPositionsChange,
+}: {
+  platforms: string[];
+  onPlatformsChange: (platforms: string[]) => void;
+  positions: { facebook: string[]; instagram: string[]; audienceNetwork: string[] };
+  onPositionsChange: (patch: Partial<{ facebook: string[]; instagram: string[]; audienceNetwork: string[] }>) => void;
+}) {
+  const togglePlatform = (value: string) => {
+    const ativando = !platforms.includes(value);
+    onPlatformsChange(ativando ? [...platforms, value] : platforms.filter((p) => p !== value));
+    const todas = platformWithPositions(value, ativando);
+    if (value === 'facebook') onPositionsChange({ facebook: todas });
+    if (value === 'instagram') onPositionsChange({ instagram: todas });
+    if (value === 'audience_network') onPositionsChange({ audienceNetwork: todas });
+  };
+
+  const grupos = [
+    { prefixo: 'FB', lista: FACEBOOK_POSITION_OPTIONS, ativas: positions.facebook, campo: 'facebook' as const },
+    { prefixo: 'IG', lista: INSTAGRAM_POSITION_OPTIONS, ativas: positions.instagram, campo: 'instagram' as const },
+    { prefixo: 'AN', lista: AUDIENCE_NETWORK_POSITION_OPTIONS, ativas: positions.audienceNetwork, campo: 'audienceNetwork' as const },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label className="text-xs text-slate-400 block mb-2">Plataformas</Label>
+        <div className="flex flex-wrap gap-4">
+          {PLATFORM_OPTIONS.map((p) => (
+            <label key={p.value} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+              <Checkbox checked={platforms.includes(p.value)} onCheckedChange={() => togglePlatform(p.value)} />
+              {p.label}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label className="text-xs text-slate-400 block">Posições</Label>
+        {grupos.map((grupo) => (
+          <div key={grupo.prefixo} className="flex flex-wrap gap-x-4 gap-y-2">
+            {grupo.lista.map((p) => (
+              <label key={p.value} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                <Checkbox
+                  checked={grupo.ativas.includes(p.value)}
+                  onCheckedChange={() =>
+                    onPositionsChange({
+                      [grupo.campo]: grupo.ativas.includes(p.value)
+                        ? grupo.ativas.filter((v) => v !== p.value)
+                        : [...grupo.ativas, p.value],
+                    })
+                  }
+                />
+                {grupo.prefixo} · {p.label}
+              </label>
+            ))}
+          </div>
+        ))}
+        <p className="text-xs text-slate-500">
+          Todas as posições vêm marcadas, menos as de Audience Network. Ao marcar a plataforma Audience Network, as posições dela são marcadas
+          automaticamente.
+        </p>
+      </div>
     </div>
   );
 }

@@ -147,3 +147,46 @@ export const INSTAGRAM_POSITIONS = [
   { value: 'in_stream', label: 'Vídeo ao vivo' },
   { value: 'profile_feed', label: 'Perfil' },
 ];
+
+// Audience Network tem lista de posições própria, e é a única que NÃO vem
+// marcada por padrão. As de Facebook/Instagram vêm todas marcadas.
+export const AUDIENCE_NETWORK_POSITIONS = [
+  { value: 'apps', label: 'Apps' },
+  { value: 'audience_network_feeds', label: 'Feeds' },
+  { value: 'native', label: 'Anúncios nativos' },
+  { value: 'native_banner', label: 'Banner nativo' },
+  { value: 'native_interstitial', label: 'Interstitial' },
+  { value: 'instream_video', label: 'Vídeo' },
+  { value: 'instream_video_reels', label: 'Vídeo (Reels)' },
+];
+
+export const PLATFORM_OPTIONS = [
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'audience_network', label: 'Audience Network' },
+];
+
+export const FACEBOOK_POSITION_OPTIONS = FACEBOOK_POSITIONS;
+export const INSTAGRAM_POSITION_OPTIONS = INSTAGRAM_POSITIONS;
+export const AUDIENCE_NETWORK_POSITION_OPTIONS = AUDIENCE_NETWORK_POSITIONS;
+
+// Faixas de idade padrão do Gerenciador de Anúncios. A última é o "65+" —
+// `age_max: 65` é o que a Meta entende como 65 ou mais.
+export const AGE_RANGES = [
+  { value: '18-24', label: '18 a 24', min: '18', max: '24' },
+  { value: '25-34', label: '25 a 34', min: '25', max: '34' },
+  { value: '35-44', label: '35 a 44', min: '35', max: '44' },
+  { value: '45-54', label: '45 a 54', min: '45', max: '54' },
+  { value: '55-64', label: '55 a 64', min: '55', max: '64' },
+  { value: '65+', label: '65+', min: '65', max: '65' },
+];
+
+export const ageRangeFor = (min: string, max: string) => AGE_RANGES.find((r) => r.min === min && r.max === max)?.value ?? 'custom';
+
+// Plataforma e posições andam juntas porque a Meta recusa posição de
+// plataforma desligada: marcar a plataforma liga TODAS as posições dela, e
+// desligar a plataforma desliga todas.
+export function platformWithPositions(platform: string, ativo: boolean) {
+  const todas = platform === 'facebook' ? FACEBOOK_POSITION_OPTIONS : platform === 'instagram' ? INSTAGRAM_POSITION_OPTIONS : AUDIENCE_NETWORK_POSITION_OPTIONS;
+  return ativo ? todas.map((p) => p.value) : [];
+}

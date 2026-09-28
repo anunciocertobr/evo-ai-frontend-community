@@ -37,6 +37,12 @@ export interface AdCreative {
   title?: string;
   image_url?: string;
   video_id?: string;
+  // A descrição do anúncio só existe dentro do spec do criativo — é de lá
+  // que o "Duplicar" lê pra pré-preencher a tela de criação.
+  object_story_spec?: {
+    link_data?: { description?: string; name?: string; message?: string };
+    video_data?: { title?: string; message?: string };
+  };
 }
 
 export interface AdSetTargeting {
@@ -44,13 +50,21 @@ export interface AdSetTargeting {
   age_max?: number;
   genders?: number[];
   geo_locations?: {
-    cities?: Array<{ name?: string; radius?: number; distance_unit?: string }>;
-    places?: Array<{ name?: string; radius?: number; distance_unit?: string }>;
+    // A Graph API devolve a cidade real sem coordenada, e o pin do mapa com
+    // coordenada em `custom_locations`. Os dois aparecem aqui porque o
+    // "Duplicar" só consegue pré-preencher o mapa com o que tem lat/lng.
+    cities?: Array<{ name?: string; radius?: number; distance_unit?: string; lat?: number; lng?: number }>;
+    places?: Array<{ name?: string; radius?: number; distance_unit?: string; lat?: number; lng?: number }>;
+    custom_locations?: Array<{ latitude?: number; longitude?: number; radius?: number; distance_unit?: string }>;
     countries?: string[];
   };
   publisher_platforms?: string[];
   facebook_positions?: string[];
   instagram_positions?: string[];
+  // Posições de Audience Network e locais de exclusão — o "Duplicar" copia
+  // para a tela de criação já preenchida.
+  audience_network_positions?: string[];
+  excluded_geo_locations?: Array<{ latitude?: number; longitude?: number; radius?: number; distance_unit?: string }>;
   // `optimization_goal` do conjunto é o que decide o destino aceito pela Meta
   // (conversa / conversão / formulário). Sem ele no tipo, o painel não
   // consegue mostrar o destino certo no modal de duplicação.
