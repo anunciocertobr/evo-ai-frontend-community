@@ -75,7 +75,9 @@ export interface StructuralAdSet {
   id: string;
   name: string;
   status: string;
+  description?: string;
   daily_budget?: string;
+  lifetime_budget?: string;
   targeting?: AdSetTargeting;
   promoted_object?: PromotedObject;
   optimization_goal?: string;
@@ -90,6 +92,7 @@ export interface StructuralCampaign {
   name: string;
   status: string;
   objective?: string;
+  description?: string;
   adsets?: { data: StructuralAdSet[] };
 }
 
@@ -101,6 +104,9 @@ export interface AggregatedItem {
   status: string;
   objective?: string;
   optimization_goal?: string;
+  // Descrição do objeto (campo `description` da Graph API) — o modal de
+  // duplicação copia para a nova peça e o painel mostra nos detalhes.
+  description?: string;
   parentName?: string;
   campaignId?: string;
   campaignName?: string;
@@ -202,12 +208,20 @@ export function aggregateDataForLevel(
 
     if (level === 'campaign') {
       if (!aggregatedMap.has(campaign.id)) {
+        // `promoted_object` e `optimization_goal` vem do primeiro conjunto: a
+        // campanha em si não devolve o destino da conversa, e sem isso o modal
+        // de duplicação abriria sem página nenhuma e obrigaria a pessoa a
+        // escolher de novo o que a campanha de origem já usava.
+        const primeiroConjunto = (campaign.adsets?.data || [])[0];
         aggregatedMap.set(campaign.id, {
           base: {
             id: campaign.id,
             name: campaign.name,
             status: campaign.status,
             objective: campaign.objective,
+            description: campaign.description,
+            optimization_goal: primeiroConjunto?.optimization_goal,
+            promotedObject: primeiroConjunto?.promoted_object,
             totalAdSets,
             activeAdSetsCount,
           },
@@ -227,6 +241,7 @@ export function aggregateDataForLevel(
               id: adset.id,
               name: adset.name,
               status: adset.status,
+              description: adset.description,
               campaignId: campaign.id,
               campaignName: campaign.name,
               parentName: campaign.name,

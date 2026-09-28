@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { toast } from 'sonner';
-import { AdSetMetaFields } from '@/components/marketing/AdSetMetaFields';
+import { AdSetBudgetFields, AdSetDescriptionField, AdSetMetaFields, BudgetMode } from '@/components/marketing/AdSetMetaFields';
 import {
   AdAccountPageOption,
   AdSetMetaValues,
-  destinoKindFor,
   emptyAdSetMeta,
+  optimizationGoalFor,
+  pendingWhatsappValidation,
 } from '@/components/marketing/adSetMetaOptions';
 import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialog';
 import {
@@ -62,12 +63,16 @@ import {
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import { trafficPanelService, type TrafficAccount } from '@/services/marketing/trafficPanelService';
 import {
+  DEFAULT_OBJECTIVE,
   metaAdsManagerService,
-  OBJECTIVE_MAP,
+  OBJECTIVE_BY_KEY,
+  OBJECTIVES,
+  objectiveKeyForValue,
   type ObjectiveKey,
   type CreateCampaignPayload,
   type MetaLevel,
   type CreativeDetails,
+  type WhatsappNumberOption,
 } from '@/services/marketing/metaAdsManagerService';
 import { apiErrorMessage } from '@/utils/apiHelpers';
 import { metaCreationService, type SavedAudience } from '@/services/marketing/metaCreationService';
@@ -1212,6 +1217,18 @@ function DuplicateModal({
   const [loadingPages, setLoadingPages] = useState(false);
   const [metaValues, setMetaValues] = useState<AdSetMetaValues>(() => emptyAdSetMeta());
   const [budgetOverride, setBudgetOverride] = useState('');
+  const [budgetMode, setBudgetMode] = useState<BudgetMode>('DIARIO');
+  const [endDate, setEndDate] = useState('');
+  const [description, setDescription] = useState('');
+  // Números de WhatsApp que a conta já usa na página escolhida — vêm do
+  // backend (que lê os promoted_object dos conjuntos da própria conta, porque
+  // a WABA não é legível pelo token de página).
+  const [whatsappNumbers, setWhatsappNumbers] = useState<WhatsappNumberOption[]>([]);
+  const [loadingWhatsappNumbers, setLoadingWhatsappNumbers] = useState(false);
+
+  // Objetivo usado para decidir quais campos de conjunto aparecem: o novo, se
+  // a pessoa escolheu, senão o da campanha de origem.
+  const objetivoDoDup: ObjectiveKey = newObjectiveKey || objectiveKeyForValue(item?.objective);
 
   useEffect(() => {
     if (!open || !targetAccountId) return;
@@ -1225,12 +1242,57 @@ function DuplicateModal({
       .finally(() => setLoadingPages(false));
   }, [open, targetAccountId]);
 
+  // Números de WhatsApp da conta para a página escolhida. Sem isso o campo
+  // "Onde a conversa acontece" obriga a digitar o número de cabeça.
+  useEffect(() => {
+    const conta = targetAccountId || adAccountId;
+    if (!open || !metaValues.pageId || !conta) {
+      setWhatsappNumbers([]);
+      return;
+    }
+    let cancelado = false;
+    setLoadingWhatsappNumbers(true);
+    metaAdsManagerService
+      .listWhatsappNumbers(conta, metaValues.pageId)
+      .then((lista) => {
+        if (cancelado) return;
+        setWhatsappNumbers(lista);
+        // Já vem preenchido quando a origem usava aquele número.
+        if (!metaValues.whatsappPhone && lista.length === 1) {
+          setMetaValues((prev) => ({ ...prev, whatsappPhone: lista[0].phone_number }));
+        }
+      })
+      .catch(() => {
+        if (!cancelado) setWhatsappNumbers([]);
+      })
+      .finally(() => {
+        if (!cancelado) setLoadingWhatsappNumbers(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, metaValues.pageId, targetAccountId, adAccountId]);
+
   useEffect(() => {
     if (!item || !open) return;
     setName(`${item.name} - Cópia`);
     setNewObjectiveKey('');
-    setMetaValues(emptyAdSetMeta());
-    setBudgetOverride('');
+    setBudgetMode('DIARIO');
+    setEndDate('');
+    setDescription(item.description || '');
+    // Pré-seleciona a página/conversa/número que JÁ estão na campanha de origem:
+    // o usuário reclamou de ter que escolher tudo de novo ao duplicar. A página
+    // vem do `promoted_object` que o painel já traz no item.
+    const origem = item.promotedObject;
+    setMetaValues({
+      ...emptyAdSetMeta(),
+      pageId: origem?.page_id || '',
+      mensagemDestino:
+        origem?.whatsapp_phone_number ? 'WHATSAPP' : origem?.page_id ? 'MESSENGER' : emptyAdSetMeta().mensagemDestino,
+      whatsappPhone: origem?.whatsapp_phone_number || '',
+      conversaoTipo: origem?.pixel_id ? 'SITE' : origem?.whatsapp_phone_number ? 'WHATSAPP' : 'NENHUMA',
+    });
     // Pré-seleciona BM/conta/campanha/conjunto atuais — o usuário só mexe
     // nos seletores se quiser duplicar pra outro lugar.
     setTargetCampaigns(campaigns);
@@ -1281,36 +1343,41 @@ function DuplicateModal({
     // "mantém o da origem".
     const destinoEscolhido: Record<string, unknown> = {
       page_id: metaValues.pageId || undefined,
-      daily_budget:
-        budgetOverride.trim() && level !== 'ads'
-          ? Math.round(parseFloat(budgetOverride.replace(',', '.')) * 100).toString()
-          : undefined,
+      daily_budget: budgetMode === 'DIARIO' && budgetOverride.trim() && level !== 'ads' ? budgetOverride.trim().replace(',', '.') : undefined,
     };
     // Destino de conversa/local de conversão só faz sentido com o objetivo novo
     // já escolhido — mandar WhatsApp numa cópia de tráfego é erro garantido.
-    const destinoDoNovoObjetivo = newObjectiveKey ? OBJECTIVE_MAP[newObjectiveKey].optimizationGoal : null;
-    const kindDestino = destinoKindFor(destinoDoNovoObjetivo);
-    if (metaValues.mensagemDestino && kindDestino === 'mensagem') {
+    const objetivoEfetivo: ObjectiveKey = newObjectiveKey || objectiveKeyForValue(item?.objective);
+    const metaConversa = optimizationGoalFor(objetivoEfetivo, metaValues) === 'CONVERSATIONS';
+    if (metaConversa) {
       destinoEscolhido.mensagem_destino = metaValues.mensagemDestino;
       if (metaValues.mensagemDestino === 'WHATSAPP' && metaValues.whatsappPhone.trim()) {
         destinoEscolhido.whatsapp_phone_number = metaValues.whatsappPhone.trim();
       }
-    }
-    if (metaValues.conversionLocation.trim() && kindDestino === 'conversao') {
+    } else if (metaValues.conversaoTipo === 'SITE' && metaValues.conversionLocation.trim()) {
       destinoEscolhido.conversion_location = metaValues.conversionLocation.trim();
       destinoEscolhido.conversion_event = metaValues.conversionEvent;
     }
+    if (metaValues.conversaoTipo === 'FORMULARIO') {
+      destinoEscolhido.optimization_goal = 'LEAD_GENERATION';
+    }
+    if (budgetMode === 'VITALICIO' && budgetOverride.trim()) {
+      destinoEscolhido.lifetime_budget = budgetOverride.trim().replace(',', '.');
+      destinoEscolhido.daily_budget = undefined;
+      if (endDate) destinoEscolhido.end_time = endDate;
+    }
+    if (description.trim()) destinoEscolhido.description = description.trim();
 
     setSaving(true);
     try {
       if (level === 'campaigns') {
-        const objMap = newObjectiveKey ? OBJECTIVE_MAP[newObjectiveKey] : null;
+        const objMap = OBJECTIVE_BY_KEY[objetivoEfetivo];
         await metaAdsManagerService.duplicateCampaignWithObjective({
           campaignId: item.id,
           adAccountId: effectiveAdAccountId,
           newName: trimmed,
-          newObjective: objMap ? objMap.objective : item.objective || '',
-          newOptimizationGoal: objMap?.optimizationGoal,
+          newObjective: newObjectiveKey ? objMap.objective : item.objective || '',
+          newOptimizationGoal: newObjectiveKey ? optimizationGoalFor(objetivoEfetivo, metaValues) : undefined,
           overrides: destinoEscolhido,
         });
       } else if (level === 'adsets') {
@@ -1324,7 +1391,7 @@ function DuplicateModal({
           adAccountId: effectiveAdAccountId,
           targetCampaignId,
           newName: trimmed,
-          newOptimizationGoal: destinoDoNovoObjetivo ?? undefined,
+          newOptimizationGoal: optimizationGoalFor(objetivoEfetivo, metaValues),
           overrides: destinoEscolhido,
         });
       } else {
@@ -1373,9 +1440,9 @@ function DuplicateModal({
                   <SelectValue placeholder="Manter o mesmo objetivo" />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
-                  {(Object.keys(OBJECTIVE_MAP) as ObjectiveKey[]).map((key) => (
-                    <SelectItem key={key} value={key}>
-                      {OBJECTIVE_MAP[key].label}
+                  {OBJECTIVES.map((o) => (
+                    <SelectItem key={o.objective} value={objectiveKeyForValue(o.objective)}>
+                      {o.label} — {o.hint.split('.')[0]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1389,22 +1456,22 @@ function DuplicateModal({
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 {level === 'adsets' ? 'Ajustes do conjunto' : 'Página e destino do anúncio'}
               </p>
+              <AdSetDescriptionField value={description} onChange={setDescription} />
               {level === 'campaigns' && (
-                <div>
-                  <Label className="text-xs text-slate-400">Orçamento Diário (R$) — opcional</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={budgetOverride}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBudgetOverride(e.target.value)}
-                    placeholder="Vazio = mesmo orçamento da origem"
-                    className="bg-slate-700 border-slate-600 text-slate-200"
-                  />
-                </div>
+                <AdSetBudgetFields
+                  mode={budgetMode}
+                  onModeChange={setBudgetMode}
+                  value={budgetOverride}
+                  onValueChange={setBudgetOverride}
+                  endDate={endDate}
+                  onEndDateChange={setEndDate}
+                  hint="Vazio = mesmo orçamento da origem."
+                />
               )}
               <AdSetMetaFields
-                optimizationGoal={newObjectiveKey ? OBJECTIVE_MAP[newObjectiveKey].optimizationGoal : item?.targeting?.optimization_goal}
+                objectiveKey={objetivoDoDup}
+                whatsappNumbers={whatsappNumbers}
+                loadingWhatsappNumbers={loadingWhatsappNumbers}
                 pages={pages}
                 loadingPages={loadingPages}
                 values={metaValues}
@@ -1941,6 +2008,12 @@ interface AdSetFormState {
   savedAudience: SavedAudience | null;
   detailedTargeting: string;
   locations: LocationEntry[];
+  // Texto livre que identifica o conjunto no Gerenciador de Anúncios.
+  description: string;
+  // Diário ou vitalício. Vitalício exige `endDate` — a Meta recusa sem data de
+  // término (subcode 1487094) — e nunca existe junto com CBO.
+  budgetMode: BudgetMode;
+  endDate: string;
   // Campos do nível do conjunto que a Meta decide por objetivo: página,
   // destino de mensagens e local de conversão. Ver AdSetMetaFields.
   meta: AdSetMetaValues;
@@ -1964,6 +2037,9 @@ function newAdSet(): AdSetFormState {
     savedAudience: null,
     detailedTargeting: '',
     locations: [{ id: nextUid(), name: 'São Paulo', lat: -23.5505, lng: -46.6333, radius: 15 }],
+    description: '',
+    budgetMode: 'DIARIO',
+    endDate: '',
     meta: emptyAdSetMeta(),
     ads: [newAd()],
   };
@@ -2043,7 +2119,10 @@ function AdSetBlock({
   loadingSavedAudiences,
   pages,
   loadingPages,
-  objective,
+  objectiveKey,
+  whatsappNumbers,
+  loadingWhatsappNumbers,
+  cboAtivo,
   onCreateNewAudience,
 }: {
   adSet: AdSetFormState;
@@ -2055,7 +2134,10 @@ function AdSetBlock({
   loadingSavedAudiences: boolean;
   pages: AdAccountPageOption[];
   loadingPages: boolean;
-  objective: string;
+  objectiveKey: ObjectiveKey;
+  whatsappNumbers: WhatsappNumberOption[];
+  loadingWhatsappNumbers: boolean;
+  cboAtivo: boolean;
   onCreateNewAudience: () => void;
 }) {
   const togglePlatform = (value: string) =>
@@ -2085,17 +2167,7 @@ function AdSetBlock({
           className="bg-slate-700 border-slate-600 text-slate-200"
         />
       </div>
-      <div>
-        <Label className="text-xs text-slate-400">Orçamento Diário (R$)</Label>
-        <Input
-          type="number"
-          step="0.01"
-          min="0"
-          value={adSet.budget}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ budget: e.target.value })}
-          className="bg-slate-700 border-slate-600 text-slate-200"
-        />
-      </div>
+      <AdSetDescriptionField value={adSet.description} onChange={(description) => onChange({ description })} />
       <div>
         <Label className="text-xs text-slate-400">Público Salvo (da Meta)</Label>
         <Select
@@ -2182,10 +2254,15 @@ function AdSetBlock({
         </div>
       </div>
 
+      {/* "Onde a conversa acontece" e "Onde acontecem as conversões" vêm
+          ANTES do orçamento, como pedido: primeiro se decide o destino do
+          lead, depois se decide quanto se gasta nele. */}
       <AdSetMetaFields
-        optimizationGoal={objective}
+        objectiveKey={objectiveKey}
         pages={pages}
         loadingPages={loadingPages}
+        whatsappNumbers={whatsappNumbers}
+        loadingWhatsappNumbers={loadingWhatsappNumbers}
         values={adSet.meta}
         onChange={(meta) => onChange({ meta: { ...adSet.meta, ...meta } })}
         requirePage
@@ -2197,6 +2274,19 @@ function AdSetBlock({
           })
         }
       />
+
+      <div className="border-t border-slate-700/70 pt-4">
+        <AdSetBudgetFields
+          mode={adSet.budgetMode}
+          onModeChange={(budgetMode) => onChange({ budgetMode })}
+          value={adSet.budget}
+          onValueChange={(budget) => onChange({ budget })}
+          endDate={adSet.endDate}
+          onEndDateChange={(endDate) => onChange({ endDate })}
+          disabled={cboAtivo}
+          hint={cboAtivo ? 'Com CBO o valor vem da campanha, então o campo do conjunto fica desligado.' : undefined}
+        />
+      </div>
 
       <div className="space-y-3 border-t border-slate-700 pt-4">
         <h5 className="text-sm font-semibold text-yellow-400">Anúncios deste conjunto</h5>
@@ -2224,7 +2314,7 @@ function CreateCampaignModal({
 }) {
   const [name, setName] = useState('');
   const [status, setStatus] = useState<'ACTIVE' | 'PAUSED'>('PAUSED');
-  const [objectiveKey, setObjectiveKey] = useState<ObjectiveKey>('messages');
+  const [objectiveKey, setObjectiveKey] = useState<ObjectiveKey>(DEFAULT_OBJECTIVE);
   const [link, setLink] = useState('');
   const [adSets, setAdSets] = useState<AdSetFormState[]>(() => [newAdSet()]);
 
@@ -2233,9 +2323,11 @@ function CreateCampaignModal({
   const [savedAudiences, setSavedAudiences] = useState<SavedAudience[] | null>(null);
   const [loadingSavedAudiences, setLoadingSavedAudiences] = useState(false);
 
-  // CBO: com orçamento na campanha a Meta divide o dinheiro entre os conjuntos
-  // e passa a exigir limite de lance em cada um. Vazio = orçamento por conjunto
-  // (comportamento padrão).
+  // NÍVEL DO ORÇAMENTO — escolha explícita pedida pelo usuário: o dinheiro pode
+  // ficar na campanha (CBO, a Meta divide entre os conjuntos) ou em cada
+  // conjunto. Com CBO a Meta exige limite de lance por conjunto e recusa
+  // orçamento vitalício (subcodes 4834002/4834011).
+  const [budgetLevel, setBudgetLevel] = useState<'CONJUNTO' | 'CAMPANHA'>('CONJUNTO');
   const [campaignBudget, setCampaignBudget] = useState('');
   const [bidCap, setBidCap] = useState('');
 
@@ -2248,8 +2340,39 @@ function CreateCampaignModal({
   // o recém-criado já entra utilizável.
   const [audienceDialogAdSetKey, setAudienceDialogAdSetKey] = useState<string | null>(null);
 
-  const objectiveMeta = OBJECTIVE_MAP[objectiveKey];
-  const cboAtivo = campaignBudget.trim().length > 0;
+  const objectiveMeta = OBJECTIVE_BY_KEY[objectiveKey];
+  const cboAtivo = budgetLevel === 'CAMPANHA' && campaignBudget.trim().length > 0;
+  // Números de WhatsApp por conjunto (a lista vem da conta, ver backend).
+  const [whatsappNumbers, setWhatsappNumbers] = useState<Record<string, WhatsappNumberOption[]>>({});
+  const [loadingWhatsappKey, setLoadingWhatsappKey] = useState<string | null>(null);
+
+  // Cada conjunto tem sua própria página, então cada um busca os números de
+  // WhatsApp daquela página (a lista vem da conta, ver backend). Uma
+  // requisição por combinação página+conjunto, cancelada quando muda.
+  useEffect(() => {
+    if (!open || !adAccountId) return;
+    const pendentes = adSets
+      .map((adSet) => ({ key: adSet.key, pageId: adSet.meta.pageId }))
+      .filter((x) => x.pageId);
+    if (pendentes.length === 0) return;
+
+    const controller = new AbortController();
+    const buscar = async () => {
+      for (const { key, pageId } of pendentes) {
+        setLoadingWhatsappKey(key);
+        try {
+          const lista = await metaAdsManagerService.listWhatsappNumbers(adAccountId, pageId);
+          setWhatsappNumbers((prev) => ({ ...prev, [key]: lista }));
+        } catch {
+          setWhatsappNumbers((prev) => ({ ...prev, [key]: [] }));
+        } finally {
+          setLoadingWhatsappKey((atual) => (atual === key ? null : atual));
+        }
+      }
+    };
+    buscar();
+    return () => controller.abort();
+  }, [open, adAccountId, adSets]);
 
   // Reseta pro estado inicial (1 conjunto + 1 anúncio) toda vez que o modal
   // abre — mesmo comportamento do showCreateCampaignModal do legado.
@@ -2257,8 +2380,9 @@ function CreateCampaignModal({
     if (open) {
       setName('');
       setStatus('PAUSED');
-      setObjectiveKey('messages');
+      setObjectiveKey(DEFAULT_OBJECTIVE);
       setLink('');
+      setBudgetLevel('CONJUNTO');
       setCampaignBudget('');
       setBidCap('');
       setAdSets([newAdSet()]);
@@ -2315,7 +2439,31 @@ function CreateCampaignModal({
       const trimmedAdSetName = adSet.name.trim();
       const budgetValue = parseFloat(adSet.budget.replace(',', '.'));
       if (!trimmedAdSetName || !(budgetValue > 0)) {
-        toast.error(`Preencha o Nome e o Orçamento Diário do conjunto "${trimmedAdSetName || adSet.name}".`);
+        toast.error(
+          `Preencha o Nome e o ${adSet.budgetMode === 'VITALICIO' ? 'Orçamento Vitalício' : 'Orçamento Diário'} do conjunto "${
+            trimmedAdSetName || adSet.name
+          }".`,
+        );
+        return;
+      }
+      // Conversa no WhatsApp sem número: a Meta devolve erro genérico de
+      // objeto promovido, então a validação acontece antes do envio.
+      if (pendingWhatsappValidation(adSet.meta, optimizationGoalFor(objectiveKey, adSet.meta))) {
+        toast.error(`Escolha o número de WhatsApp do conjunto "${trimmedAdSetName}" (ou troque o destino da conversa).`);
+        return;
+      }
+      // A Meta recusa orçamento vitalício sem data de término (subcode 1487094)
+      // e nunca aceita vitalício junto com CBO.
+      if (adSet.budgetMode === 'VITALICIO' && !cboAtivo && !adSet.endDate) {
+        toast.error(`Escolha a data final do orçamento vitalício do conjunto "${trimmedAdSetName}".`);
+        return;
+      }
+      if (adSet.budgetMode === 'VITALICIO' && cboAtivo) {
+        toast.error('Orçamento vitalício não existe com CBO: escolha "No conjunto" ou "Na campanha" acima.');
+        return;
+      }
+      if (cboAtivo && !bidCap.trim()) {
+        toast.error('Com o orçamento na campanha a Meta exige o Limite de Lance por conjunto.');
         return;
       }
       const ageMinNum = parseInt(adSet.ageMin, 10);
@@ -2369,22 +2517,36 @@ function CreateCampaignModal({
             })),
           );
 
+          // A meta de desempenho do conjunto vem do objetivo DA CAMPANHA mais a
+          // escolha de conversa/conversão feita no bloco do conjunto — é a
+          // única combinação que a Meta aceita (uma meta por conjunto).
+          const optimizationGoal = optimizationGoalFor(objectiveKey, adSet.meta);
+          const metaEhConversa = optimizationGoal === 'CONVERSATIONS';
+          const metaEhPixel = optimizationGoal === 'OFFSITE_CONVERSIONS';
+          const orcamentoVitalicio = adSet.budgetMode === 'VITALICIO' && !cboAtivo && budgetValue > 0;
+
           return {
             adset_name: adSet.name.trim(),
             adset_status: status,
+            description: adSet.description.trim() || undefined,
             // Com CBO quem manda o valor é a campanha; mandar junto faz a Meta
             // usar o do conjunto e silenciar o da campanha.
-            daily_budget: cboAtivo ? undefined : Math.round(budgetValue * 100).toString(),
-            optimization_goal: objectiveMeta.optimizationGoal,
+            daily_budget: cboAtivo ? undefined : orcamentoVitalicio ? undefined : budgetValue.toFixed(2),
+            lifetime_budget: orcamentoVitalicio ? budgetValue.toFixed(2) : undefined,
+            end_time: orcamentoVitalicio ? adSet.endDate || undefined : undefined,
+            optimization_goal: optimizationGoal,
             // CBO exige teto de lance por conjunto — sem ele a Meta recusa com
-            // 1815857. O backend troca a estratégia e valida o valor.
+            // 1815857. O valor vai no formato de exibição: quem converte para
+            // centavos inteiros é o backend (bid_amount_cents).
             bid_strategy: cboAtivo ? 'LOWEST_COST_WITH_BID_CAP' : 'LOWEST_COST_WITHOUT_CAP',
-            bid_amount: cboAtivo && bidCap.trim() ? Math.round(parseFloat(bidCap.replace(',', '.')) * 100).toString() : undefined,
+            bid_amount: cboAtivo && bidCap.trim() ? bidCap.trim().replace(',', '.') : undefined,
             page_id: adSet.meta.pageId || undefined,
-            mensagem_destino: adSet.meta.mensagemDestino,
-            whatsapp_phone_number: adSet.meta.whatsappPhone.trim() || undefined,
-            conversion_location: adSet.meta.conversionLocation.trim() || undefined,
-            conversion_event: adSet.meta.conversionEvent,
+            // `mensagem_destino` só vai quando a meta é conversa: mandar
+            // destino de mensagem numa compra de pixel é recusado pela Meta.
+            mensagem_destino: metaEhConversa ? adSet.meta.mensagemDestino : undefined,
+            whatsapp_phone_number: metaEhConversa && adSet.meta.mensagemDestino === 'WHATSAPP' ? adSet.meta.whatsappPhone.trim() || undefined : undefined,
+            conversion_location: metaEhPixel ? adSet.meta.conversionLocation.trim() || undefined : undefined,
+            conversion_event: metaEhPixel ? adSet.meta.conversionEvent : undefined,
             targeting: {
               age_min: parseInt(adSet.ageMin, 10),
               age_max: parseInt(adSet.ageMax, 10),
@@ -2412,8 +2574,8 @@ function CreateCampaignModal({
         status,
         objective: objectiveMeta.objective,
         link: objectiveMeta.needsLink ? link.trim() || undefined : undefined,
-        // Orçamento diário da campanha (CBO). Só o valor puro — o backend
-        // converte pra centavos.
+        // Orçamento diário da campanha (CBO). Só entra quando o nível escolhido
+        // é CAMPANHA e o valor foi preenchido.
         campaign_daily_budget: cboAtivo ? campaignBudget.trim().replace(',', '.') : undefined,
         adsets: adsetsPayload,
       };
@@ -2459,13 +2621,14 @@ function CreateCampaignModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
-                  {(Object.keys(OBJECTIVE_MAP) as ObjectiveKey[]).map((key) => (
-                    <SelectItem key={key} value={key}>
-                      {OBJECTIVE_MAP[key].label}
+                  {OBJECTIVES.map((o) => (
+                    <SelectItem key={o.objective} value={objectiveKeyForValue(o.objective)}>
+                      {o.label} — {o.hint.split('.')[0]}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-slate-500 mt-1">{objectiveMeta.hint}</p>
             </div>
             {objectiveMeta.needsLink && (
               <div>
@@ -2479,22 +2642,46 @@ function CreateCampaignModal({
                 />
               </div>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-xs text-slate-400">Orçamento Diário da Campanha (CBO) — opcional</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={campaignBudget}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCampaignBudget(e.target.value)}
-                  placeholder="Vazio = orçamento em cada conjunto"
-                  className="bg-slate-700 border-slate-600 text-slate-200"
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  Preenchendo, a Meta divide o dinheiro entre os conjuntos e o orçamento de cada um é ignorado.
-                </p>
+            <div>
+              <Label className="text-xs text-slate-400">Onde fica o orçamento</Label>
+              <div className="flex gap-4 mt-1">
+                {(['CONJUNTO', 'CAMPANHA'] as const).map((nivel) => (
+                  <label key={nivel} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="budget-level"
+                      checked={budgetLevel === nivel}
+                      onChange={() => setBudgetLevel(nivel)}
+                      className="accent-sky-500"
+                    />
+                    {nivel === 'CONJUNTO' ? 'No conjunto (cada um com o seu)' : 'Na campanha (CBO)'}
+                  </label>
+                ))}
               </div>
+              <p className="text-xs text-slate-500 mt-1">
+                {budgetLevel === 'CAMPANHA'
+                  ? 'A Meta divide o dinheiro entre os conjuntos e exige limite de lance em cada um. Nesse modo o orçamento é sempre diário.'
+                  : 'Cada conjunto usa o orçamento que está no bloco dele, diário ou vitalício.'}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {budgetLevel === 'CAMPANHA' && (
+                <div>
+                  <Label className="text-xs text-slate-400">Orçamento Diário da Campanha (CBO)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={campaignBudget}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCampaignBudget(e.target.value)}
+                    placeholder="Ex: 200,00"
+                    className="bg-slate-700 border-slate-600 text-slate-200"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Com CBO o orçamento de cada conjunto é ignorado pela Meta.
+                  </p>
+                </div>
+              )}
               {cboAtivo && (
                 <div>
                   <Label className="text-xs text-slate-400">Limite de Lance por Conjunto (R$)</Label>
@@ -2527,7 +2714,10 @@ function CreateCampaignModal({
               loadingSavedAudiences={loadingSavedAudiences}
               pages={pages}
               loadingPages={loadingPages}
-              objective={objectiveMeta.optimizationGoal}
+              objectiveKey={objectiveKey}
+              whatsappNumbers={whatsappNumbers[adSet.key] ?? []}
+              loadingWhatsappNumbers={loadingWhatsappKey === adSet.key}
+              cboAtivo={cboAtivo}
               onCreateNewAudience={() => setAudienceDialogAdSetKey(adSet.key)}
             />
           ))}

@@ -7,16 +7,121 @@ export type MetaLevel = 'campaign' | 'adset' | 'ad';
 // Cada objetivo do seletor carrega o par objective+optimization_goal de
 // verdade que a Graph API espera — igual ao OBJECTIVE_MAP do painel legado
 // (dashboards-src/painel_trafego.html), testado um por um contra conta real.
-export type ObjectiveKey = 'messages' | 'leads' | 'traffic' | 'conversions' | 'engagement' | 'ig_profile';
+// Os 6 objetivos que o painel oferece — e só eles, como pedido. Cada um carrega
+// o `objective` que a Graph API desta integração aceita de verdade: a versão
+// da API em uso RECUSA os nomes modernos (AWARENESS, TRAFFIC, LEADS...) com
+// "Objective is invalid. Use one of: ... OUTCOME_AWARENESS, OUTCOME_TRAFFIC,
+// OUTCOME_LEADS, OUTCOME_SALES, OUTCOME_APP_PROMOTION, OUTCOME_ENGAGEMENT",
+// então os rótulos novos do Gerenciador de Anúncios são mapeados pra
+// `OUTCOME_*`, que é o que a conta aceita.
+export type ObjectiveKey = 'reconhecimento' | 'trafego' | 'engajamento' | 'leads' | 'app' | 'vendas';
 
-export const OBJECTIVE_MAP: Record<ObjectiveKey, { objective: string; optimizationGoal: string; label: string; needsLink: boolean }> = {
-  messages: { objective: 'OUTCOME_ENGAGEMENT', optimizationGoal: 'CONVERSATIONS', label: 'Mensagens (WhatsApp/Messenger)', needsLink: false },
-  leads: { objective: 'OUTCOME_LEADS', optimizationGoal: 'LEAD_GENERATION', label: 'Geração de Leads (Cadastro)', needsLink: false },
-  traffic: { objective: 'OUTCOME_TRAFFIC', optimizationGoal: 'LINK_CLICKS', label: 'Tráfego (Site)', needsLink: true },
-  conversions: { objective: 'OUTCOME_SALES', optimizationGoal: 'OFFSITE_CONVERSIONS', label: 'Conversão (Vendas/Pixel)', needsLink: true },
-  engagement: { objective: 'OUTCOME_ENGAGEMENT', optimizationGoal: 'POST_ENGAGEMENT', label: 'Engajamento (Vídeo/Post)', needsLink: false },
-  ig_profile: { objective: 'OUTCOME_TRAFFIC', optimizationGoal: 'VISIT_INSTAGRAM_PROFILE', label: 'Visita ao Perfil do Instagram', needsLink: false },
-};
+export interface ObjectiveOption {
+  objective: string;
+  label: string;
+  // Descrição curta que aparece no seletor — o usuário precisa saber a
+  // diferença entre "Engajamento" e "Leads" sem abrir a Meta.
+  hint: string;
+  // Precisa do link do site no anúncio (clicar leva para a URL).
+  needsLink: boolean;
+  // Metas de desempenho (`optimization_goal`) que a Meta ACEITA para este
+  // objetivo — todas testadas uma a uma na conta 588639403580243, o resto é
+  // recusado com subcode 2490408 ("a meta de desempenho não está disponível").
+  goals: Array<{ value: string; label: string }>;
+}
+
+export const OBJECTIVES: ObjectiveOption[] = [
+  {
+    objective: 'OUTCOME_AWARENESS',
+    label: 'Reconhecimento',
+    hint: 'Mostrar a marca para mais gente. Escolha entre alcance ou visualizações de vídeo.',
+    needsLink: false,
+    goals: [
+      { value: 'REACH', label: 'Alcance (pessoas diferentes)' },
+      { value: 'THRUPLAY', label: 'Visualizações de vídeo (10s)' },
+    ],
+  },
+  {
+    objective: 'OUTCOME_TRAFFIC',
+    label: 'Tráfego',
+    hint: 'Levar pessoas para o site, para a loja de aplicativos ou para a conversa.',
+    needsLink: true,
+    goals: [
+      { value: 'LINK_CLICKS', label: 'Cliques no link' },
+      { value: 'LANDING_PAGE_VIEWS', label: 'Visualizações da página' },
+      { value: 'CONVERSIONS', label: 'Conversas (WhatsApp/Messenger)' },
+    ],
+  },
+  {
+    objective: 'OUTCOME_ENGAGEMENT',
+    label: 'Engajamento',
+    hint: 'Curtidas, comentários, compartilhamentos e também conversa no WhatsApp/Messenger.',
+    needsLink: false,
+    goals: [
+      { value: 'POST_ENGAGEMENT', label: 'Engajamento com o post' },
+      { value: 'EVENT_RESPONSES', label: 'Respostas a eventos' },
+      { value: 'CONVERSATIONS', label: 'Conversas (WhatsApp/Messenger)' },
+    ],
+  },
+  {
+    objective: 'OUTCOME_LEADS',
+    label: 'Leads',
+    hint: 'Cadastro por formulário dentro do anúncio ou conversa de vendas no WhatsApp.',
+    needsLink: false,
+    goals: [
+      { value: 'CONVERSIONS', label: 'Conversa no WhatsApp' },
+      { value: 'LEAD_GENERATION', label: 'Formulário de cadastro' },
+    ],
+  },
+  {
+    objective: 'OUTCOME_APP_PROMOTION',
+    label: 'Promoção do App',
+    hint: 'Instalações e ações dentro do aplicativo. Exige o app vinculado à conta.',
+    needsLink: false,
+    goals: [
+      { value: 'APP_INSTALLS', label: 'Instalações do app' },
+      { value: 'APP_INSTALLS_AND_OFFSITE_CONVERSIONS', label: 'Instalações e conversões no site' },
+    ],
+  },
+  {
+    objective: 'OUTCOME_SALES',
+    label: 'Vendas',
+    hint: 'Compras no site (pixel) ou venda na conversa do WhatsApp/Messenger.',
+    needsLink: true,
+    goals: [
+      { value: 'OFFSITE_CONVERSIONS', label: 'Compras no site (pixel)' },
+      { value: 'CONVERSATIONS', label: 'Conversas (WhatsApp/Messenger)' },
+    ],
+  },
+];
+
+// Chave estável usada nos formulários (vem da posição/literal acima).
+export type ObjectiveKeyOf = ObjectiveKey;
+
+export const OBJECTIVE_BY_KEY: Record<ObjectiveKey, ObjectiveOption> = OBJECTIVES.reduce(
+  (acc, option, index) => {
+    acc[(['reconhecimento', 'trafego', 'engajamento', 'leads', 'app', 'vendas'] as ObjectiveKey[])[index]] = option;
+    return acc;
+  },
+  {} as Record<ObjectiveKey, ObjectiveOption>,
+);
+
+export const DEFAULT_OBJECTIVE: ObjectiveKey = 'trafego';
+
+// Descobre a chave do objetivo a partir do que a Meta devolveu na campanha
+// (`OUTCOME_*` ou os nomes antigos), pra pré-selecionar no formulário sem
+// deixar o campo em branco quando a pessoa abre "duplicar".
+export function objectiveKeyForValue(objectiveValue?: string | null): ObjectiveKey {
+  const value = (objectiveValue || '').toUpperCase();
+  if (!value) return DEFAULT_OBJECTIVE;
+  if (value.includes('AWARENESS')) return 'reconhecimento';
+  if (value.includes('TRAFFIC')) return 'trafego';
+  if (value.includes('ENGAGEMENT')) return 'engajamento';
+  if (value.includes('LEADS') || value.includes('LEAD_GENERATION')) return 'leads';
+  if (value.includes('APP')) return 'app';
+  if (value.includes('SALES') || value.includes('CONVERSION')) return 'vendas';
+  return DEFAULT_OBJECTIVE;
+}
 
 // Onde a conversa acontece quando o objetivo é mensagens. Cada destino muda
 // TRÊS campos ao mesmo tempo no backend (destination_type do conjunto,
@@ -92,11 +197,19 @@ export interface CreateCampaignPayload {
   adsets: Array<AdSetLevelOptions & {
     adset_name: string;
     adset_status: 'ACTIVE' | 'PAUSED';
+    // Texto livre que identifica o conjunto dentro do Gerenciador de Anúncios.
+    description?: string;
     // Ausente quando o orçamento está na campanha (CBO).
     daily_budget?: string;
+    // Orçamento vitalício: valor total do período. Exige `end_time` — a Meta
+    // recusa sem data de término com o subcode 1487094.
+    lifetime_budget?: string;
+    end_time?: string;
     optimization_goal: string;
     bid_strategy: string;
-    // Limite de lance/custo-alvo em centavos — exigido pela Meta quando há CBO.
+    // Limite de lance/custo-alvo no formato de exibição (ex.: "15.00"). O
+    // backend converte para centavos inteiros — mandar centavos aqui também
+    // faria a conversão acontecer duas vezes.
     bid_amount?: string;
     targeting: CreateCampaignTargeting;
     ads: Array<{
@@ -133,7 +246,30 @@ export interface AdAccountPage {
   instagram_business_account?: { id?: string; username?: string } | null;
 }
 
+// Número de WhatsApp que a conta de anúncios já usa naquela página. A WABA não
+// é legível pelo token de página (a Meta recusa
+// `/{page}/whatsapp_business_accounts` e `/{waba}/phone_numbers` com "Tried
+// accessing nonexisting field"), então a lista vem dos `promoted_object` dos
+// conjuntos da própria conta — que é exatamente o conjunto de números que ela
+// consegue anunciar.
+export interface WhatsappNumberOption {
+  phone_number: string;
+  waba_id?: string | null;
+  source?: string;
+}
+
 export class MetaAdsManagerService {
+  // Números de WhatsApp que a conta já usa na página escolhida.
+  async listWhatsappNumbers(adAccountId: string, pageId: string): Promise<WhatsappNumberOption[]> {
+    if (!pageId) return [];
+    const response = await api.post<WhatsappNumberOption[]>(ENDPOINT, {
+      acao: 'listar_numeros_whatsapp',
+      id_conta_anuncio: adAccountId,
+      id_pagina: pageId,
+    });
+    return response.data || [];
+  }
+
   async updateItem(nivel: MetaLevel, id: string, edicao: Record<string, string>): Promise<void> {
     await api.post(ENDPOINT, {
       acao: 'editar',
