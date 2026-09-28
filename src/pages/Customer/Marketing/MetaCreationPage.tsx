@@ -8,7 +8,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2 } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, Trash2 } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -134,6 +134,35 @@ export default function MetaCreationPage() {
   useEffect(() => {
     if (account) loadAudiences(account.id);
   }, [account, loadAudiences]);
+
+  // Exclusão do público: definitiva e sem volta na Graph API (o público some
+  // da conta e os conjuntos que apontam pra ele perdem a fonte), então o nome
+  // vai no confirm() antes de chamar. Público semelhante não pode ser
+  // excluído pela API — o backend recusa, e a mensagem vai pro toast.
+  const [deletingAudienceId, setDeletingAudienceId] = useState<string | null>(null);
+
+  const handleDeleteAudience = async (audience: CustomAudience) => {
+    if (deletingAudienceId) return;
+    const confirmed = window.confirm(
+      `Excluir o público "${audience.name}"?\n\nIsso é definitivo: o público é apagado da conta na Meta e não pode ser recuperado.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingAudienceId(audience.id);
+    try {
+      await metaCreationService.deleteAudience(audience.id);
+      toast.success(`Público "${audience.name}" excluído.`);
+      if (account) loadAudiences(account.id);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível excluir o público. A Meta pode ter recusado.',
+      );
+    } finally {
+      setDeletingAudienceId(null);
+    }
+  };
 
   return (
     <div className="space-y-4 pb-8">
@@ -365,9 +394,17 @@ export default function MetaCreationPage() {
                       {a.delivery_status?.description && (
                         <p className="text-[0.65rem] text-muted-foreground">{a.delivery_status.description}</p>
                       )}
-                      <div className="pt-1">
+                      <div className="pt-1 flex items-center gap-2">
                         <Button size="sm" variant="outline" onClick={() => setDuplicateAudienceFrom(a)}>
                           <Copy className="w-3.5 h-3.5 mr-1" /> Duplicar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteAudience(a)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-1" /> Excluir
                         </Button>
                       </div>
                     </div>
@@ -379,6 +416,7 @@ export default function MetaCreationPage() {
                 open={audienceDialogOpen}
                 onOpenChange={setAudienceDialogOpen}
                 adAccountId={account.id}
+                businessId={accountBm?.id ?? null}
                 existingAudiences={audiences || []}
                 onCreated={() => loadAudiences(account.id)}
                 onGoToSavedAudience={() => setActiveTab('targeting')}
@@ -393,6 +431,7 @@ export default function MetaCreationPage() {
                 onOpenChange={(open) => !open && setDuplicateAudienceFrom(null)}
                 adAccountId={account.id}
                 currentAccountName={account.name}
+                businessId={accountBm?.id ?? null}
                 existingAudiences={audiences || []}
                 duplicateFrom={duplicateAudienceFrom}
                 onCreated={() => loadAudiences(account.id)}

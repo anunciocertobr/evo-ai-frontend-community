@@ -18,6 +18,10 @@ export interface ParsedDetail {
   appId: string;
   engagementEvent: string;
   appEvent: string;
+  // Público de vídeo "X% do vídeo": a Meta grava o percentual no event_name
+  // (video_view_50_percent) e o id do vídeo no object_id.
+  videoPercent: number | null;
+  videoCount: number;
   originAudienceId: string;
   country: string;
   ratio: number;
@@ -43,11 +47,12 @@ export const extractVideoId = (raw: string): string => {
 
 // Descobre o que o público de origem REALMENTE é a partir do que a Meta devolve
 // na leitura. A leitura de custom audience NÃO expõe video_id, page_id,
-// app_id nem ig_user_id (esses campos só existem na criação) — o que volta é a
-// `rule` (event_sources + filtro de evento/URL), data_source*,
-// video_group_ids, pixel_id, origin_audience_id e lookalike_spec. Sem isso, um
-// público de vídeo era tratado como site e o formulário exigia um pixel sem
-// relação nenhuma com o público, travando a criação da cópia.
+// app_id, ig_user_id, video_group_ids, facebook_page_id nem
+// origin_audience_id — pedir qualquer um desses campos derruba a leitura
+// inteira do público com "Tried accessing nonexisting field" (o que fazia o
+// duplicar vir sem formulário). O que volta é a `rule`
+// (event_sources + filtro de evento/URL), data_source*, pixel_id e
+// lookalike_spec, e é daí que o tipo real sai.
 export function parseAudienceDetail(detail: AudienceDetail): ParsedDetail {
   const out: ParsedDetail = {
     kind: 'site',
@@ -60,7 +65,12 @@ export function parseAudienceDetail(detail: AudienceDetail): ParsedDetail {
     appId: '',
     engagementEvent: 'page_engaged',
     appEvent: 'any',
-    originAudienceId: detail.origin_audience_id || '',
+    videoPercent: null,
+    videoCount: 0,
+    // Semelhante: a origem não vem em campo próprio (não existe
+    // origin_audience_id na leitura) — quem descobre é o chamador, que
+    // busca o público pelo nome na conta de destino.
+    originAudienceId: '',
     country: detail.lookalike_spec?.country || 'BR',
     ratio: Math.round((detail.lookalike_spec?.ratio || 0.01) * 100),
     lookalikeType: detail.lookalike_spec?.type === 'reach' ? 'reach' : 'similarity',
@@ -71,19 +81,48 @@ export function parseAudienceDetail(detail: AudienceDetail): ParsedDetail {
     out.retentionDays = 30;
     return out;
   }
-  if (detail.subtype === 'CUSTOM') {
-    out.kind = 'clientes';
-    return out;
-  }
+  // `CUSTOM` NÃO pode ser resolvido aqui: lista de clientes E público de app
+  // têm o mesmo subtype, e só a `rule` diz qual é. Resolver antes da regra
+  // classificava todo público de app como "lista de clientes".
 
-  // A rule vem como string JSON; o formato antigo de vídeo (object_id +
-  // event_name) também aparece nos públicos criados no Ad Manager.
+  // A rule vem como string JSON e tem DOIS formatos na prática, conforme o
+  // público foi criado:
+  //
+  // 1) o de engagement/site/app: { inclusions: { rules: [{ event_sources,
+  //    retention_seconds, filter }] } }
+  // 2) o de vídeo ("X% do vídeo"), que é um ARRAY de
+  //    { event_name: "video_view_50_percent", object_id: "<video_id>" } —
+  //    um objeto por vídeo, e é assim que os públicos de vídeo criados no
+  //    Ad Manager aparecem na leitura.
+  //
+  // O formato 2 é o caso real de "50% Videos de Campanha R1" e "50% Videos do
+  // instagram" na conta do cliente: sem tratá-lo, o público caía no fallback
+  // "Site (Pixel)" e o formulário de duplicação exigia um pixel sem relação.
   let rule: Record<string, unknown> | null = null;
+  let videoRules: Array<{ event_name?: string; object_id?: string | number }> = [];
   try {
     const raw = typeof detail.rule === 'string' ? JSON.parse(detail.rule) : detail.rule;
-    rule = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
+    if (Array.isArray(raw)) {
+      videoRules = raw as Array<{ event_name?: string; object_id?: string | number }>;
+    } else if (raw && typeof raw === 'object') {
+      rule = raw as Record<string, unknown>;
+    }
   } catch {
     rule = null;
+  }
+
+  if (videoRules.length > 0) {
+    const firstVideo = videoRules[0] || {};
+    const event = String(firstVideo.event_name || '').toLowerCase();
+    out.kind = 'video';
+    out.videoId = String(firstVideo.object_id ?? '');
+    const percent = event.match(/video_view_(\d+)_percent/);
+    out.videoPercent = percent ? Number(percent[1]) : null;
+    out.videoCount = videoRules.length;
+    if (!out.videoId) {
+      out.note = 'A Meta não devolveu o ID do vídeo deste público — cole o link ou o ID do vídeo abaixo.';
+    }
+    return out;
   }
 
   const inclusions = (rule?.inclusions || {}) as { rules?: unknown[] };
@@ -122,6 +161,8 @@ export function parseAudienceDetail(detail: AudienceDetail): ParsedDetail {
   } else if (sourceType === 'video' || event.startsWith('video')) {
     out.kind = 'video';
     out.videoId = sourceId;
+    const percent = event.match(/video_view_(\d+)_percent/);
+    out.videoPercent = percent ? Number(percent[1]) : null;
     if (!sourceId) {
       out.note =
         'A Meta não devolve o ID do vídeo na leitura deste público. Cole o link ou o ID do vídeo abaixo para criar a cópia.';
@@ -135,17 +176,19 @@ export function parseAudienceDetail(detail: AudienceDetail): ParsedDetail {
       out.engagementEvent = event || 'ig_business_profile_engaged';
     } else {
       out.kind = 'engagement';
-      out.pageId = detail.facebook_page_id || sourceId;
+      out.pageId = sourceId;
       out.engagementEvent = event || 'page_engaged';
     }
   } else if (
     detail.subtype === 'VIDEO' ||
-    (detail.video_group_ids || []).length > 0 ||
     (detail.data_source_types || []).some((t) => String(t).toUpperCase().includes('VIDEO'))
   ) {
     out.kind = 'video';
     out.note =
       'A Meta não devolve o ID do vídeo na leitura deste público. Cole o link ou o ID do vídeo abaixo para criar a cópia.';
+  } else if (detail.subtype === 'CUSTOM') {
+    // Chegou aqui sem nenhuma regra reconhecível: é lista de clientes.
+    out.kind = 'clientes';
   } else if (
     !sourceId &&
     ((detail.included_custom_audiences || []).length > 0 || (detail.excluded_custom_audiences || []).length > 0)
