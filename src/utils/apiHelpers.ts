@@ -112,14 +112,24 @@ export function extractError(error: any): ErrorInfo {
  * so each caller keeps its own localized fallback instead of a raw HTTP status text.
  * 5xx bodies are skipped: those messages are written for whoever operates the API,
  * not for the person on screen.
+ *
+ * `includeServerError` is the opt-out of that rule, for the handful of endpoints
+ * where a 5xx is a proxy for a THIRD-PARTY failure that was already translated
+ * for the person on screen. The Meta ads endpoint is the case: every Graph API
+ * refusal comes back as 502, and the body carries Meta's own `error_user_msg` in
+ * Portuguese ("Você não pode veicular anúncios de cadastros até sua Página
+ * aceitar os Termos de Serviço…"). Skipping it there meant every failed campaign
+ * action showed the same generic fallback, which is exactly the "não funciona e
+ * não sei por quê" that made these bugs so hard to see.
  * @param error - Value caught from a rejected request
+ * @param includeServerError - Read the message even when the status is 5xx
  * @returns The server-authored message, or undefined
  */
-export function apiErrorMessage(error: unknown): string | undefined {
+export function apiErrorMessage(error: unknown, includeServerError = false): string | undefined {
   if (!error || typeof error !== 'object') return undefined;
 
   const response = (error as { response?: { status?: number; data?: unknown } }).response;
-  if (typeof response?.status === 'number' && response.status >= 500) return undefined;
+  if (!includeServerError && typeof response?.status === 'number' && response.status >= 500) return undefined;
 
   const data = response?.data;
   if (!data || typeof data !== 'object') return undefined;

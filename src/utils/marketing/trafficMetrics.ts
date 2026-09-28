@@ -51,6 +51,10 @@ export interface AdSetTargeting {
   publisher_platforms?: string[];
   facebook_positions?: string[];
   instagram_positions?: string[];
+  // `optimization_goal` do conjunto é o que decide o destino aceito pela Meta
+  // (conversa / conversão / formulário). Sem ele no tipo, o painel não
+  // consegue mostrar o destino certo no modal de duplicação.
+  optimization_goal?: string;
 }
 
 export interface PromotedObject {
