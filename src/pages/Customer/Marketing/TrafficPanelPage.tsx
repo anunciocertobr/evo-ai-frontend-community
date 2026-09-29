@@ -62,7 +62,9 @@ import {
   ExternalLink,
   ImagePlus,
   Images,
+  Layers,
   Loader2,
+  Megaphone,
   MousePointerClick,
   Pause,
   PlayCircle,
@@ -1447,15 +1449,33 @@ function DuplicateModal({
   // com a campanha de origem, com tudo editável.
   if (level === 'campaigns' && item) {
     const tiposConversao = conversaoTiposFor(objetivoDoDup).filter((t) => t.value !== 'NENHUMA');
-    const avancar = () => {
-      const prefill = buildPrefillFromSource({ item, level: 'campaigns', structural, conversaoTipo: conversaoEscolhida });
-      if (!prefill) {
-        toast.error('Não consegui ler os conjuntos desta campanha para montar a cópia. Atualize o painel e tente de novo.');
-        return;
+    const avancar = async () => {
+      setSaving(true);
+      try {
+        const { prefill, unresolvedLocations } = await buildPrefillFromSource({
+          item,
+          level: 'campaigns',
+          structural,
+          conversaoTipo: conversaoEscolhida,
+        });
+        if (!prefill) {
+          toast.error('Não consegui ler os conjuntos desta campanha para montar a cópia. Atualize o painel e tente de novo.');
+          return;
+        }
+        // Cidade/bairro que a Meta devolveu sem coordenada e que o Nominatim
+        // não conseguiu geocodificar: avisa em vez de deixar sumir do mapa
+        // sem explicação nenhuma.
+        if (unresolvedLocations.length > 0) {
+          toast.warning(
+            `Não consegui localizar no mapa: ${unresolvedLocations.join(', ')}. Adicione manualmente na tela de criação.`,
+          );
+        }
+        const nomeFinal = name.trim() && name !== item.name ? name.trim() : prefill.name;
+        onAvancarParaCriacao({ ...prefill, name: nomeFinal });
+        onOpenChange(false);
+      } finally {
+        setSaving(false);
       }
-      const nomeFinal = name.trim() && name !== item.name ? name.trim() : prefill.name;
-      onAvancarParaCriacao({ ...prefill, name: nomeFinal });
-      onOpenChange(false);
     };
 
     return (
@@ -1508,10 +1528,12 @@ function DuplicateModal({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="border-slate-600 text-slate-300">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="border-slate-600 text-slate-300" disabled={saving}>
               Cancelar
             </Button>
-            <Button onClick={avancar}>Avançar</Button>
+            <Button onClick={avancar} disabled={saving}>
+              {saving ? 'Localizando mapa...' : 'Avançar'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2389,25 +2411,61 @@ export interface CampaignPrefill {
   adSets: AdSetFormState[];
 }
 
+// Cache simples (por sessão) pra não repetir a mesma consulta ao Nominatim
+// quando vários conjuntos duplicados miram a mesma cidade.
+const geocodeCache = new Map<string, { lat: number; lng: number } | null>();
+
+async function geocodeCityName(query: string): Promise<{ lat: number; lng: number } | null> {
+  if (geocodeCache.has(query)) return geocodeCache.get(query) ?? null;
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=BR`;
+    const response = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
+    const data = (await response.json()) as Array<{ lat: string; lon: string }>;
+    const first = data[0];
+    const result = first ? { lat: parseFloat(first.lat), lng: parseFloat(first.lon) } : null;
+    geocodeCache.set(query, result);
+    return result;
+  } catch {
+    geocodeCache.set(query, null);
+    return null;
+  }
+}
+
 // A cidade/raio que veio da origem vira um pin no mapa: o mapa não aceita
-// cidade por nome, e o backend converte o pin pra `custom_locations`.
-function pinsFromOrigin(entries: Array<{ name?: string; lat?: number; lng?: number; radius?: number }> | undefined): LocationEntry[] {
-  return (entries || [])
-    .filter((e) => typeof e.lat === 'number' && typeof e.lng === 'number')
-    .map((e) => ({
-      id: nextUid(),
-      name: e.name || `${e.lat}, ${e.lng}`,
-      lat: e.lat as number,
-      lng: e.lng as number,
-      radius: e.radius || 15,
-    }));
+// cidade por nome, e o backend converte o pin pra `custom_locations`. Uma
+// cidade/bairro REAL (direcionamento por nome, ex. editado pelo campo de
+// texto simples do conjunto, ou criado fora deste CRM) chega da Graph API
+// sem lat/lng — antes disso era descartado em silêncio no "Duplicar
+// campanha", sumindo do mapa sem nenhum aviso. Agora é geocodificado via
+// Nominatim (mesmo serviço da busca de endereço do mapa); o que não for
+// encontrado entra em `unresolved` pra avisar quem duplicou.
+async function pinsFromOrigin(
+  entries: Array<{ name?: string; region?: string; country?: string; lat?: number; lng?: number; radius?: number }> | undefined,
+  unresolved: string[],
+): Promise<LocationEntry[]> {
+  const resolved = await Promise.all(
+    (entries || []).map(async (e): Promise<LocationEntry | null> => {
+      if (typeof e.lat === 'number' && typeof e.lng === 'number') {
+        return { id: nextUid(), name: e.name || `${e.lat}, ${e.lng}`, lat: e.lat, lng: e.lng, radius: e.radius || 15 };
+      }
+      if (!e.name) return null;
+      const query = [e.name, e.region, e.country || 'Brasil'].filter(Boolean).join(', ');
+      const coords = await geocodeCityName(query);
+      if (!coords) {
+        unresolved.push(e.name);
+        return null;
+      }
+      return { id: nextUid(), name: e.name, lat: coords.lat, lng: coords.lng, radius: e.radius || 15 };
+    }),
+  );
+  return resolved.filter((e): e is LocationEntry => e !== null);
 }
 
 // Lê a campanha (ou um conjunto/anúncio dela) da árvore estrutural e monta o
 // formulário de criação preenchido. A escolha de "onde acontecem as
 // conversões" feita na tela de duplicar tem prioridade: é ela que troca o
 // destino do anúncio.
-function buildPrefillFromSource({
+async function buildPrefillFromSource({
   item,
   level,
   structural,
@@ -2417,9 +2475,9 @@ function buildPrefillFromSource({
   level: 'campaigns' | 'adsets' | 'ads';
   structural: StructuralCampaign[];
   conversaoTipo: ConversaoTipo;
-}): CampaignPrefill | null {
+}): Promise<{ prefill: CampaignPrefill | null; unresolvedLocations: string[] }> {
   const campanha = structural.find((c) => c.id === (level === 'campaigns' ? item.id : item.campaignId));
-  if (!campanha) return null;
+  if (!campanha) return { prefill: null, unresolvedLocations: [] };
 
   const conjuntosOrigem =
     level === 'adsets'
@@ -2427,60 +2485,75 @@ function buildPrefillFromSource({
       : level === 'ads'
         ? campanha.adsets?.data.filter((s) => s.id === item.adSetId) || []
         : campanha.adsets?.data || [];
-  if (conjuntosOrigem.length === 0) return null;
+  if (conjuntosOrigem.length === 0) return { prefill: null, unresolvedLocations: [] };
 
   const objetivo = objectiveKeyForValue(campanha.objective);
-  const adSets = conjuntosOrigem.map((origem) => {
-    const targeting = origem.targeting || {};
-    const promovido = origem.promoted_object || {};
-    const base = newAdSet();
+  // Uma lista compartilhada entre todos os conjuntos: o nome de quem não foi
+  // geocodificado (cidade/bairro que o Nominatim não reconheceu) vira aviso
+  // único pra quem duplicou, em vez de sumir do mapa sem explicação.
+  const unresolvedLocations: string[] = [];
+  const adSets = await Promise.all(
+    conjuntosOrigem.map(async (origem) => {
+      const targeting = origem.targeting || {};
+      const promovido = origem.promoted_object || {};
+      const base = newAdSet();
 
-    const geo = targeting.geo_locations || {};
-    const pins = pinsFromOrigin([
-      ...(geo.cities || []).map((c) => ({ name: c.name, lat: c.lat, lng: c.lng, radius: c.radius })),
-      ...(geo.places || []).map((c) => ({ name: c.name, lat: c.lat, lng: c.lng, radius: c.radius })),
-      ...(geo.custom_locations || []).map((c) => ({ lat: c.latitude, lng: c.longitude, radius: c.radius })),
-    ]);
+      const geo = targeting.geo_locations || {};
+      const [pins, excludedPins] = await Promise.all([
+        pinsFromOrigin(
+          [
+            ...(geo.cities || []).map((c) => ({ name: c.name, region: c.region, country: c.country, lat: c.lat, lng: c.lng, radius: c.radius })),
+            ...(geo.places || []).map((c) => ({ name: c.name, region: c.region, country: c.country, lat: c.lat, lng: c.lng, radius: c.radius })),
+            ...(geo.custom_locations || []).map((c) => ({ lat: c.latitude, lng: c.longitude, radius: c.radius })),
+          ],
+          unresolvedLocations,
+        ),
+        pinsFromOrigin(targeting.excluded_geo_locations, unresolvedLocations),
+      ]);
 
-    const adsOrigem =
-      level === 'ads' ? origem.ads?.data.filter((a) => a.id === item.id) || [] : origem.ads?.data || [];
+      const adsOrigem =
+        level === 'ads' ? origem.ads?.data.filter((a) => a.id === item.id) || [] : origem.ads?.data || [];
 
-    return {
-      ...base,
-      name: origem.name,
-      description: origem.description || '',
-      budget: origem.daily_budget && parseFloat(origem.daily_budget) > 0 ? (parseFloat(origem.daily_budget) / 100).toFixed(2) : base.budget,
-      budgetMode: origem.lifetime_budget && parseFloat(origem.lifetime_budget) > 0 ? ('VITALICIO' as const) : ('DIARIO' as const),
-      endDate: origem.lifetime_budget && parseFloat(origem.lifetime_budget) > 0 ? (origem.end_time || '').slice(0, 10) : '',
-      ageMin: String(targeting.age_min || base.ageMin),
-      ageMax: String(targeting.age_max || base.ageMax),
-      platforms: targeting.publisher_platforms || base.platforms,
-      facebookPositions: targeting.facebook_positions || base.facebookPositions,
-      instagramPositions: targeting.instagram_positions || base.instagramPositions,
-      audienceNetworkPositions: targeting.audience_network_positions || [],
-      locations: pins.length > 0 ? pins : base.locations,
-      excludedLocations: pinsFromOrigin(targeting.excluded_geo_locations),
-      meta: {
-        ...base.meta,
-        pageId: promovido.page_id || '',
-        whatsappPhone: promovido.whatsapp_phone_number || '',
-        // "Trocar formulário por conversa no WhatsApp" é o caminho mais comum
-        // aqui: quando a resposta for WhatsApp, o destino tem que ser o
-        // WhatsApp, senão a cópia sai como conversa no Messenger.
-        mensagemDestino:
-          conversaoTipo === 'WHATSAPP' ? 'WHATSAPP' : promovido.whatsapp_phone_number ? 'WHATSAPP' : promovido.page_id ? 'MESSENGER' : base.meta.mensagemDestino,
-        conversionLocation: promovido.pixel_id || '',
-        conversaoTipo: conversaoTipo === 'NENHUMA' ? base.meta.conversaoTipo : conversaoTipo,
-      },
-      ads: adsOrigem.length > 0 ? adsOrigem.map((a) => adFromSource(a, base.ads[0])) : base.ads,
-    };
-  });
+      return {
+        ...base,
+        name: origem.name,
+        description: origem.description || '',
+        budget: origem.daily_budget && parseFloat(origem.daily_budget) > 0 ? (parseFloat(origem.daily_budget) / 100).toFixed(2) : base.budget,
+        budgetMode: origem.lifetime_budget && parseFloat(origem.lifetime_budget) > 0 ? ('VITALICIO' as const) : ('DIARIO' as const),
+        endDate: origem.lifetime_budget && parseFloat(origem.lifetime_budget) > 0 ? (origem.end_time || '').slice(0, 10) : '',
+        ageMin: String(targeting.age_min || base.ageMin),
+        ageMax: String(targeting.age_max || base.ageMax),
+        platforms: targeting.publisher_platforms || base.platforms,
+        facebookPositions: targeting.facebook_positions || base.facebookPositions,
+        instagramPositions: targeting.instagram_positions || base.instagramPositions,
+        audienceNetworkPositions: targeting.audience_network_positions || [],
+        locations: pins.length > 0 ? pins : base.locations,
+        excludedLocations: excludedPins,
+        meta: {
+          ...base.meta,
+          pageId: promovido.page_id || '',
+          whatsappPhone: promovido.whatsapp_phone_number || '',
+          // "Trocar formulário por conversa no WhatsApp" é o caminho mais comum
+          // aqui: quando a resposta for WhatsApp, o destino tem que ser o
+          // WhatsApp, senão a cópia sai como conversa no Messenger.
+          mensagemDestino:
+            conversaoTipo === 'WHATSAPP' ? 'WHATSAPP' : promovido.whatsapp_phone_number ? 'WHATSAPP' : promovido.page_id ? 'MESSENGER' : base.meta.mensagemDestino,
+          conversionLocation: promovido.pixel_id || '',
+          conversaoTipo: conversaoTipo === 'NENHUMA' ? base.meta.conversaoTipo : conversaoTipo,
+        },
+        ads: adsOrigem.length > 0 ? adsOrigem.map((a) => adFromSource(a, base.ads[0])) : base.ads,
+      };
+    }),
+  );
 
   return {
-    name: `${item.name} - Cópia`,
-    objectiveKey: objetivo,
-    status: campanha.status === 'ACTIVE' ? 'ACTIVE' : 'PAUSED',
-    adSets,
+    prefill: {
+      name: `${item.name} - Cópia`,
+      objectiveKey: objetivo,
+      status: campanha.status === 'ACTIVE' ? 'ACTIVE' : 'PAUSED',
+      adSets,
+    },
+    unresolvedLocations,
   };
 }
 
@@ -2638,6 +2711,8 @@ function AdSetBlock({
   cboAtivo,
   creatingAudience,
   onCreateNewAudience,
+  sectionAnchorId,
+  adsAnchorId,
 }: {
   adSet: AdSetFormState;
   index: number;
@@ -2654,6 +2729,11 @@ function AdSetBlock({
   cboAtivo: boolean;
   creatingAudience: boolean;
   onCreateNewAudience: (kind: 'site' | 'lookalike') => void;
+  // Âncoras dos atalhos "Conjunto"/"Anúncio" da barra lateral (design
+  // original) — só o primeiro conjunto recebe, pra rolar até o topo dos
+  // blocos quando há vários.
+  sectionAnchorId?: string;
+  adsAnchorId?: string;
 }) {
   const updateAd = (adKey: string, patch: Partial<AdFormState>) =>
     onChange({ ads: adSet.ads.map((a) => (a.key === adKey ? { ...a, ...patch } : a)) });
@@ -2661,7 +2741,7 @@ function AdSetBlock({
   const removeAd = (adKey: string) => onChange({ ads: adSet.ads.filter((a) => a.key !== adKey) });
 
   return (
-    <section className="space-y-4 p-4 border border-slate-700 rounded-lg">
+    <section id={sectionAnchorId} className="space-y-4 p-4 border border-slate-700 rounded-lg">
       <div className="flex items-center justify-between border-b border-slate-700 pb-2">
         <h4 className="text-lg font-bold text-teal-400">Conjunto {index + 1}</h4>
         {removable && (
@@ -2795,7 +2875,7 @@ function AdSetBlock({
         />
       </div>
 
-      <div className="space-y-3 border-t border-slate-700 pt-4">
+      <div id={adsAnchorId} className="space-y-3 border-t border-slate-700 pt-4">
         <h5 className="text-sm font-semibold text-yellow-400">Anúncios deste conjunto</h5>
         {adSet.ads.map((ad) => (
           <AdBlock key={ad.key} ad={ad} onChange={(patch) => updateAd(ad.key, patch)} onRemove={() => removeAd(ad.key)} removable={adSet.ads.length > 1} />
@@ -3142,15 +3222,47 @@ function CreateCampaignModal({
     }
   };
 
+  // Atalhos "Campanha/Conjunto/Anúncio" da barra lateral (design original do
+  // Painel de Tráfego, antes da migração pra React) — rolam a área de
+  // conteúdo até a seção correspondente em vez de trocar de tela.
+  const scrollToAnchor = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 max-w-3xl max-h-[85vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="px-6 pt-6">
           <DialogTitle>Nova Estrutura de Campanha</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-8 py-2">
-          <section className="space-y-4 p-4 border border-slate-700 rounded-lg">
+        <div className="flex flex-1 min-h-0">
+          {/* Barra lateral com os atalhos de estrutura, como no painel original. */}
+          <div className="w-36 shrink-0 border-r border-slate-700 bg-slate-900/40 p-3 flex flex-col gap-1.5">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-1">Estrutura</p>
+            <button
+              type="button"
+              onClick={() => scrollToAnchor('create-campaign-anchor-campanha')}
+              className="text-left p-2.5 rounded-md flex items-center gap-2 bg-sky-700/50 text-sky-300 hover:bg-sky-700/70 transition-colors text-sm"
+            >
+              <Megaphone className="w-4 h-4 shrink-0" /> Campanha
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToAnchor('create-campaign-anchor-conjunto')}
+              className="text-left p-2.5 rounded-md flex items-center gap-2 hover:bg-slate-700/50 text-slate-300 transition-colors text-sm"
+            >
+              <Layers className="w-4 h-4 shrink-0" /> Conjunto
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToAnchor('create-campaign-anchor-anuncio')}
+              className="text-left p-2.5 rounded-md flex items-center gap-2 hover:bg-slate-700/50 text-slate-300 transition-colors text-sm"
+            >
+              <ImagePlus className="w-4 h-4 shrink-0" /> Anúncio
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          <section id="create-campaign-anchor-campanha" className="space-y-4 p-4 border border-slate-700 rounded-lg">
             <h4 className="text-lg font-bold text-sky-400 border-b border-slate-700 pb-2">Campanha</h4>
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium text-slate-300">Status Ativo</Label>
@@ -3274,15 +3386,18 @@ function CreateCampaignModal({
                 setAudienceDialogAdSetKey(adSet.key);
                 setAudienceDialogKind(kind);
               }}
+              sectionAnchorId={index === 0 ? 'create-campaign-anchor-conjunto' : undefined}
+              adsAnchorId={index === 0 ? 'create-campaign-anchor-anuncio' : undefined}
             />
           ))}
 
           <Button type="button" variant="outline" onClick={addAdSet} className="border-slate-600 text-teal-400 hover:bg-slate-700 w-full">
             <Plus className="w-4 h-4 mr-2" /> Adicionar Conjunto de Anúncios
           </Button>
+          </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="px-6 pb-6 pt-4 border-t border-slate-700">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="border-slate-600 text-slate-300">
             Cancelar
           </Button>

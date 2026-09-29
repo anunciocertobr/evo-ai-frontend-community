@@ -52,9 +52,11 @@ export interface AdSetTargeting {
   geo_locations?: {
     // A Graph API devolve a cidade real sem coordenada, e o pin do mapa com
     // coordenada em `custom_locations`. Os dois aparecem aqui porque o
-    // "Duplicar" só consegue pré-preencher o mapa com o que tem lat/lng.
-    cities?: Array<{ name?: string; radius?: number; distance_unit?: string; lat?: number; lng?: number }>;
-    places?: Array<{ name?: string; radius?: number; distance_unit?: string; lat?: number; lng?: number }>;
+    // "Duplicar" precisa geocodificar (Nominatim) a cidade/bairro real pra
+    // conseguir pré-preencher o mapa — `region`/`country` entram na busca
+    // pra não confundir cidades homônimas de estados diferentes.
+    cities?: Array<{ name?: string; region?: string; country?: string; radius?: number; distance_unit?: string; lat?: number; lng?: number }>;
+    places?: Array<{ name?: string; region?: string; country?: string; radius?: number; distance_unit?: string; lat?: number; lng?: number }>;
     custom_locations?: Array<{ latitude?: number; longitude?: number; radius?: number; distance_unit?: string }>;
     countries?: string[];
   };
