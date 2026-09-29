@@ -128,23 +128,35 @@ export function conversaoTiposFor(objectiveKey: ObjectiveKey | '' | null | undef
 // Posições por plataforma: a Meta só aceita `facebook_positions` com
 // `facebook` ligado em publisher_platforms, e vice-versa. Mandar posição de
 // plataforma desligada é recusado com "Invalid parameter".
+// Valores em `value` são os únicos aceitos pelo campo `facebook_positions`/
+// `instagram_positions` da Graph API (enum fechado, documentado) — não são
+// livres. `reels`, `stories`, `in_stream` e `right_column` pareciam nomes
+// razoáveis mas a Meta recusa com "Invalid parameter" (subcode 1815433,
+// "Valor reels inválido...") assim que UM checkbox errado permanece
+// marcado — e como o padrão vinha com todos marcados, TODA criação de
+// anúncio com posicionamento padrão falhava. Achado ao vivo tentando criar
+// uma campanha de teste na conta Anuncio Certo Boleto.
 export const FACEBOOK_POSITIONS = [
   { value: 'feed', label: 'Feed' },
-  { value: 'reels', label: 'Reels' },
-  { value: 'stories', label: 'Stories' },
-  { value: 'in_stream', label: 'Vídeo ao vivo' },
+  { value: 'facebook_reels', label: 'Reels' },
+  { value: 'story', label: 'Stories' },
+  { value: 'instream_video', label: 'Vídeo ao vivo' },
   { value: 'marketplace', label: 'Marketplace' },
   { value: 'video_feeds', label: 'Feed de vídeo' },
   { value: 'search', label: 'Resultados de pesquisa' },
-  { value: 'right_column', label: 'Coluna direita' },
+  { value: 'right_hand_column', label: 'Coluna direita' },
 ];
 
+// Instagram não tem posição de "vídeo ao vivo" própria na Graph API (isso é
+// exclusivo do Facebook) — por isso não existe aqui um equivalente ao
+// `instream_video` de cima; incluir um valor inventado seria recusado do
+// mesmo jeito que `reels`/`stories` eram.
 export const INSTAGRAM_POSITIONS = [
-  { value: 'feed', label: 'Feed' },
+  { value: 'stream', label: 'Feed' },
   { value: 'reels', label: 'Reels' },
-  { value: 'stories', label: 'Stories' },
+  { value: 'story', label: 'Stories' },
   { value: 'explore', label: 'Explorar' },
-  { value: 'in_stream', label: 'Vídeo ao vivo' },
+  { value: 'explore_home', label: 'Início do Explorar' },
   { value: 'profile_feed', label: 'Perfil' },
 ];
 
