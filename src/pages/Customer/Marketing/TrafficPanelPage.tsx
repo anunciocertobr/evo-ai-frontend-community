@@ -2291,7 +2291,7 @@ async function buildPrefillFromSource({
           // Reserva pra página: anúncio de Formulário às vezes não repete o
           // page_id no promoted_object do conjunto, só no object_story_spec
           // do criativo do próprio anúncio.
-          pageId: promovido.page_id || adsOrigem[0]?.adcreative?.object_story_spec?.page_id || '',
+          pageId: promovido.page_id || adsOrigem[0]?.creative?.object_story_spec?.page_id || '',
           whatsappPhone: promovido.whatsapp_phone_number || '',
           // "Trocar formulário por conversa no WhatsApp" é o caminho mais comum
           // aqui: quando a resposta for WhatsApp, o destino tem que ser o
@@ -2321,11 +2321,17 @@ async function buildPrefillFromSource({
 }
 
 function adFromSource(origem: StructuralAd, modelo: AdFormState): AdFormState {
-  const criativo = origem.adcreative || {};
+  const criativo = origem.creative || {};
   const link = criativo.object_story_spec?.link_data;
   const video = criativo.object_story_spec?.video_data;
   return {
     ...modelo,
+    // `modelo` é o MESMO objeto-modelo (base.ads[0]) reaproveitado pra todo
+    // anúncio do conjunto sendo duplicado — sem gerar uma key nova aqui,
+    // todos os anúncios saíam com a key idêntica (a de modelo), quebrando o
+    // React (key duplicada) e os atalhos da barra lateral (âncora repetida
+    // sempre pulava pro primeiro anúncio, nunca pros outros).
+    key: nextUid(),
     name: origem.name,
     title: criativo.title || link?.name || video?.title || '',
     body: criativo.body || link?.message || video?.message || '',

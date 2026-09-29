@@ -94,7 +94,11 @@ export interface StructuralAd {
   id: string;
   name: string;
   status: string;
-  adcreative?: AdCreative;
+  // O campo do node Ad na Graph API é `creative` (não `adcreative` - esse
+  // nome só existe no endpoint de criação "/act_.../adcreatives"). Pedir o
+  // nome errado nunca dava erro (a Meta ignora campo desconhecido em
+  // silêncio), só fazia o criativo (página/texto/imagem) nunca chegar.
+  creative?: AdCreative;
 }
 
 export interface StructuralAdSet {
@@ -294,7 +298,7 @@ export function aggregateDataForLevel(
                 parentName: adset.name,
                 adSetId: adset.id,
                 campaignId: campaign.id,
-                adCreative: ad.adcreative,
+                adCreative: ad.creative,
               },
               raw: emptyBucket(),
             });
