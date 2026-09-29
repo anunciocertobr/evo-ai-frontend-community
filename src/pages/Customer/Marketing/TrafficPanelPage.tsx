@@ -3229,7 +3229,14 @@ function CreateCampaignModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 max-w-3xl max-h-[85vh] p-0 overflow-hidden flex flex-col">
+      {/* sm:max-w-3xl (não max-w-3xl): o DialogContent padrão já traz
+          "sm:max-w-lg" — como os dois usam o modificador "sm", o
+          tailwind-merge só troca um pelo outro dessa forma; um "max-w-3xl"
+          sem o prefixo não conflita com ele (grupos de variante diferentes
+          pro tailwind-merge) e o "sm:max-w-lg" original vence a cascata,
+          prendendo o modal em 512px mesmo pedindo mais largura (bug visto
+          ao vivo: rolagem horizontal cortando os rótulos dos campos). */}
+      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 sm:max-w-3xl max-h-[85vh] p-0 overflow-hidden flex flex-col">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Nova Estrutura de Campanha</DialogTitle>
         </DialogHeader>
