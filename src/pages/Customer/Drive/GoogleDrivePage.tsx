@@ -124,15 +124,18 @@ export default function GoogleDrivePage() {
     <div className="flex flex-col min-h-full bg-background p-6 space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <BaseHeader title="Drive" subtitle="Arquivos do Google Drive conectado." />
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => load(currentFolderId)} disabled={loading}>
-            <RefreshCw className="w-4 h-4 mr-2" /> Atualizar
+        {/* size="sm" + "Atualizar" só com ícone no celular: os 3 botões com
+            rótulo cheio em tamanho padrão não cabiam lado a lado numa tela
+            estreita, forçando rolagem horizontal. */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => load(currentFolderId)} disabled={loading} title="Atualizar">
+            <RefreshCw className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">Atualizar</span>
           </Button>
-          <Button variant="outline" onClick={handleCreateFolder}>
+          <Button variant="outline" size="sm" onClick={handleCreateFolder}>
             <FolderPlus className="w-4 h-4 mr-2" /> Nova Pasta
           </Button>
           <input ref={fileInputRef} type="file" className="hidden" onChange={(e) => handleUpload(e.target.files)} />
-          <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+          <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
             <Upload className="w-4 h-4 mr-2" /> {uploading ? 'Enviando...' : 'Enviar Arquivo'}
           </Button>
         </div>

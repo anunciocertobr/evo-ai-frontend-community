@@ -65,6 +65,7 @@ import {
   Layers,
   Loader2,
   Megaphone,
+  Menu,
   MousePointerClick,
   Pause,
   PlayCircle,
@@ -2592,6 +2593,12 @@ function CreateCampaignModal({
 
   const [saving, setSaving] = useState(false);
 
+  // No celular a barra lateral fixa de atalhos (Campanha/Conjunto/Anúncio)
+  // deixava a área de campos estreita demais — vira um painel que abre por
+  // cima (sanduíche) em vez de ocupar largura o tempo todo. No desktop
+  // (md:) continua sempre visível como antes.
+  const [mobileStructureNavOpen, setMobileStructureNavOpen] = useState(false);
+
   const [savedAudiences, setSavedAudiences] = useState<SavedAudience[] | null>(null);
   const [loadingSavedAudiences, setLoadingSavedAudiences] = useState(false);
 
@@ -2933,34 +2940,65 @@ function CreateCampaignModal({
           <DialogTitle>Nova Estrutura de Campanha</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-1 min-h-0">
-          {/* Barra lateral com os atalhos de estrutura, como no painel original. */}
-          <div className="w-36 shrink-0 border-r border-slate-700 bg-slate-900/40 p-3 flex flex-col gap-1.5">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-1">Estrutura</p>
+        <div className="flex flex-1 min-h-0 relative">
+          {/* Barra lateral com os atalhos de estrutura, como no painel original.
+              No celular (abaixo de md) ela some por padrão — um w-36 fixo
+              deixava a área de campos estreita demais pra digitar. Um botão
+              "sanduíche" no topo da área de conteúdo abre ela como um painel
+              flutuante por cima (absolute), sem empurrar layout; no desktop
+              continua sempre visível, do jeito que já era. */}
+          <div
+            className={`${mobileStructureNavOpen ? 'flex absolute inset-y-0 left-0 z-20 shadow-2xl' : 'hidden'} md:flex w-36 shrink-0 border-r border-slate-700 bg-slate-900 md:bg-slate-900/40 p-3 flex-col gap-1.5`}
+          >
+            <div className="flex items-center justify-between mb-1 md:block">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">Estrutura</p>
+              <button
+                type="button"
+                onClick={() => setMobileStructureNavOpen(false)}
+                className="md:hidden p-1 text-slate-400 hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
             <button
               type="button"
-              onClick={() => scrollToAnchor('create-campaign-anchor-campanha')}
+              onClick={() => { scrollToAnchor('create-campaign-anchor-campanha'); setMobileStructureNavOpen(false); }}
               className="text-left p-2.5 rounded-md flex items-center gap-2 bg-sky-700/50 text-sky-300 hover:bg-sky-700/70 transition-colors text-sm"
             >
               <Megaphone className="w-4 h-4 shrink-0" /> Campanha
             </button>
             <button
               type="button"
-              onClick={() => scrollToAnchor('create-campaign-anchor-conjunto')}
+              onClick={() => { scrollToAnchor('create-campaign-anchor-conjunto'); setMobileStructureNavOpen(false); }}
               className="text-left p-2.5 rounded-md flex items-center gap-2 hover:bg-slate-700/50 text-slate-300 transition-colors text-sm"
             >
               <Layers className="w-4 h-4 shrink-0" /> Conjunto
             </button>
             <button
               type="button"
-              onClick={() => scrollToAnchor('create-campaign-anchor-anuncio')}
+              onClick={() => { scrollToAnchor('create-campaign-anchor-anuncio'); setMobileStructureNavOpen(false); }}
               className="text-left p-2.5 rounded-md flex items-center gap-2 hover:bg-slate-700/50 text-slate-300 transition-colors text-sm"
             >
               <ImagePlus className="w-4 h-4 shrink-0" /> Anúncio
             </button>
           </div>
 
+          {/* Fundo escurecido pra fechar o painel de atalhos clicando fora, só no celular. */}
+          {mobileStructureNavOpen && (
+            <div
+              className="md:hidden absolute inset-0 z-10 bg-black/50"
+              onClick={() => setMobileStructureNavOpen(false)}
+            />
+          )}
+
           <div className="flex-1 overflow-y-auto p-6 space-y-8">
+            <button
+              type="button"
+              onClick={() => setMobileStructureNavOpen(true)}
+              className="md:hidden mb-2 inline-flex items-center gap-1.5 text-xs text-slate-300 border border-slate-600 rounded-md px-2.5 py-1.5 hover:bg-slate-700/50"
+            >
+              <Menu className="w-3.5 h-3.5" /> Estrutura
+            </button>
           <section id="create-campaign-anchor-campanha" className="space-y-4 p-4 border border-slate-700 rounded-lg">
             <h4 className="text-lg font-bold text-sky-400 border-b border-slate-700 pb-2">Campanha</h4>
             <div className="flex items-center justify-between">

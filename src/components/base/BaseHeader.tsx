@@ -123,8 +123,12 @@ export default function BaseHeader({
   return (
     <div className={`space-y-4 sm:space-y-6 ${className}`}>
       {!hideTitle && (
-        <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="flex-1">
+        // flex-row sempre (não só a partir de md): título é curto na maioria
+        // das telas e o botão primário (ex.: "Novo Contato") ficava empurrado
+        // pra uma linha abaixo no celular por causa do flex-col — min-w-0 no
+        // título deixa ele quebrar linha/truncar em vez de empurrar o botão.
+        <div className="flex flex-row items-start justify-between gap-3 sm:gap-4">
+          <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-7 sm:leading-8 text-sidebar-foreground mb-1 sm:mb-2">{title}</h1>
             {subtitle && (
               <p className="hidden sm:block text-sm leading-5 text-sidebar-foreground/70">{subtitle}</p>
