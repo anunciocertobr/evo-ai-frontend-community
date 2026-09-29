@@ -1480,7 +1480,9 @@ function DuplicateModal({
 
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 max-w-sm">
+        {/* onInteractOutside: mesmo motivo do modal de criação — clicar fora
+            não pode fechar e perder a escolha de nome/conversão feita aqui. */}
+        <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 max-w-sm" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Duplicar campanha</DialogTitle>
             <DialogDescription className="text-slate-400">
@@ -1542,7 +1544,13 @@ function DuplicateModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 max-w-sm max-h-[85vh] overflow-y-auto">
+      {/* onInteractOutside: mesmo motivo do modal de criação — clicar fora
+          não pode fechar e perder os ajustes feitos aqui (página, destino,
+          orçamento etc.). */}
+      <DialogContent
+        className="bg-slate-800 border-slate-700 text-slate-200 max-w-sm max-h-[85vh] overflow-y-auto"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Duplicar {level ? ITEM_TYPE_LABEL[level] : ''}</DialogTitle>
           <DialogDescription className="text-slate-400">
@@ -3229,14 +3237,25 @@ function CreateCampaignModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* sm:max-w-3xl (não max-w-3xl): o DialogContent padrão já traz
+      {/* sm:max-w-5xl (não max-w-5xl): o DialogContent padrão já traz
           "sm:max-w-lg" — como os dois usam o modificador "sm", o
-          tailwind-merge só troca um pelo outro dessa forma; um "max-w-3xl"
+          tailwind-merge só troca um pelo outro dessa forma; um "max-w-5xl"
           sem o prefixo não conflita com ele (grupos de variante diferentes
           pro tailwind-merge) e o "sm:max-w-lg" original vence a cascata,
           prendendo o modal em 512px mesmo pedindo mais largura (bug visto
-          ao vivo: rolagem horizontal cortando os rótulos dos campos). */}
-      <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 sm:max-w-3xl max-h-[85vh] p-0 overflow-hidden flex flex-col">
+          ao vivo: rolagem horizontal cortando os rótulos dos campos).
+          h-[88vh] (fixo, não max-h): ocupa melhor a tela em vez de encolher
+          pro tamanho do conteúdo da primeira seção.
+          onInteractOutside: clicar fora era a causa do formulário inteiro
+          (às vezes minutos preenchendo campanha/conjunto/anúncio) fechar e
+          se perder — o Dialog reseta os campos toda vez que abre de novo
+          (linha abaixo, no useEffect). Fechar continua possível pelo X, por
+          "Cancelar" e por Esc — só o clique fora (o mais fácil de acontecer
+          sem querer) deixa de fechar. */}
+      <DialogContent
+        className="bg-slate-800 border-slate-700 text-slate-200 sm:max-w-5xl h-[88vh] p-0 overflow-hidden flex flex-col"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Nova Estrutura de Campanha</DialogTitle>
         </DialogHeader>
