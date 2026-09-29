@@ -46,7 +46,8 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
       location.pathname.startsWith('/f/') ||
       location.pathname.startsWith('/chat/') ||
       location.pathname === '/cardapio-digital' ||
-      location.pathname === '/imoveis'
+      location.pathname === '/imoveis' ||
+      location.pathname === '/politica-de-privacidade'
     ) {
       return <>{children}</>;
     }

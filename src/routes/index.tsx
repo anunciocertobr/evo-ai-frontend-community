@@ -31,6 +31,7 @@ import PublicChatPage from '@/pages/Public/Chat/ChatPage';
 import FormPage from '@/pages/Public/Form/FormPage';
 import DigitalMenuPage from '@/pages/Public/Menu/DigitalMenuPage';
 import RealEstatePage from '@/pages/Public/RealEstate/RealEstatePage';
+import PrivacyPolicyPage from '@/pages/Public/PrivacyPolicy/PrivacyPolicyPage';
 
 // PÃƒÂ¡ginas customer
 import Dashboard from '@/pages/Customer/Dashboard';
@@ -499,6 +500,16 @@ const AppRouter = () => {
             element={
               <PublicRoute>
                 <PublicChatPage />
+              </PublicRoute>
+            }
+          />
+
+          {/* Política de privacidade pública (exigida pela Play Store pro app Android) */}
+          <Route
+            path="/politica-de-privacidade"
+            element={
+              <PublicRoute>
+                <PrivacyPolicyPage />
               </PublicRoute>
             }
           />
