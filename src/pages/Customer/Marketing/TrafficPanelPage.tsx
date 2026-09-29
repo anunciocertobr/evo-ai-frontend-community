@@ -2245,6 +2245,12 @@ async function buildPrefillFromSource({
   if (conjuntosOrigem.length === 0) return { prefill: null, unresolvedLocations: [] };
 
   const objetivo = objectiveKeyForValue(campanha.objective);
+  // Criativo (página/texto/imagem) NÃO vem na árvore estrutural — buscar
+  // isso pra conta inteira de uma vez estoura o limite de tamanho de
+  // resposta da Graph API em contas grandes (ver comentário em
+  // Meta::AdsManagerService#campaigns_tree); busca à parte, escopada a esta
+  // UMA campanha, que sempre tem poucos anúncios.
+  const creativesByAdId = await trafficPanelService.getCampaignAdsCreatives(campanha.id);
   // Uma lista compartilhada entre todos os conjuntos: o nome de quem não foi
   // geocodificado (cidade/bairro que o Nominatim não reconheceu) vira aviso
   // único pra quem duplicou, em vez de sumir do mapa sem explicação.
@@ -2291,7 +2297,7 @@ async function buildPrefillFromSource({
           // Reserva pra página: anúncio de Formulário às vezes não repete o
           // page_id no promoted_object do conjunto, só no object_story_spec
           // do criativo do próprio anúncio.
-          pageId: promovido.page_id || adsOrigem[0]?.creative?.object_story_spec?.page_id || '',
+          pageId: promovido.page_id || creativesByAdId[adsOrigem[0]?.id]?.object_story_spec?.page_id || '',
           whatsappPhone: promovido.whatsapp_phone_number || '',
           // "Trocar formulário por conversa no WhatsApp" é o caminho mais comum
           // aqui: quando a resposta for WhatsApp, o destino tem que ser o
@@ -2304,7 +2310,10 @@ async function buildPrefillFromSource({
           // sempre cair no "Nenhuma" do formulário em branco.
           conversaoTipo: conversaoTipo === 'NENHUMA' ? conversaoTipoFromOptimizationGoal(origem.optimization_goal) : conversaoTipo,
         },
-        ads: adsOrigem.length > 0 ? adsOrigem.map((a) => adFromSource(a, base.ads[0])) : base.ads,
+        ads:
+          adsOrigem.length > 0
+            ? adsOrigem.map((a) => adFromSource({ ...a, creative: creativesByAdId[a.id] }, base.ads[0]))
+            : base.ads,
       };
     }),
   );
