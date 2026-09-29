@@ -39,8 +39,18 @@ export interface AdCreative {
   video_id?: string;
   // A descrição do anúncio só existe dentro do spec do criativo — é de lá
   // que o "Duplicar" lê pra pré-preencher a tela de criação.
+  // `page_id` é a página que postou o anúncio — em anúncio de geração de
+  // cadastro a Meta às vezes não repete isso em `promoted_object.page_id`,
+  // então o "Duplicar" precisa deste como reserva. `call_to_action.value.
+  // lead_gen_form_id` presente indica que o anúncio usa Formulário.
   object_story_spec?: {
-    link_data?: { description?: string; name?: string; message?: string };
+    page_id?: string;
+    link_data?: {
+      description?: string;
+      name?: string;
+      message?: string;
+      call_to_action?: { type?: string; value?: { lead_gen_form_id?: string } };
+    };
     video_data?: { title?: string; message?: string };
   };
 }

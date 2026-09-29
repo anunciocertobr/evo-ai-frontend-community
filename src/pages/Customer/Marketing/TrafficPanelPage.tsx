@@ -99,6 +99,8 @@ import { MediaLibraryPickerDialog } from '@/components/marketing/MediaLibraryPic
 import {
   aggregateDataForLevel,
   sortAggregatedItems,
+  LEAD_OPTIMIZATION_GOALS,
+  MESSAGING_OPTIMIZATION_GOALS,
   type AggregatedItem,
   type StructuralAd,
   type StructuralCampaign,
@@ -1143,6 +1145,20 @@ function RenameModal({
   );
 }
 
+// "Onde acontecem as conversões" da ORIGEM: antes disso só se olhava
+// `pixel_id`/`whatsapp_phone_number` do promoted_object, o que nunca detecta
+// Formulário (uma campanha de geração de cadastro não tem nenhum dos dois) —
+// duplicar uma campanha de Formulário sempre caía em "Nenhuma" e perdia a
+// escolha. `optimization_goal` do conjunto é o sinal correto: é exatamente
+// o que a Meta usa pra saber se o conjunto é formulário/conversa/conversão.
+function conversaoTipoFromOptimizationGoal(goal: string | undefined | null): ConversaoTipo {
+  if (!goal) return 'NENHUMA';
+  if (LEAD_OPTIMIZATION_GOALS.includes(goal)) return 'FORMULARIO';
+  if (MESSAGING_OPTIMIZATION_GOALS.includes(goal)) return 'WHATSAPP';
+  if (goal === 'OFFSITE_CONVERSIONS') return 'SITE';
+  return 'NENHUMA';
+}
+
 // Duplicar sempre recria do zero a partir do público/criativo da origem
 // (nunca via /copies da Graph API, que perde configuração ao trocar
 // objetivo — mesmo raciocínio documentado em Meta::AdsManagerService).
@@ -1181,7 +1197,7 @@ function DuplicateModal({
   onSaved: () => void;
   // "Avançar" da tela de duplicar campanha: abre a tela de criação já
   // preenchida com a campanha de origem.
-  onAvancarParaCriacao: (prefill: CampaignPrefill) => void;
+  onAvancarParaCriacao: (prefill: CampaignPrefill, targetAdAccountId?: string) => void;
 }) {
   const [conversaoEscolhida, setConversaoEscolhida] = useState<ConversaoTipo>('NENHUMA');
   const [name, setName] = useState('');
@@ -1312,13 +1328,24 @@ function DuplicateModal({
     // o usuário reclamou de ter que escolher tudo de novo ao duplicar. A página
     // vem do `promoted_object` que o painel já traz no item.
     const origem = item.promotedObject;
+    // Reserva pra página: anúncio de Formulário às vezes não repete o
+    // page_id no promoted_object, só no object_story_spec do criativo.
+    const pageIdOrigem = origem?.page_id || item.adCreative?.object_story_spec?.page_id || '';
+    const conversaoDaOrigem = conversaoTipoFromOptimizationGoal(item.optimization_goal);
     setMetaValues({
       ...emptyAdSetMeta(),
-      pageId: origem?.page_id || '',
+      pageId: pageIdOrigem,
       mensagemDestino:
         origem?.whatsapp_phone_number ? 'WHATSAPP' : origem?.page_id ? 'MESSENGER' : emptyAdSetMeta().mensagemDestino,
       whatsappPhone: origem?.whatsapp_phone_number || '',
-      conversaoTipo: origem?.pixel_id ? 'SITE' : origem?.whatsapp_phone_number ? 'WHATSAPP' : 'NENHUMA',
+      conversaoTipo:
+        conversaoDaOrigem !== 'NENHUMA'
+          ? conversaoDaOrigem
+          : origem?.pixel_id
+            ? 'SITE'
+            : origem?.whatsapp_phone_number
+              ? 'WHATSAPP'
+              : 'NENHUMA',
     });
     // Pré-seleciona BM/conta/campanha/conjunto atuais — o usuário só mexe
     // nos seletores se quiser duplicar pra outro lugar.
@@ -1338,7 +1365,11 @@ function DuplicateModal({
       loadAccountsForBm(currentBmId, adAccountId || undefined);
     }
     if (adAccountId) setTargetAccountId(adAccountId);
-    setConversaoEscolhida('NENHUMA');
+    // Pré-seleciona "onde acontecem as conversões" com o que a campanha de
+    // origem já usa (via optimization_goal do primeiro conjunto) — antes
+    // sempre começava em "Nenhuma", perdendo a escolha em toda duplicação
+    // de campanha de Formulário (o caso mais comum não detectado).
+    setConversaoEscolhida(conversaoTipoFromOptimizationGoal(item.optimization_goal));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, open]);
 
@@ -1472,7 +1503,7 @@ function DuplicateModal({
           );
         }
         const nomeFinal = name.trim() && name !== item.name ? name.trim() : prefill.name;
-        onAvancarParaCriacao({ ...prefill, name: nomeFinal });
+        onAvancarParaCriacao({ ...prefill, name: nomeFinal }, targetAccountId || adAccountId || undefined);
         onOpenChange(false);
       } finally {
         setSaving(false);
@@ -1487,10 +1518,54 @@ function DuplicateModal({
           <DialogHeader>
             <DialogTitle>Duplicar campanha</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Escolha onde as conversões acontecem. Na próxima tela a campanha abre preenchida e você pode mudar o que quiser.
+              Escolha pra onde vai e onde as conversões acontecem. Na próxima tela a campanha abre preenchida e você pode mudar o que quiser.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* "Pra mesma conta ou pra outra" — pedido explícito: antes disso a
+                cópia de campanha inteira ia direto pro formulário sem nunca
+                perguntar, sempre presa à conta atualmente selecionada no
+                painel. Os selects e o carregamento já existiam prontos aqui
+                (usados pelo fluxo de duplicar conjunto/anúncio), só faltava
+                aparecer nesta tela também. */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Duplicar para</p>
+              <div>
+                <Label className="text-xs text-slate-400">Business Manager</Label>
+                <Select value={targetBmId} onValueChange={handleTargetBmChange}>
+                  <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+                    <SelectValue placeholder="Selecione a BM" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                    {targetBms.map((bm) => (
+                      <SelectItem key={bm.id} value={bm.id}>
+                        {bm.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-slate-400">Conta de anúncio</Label>
+                <Select value={targetAccountId} onValueChange={setTargetAccountId}>
+                  <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+                    <SelectValue placeholder="Selecione a conta" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                    {targetAccounts.map((acc) => (
+                      <SelectItem key={acc.id} value={acc.id}>
+                        {acc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {loadingTargets && (
+                <p className="text-xs text-slate-500">
+                  <Loader2 className="w-3 h-3 inline animate-spin mr-1" /> Carregando...
+                </p>
+              )}
+            </div>
             <div>
               <Label className="text-xs text-slate-400">Novo nome</Label>
               <Input
@@ -2213,7 +2288,10 @@ async function buildPrefillFromSource({
         excludedLocations: excludedPins,
         meta: {
           ...base.meta,
-          pageId: promovido.page_id || '',
+          // Reserva pra página: anúncio de Formulário às vezes não repete o
+          // page_id no promoted_object do conjunto, só no object_story_spec
+          // do criativo do próprio anúncio.
+          pageId: promovido.page_id || adsOrigem[0]?.adcreative?.object_story_spec?.page_id || '',
           whatsappPhone: promovido.whatsapp_phone_number || '',
           // "Trocar formulário por conversa no WhatsApp" é o caminho mais comum
           // aqui: quando a resposta for WhatsApp, o destino tem que ser o
@@ -2221,7 +2299,10 @@ async function buildPrefillFromSource({
           mensagemDestino:
             conversaoTipo === 'WHATSAPP' ? 'WHATSAPP' : promovido.whatsapp_phone_number ? 'WHATSAPP' : promovido.page_id ? 'MESSENGER' : base.meta.mensagemDestino,
           conversionLocation: promovido.pixel_id || '',
-          conversaoTipo: conversaoTipo === 'NENHUMA' ? base.meta.conversaoTipo : conversaoTipo,
+          // Reserva: se o chamador não escolheu nada (conversaoTipo ===
+          // 'NENHUMA'), usa o que ESTE conjunto de origem já tinha, em vez de
+          // sempre cair no "Nenhuma" do formulário em branco.
+          conversaoTipo: conversaoTipo === 'NENHUMA' ? conversaoTipoFromOptimizationGoal(origem.optimization_goal) : conversaoTipo,
         },
         ads: adsOrigem.length > 0 ? adsOrigem.map((a) => adFromSource(a, base.ads[0])) : base.ads,
       };
@@ -2301,10 +2382,26 @@ function newAdSet(): AdSetFormState {
 // texto principal (é o que a pessoa lê no feed), depois o título e a
 // descrição — a mesma ordem do Gerenciador de Anúncios. `description` vai
 // para o `link_data.description` do criativo.
-function AdBlock({ ad, onChange, onRemove, removable }: { ad: AdFormState; onChange: (patch: Partial<AdFormState>) => void; onRemove: () => void; removable: boolean }) {
+function AdBlock({
+  ad,
+  onChange,
+  onRemove,
+  removable,
+  anchorId,
+}: {
+  ad: AdFormState;
+  onChange: (patch: Partial<AdFormState>) => void;
+  onRemove: () => void;
+  removable: boolean;
+  // Âncora individual (por `ad.key`) pra barra lateral conseguir pular pra
+  // ESTE anúncio específico — antes só existia uma âncora por CONJUNTO
+  // (em volta de todos os anúncios dele), então com mais de um anúncio o
+  // atalho sempre caía no primeiro.
+  anchorId?: string;
+}) {
   const [libraryOpen, setLibraryOpen] = useState(false);
   return (
-    <div className="space-y-3 p-3 border border-slate-700/70 rounded-lg bg-slate-900/30">
+    <div id={anchorId} className="space-y-3 p-3 border border-slate-700/70 rounded-lg bg-slate-900/30">
       <div className="flex items-center justify-between">
         <Label className="text-xs text-slate-400">Nome do Anúncio</Label>
         {removable && (
@@ -2394,7 +2491,6 @@ function AdSetBlock({
   creatingAudience,
   onCreateNewAudience,
   sectionAnchorId,
-  adsAnchorId,
 }: {
   adSet: AdSetFormState;
   index: number;
@@ -2411,11 +2507,10 @@ function AdSetBlock({
   cboAtivo: boolean;
   creatingAudience: boolean;
   onCreateNewAudience: (kind: 'site' | 'lookalike') => void;
-  // Âncoras dos atalhos "Conjunto"/"Anúncio" da barra lateral (design
-  // original) — só o primeiro conjunto recebe, pra rolar até o topo dos
-  // blocos quando há vários.
+  // Âncora do atalho "Conjunto N" da barra lateral — cada conjunto recebe a
+  // sua (por `adSet.key`), diferente do design original que só marcava o
+  // primeiro e por isso não conseguia levar a mais de um.
   sectionAnchorId?: string;
-  adsAnchorId?: string;
 }) {
   const updateAd = (adKey: string, patch: Partial<AdFormState>) =>
     onChange({ ads: adSet.ads.map((a) => (a.key === adKey ? { ...a, ...patch } : a)) });
@@ -2557,10 +2652,17 @@ function AdSetBlock({
         />
       </div>
 
-      <div id={adsAnchorId} className="space-y-3 border-t border-slate-700 pt-4">
+      <div className="space-y-3 border-t border-slate-700 pt-4">
         <h5 className="text-sm font-semibold text-yellow-400">Anúncios deste conjunto</h5>
         {adSet.ads.map((ad) => (
-          <AdBlock key={ad.key} ad={ad} onChange={(patch) => updateAd(ad.key, patch)} onRemove={() => removeAd(ad.key)} removable={adSet.ads.length > 1} />
+          <AdBlock
+            key={ad.key}
+            ad={ad}
+            onChange={(patch) => updateAd(ad.key, patch)}
+            onRemove={() => removeAd(ad.key)}
+            removable={adSet.ads.length > 1}
+            anchorId={`create-campaign-anchor-anuncio-${ad.key}`}
+          />
         ))}
         <Button type="button" variant="outline" size="sm" onClick={addAd} className="border-slate-600 text-teal-400 hover:bg-slate-700">
           <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Anúncio
@@ -2948,7 +3050,7 @@ function CreateCampaignModal({
               flutuante por cima (absolute), sem empurrar layout; no desktop
               continua sempre visível, do jeito que já era. */}
           <div
-            className={`${mobileStructureNavOpen ? 'flex absolute inset-y-0 left-0 z-20 shadow-2xl' : 'hidden'} md:flex w-36 shrink-0 border-r border-slate-700 bg-slate-900 md:bg-slate-900/40 p-3 flex-col gap-1.5`}
+            className={`${mobileStructureNavOpen ? 'flex absolute inset-y-0 left-0 z-20 shadow-2xl' : 'hidden'} md:flex w-56 shrink-0 border-r border-slate-700 bg-slate-900 md:bg-slate-900/40 p-3 flex-col gap-1 overflow-y-auto`}
           >
             <div className="flex items-center justify-between mb-1 md:block">
               <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">Estrutura</p>
@@ -2967,20 +3069,41 @@ function CreateCampaignModal({
             >
               <Megaphone className="w-4 h-4 shrink-0" /> Campanha
             </button>
-            <button
-              type="button"
-              onClick={() => { scrollToAnchor('create-campaign-anchor-conjunto'); setMobileStructureNavOpen(false); }}
-              className="text-left p-2.5 rounded-md flex items-center gap-2 hover:bg-slate-700/50 text-slate-300 transition-colors text-sm"
-            >
-              <Layers className="w-4 h-4 shrink-0" /> Conjunto
-            </button>
-            <button
-              type="button"
-              onClick={() => { scrollToAnchor('create-campaign-anchor-anuncio'); setMobileStructureNavOpen(false); }}
-              className="text-left p-2.5 rounded-md flex items-center gap-2 hover:bg-slate-700/50 text-slate-300 transition-colors text-sm"
-            >
-              <ImagePlus className="w-4 h-4 shrink-0" /> Anúncio
-            </button>
+            {/* Um atalho por CONJUNTO (com o nome real, não só "Conjunto") e,
+                dentro de cada um, um atalho por ANÚNCIO — antes só existia um
+                atalho fixo "Conjunto"/"Anúncio" que sempre pulava pro
+                primeiro, mesmo tendo vários. */}
+            {adSets.map((adSet, idx) => (
+              <div key={adSet.key} className="space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    scrollToAnchor(`create-campaign-anchor-conjunto-${adSet.key}`);
+                    setMobileStructureNavOpen(false);
+                  }}
+                  className="w-full text-left p-2.5 rounded-md flex items-center gap-2 hover:bg-slate-700/50 text-slate-300 transition-colors text-sm"
+                  title={adSet.name || `Conjunto ${idx + 1}`}
+                >
+                  <Layers className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{adSet.name || `Conjunto ${idx + 1}`}</span>
+                </button>
+                {adSet.ads.map((ad, adIdx) => (
+                  <button
+                    key={ad.key}
+                    type="button"
+                    onClick={() => {
+                      scrollToAnchor(`create-campaign-anchor-anuncio-${ad.key}`);
+                      setMobileStructureNavOpen(false);
+                    }}
+                    className="w-full text-left py-1.5 pl-8 pr-2.5 rounded-md flex items-center gap-2 hover:bg-slate-700/50 text-slate-400 transition-colors text-xs"
+                    title={ad.name || `Anúncio ${adIdx + 1}`}
+                  >
+                    <ImagePlus className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{ad.name || `Anúncio ${adIdx + 1}`}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
           </div>
 
           {/* Fundo escurecido pra fechar o painel de atalhos clicando fora, só no celular. */}
@@ -3123,8 +3246,7 @@ function CreateCampaignModal({
                 setAudienceDialogAdSetKey(adSet.key);
                 setAudienceDialogKind(kind);
               }}
-              sectionAnchorId={index === 0 ? 'create-campaign-anchor-conjunto' : undefined}
-              adsAnchorId={index === 0 ? 'create-campaign-anchor-anuncio' : undefined}
+              sectionAnchorId={`create-campaign-anchor-conjunto-${adSet.key}`}
             />
           ))}
 
@@ -3210,6 +3332,10 @@ export default function TrafficPanelPage() {
   // preenchida (e editável) em vez de o modal antigo mandar a duplicação
   // direto pra Meta.
   const [createPrefill, setCreatePrefill] = useState<CampaignPrefill | null>(null);
+  // Conta de destino escolhida no diálogo de "Duplicar campanha" — quando
+  // vazia, a criação usa a conta atualmente selecionada no painel (fluxo de
+  // criação normal, sem duplicação).
+  const [createTargetAccountId, setCreateTargetAccountId] = useState<string | null>(null);
   const [viewCreativeTarget, setViewCreativeTarget] = useState<AggregatedItem | null>(null);
 
   const { start: dateStart, stop: dateStop } = useMemo(() => getDateRangeForPreset(datePreset), [datePreset]);
@@ -3416,8 +3542,12 @@ export default function TrafficPanelPage() {
     setCreateCampaignOpen(true);
   };
 
-  const abrirCriacaoApartirDaDuplicacao = (prefill: CampaignPrefill) => {
+  const abrirCriacaoApartirDaDuplicacao = (prefill: CampaignPrefill, targetAdAccountId?: string) => {
     setCreatePrefill(prefill);
+    // Duplicar campanha agora pergunta a conta de destino (pode ser
+    // diferente da que está selecionada no painel) — sem isso a cópia
+    // sempre ia pra conta atual, ignorando a escolha feita no diálogo.
+    setCreateTargetAccountId(targetAdAccountId || null);
     setCreateCampaignOpen(true);
   };
 
@@ -3760,9 +3890,12 @@ export default function TrafficPanelPage() {
           setCreateCampaignOpen(open);
           // Ao fechar, joga fora o prefill: senão a próxima criação em branco
           // abriria preenchida com a campanha duplicada.
-          if (!open) setCreatePrefill(null);
+          if (!open) {
+            setCreatePrefill(null);
+            setCreateTargetAccountId(null);
+          }
         }}
-        adAccountId={selectedAccount?.id || null}
+        adAccountId={createTargetAccountId || selectedAccount?.id || null}
         onCreated={refreshTree}
         prefill={createPrefill}
       />

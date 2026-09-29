@@ -121,6 +121,16 @@ export function LocationMapPicker({
     placePin(map, pin.lat, pin.lng, pin.radius);
     redrawExtras(map);
 
+    // Quando o mapa já abre com localizações preenchidas (ex.: veio de
+    // "Duplicar"), centraliza nelas em vez de ficar preso no padrão São
+    // Paulo do pin — sem isso as regiões da origem só apareciam se a pessoa
+    // rolasse/desse zoom out manualmente pra achar onde estavam.
+    const todasLocais = [...locationsRef.current, ...excludedRef.current];
+    if (todasLocais.length > 0) {
+      const bounds = L.latLngBounds(todasLocais.map((l) => [l.lat, l.lng] as [number, number]));
+      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
+    }
+
     map.on('click', (e: L.LeafletMouseEvent) => {
       setPin((prev) => ({ ...prev, lat: e.latlng.lat, lng: e.latlng.lng, name: 'Localização Personalizada (Clique)' }));
     });
