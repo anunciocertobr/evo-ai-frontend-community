@@ -49,7 +49,7 @@ export const OBJECTIVES: ObjectiveOption[] = [
     goals: [
       { value: 'LINK_CLICKS', label: 'Cliques no link' },
       { value: 'LANDING_PAGE_VIEWS', label: 'Visualizações da página' },
-      { value: 'CONVERSIONS', label: 'Conversas (WhatsApp/Messenger)' },
+      { value: 'CONVERSATIONS', label: 'Conversas (WhatsApp/Messenger)' },
     ],
   },
   {
@@ -69,7 +69,7 @@ export const OBJECTIVES: ObjectiveOption[] = [
     hint: 'Cadastro por formulário dentro do anúncio ou conversa de vendas no WhatsApp.',
     needsLink: false,
     goals: [
-      { value: 'CONVERSIONS', label: 'Conversa no WhatsApp' },
+      { value: 'CONVERSATIONS', label: 'Conversa no WhatsApp' },
       { value: 'LEAD_GENERATION', label: 'Formulário de cadastro' },
     ],
   },
