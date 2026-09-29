@@ -57,7 +57,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   // Estados do layout
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // No celular (abaixo do breakpoint 'md' do Tailwind, 768px — mesmo usado
+  // em toda a Sidebar/Header via hidden md:flex) o menu abre cheio por
+  // padrão ao entrar, em vez de cair direto na tela da última ferramenta:
+  // a pessoa escolhe onde ir primeiro. Depois de navegar, handleMenuClick
+  // (useMenuState.ts) fecha o menu sozinho, sobrando só o ícone de
+  // sanduíche no Header pra abrir de novo.
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(() => window.innerWidth < 768);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
   // Load dashboard apps for sidebar integration

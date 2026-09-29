@@ -100,7 +100,12 @@ export default function Header({
               </Button>
             </SheetTrigger>
 
-            <SheetContent side="left" className="w-80 p-0 !bg-sidebar text-sidebar-foreground">
+            {/* w-full + sm:max-w-full: o SheetContent do design system já vem
+                com "sm:max-w-sm" embutido (384px) — sem cancelar isso aqui,
+                um celular grande/tablet entre 640 e 767px (ainda dentro do
+                md:hidden) ficaria com o menu num painel estreito em vez de
+                tela cheia, que é o pedido. */}
+            <SheetContent side="left" className="w-full sm:max-w-full h-full p-0 !bg-sidebar text-sidebar-foreground">
 
               <SheetHeader className="border-b border-sidebar-border p-6">
                 <SheetTitle className="text-left text-sidebar-foreground">
