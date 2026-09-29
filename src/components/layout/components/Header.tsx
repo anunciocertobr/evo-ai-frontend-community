@@ -1,19 +1,17 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useUnansweredConversationsStore } from '@/store/unansweredConversationsStore';
 import { Link } from 'react-router-dom';
 import {
+  ChevronLeft,
+  ChevronRight,
   Menu,
   PanelRightClose,
   PanelRightOpen,
-  ChevronDown,
-  ChevronRight,
 } from 'lucide-react';
 import {
   Button,
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
   SheetTrigger,
   Tooltip,
   TooltipContent,
@@ -73,8 +71,18 @@ export default function Header({
   handleMenuClick,
 }: HeaderProps) {
   const { t } = useLanguage('layout');
-  const [expandedMobileMenus, setExpandedMobileMenus] = useState<Set<string>>(new Set());
+  // Item pai (com subItems) que a pessoa abriu no celular — troca a tela
+  // inteira do menu pelos subitens dele (com um "voltar"), em vez de
+  // expandir inline dentro da mesma lista (pedido explícito: nada de
+  // acordeão empurrando o resto da lista pra baixo).
+  const [mobileSubmenuView, setMobileSubmenuView] = useState<MenuItemType | null>(null);
   const totalUnanswered = useUnansweredConversationsStore((state) => state.totalUnanswered);
+
+  // Volta pra lista principal sempre que o menu fecha (X, link, ou clique
+  // fora), pra não abrir de novo já dentro de um submenu na próxima vez.
+  useEffect(() => {
+    if (!isMobileMenuOpen) setMobileSubmenuView(null);
+  }, [isMobileMenuOpen]);
 
   const enrichedMenuItems = useMemo(
     () =>
@@ -105,53 +113,78 @@ export default function Header({
                 um celular grande/tablet entre 640 e 767px (ainda dentro do
                 md:hidden) ficaria com o menu num painel estreito em vez de
                 tela cheia, que é o pedido. */}
+            {/* Sem SheetHeader/título e sem os blocos grandes de tema e perfil
+                (ficavam ocupando boa parte da tela cheia no celular — o
+                perfil/tema já têm ícone compacto na barra do topo, só fica
+                inacessível ENQUANTO o menu está aberto, o que é aceitável:
+                fecha o menu, usa o ícone). pt-14 no lugar do header: dá
+                espaço pro X de fechar (top-4 right-4, embutido no
+                SheetContent) não ficar em cima do primeiro item do menu. */}
             <SheetContent side="left" className="w-full sm:max-w-full h-full p-0 !bg-sidebar text-sidebar-foreground">
-
-              <SheetHeader className="border-b border-sidebar-border p-6">
-                <SheetTitle className="text-left text-sidebar-foreground">
-                  {t('sidebar.navigationMenu')}
-                </SheetTitle>
-              </SheetHeader>
-
-              <ScrollArea className="flex-1 min-h-0 overflow-hidden p-4">
-                <nav className="space-y-1">
-                  {enrichedMenuItems.map(item => {
-                    const hasSubItems = item.subItems && item.subItems.length > 0;
-                    const menuKey = item.id || item.href;
-                    const isExpanded = expandedMobileMenus.has(menuKey);
-
-                    if (!hasSubItems) {
+              {mobileSubmenuView ? (
+                // Tela do submenu: substitui a lista principal inteira (não
+                // expande inline) — "voltar" leva de volta pra lista.
+                <ScrollArea className="flex-1 min-h-0 overflow-hidden p-4 pt-14">
+                  <button
+                    type="button"
+                    onClick={() => setMobileSubmenuView(null)}
+                    className="flex items-center gap-2 mb-3 px-1 py-1 text-sidebar-foreground font-medium cursor-pointer"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                    <mobileSubmenuView.icon className="h-5 w-5" />
+                    <span>{mobileSubmenuView.name}</span>
+                  </button>
+                  <nav className="space-y-1">
+                    {mobileSubmenuView.subItems!.map(subItem => {
+                      const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href + '/');
                       return (
-                        <MenuItem
-                          key={menuKey}
-                          item={item}
-                          mobile
-                          isActive={isMenuWithSubItemsActive(item)}
-                          activeMenu={activeMenu}
-                          onClick={e => handleMenuClick(item, e)}
-                        />
+                        <Link
+                          key={subItem.href}
+                          to={subItem.href}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className={cn(
+                            'flex items-center gap-3 px-3 py-2.5 rounded-md transition-all text-sm',
+                            isSubActive
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+                          )}
+                        >
+                          <subItem.icon className={cn('flex-shrink-0 h-4 w-4', isSubActive && 'text-primary-foreground')} />
+                          <span className="font-medium">{subItem.name}</span>
+                        </Link>
                       );
-                    }
+                    })}
+                  </nav>
+                </ScrollArea>
+              ) : (
+                <ScrollArea className="flex-1 min-h-0 overflow-hidden p-4 pt-14">
+                  <nav className="space-y-1">
+                    {enrichedMenuItems.map(item => {
+                      const hasSubItems = item.subItems && item.subItems.length > 0;
+                      const menuKey = item.id || item.href;
 
-                    const isParentActive = item.subItems!.some(
-                      sub => pathname === sub.href || pathname.startsWith(sub.href + '/')
-                    );
+                      if (!hasSubItems) {
+                        return (
+                          <MenuItem
+                            key={menuKey}
+                            item={item}
+                            mobile
+                            isActive={isMenuWithSubItemsActive(item)}
+                            activeMenu={activeMenu}
+                            onClick={e => handleMenuClick(item, e)}
+                          />
+                        );
+                      }
 
-                    return (
-                      <div key={menuKey}>
+                      const isParentActive = item.subItems!.some(
+                        sub => pathname === sub.href || pathname.startsWith(sub.href + '/')
+                      );
+
+                      return (
                         <button
+                          key={menuKey}
                           type="button"
-                          onClick={() => {
-                            setExpandedMobileMenus(prev => {
-                              const next = new Set(prev);
-                              if (next.has(menuKey)) {
-                                next.delete(menuKey);
-                              } else {
-                                next.add(menuKey);
-                              }
-                              return next;
-                            });
-                          }}
+                          onClick={() => setMobileSubmenuView(item)}
                           className={cn(
                             'flex items-center gap-3 px-3 py-2.5 rounded-md transition-all w-full text-left cursor-pointer',
                             isParentActive
@@ -161,54 +194,14 @@ export default function Header({
                         >
                           <item.icon className={cn('flex-shrink-0 h-5 w-5', isParentActive && 'text-primary')} />
                           <span className="font-medium flex-1">{item.name}</span>
-                          {isExpanded ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
+                          <ChevronRight className="h-4 w-4" />
                         </button>
-
-                        {isExpanded && (
-                          <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-sidebar-border pl-3">
-                            {item.subItems!.map(subItem => {
-                              const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href + '/');
-                              return (
-                                <Link
-                                  key={subItem.href}
-                                  to={subItem.href}
-                                  onClick={() => setIsMobileMenuOpen(false)}
-                                  className={cn(
-                                    'flex items-center gap-3 px-3 py-2 rounded-md transition-all text-sm',
-                                    isSubActive
-                                      ? 'bg-primary text-primary-foreground'
-                                      : 'text-muted-foreground hover:text-foreground hover:bg-accent',
-                                  )}
-                                >
-                                  <subItem.icon className={cn('flex-shrink-0 h-4 w-4', isSubActive && 'text-primary-foreground')} />
-                                  <span className="font-medium">{subItem.name}</span>
-                                </Link>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  <PluginSlot id="sidebar.afterMain" />
-                </nav>
-              </ScrollArea>
-
-              <div className="p-4 border-t border-sidebar-border">
-                <ThemeToggle />
-              </div>
-
-              {/* Mobile User Menu */}
-              <ProfileMenu
-                user={user}
-                mobile
-                setLogoutDialogOpen={setLogoutDialogOpen}
-                setIsMobileMenuOpen={setIsMobileMenuOpen}
-              />
+                      );
+                    })}
+                    <PluginSlot id="sidebar.afterMain" />
+                  </nav>
+                </ScrollArea>
+              )}
             </SheetContent>
           </Sheet>
         </div>
@@ -220,10 +213,13 @@ export default function Header({
           </div>
         </div>
 
-        {/* Right: Notifications and User Menu */}
+        {/* Right: Theme, Notifications and User Menu — ThemeToggle aqui é só o
+            ícone compacto (o pedido foi tirar a barra grande de dentro do
+            menu e deixar "só o ícone no topo"). */}
         <div className="flex-1 flex justify-end items-center gap-2">
           <PluginSlot id="header.right" />
           <TourFab />
+          <ThemeToggle />
           <NotificationBell />
           <ProfileMenu
             user={user}
