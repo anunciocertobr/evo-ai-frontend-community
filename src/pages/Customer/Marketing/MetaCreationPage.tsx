@@ -8,7 +8,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, Trash2 } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2 } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -16,6 +16,7 @@ import { LeadFormCreateDialog } from '@/components/marketing/LeadFormCreateDialo
 import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialog';
 import { AudienceContactsPickerDialog } from '@/components/marketing/AudienceContactsPickerDialog';
 import { TargetingBuilder } from '@/components/marketing/TargetingBuilder';
+import { LocationGroupsTab } from '@/components/marketing/LocationGroupsTab';
 import { MediaLibraryBrowser } from '@/components/marketing/MediaLibraryBrowser';
 import { CriativoRequestsTab } from '@/components/marketing/CriativoRequestsTab';
 import {
@@ -178,6 +179,9 @@ export default function MetaCreationPage() {
           </TabsTrigger>
           <TabsTrigger value="targeting">
             <Crosshair className="w-4 h-4 mr-1.5" /> Direcionamento
+          </TabsTrigger>
+          <TabsTrigger value="location-groups">
+            <MapPin className="w-4 h-4 mr-1.5" /> Grupos de Localização
           </TabsTrigger>
           <TabsTrigger value="media">
             <Images className="w-4 h-4 mr-1.5" /> Biblioteca de mídias
@@ -463,6 +467,10 @@ export default function MetaCreationPage() {
 
         <TabsContent value="targeting">
           <TargetingBuilder />
+        </TabsContent>
+
+        <TabsContent value="location-groups">
+          <LocationGroupsTab />
         </TabsContent>
 
         {/* --- Solicitar Criativo --- */}

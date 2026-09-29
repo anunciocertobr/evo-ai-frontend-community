@@ -246,6 +246,25 @@ export interface TargetingList {
   items: ChosenTargetingItem[];
 }
 
+export interface LocationGroupPin {
+  name: string;
+  lat: number;
+  lng: number;
+  radius: number;
+}
+
+// Grupo de localizações (região + raio) salvo localmente no CRM, POR CONTA
+// DE ANÚNCIO — diferente da TargetingList acima, que é global. Pensado pra
+// reaproveitar o mesmo recorte geográfico ao montar o direcionamento de um
+// conjunto de anúncios, e pra duplicar tanto dentro da mesma conta quanto
+// pra outra (os pins não têm nenhuma dependência da conta de origem).
+export interface LocationGroup {
+  id: string;
+  ad_account_id: string;
+  name: string;
+  pins: LocationGroupPin[];
+}
+
 // Público salvo de verdade na Meta (geo/idade/gênero/interesses completo,
 // vinculado a uma conta de anúncio específica) — diferente da TargetingList
 // acima, que é só um recorte de itens salvo localmente sem conta associada.
@@ -726,6 +745,54 @@ class MetaCreationService {
 
   async deleteTargetingList(id: string): Promise<void> {
     await api.post(ENDPOINT, { acao: 'excluir_lista_direcionamento', id });
+  }
+
+  // --- Grupos de localização (salvos localmente, POR CONTA DE ANÚNCIO —
+  // diferente das listas de direcionamento acima, que são globais). Listar
+  // sempre filtra pela conta escolhida; duplicar pode mirar a mesma conta
+  // (cria uma cópia lado a lado) ou qualquer outra, já que os pins não têm
+  // nenhuma dependência da conta de origem. ---
+
+  async listLocationGroups(adAccountId: string): Promise<LocationGroup[]> {
+    const response = await api.post<LocationGroup[]>(ENDPOINT, {
+      acao: 'listar_grupos_localizacao',
+      id_conta_anuncio: adAccountId,
+    });
+    return response.data || [];
+  }
+
+  async createLocationGroup(adAccountId: string, name: string, pins: LocationGroupPin[]): Promise<LocationGroup> {
+    const response = await api.post<LocationGroup>(ENDPOINT, {
+      acao: 'criar_grupo_localizacao',
+      id_conta_anuncio: adAccountId,
+      name,
+      pins: JSON.stringify(pins),
+    });
+    return response.data;
+  }
+
+  async updateLocationGroup(id: string, updates: { name?: string; pins?: LocationGroupPin[] }): Promise<LocationGroup> {
+    const response = await api.post<LocationGroup>(ENDPOINT, {
+      acao: 'atualizar_grupo_localizacao',
+      id,
+      name: updates.name,
+      pins: updates.pins ? JSON.stringify(updates.pins) : undefined,
+    });
+    return response.data;
+  }
+
+  async deleteLocationGroup(id: string): Promise<void> {
+    await api.post(ENDPOINT, { acao: 'excluir_grupo_localizacao', id });
+  }
+
+  async duplicateLocationGroup(id: string, targetAdAccountId: string, name?: string): Promise<LocationGroup> {
+    const response = await api.post<LocationGroup>(ENDPOINT, {
+      acao: 'duplicar_grupo_localizacao',
+      id,
+      id_conta_destino: targetAdAccountId,
+      name,
+    });
+    return response.data;
   }
 }
 
