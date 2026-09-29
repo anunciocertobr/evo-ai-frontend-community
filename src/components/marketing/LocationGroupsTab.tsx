@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -11,11 +12,12 @@ import {
   Input,
   Label,
 } from '@evoapi/design-system';
-import { Building2, Copy, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Building2, Copy, Import, ListChecks, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { LocationMapPicker, type LocationEntry } from '@/components/marketing/LocationMapPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import { metaCreationService, type LocationGroup, type LocationGroupPin } from '@/services/marketing/metaCreationService';
+import { pinsFromOrigin } from '@/utils/marketing/geoResolve';
 import { apiErrorMessage } from '@/utils/apiHelpers';
 
 function pinsToLocations(pins: LocationGroupPin[]): LocationEntry[] {
@@ -127,22 +129,401 @@ function DuplicateToOtherAccountDialog({
   );
 }
 
+// Um mesmo pin (nome+coordenada) pode existir em vários grupos — "Lista de
+// Locais" achata todos os grupos da conta numa lista só, uma linha por
+// localização única, com quais grupos a usam.
+interface BankItem {
+  key: string;
+  name: string;
+  lat: number;
+  lng: number;
+  radius: number;
+  groups: LocationGroup[];
+}
+
+function buildLocationBank(groups: LocationGroup[]): BankItem[] {
+  const map = new Map<string, BankItem>();
+  for (const g of groups) {
+    for (const p of g.pins) {
+      const key = `${p.name}|${p.lat.toFixed(4)}|${p.lng.toFixed(4)}`;
+      const existing = map.get(key);
+      if (existing) existing.groups.push(g);
+      else map.set(key, { key, name: p.name, lat: p.lat, lng: p.lng, radius: p.radius, groups: [g] });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+}
+
+// "Lista de Locais": em modo `manage` (botão de topo) mostra cada localização
+// já salva nesta conta, individualmente, com editar (renomeia/ajusta raio em
+// TODOS os grupos onde aparece) e excluir (remove de todos). Em modo `pick`
+// (chamado de dentro do editor de um grupo) só marca quais adicionar ao
+// grupo que está sendo criado/editado agora.
+function LocationBankDialog({
+  open,
+  onOpenChange,
+  groups,
+  mode,
+  onPick,
+  onChanged,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  groups: LocationGroup[];
+  mode: 'manage' | 'pick';
+  onPick?: (locations: LocationEntry[]) => void;
+  onChanged?: () => void;
+}) {
+  const bank = useMemo(() => buildLocationBank(groups), [groups]);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [editingItem, setEditingItem] = useState<BankItem | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editRadius, setEditRadius] = useState('15');
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) setSelectedKeys(new Set());
+  }, [open]);
+
+  const togglePick = (key: string) =>
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const handleAddSelected = () => {
+    const chosen = bank.filter((b) => selectedKeys.has(b.key));
+    onPick?.(chosen.map((b) => ({ id: crypto.randomUUID(), name: b.name, lat: b.lat, lng: b.lng, radius: b.radius })));
+    onOpenChange(false);
+  };
+
+  const openEdit = (item: BankItem) => {
+    setEditingItem(item);
+    setEditName(item.name);
+    setEditRadius(String(item.radius));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItem) return;
+    const newName = editName.trim();
+    const newRadius = parseInt(editRadius, 10);
+    if (!newName || !(newRadius > 0)) {
+      toast.error('Preencha nome e raio válidos.');
+      return;
+    }
+    setBusyKey(editingItem.key);
+    try {
+      await Promise.all(
+        editingItem.groups.map((g) => {
+          const pins = g.pins.map((p) =>
+            p.name === editingItem.name && p.lat === editingItem.lat && p.lng === editingItem.lng
+              ? { ...p, name: newName, radius: newRadius }
+              : p,
+          );
+          return metaCreationService.updateLocationGroup(g.id, { pins });
+        }),
+      );
+      toast.success(`Atualizado em ${editingItem.groups.length} grupo(s).`);
+      setEditingItem(null);
+      onChanged?.();
+    } catch (error) {
+      toast.error(apiErrorMessage(error, true) || 'Erro ao atualizar a localização.');
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const handleDelete = async (item: BankItem) => {
+    const groupNames = item.groups.map((g) => g.name).join(', ');
+    if (
+      !window.confirm(
+        `Remover "${item.name}" dos grupos: ${groupNames}?\n\nUm grupo não pode ficar sem nenhuma localização — se for a última desse grupo, exclua o grupo inteiro em vez desta localização.`,
+      )
+    )
+      return;
+    setBusyKey(item.key);
+    try {
+      for (const g of item.groups) {
+        const pins = g.pins.filter((p) => !(p.name === item.name && p.lat === item.lat && p.lng === item.lng));
+        await metaCreationService.updateLocationGroup(g.id, { pins });
+      }
+      toast.success('Localização removida.');
+      onChanged?.();
+    } catch (error) {
+      toast.error(apiErrorMessage(error, true) || 'Não consegui remover de todos os grupos — um deles ficaria sem nenhuma localização.');
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          className="bg-slate-800 border-slate-700 text-slate-200 sm:max-w-2xl max-h-[85vh] overflow-y-auto"
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Lista de Locais</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              {mode === 'pick'
+                ? 'Escolha localizações já usadas nesta conta para adicionar a este grupo.'
+                : 'Cada localização já salva nesta conta, individualmente, e em quais grupos ela aparece.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2 max-h-[55vh] overflow-y-auto">
+            {bank.length === 0 ? (
+              <div className="text-center text-sm text-slate-400 py-8">Nenhuma localização salva ainda nesta conta.</div>
+            ) : (
+              bank.map((item) => (
+                <div key={item.key} className="flex items-center justify-between gap-2 p-2 rounded-md border border-slate-700 bg-slate-900/40">
+                  <div className="min-w-0 flex-1 flex items-center gap-2">
+                    {mode === 'pick' && <Checkbox checked={selectedKeys.has(item.key)} onCheckedChange={() => togglePick(item.key)} />}
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-slate-200">{item.name}</span>
+                      <span className="text-xs text-slate-400 ml-1">({item.radius}km)</span>
+                      <p className="text-xs text-slate-500 truncate">Em: {item.groups.map((g) => g.name).join(', ')}</p>
+                    </div>
+                  </div>
+                  {mode === 'manage' && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button size="sm" variant="ghost" disabled={busyKey === item.key} onClick={() => openEdit(item)}>
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-destructive" disabled={busyKey === item.key} onClick={() => handleDelete(item)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="border-slate-600 text-slate-300">
+              {mode === 'pick' ? 'Cancelar' : 'Fechar'}
+            </Button>
+            {mode === 'pick' && (
+              <Button onClick={handleAddSelected} disabled={selectedKeys.size === 0}>
+                Adicionar {selectedKeys.size > 0 ? selectedKeys.size : ''} selecionada{selectedKeys.size === 1 ? '' : 's'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(editingItem)} onOpenChange={(o) => !o && setEditingItem(null)}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-slate-200 max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Editar localização</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Atualiza em {editingItem?.groups.length} grupo(s): {editingItem?.groups.map((g) => g.name).join(', ')}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-xs text-slate-400">Nome</Label>
+              <Input value={editName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditName(e.target.value)} className="bg-slate-700 border-slate-600 text-slate-200" />
+            </div>
+            <div>
+              <Label className="text-xs text-slate-400">Raio (km)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={80}
+                value={editRadius}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditRadius(e.target.value)}
+                className="bg-slate-700 border-slate-600 text-slate-200"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingItem(null)} className="border-slate-600 text-slate-300">
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={busyKey === editingItem?.key}>
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// Junta os pins com o mesmo nome vindos de vários públicos salvos num único
+// grupo-candidato — sem isso, uma conta com 50 públicos salvos usando a
+// mesma "Grande SP" geraria 50 sugestões idênticas em vez de uma.
+function signatureFor(pins: LocationEntry[]): string {
+  return pins
+    .map((p) => `${p.name}|${p.lat.toFixed(4)}|${p.lng.toFixed(4)}|${p.radius}`)
+    .sort()
+    .join(';');
+}
+
+interface ImportCandidate {
+  key: string;
+  pins: LocationEntry[];
+  audienceNames: string[];
+  name: string;
+  selected: boolean;
+}
+
+// "Importar de públicos salvos": lê os públicos salvos de verdade na Meta
+// (targeting completo, incluindo geo), extrai só a parte geográfica de cada
+// um, agrupa os que têm o MESMO conjunto de localizações num candidato só
+// (deduplicado), e deixa a pessoa escolher quais viram Grupo de Localização
+// de verdade — nada é salvo até confirmar.
+function ImportFromSavedAudiencesDialog({
+  open,
+  onOpenChange,
+  accountId,
+  onImported,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  accountId: string;
+  onImported: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [candidates, setCandidates] = useState<ImportCandidate[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelado = false;
+    setCandidates([]);
+    setLoading(true);
+    (async () => {
+      try {
+        const audiences = await metaCreationService.listSavedAudiences(accountId);
+        const bySignature = new Map<string, ImportCandidate>();
+        const unresolved: string[] = [];
+        for (const audience of audiences) {
+          const geo = audience.targeting?.geo_locations;
+          if (!geo) continue;
+          const raw = [
+            ...(geo.cities || []).map((c) => ({ name: c.name, region: c.region, country: c.country, lat: c.lat, lng: c.lng, radius: c.radius })),
+            ...(geo.places || []).map((c) => ({ name: c.name, region: c.region, country: c.country, lat: c.lat, lng: c.lng, radius: c.radius })),
+            ...(geo.custom_locations || []).map((c) => ({ lat: c.latitude, lng: c.longitude, radius: c.radius })),
+          ];
+          if (raw.length === 0) continue;
+          const pins = await pinsFromOrigin(raw, unresolved);
+          if (pins.length === 0) continue;
+          const sig = signatureFor(pins);
+          const existing = bySignature.get(sig);
+          if (existing) existing.audienceNames.push(audience.name);
+          else bySignature.set(sig, { key: sig, pins, audienceNames: [audience.name], name: audience.name, selected: false });
+        }
+        if (cancelado) return;
+        setCandidates(Array.from(bySignature.values()));
+        if (unresolved.length > 0) toast.warning(`Não consegui localizar no mapa: ${unresolved.join(', ')}.`);
+      } catch {
+        if (!cancelado) toast.error('Erro ao carregar os públicos salvos desta conta.');
+      } finally {
+        if (!cancelado) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [open, accountId]);
+
+  const toggleSelected = (key: string) => setCandidates((prev) => prev.map((c) => (c.key === key ? { ...c, selected: !c.selected } : c)));
+  const updateName = (key: string, name: string) => setCandidates((prev) => prev.map((c) => (c.key === key ? { ...c, name } : c)));
+  const selectedCount = candidates.filter((c) => c.selected).length;
+
+  const handleSave = async () => {
+    const chosen = candidates.filter((c) => c.selected);
+    if (chosen.length === 0) return;
+    setSaving(true);
+    try {
+      await Promise.all(
+        chosen.map((c) => metaCreationService.createLocationGroup(accountId, c.name.trim() || 'Grupo importado', locationsToPins(c.pins))),
+      );
+      toast.success(`${chosen.length} grupo(s) criado(s) a partir dos públicos salvos.`);
+      onOpenChange(false);
+      onImported();
+    } catch (error) {
+      toast.error(apiErrorMessage(error, true) || 'Erro ao salvar os grupos selecionados.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="bg-slate-800 border-slate-700 text-slate-200 sm:max-w-2xl max-h-[85vh] overflow-y-auto"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle>Importar de públicos salvos</DialogTitle>
+          <DialogDescription className="text-slate-400">
+            Lidos os públicos salvos desta conta na Meta e agrupadas as localizações — públicos com o mesmo conjunto de lugares viram UM
+            grupo só, não um por público. Nada é salvo até você confirmar.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2 max-h-[55vh] overflow-y-auto">
+          {loading ? (
+            <div className="text-center text-sm text-slate-400 py-8">Lendo públicos salvos da Meta...</div>
+          ) : candidates.length === 0 ? (
+            <div className="text-center text-sm text-slate-400 py-8 border border-dashed border-slate-700 rounded-md">
+              Nenhum público salvo desta conta tem segmentação geográfica por região/cidade para importar.
+            </div>
+          ) : (
+            candidates.map((c) => (
+              <div key={c.key} className="flex items-start gap-3 p-3 rounded-lg border border-slate-700">
+                <Checkbox checked={c.selected} onCheckedChange={() => toggleSelected(c.key)} className="mt-1" />
+                <div className="flex-1 min-w-0 space-y-1">
+                  <Input
+                    value={c.name}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateName(c.key, e.target.value)}
+                    className="bg-slate-700 border-slate-600 text-slate-200 text-sm h-8"
+                  />
+                  <p className="text-xs text-slate-400">
+                    {c.pins.length} {c.pins.length === 1 ? 'localização' : 'localizações'}: {c.pins.map((p) => `${p.name} (${p.radius}km)`).join(', ')}
+                  </p>
+                  <p className="text-xs text-slate-500">Vem de: {c.audienceNames.join(', ')}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="border-slate-600 text-slate-300">
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={selectedCount === 0 || saving}>
+            {saving ? 'Salvando...' : `Salvar ${selectedCount > 0 ? selectedCount : ''} selecionado${selectedCount === 1 ? '' : 's'}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function LocationGroupEditorDialog({
   open,
   onOpenChange,
   group,
+  allGroups,
   onSaved,
   onSave,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   group: LocationGroup | null;
+  allGroups: LocationGroup[];
   onSaved: () => void;
   onSave: (name: string, pins: LocationGroupPin[], group: LocationGroup | null) => Promise<void>;
 }) {
   const [name, setName] = useState('');
   const [locations, setLocations] = useState<LocationEntry[]>([]);
   const [saving, setSaving] = useState(false);
+  const [bankOpen, setBankOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -195,7 +576,14 @@ function LocationGroupEditorDialog({
             />
           </div>
           <div>
-            <Label className="text-xs text-slate-400 block mb-2">Regiões e raio</Label>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <Label className="text-xs text-slate-400">Regiões e raio</Label>
+              {allGroups.length > 0 && (
+                <Button type="button" variant="outline" size="sm" onClick={() => setBankOpen(true)}>
+                  <ListChecks className="w-3.5 h-3.5 mr-1" /> Escolher de locais já usados
+                </Button>
+              )}
+            </div>
             <LocationMapPicker locations={locations} onChange={setLocations} singleListMode />
           </div>
         </div>
@@ -208,6 +596,19 @@ function LocationGroupEditorDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <LocationBankDialog
+        open={bankOpen}
+        onOpenChange={setBankOpen}
+        groups={allGroups}
+        mode="pick"
+        onPick={(picked) =>
+          setLocations((prev) => {
+            const existingNames = new Set(prev.map((l) => l.name));
+            return [...prev, ...picked.filter((p) => !existingNames.has(p.name))];
+          })
+        }
+      />
     </Dialog>
   );
 }
@@ -230,6 +631,8 @@ export function LocationGroupsTab() {
   const [editingGroup, setEditingGroup] = useState<LocationGroup | null>(null);
   const [duplicatingGroup, setDuplicatingGroup] = useState<LocationGroup | null>(null);
   const [duplicatingSameAccountId, setDuplicatingSameAccountId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [bankManageOpen, setBankManageOpen] = useState(false);
 
   const loadGroups = useCallback((accountId: string) => {
     setLoading(true);
@@ -338,9 +741,17 @@ export function LocationGroupsTab() {
                 {account.name}
               </button>
             </div>
-            <Button onClick={openCreate}>
-              <Plus className="w-4 h-4 mr-1.5" /> Novo grupo de localização
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button variant="outline" onClick={() => setBankManageOpen(true)}>
+                <ListChecks className="w-4 h-4 mr-1.5" /> Lista de Locais
+              </Button>
+              <Button variant="outline" onClick={() => setImportOpen(true)}>
+                <Import className="w-4 h-4 mr-1.5" /> Importar de públicos salvos
+              </Button>
+              <Button onClick={openCreate}>
+                <Plus className="w-4 h-4 mr-1.5" /> Novo grupo de localização
+              </Button>
+            </div>
           </div>
 
           {loading ? (
@@ -393,6 +804,7 @@ export function LocationGroupsTab() {
             open={editorOpen}
             onOpenChange={setEditorOpen}
             group={editingGroup}
+            allGroups={groups || []}
             onSave={handleSaveEditor}
             onSaved={() => account && loadGroups(account.id)}
           />
@@ -401,6 +813,21 @@ export function LocationGroupsTab() {
             group={duplicatingGroup}
             onOpenChange={(open) => !open && setDuplicatingGroup(null)}
             onDuplicated={() => account && loadGroups(account.id)}
+          />
+
+          <ImportFromSavedAudiencesDialog
+            open={importOpen}
+            onOpenChange={setImportOpen}
+            accountId={account.id}
+            onImported={() => loadGroups(account.id)}
+          />
+
+          <LocationBankDialog
+            open={bankManageOpen}
+            onOpenChange={setBankManageOpen}
+            groups={groups || []}
+            mode="manage"
+            onChanged={() => loadGroups(account.id)}
           />
         </>
       )}

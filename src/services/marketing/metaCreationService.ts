@@ -225,7 +225,18 @@ export interface ChosenTargetingItem extends TargetingItem {
 }
 
 export interface TargetingSpec {
-  geo_locations: { countries: string[] };
+  // A Graph API devolve `countries` sempre, mas um público salvo com
+  // segmentação geográfica de verdade também traz `cities`/`places` (cidade
+  // real, sem coordenada) e/ou `custom_locations` (pin+raio, com
+  // latitude/longitude) — mesmo formato de AdSetTargeting em
+  // trafficMetrics.ts. Usado pra "Importar de públicos salvos" nos Grupos
+  // de Localização.
+  geo_locations: {
+    countries: string[];
+    cities?: Array<{ name?: string; region?: string; country?: string; radius?: number; distance_unit?: string; lat?: number; lng?: number }>;
+    places?: Array<{ name?: string; region?: string; country?: string; radius?: number; distance_unit?: string; lat?: number; lng?: number }>;
+    custom_locations?: Array<{ latitude?: number; longitude?: number; radius?: number; distance_unit?: string }>;
+  };
   age_min: number;
   age_max: number;
   genders?: number[];
