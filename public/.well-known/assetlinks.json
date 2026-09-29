@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.com.anunciocertobr.crm",
+      "sha256_cert_fingerprints": ["9B:6C:93:64:06:AE:D7:18:15:9D:A9:5E:FD:C3:3F:60:61:C4:34:F9:2C:CB:EA:36:04:3D:D0:32:E7:32:5A:D6"]
+    }
+  }
+]
