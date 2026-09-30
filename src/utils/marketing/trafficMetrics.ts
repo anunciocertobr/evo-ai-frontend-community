@@ -53,6 +53,14 @@ export interface AdCreative {
     };
     video_data?: { title?: string; message?: string };
   };
+  // Normalizados pelo backend (Meta::AdsManagerService#campaign_ads_creatives)
+  // pra cobrir os mesmos 3 formatos que o "Ver Criativo" já mostra — só pra
+  // PRÉVIA de qual criativo está sendo copiado, não reenviados ao backend.
+  // `imagem` é `image_url` com fallback pro `link_data.picture` (falta em
+  // anúncios de geração de cadastro, que não preenchem o campo achatado).
+  imagem?: string | null;
+  thumbnail_url?: string | null;
+  carrossel?: Array<{ imagem: string | null; nome: string | null; descricao: string | null }>;
 }
 
 export interface AdSetTargeting {

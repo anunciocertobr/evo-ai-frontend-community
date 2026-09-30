@@ -13,7 +13,6 @@ import {
   AGE_RANGES,
   ageRangeFor,
   ConversaoTipo,
-  conversaoTiposFor,
   emptyAdSetMeta,
   FACEBOOK_POSITION_OPTIONS,
   INSTAGRAM_POSITION_OPTIONS,
@@ -108,6 +107,7 @@ import {
   type RawInsightRow,
   type SortKey,
   type SortDirection,
+  type AdCreative,
 } from '@/utils/marketing/trafficMetrics';
 import {
   METRIC_ORDER,
@@ -1200,7 +1200,6 @@ function DuplicateModal({
   // preenchida com a campanha de origem.
   onAvancarParaCriacao: (prefill: CampaignPrefill, targetAdAccountId?: string) => void;
 }) {
-  const [conversaoEscolhida, setConversaoEscolhida] = useState<ConversaoTipo>('NENHUMA');
   const [name, setName] = useState('');
   const [newObjectiveKey, setNewObjectiveKey] = useState<ObjectiveKey | ''>('');
   const [saving, setSaving] = useState(false);
@@ -1477,11 +1476,13 @@ function DuplicateModal({
     }
   };
 
-  // Tela de duplicar CAMPANHA: só uma pergunta — onde acontecem as conversões.
-  // O resto não aparece aqui: ao avançar, abre a tela de criação preenchida
-  // com a campanha de origem, com tudo editável.
+  // Tela de duplicar CAMPANHA: só escolhe destino e nome. "Onde acontecem as
+  // conversões" NÃO se pergunta aqui — pedido do usuário pra tirar essa
+  // pergunta desta etapa — a cópia mantém o que a campanha de origem já
+  // tinha (buildPrefillFromSource cai em conversaoTipoFromOptimizationGoal
+  // quando recebe 'NENHUMA') e a pessoa ajusta, se quiser, já dentro da tela
+  // de criação, que abre em seguida com tudo editável.
   if (level === 'campaigns' && item) {
-    const tiposConversao = conversaoTiposFor(objetivoDoDup).filter((t) => t.value !== 'NENHUMA');
     const avancar = async () => {
       setSaving(true);
       try {
@@ -1489,7 +1490,7 @@ function DuplicateModal({
           item,
           level: 'campaigns',
           structural,
-          conversaoTipo: conversaoEscolhida,
+          conversaoTipo: 'NENHUMA',
         });
         if (!prefill) {
           toast.error('Não consegui ler os conjuntos desta campanha para montar a cópia. Atualize o painel e tente de novo.');
@@ -1519,7 +1520,7 @@ function DuplicateModal({
           <DialogHeader>
             <DialogTitle>Duplicar campanha</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Escolha pra onde vai e onde as conversões acontecem. Na próxima tela a campanha abre preenchida e você pode mudar o que quiser.
+              Escolha pra onde vai e o nome da cópia. Na próxima tela a campanha abre preenchida e você pode mudar o que quiser.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -1575,35 +1576,6 @@ function DuplicateModal({
                 className="bg-slate-700 border-slate-600 text-slate-200"
                 autoFocus
               />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs text-slate-400 block">Onde acontecem as conversões</Label>
-              {tiposConversao.length === 0 ? (
-                <p className="text-xs text-slate-500">
-                  O objetivo desta campanha ({OBJECTIVE_BY_KEY[objetivoDoDup]?.label}) não registra conversão — a cópia mantém o destino atual.
-                </p>
-              ) : (
-                tiposConversao.map((tipo) => (
-                  <label
-                    key={tipo.value}
-                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer ${
-                      conversaoEscolhida === tipo.value ? 'border-teal-500 bg-teal-900/20' : 'border-slate-600 hover:bg-slate-700/40'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="conversao-duplicar"
-                      className="mt-1"
-                      checked={conversaoEscolhida === tipo.value}
-                      onChange={() => setConversaoEscolhida(tipo.value)}
-                    />
-                    <span>
-                      <span className="block text-sm font-semibold text-slate-200">{tipo.label}</span>
-                      <span className="block text-xs text-slate-400">{tipo.hint}</span>
-                    </span>
-                  </label>
-                ))
-              )}
             </div>
           </div>
           <DialogFooter>
@@ -2177,9 +2149,13 @@ interface AdFormState {
   mediaFromAdId?: string;
   // Só pra MOSTRAR uma prévia de qual criativo está sendo copiado (não é
   // reenviada pro backend) — sem isso o formulário de "Duplicar" ficava sem
-  // nenhuma pista visual de qual imagem/vídeo o anúncio de origem tinha.
+  // nenhuma pista visual de qual imagem/vídeo o anúncio de origem tinha. Os
+  // mesmos 3 formatos que o "Ver Criativo" (CreativeViewerModal) já mostra —
+  // carrossel tem prioridade, depois imagem, depois vídeo (com thumbnail).
   mediaPreviewUrl?: string;
   mediaPreviewIsVideo?: boolean;
+  mediaPreviewVideoThumbnail?: string;
+  mediaPreviewCarousel?: AdCreative['carrossel'];
 }
 
 interface AdSetFormState {
@@ -2355,8 +2331,14 @@ function adFromSource(origem: StructuralAd, modelo: AdFormState): AdFormState {
     // A mídia do anúncio original é resolvida pelo backend a partir deste id
     // (imagem OU vídeo) — o arquivo não existe no navegador.
     mediaFromAdId: origem.id,
-    mediaPreviewUrl: criativo.image_url || undefined,
-    mediaPreviewIsVideo: !criativo.image_url && Boolean(criativo.video_id),
+    // Mesma prioridade do "Ver Criativo" (CreativeViewerModal): carrossel >
+    // imagem > vídeo. `imagem`/`carrossel`/`thumbnail_url` são os campos
+    // normalizados que o backend já soma ao criativo cru (ver
+    // Meta::AdsManagerService#campaign_ads_creatives).
+    mediaPreviewCarousel: criativo.carrossel && criativo.carrossel.length > 0 ? criativo.carrossel : undefined,
+    mediaPreviewUrl: criativo.imagem || undefined,
+    mediaPreviewIsVideo: !criativo.imagem && !criativo.carrossel?.length && Boolean(criativo.video_id),
+    mediaPreviewVideoThumbnail: criativo.thumbnail_url || undefined,
   };
 }
 
@@ -2478,10 +2460,32 @@ function AdBlock({
             já substitui o que seria copiado do anúncio original. */}
         {ad.mediaFromAdId && !ad.mediaFile && (
           <div className="mb-2">
-            {ad.mediaPreviewUrl ? (
+            {ad.mediaPreviewCarousel && ad.mediaPreviewCarousel.length > 0 ? (
+              <div className="grid grid-cols-4 gap-1.5 max-w-xs">
+                {ad.mediaPreviewCarousel.map((card, i) =>
+                  card.imagem ? (
+                    <img
+                      key={i}
+                      src={card.imagem}
+                      alt={card.nome || `Cartão ${i + 1}`}
+                      className="w-16 h-16 object-cover rounded-md border border-slate-600"
+                    />
+                  ) : (
+                    <div key={i} className="w-16 h-16 rounded-md border border-slate-600 bg-slate-800 flex items-center justify-center text-[0.6rem] text-slate-500">
+                      Sem imagem
+                    </div>
+                  ),
+                )}
+              </div>
+            ) : ad.mediaPreviewUrl ? (
               <img src={ad.mediaPreviewUrl} alt="Criativo de origem" className="w-24 h-24 object-cover rounded-md border border-slate-600" />
             ) : ad.mediaPreviewIsVideo ? (
-              <p className="text-xs text-slate-500">Vídeo do anúncio de origem (sem prévia) — será copiado ao publicar.</p>
+              <div
+                className="w-24 h-24 rounded-md border border-slate-600 flex items-center justify-center bg-slate-800 bg-cover bg-center"
+                style={ad.mediaPreviewVideoThumbnail ? { backgroundImage: `url(${ad.mediaPreviewVideoThumbnail})` } : undefined}
+              >
+                <PlayCircle className="w-8 h-8 text-white/90 drop-shadow" />
+              </div>
             ) : (
               <p className="text-xs text-amber-400/80">Não encontrei a mídia do anúncio de origem — confira antes de publicar.</p>
             )}
