@@ -1365,11 +1365,6 @@ function DuplicateModal({
       loadAccountsForBm(currentBmId, adAccountId || undefined);
     }
     if (adAccountId) setTargetAccountId(adAccountId);
-    // Pré-seleciona "onde acontecem as conversões" com o que a campanha de
-    // origem já usa (via optimization_goal do primeiro conjunto) — antes
-    // sempre começava em "Nenhuma", perdendo a escolha em toda duplicação
-    // de campanha de Formulário (o caso mais comum não detectado).
-    setConversaoEscolhida(conversaoTipoFromOptimizationGoal(item.optimization_goal));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, open]);
 
