@@ -55,6 +55,7 @@ import {
 } from '@evoapi/design-system';
 import {
   Building2,
+  Check,
   ChevronLeft,
   Clock,
   Copy,
@@ -3342,6 +3343,17 @@ export default function TrafficPanelPage() {
   const [renameTarget, setRenameTarget] = useState<{ item: AggregatedItem; level: 'campaigns' | 'adsets' | 'ads' } | null>(null);
   const [duplicateTarget, setDuplicateTarget] = useState<{ item: AggregatedItem; level: 'campaigns' | 'adsets' | 'ads' } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ item: AggregatedItem; level: 'campaigns' | 'adsets' | 'ads' } | null>(null);
+
+  // Seleção múltipla (estilo Explorer) + área de transferência (Ctrl+C/
+  // Ctrl+V) — independente do expandedId acima: com itens selecionados, um
+  // clique simples troca a seleção em vez de expandir (ver onClick do card).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(null);
+  const [clipboard, setClipboard] = useState<{ level: 'campaigns' | 'adsets' | 'ads'; items: AggregatedItem[] } | null>(null);
+  const [dragRect, setDragRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
   const [createCampaignOpen, setCreateCampaignOpen] = useState(false);
   // "Avançar" no duplicar: a tela de criação abre com a campanha de origem
   // preenchida (e editável) em vez de o modal antigo mandar a duplicação
@@ -3362,6 +3374,14 @@ export default function TrafficPanelPage() {
   useEffect(() => {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ datePreset, sortValue }));
   }, [datePreset, sortValue]);
+
+  // Navegar de nível/conjunto/campanha limpa a seleção em tela — mas NÃO o
+  // clipboard (copiar um anúncio e navegar até outro conjunto pra colar é
+  // justamente o caso de uso do Ctrl+V).
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setSelectionAnchorId(null);
+  }, [level, campaignId, adSetId]);
 
   useEffect(() => {
     setLoadingBms(true);
@@ -3565,6 +3585,224 @@ export default function TrafficPanelPage() {
     setCreateTargetAccountId(targetAdAccountId || null);
     setCreateCampaignOpen(true);
   };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Range do Shift+clique: usa a MESMA lista (sortedItems) que os cards
+  // renderizam, então o intervalo selecionado bate com o que a pessoa está
+  // vendo na tela.
+  const selectRange = (anchorId: string, targetId: string) => {
+    const ids = sortedItems.map((i) => i.id);
+    const from = ids.indexOf(anchorId);
+    const to = ids.indexOf(targetId);
+    if (from === -1 || to === -1) {
+      toggleSelected(targetId);
+      return;
+    }
+    const [start, end] = from <= to ? [from, to] : [to, from];
+    setSelectedIds(new Set(ids.slice(start, end + 1)));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectionAnchorId(null);
+  };
+
+  const selectedItemsList = useMemo(
+    () => sortedItems.filter((i) => selectedIds.has(i.id)),
+    [sortedItems, selectedIds],
+  );
+
+  // Ações em lote: a Graph API não tem endpoint de batch aqui, então roda uma
+  // chamada por item e mostra um único toast consolidado no final — mesmo
+  // espírito do runBulk usado no ChatSidebar (seleção em lote de conversas).
+  const runBulkAction = async (actionLabel: string, action: (item: AggregatedItem) => Promise<void>) => {
+    const items = selectedItemsList;
+    if (items.length === 0) return;
+    const results = await Promise.allSettled(items.map((item) => action(item)));
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    const ok = results.length - failed;
+    if (failed === 0) toast.success(`${actionLabel}: ${ok} de ${results.length} com sucesso.`);
+    else if (ok === 0) toast.error(`${actionLabel}: falhou em todos os ${results.length} itens.`);
+    else toast.warning(`${actionLabel}: ${ok} com sucesso, ${failed} falharam.`);
+    refreshTree();
+    clearSelection();
+  };
+
+  const bulkSetStatus = (newStatus: 'ACTIVE' | 'PAUSED') =>
+    runBulkAction(newStatus === 'ACTIVE' ? 'Ativar em lote' : 'Pausar em lote', (item) =>
+      metaAdsManagerService.toggleStatus(LEVEL_TO_META_LEVEL[level as 'campaigns' | 'adsets' | 'ads'], item.id, newStatus),
+    );
+
+  const bulkDelete = () =>
+    runBulkAction('Excluir em lote', (item) =>
+      metaAdsManagerService.deleteItem(LEVEL_TO_META_LEVEL[level as 'campaigns' | 'adsets' | 'ads'], item.id),
+    );
+
+  const handleCopySelection = () => {
+    if (selectedItemsList.length === 0 || level === 'accounts') return;
+    setClipboard({ level, items: selectedItemsList });
+    toast.success(`${selectedItemsList.length} item(ns) copiado(s). Navegue até o destino e aperte Ctrl+V.`);
+  };
+
+  // Colar cria uma cópia de verdade no destino atual (via os mesmos
+  // endpoints de duplicar já usados pelo menu de contexto) — sempre pausada,
+  // igual toda duplicação neste painel. Campanha é diferente das outras duas:
+  // não existe um "duplicar" direto de campanha em uso real hoje, o fluxo
+  // sempre abre a tela de criação preenchida pra revisão antes de publicar.
+  const handlePaste = async () => {
+    if (!clipboard || !selectedAccount) return;
+
+    if (clipboard.level === 'ads') {
+      if (level !== 'ads' || !adSetId) {
+        toast.error('Copie um anúncio e entre em um conjunto de anúncios para colar.');
+        return;
+      }
+      const results = await Promise.allSettled(
+        clipboard.items.map((item) =>
+          metaAdsManagerService.duplicateAdToAdSet({
+            adId: item.id,
+            adAccountId: selectedAccount.id,
+            targetAdSetId: adSetId,
+            newName: item.name,
+          }),
+        ),
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed === 0) toast.success(`${results.length} anúncio(s) colado(s) neste conjunto (pausado).`);
+      else toast.warning(`Colado com sucesso ${results.length - failed} de ${results.length} anúncios.`);
+      refreshTree();
+      return;
+    }
+
+    if (clipboard.level === 'adsets') {
+      if (level !== 'adsets' || !campaignId) {
+        toast.error('Copie um conjunto e entre em uma campanha para colar.');
+        return;
+      }
+      const results = await Promise.allSettled(
+        clipboard.items.map((item) =>
+          metaAdsManagerService.duplicateAdSetToCampaign({
+            adSetId: item.id,
+            adAccountId: selectedAccount.id,
+            targetCampaignId: campaignId,
+            newName: item.name,
+          }),
+        ),
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed === 0) toast.success(`${results.length} conjunto(s) colado(s) nesta campanha (pausado).`);
+      else toast.warning(`Colado com sucesso ${results.length - failed} de ${results.length} conjuntos.`);
+      refreshTree();
+      return;
+    }
+
+    // clipboard.level === 'campaigns'
+    if (level !== 'campaigns') {
+      toast.error('Volte para a lista de campanhas para colar uma campanha copiada.');
+      return;
+    }
+    if (clipboard.items.length !== 1) {
+      toast.error('Copie só uma campanha por vez para colar (abre a tela de criação preenchida para revisão).');
+      return;
+    }
+    const item = clipboard.items[0];
+    const { prefill, unresolvedLocations } = await buildPrefillFromSource({
+      item,
+      level: 'campaigns',
+      structural: treeStructural,
+      conversaoTipo: conversaoTipoFromOptimizationGoal(item.optimization_goal),
+    });
+    if (!prefill) {
+      toast.error('Não consegui ler os conjuntos desta campanha para montar a cópia.');
+      return;
+    }
+    if (unresolvedLocations.length > 0) {
+      toast.warning(`Não consegui localizar no mapa: ${unresolvedLocations.join(', ')}. Adicione manualmente na tela de criação.`);
+    }
+    abrirCriacaoApartirDaDuplicacao(prefill, selectedAccount.id);
+  };
+
+  // Ctrl/Cmd + C/V/A e Esc — ignora se o foco estiver num campo de texto
+  // (a página tem busca e vários modais com formulário).
+  useEffect(() => {
+    const isEditableTarget = (el: EventTarget | null) => {
+      if (!(el instanceof HTMLElement)) return false;
+      return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return;
+      if (e.key === 'Escape') {
+        clearSelection();
+        return;
+      }
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (!ctrl) return;
+      if (e.key === 'a' || e.key === 'A') {
+        if (level === 'accounts') return;
+        e.preventDefault();
+        setSelectedIds(new Set(sortedItems.map((i) => i.id)));
+      } else if (e.key === 'c' || e.key === 'C') {
+        if (selectedIds.size === 0) return;
+        e.preventDefault();
+        handleCopySelection();
+      } else if (e.key === 'v' || e.key === 'V') {
+        if (!clipboard) return;
+        e.preventDefault();
+        void handlePaste();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [level, sortedItems, selectedIds, clipboard, adSetId, campaignId, selectedAccount]);
+
+  // Seleção por arrastar (marquee): mousedown em área vazia da grade inicia
+  // o laço; mousemove/mouseup ficam no document pra funcionar mesmo se o
+  // cursor sair da grade no meio do arrasto.
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragStartRef.current) return;
+      const start = dragStartRef.current;
+      setDragRect({
+        left: Math.min(start.x, e.clientX),
+        top: Math.min(start.y, e.clientY),
+        width: Math.abs(e.clientX - start.x),
+        height: Math.abs(e.clientY - start.y),
+      });
+    };
+    const onMouseUp = () => {
+      const started = dragStartRef.current;
+      dragStartRef.current = null;
+      if (!started) return;
+      setDragRect((rect) => {
+        if (rect && (rect.width > 4 || rect.height > 4)) {
+          const box = { left: rect.left, top: rect.top, right: rect.left + rect.width, bottom: rect.top + rect.height };
+          const hit: string[] = [];
+          cardRefs.current.forEach((el, id) => {
+            const r = el.getBoundingClientRect();
+            const intersects = !(r.right < box.left || r.left > box.right || r.bottom < box.top || r.top > box.bottom);
+            if (intersects) hit.push(id);
+          });
+          if (hit.length > 0) setSelectedIds(new Set(hit));
+        }
+        return null;
+      });
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
 
   const settingsPanel = (
     <Popover>
@@ -3793,53 +4031,139 @@ export default function TrafficPanelPage() {
                 Nenhum item encontrado.
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {sortedItems.map((item) => {
-                  const values = itemToMetricValues(item);
-                  const isExpanded = expandedId === item.id;
-                  const drillDown = () => {
-                    if (level === 'campaigns') openCampaign(item);
-                    else if (level === 'adsets') openAdSet(item);
-                    else setViewCreativeTarget(item);
-                  };
-                  return (
-                    <div
-                      key={item.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        // e.detail === 1 isola o primeiro clique de um clique
-                        // duplo (que dispara click com detail=1, depois
-                        // detail=2, e só então dblclick) — mesmo truque do
-                        // painel legado, sem precisar de debounce manual.
-                        if (e.detail === 1) toggleExpanded(item.id);
-                      }}
-                      onDoubleClick={drillDown}
-                      onContextMenu={(e) => openContextMenu(e, item, level)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') drillDown();
-                      }}
-                      className={`${cardBaseClass} ${cardInteractiveClass}`}
+              <>
+                {selectedIds.size > 0 && (
+                  <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-teal-900/30 border border-teal-700/50 text-sm text-slate-200">
+                    <button
+                      type="button"
+                      onClick={clearSelection}
+                      className="text-slate-400 hover:text-slate-200"
+                      title="Cancelar seleção"
                     >
-                      <div className="flex items-start justify-between mb-2 pb-1 border-b border-slate-700 min-h-[3rem]">
-                        <h3 className={`text-sm font-bold line-clamp-2 leading-tight pr-1 ${LEVEL_TITLE_COLOR[level]}`} title={item.name}>
-                          {item.name}
-                        </h3>
-                        <StatusDot status={item.status} />
-                      </div>
-                      {isExpanded ? (
-                        <CardDetails item={item} level={level} />
-                      ) : (
-                        <div className="space-y-1 pt-2">
-                          {METRIC_ORDER.filter((k) => k !== 'balance').map((key) => (
-                            <MetricRow key={key} metricKey={key} value={values[key] ?? 0} visible={visibility[key]} />
-                          ))}
+                      <X className="h-4 w-4" />
+                    </button>
+                    <span className="font-medium">{selectedIds.size} selecionado(s)</span>
+                    <div className="flex-1" />
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => bulkSetStatus('ACTIVE')}>
+                      Ativar
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => bulkSetStatus('PAUSED')}>
+                      Pausar
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={handleCopySelection}>
+                      <Copy className="h-3 w-3 mr-1" /> Copiar
+                    </Button>
+                    <Button size="sm" variant="destructive" className="h-7 px-2 text-xs" onClick={bulkDelete}>
+                      Excluir
+                    </Button>
+                  </div>
+                )}
+                <div
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
+                  onMouseDown={(e) => {
+                    // Só inicia o laço de seleção quando o clique é na própria
+                    // grade (área vazia) — clique num card não chega aqui como
+                    // currentTarget porque cada card já para a propagação no
+                    // próprio onClick/onContextMenu, mas o mousedown ainda
+                    // borbulha, então checamos e.target === e.currentTarget.
+                    if (e.target !== e.currentTarget) return;
+                    dragStartRef.current = { x: e.clientX, y: e.clientY };
+                    setDragRect({ left: e.clientX, top: e.clientY, width: 0, height: 0 });
+                  }}
+                >
+                  {sortedItems.map((item) => {
+                    const values = itemToMetricValues(item);
+                    const isExpanded = expandedId === item.id;
+                    const isSelected = selectedIds.has(item.id);
+                    const drillDown = () => {
+                      if (level === 'campaigns') openCampaign(item);
+                      else if (level === 'adsets') openAdSet(item);
+                      else setViewCreativeTarget(item);
+                    };
+                    return (
+                      <div
+                        key={item.id}
+                        ref={(el) => {
+                          if (el) cardRefs.current.set(item.id, el);
+                          else cardRefs.current.delete(item.id);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          // e.detail === 1 isola o primeiro clique de um clique
+                          // duplo (que dispara click com detail=1, depois
+                          // detail=2, e só então dblclick) — mesmo truque do
+                          // painel legado, sem precisar de debounce manual.
+                          if (e.detail !== 1) return;
+                          if (e.shiftKey && selectionAnchorId) {
+                            selectRange(selectionAnchorId, item.id);
+                            return;
+                          }
+                          if (e.ctrlKey || e.metaKey) {
+                            toggleSelected(item.id);
+                            setSelectionAnchorId(item.id);
+                            return;
+                          }
+                          if (selectedIds.size > 0) {
+                            // Já tem seleção em andamento: clique simples troca
+                            // pra só este item, igual o Explorer do Windows.
+                            setSelectedIds(new Set([item.id]));
+                            setSelectionAnchorId(item.id);
+                            return;
+                          }
+                          toggleExpanded(item.id);
+                        }}
+                        onDoubleClick={drillDown}
+                        onContextMenu={(e) => openContextMenu(e, item, level)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') drillDown();
+                        }}
+                        className={`group relative ${cardBaseClass} ${cardInteractiveClass} ${isSelected ? 'ring-2 ring-teal-400' : ''}`}
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSelected(item.id);
+                            setSelectionAnchorId(item.id);
+                          }}
+                          title="Selecionar"
+                          className={`absolute -top-2 -left-2 h-5 w-5 rounded-full border-2 z-10 flex items-center justify-center transition-opacity ${
+                            isSelected
+                              ? 'bg-teal-500 border-teal-300 opacity-100'
+                              : selectedIds.size > 0
+                                ? 'bg-slate-700 border-slate-500 opacity-100'
+                                : 'bg-slate-700 border-slate-500 opacity-0 group-hover:opacity-100'
+                          }`}
+                        >
+                          {isSelected && <Check className="h-3 w-3 text-white" />}
+                        </button>
+                        <div className="flex items-start justify-between mb-2 pb-1 border-b border-slate-700 min-h-[3rem]">
+                          <h3 className={`text-sm font-bold line-clamp-2 leading-tight pr-1 ${LEVEL_TITLE_COLOR[level]}`} title={item.name}>
+                            {item.name}
+                          </h3>
+                          <StatusDot status={item.status} />
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                        {isExpanded ? (
+                          <CardDetails item={item} level={level} />
+                        ) : (
+                          <div className="space-y-1 pt-2">
+                            {METRIC_ORDER.filter((k) => k !== 'balance').map((key) => (
+                              <MetricRow key={key} metricKey={key} value={values[key] ?? 0} visible={visibility[key]} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {dragRect && (
+                  <div
+                    className="fixed z-[140] pointer-events-none border border-teal-400 bg-teal-400/10"
+                    style={{ left: dragRect.left, top: dragRect.top, width: dragRect.width, height: dragRect.height }}
+                  />
+                )}
+              </>
             )}
           </div>
         )}
