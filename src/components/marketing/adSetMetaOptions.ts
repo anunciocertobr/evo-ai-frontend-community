@@ -92,17 +92,6 @@ export function pendingWhatsappValidation(values: AdSetMetaValues, optimizationG
   return optimizationGoal === 'CONVERSATIONS' && values.mensagemDestino === 'WHATSAPP' && !values.whatsappPhone.trim();
 }
 
-// A conversa só pode ser o destino do conjunto quando o objetivo da campanha
-// tem a meta "Conversas" na lista — nos outros (reconhecimento, app) a Meta
-// recusa o `destination_type`.
-export function conversaDisponivel(objectiveKey: ObjectiveKey | '' | null | undefined): boolean {
-  return goalsForObjective(objectiveKey).some((g) => g.value === 'CONVERSATIONS');
-}
-
-export function conversaoDisponivel(objectiveKey: ObjectiveKey | '' | null | undefined): boolean {
-  return goalsForObjective(objectiveKey).some((g) => g.value === 'LEAD_GENERATION' || g.value === 'OFFSITE_CONVERSIONS');
-}
-
 // Opções de "onde acontecem as conversões" que o objetivo atual aceita.
 export function conversaoTiposFor(objectiveKey: ObjectiveKey | '' | null | undefined): Array<{ value: ConversaoTipo; label: string; hint: string }> {
   const goals = goalsForObjective(objectiveKey).map((g) => g.value);

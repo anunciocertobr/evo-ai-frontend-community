@@ -11,10 +11,8 @@ import {
 import {
   AdAccountPageOption,
   AdSetMetaValues,
-  conversaDisponivel,
   CONVERSA_DESCRICAO,
   CONVERSAO_DESCRICAO,
-  conversaoDisponivel,
   conversaoTiposFor,
   AUDIENCE_NETWORK_POSITIONS,
   AUDIENCE_NETWORK_POSITION_OPTIONS,
@@ -28,9 +26,13 @@ import {
 
 const inputClass = 'bg-slate-700 border-slate-600 text-slate-200';
 
-// Blocos do NÍVEL DO CONJUNTO. A ordem é a pedido do usuário: "onde a conversa
-// acontece" vem primeiro (é o que define se o lead é conversa, formulário ou
-// pixel), e só depois vêm página, número e posições.
+// Blocos do NÍVEL DO CONJUNTO. "Onde acontecem as conversões" vem primeiro —
+// é o seletor principal (Formulário/WhatsApp/Site) — e "onde a conversa
+// acontece" (o canal: WhatsApp/Messenger/Direct) só aparece aninhado dentro
+// dela, quando o tipo escolhido é conversa por mensagem. Antes os dois blocos
+// apareciam soltos e sempre juntos (a conversa vinha antes, incondicional,
+// sempre que o objetivo permitia CONVERSATIONS) mesmo quando a pessoa tinha
+// escolhido Formulário ou Site — pedido do usuário pra corrigir isso.
 export function AdSetMetaFields({
   objectiveKey,
   pages,
@@ -56,10 +58,11 @@ export function AdSetMetaFields({
 }) {
   const [digitandoNumero, setDigitandoNumero] = useState(false);
   const selectedPage = pages.find((p) => p.id === values.pageId);
-  const podeConversar = conversaDisponivel(objectiveKey);
-  const podeConverter = conversaoDisponivel(objectiveKey);
   const tiposConversao = conversaoTiposFor(objectiveKey);
-  const precisaNumero = podeConversar && values.mensagemDestino === 'WHATSAPP';
+  // Existe alguma meta de conversão liberada pro objetivo (formulário, conversa
+  // ou site) além de "Nenhuma" — se não, o bloco inteiro nem aparece.
+  const temConversao = tiposConversao.length > 1;
+  const precisaNumero = values.conversaoTipo === 'WHATSAPP' && values.mensagemDestino === 'WHATSAPP';
   const numeros = whatsappNumbers ?? [];
 
   // A lista de números vem da conta; enquanto ela carrega, o campo fica em
@@ -70,103 +73,7 @@ export function AdSetMetaFields({
 
   return (
     <div className="space-y-4">
-      {podeConversar && (
-        <div className="space-y-3 rounded-md border border-sky-900/60 bg-sky-950/20 p-3">
-          <div>
-            <Label className="text-xs text-slate-300 font-medium">Onde a conversa acontece</Label>
-            <p className="text-xs text-slate-500 mt-1">{CONVERSA_DESCRICAO}</p>
-          </div>
-          <Select
-            value={values.mensagemDestino}
-            onValueChange={(v: string) => {
-              const destinoEscolhido = v as MensagemDestino;
-              setDigitandoNumero(false);
-              onChange({
-                mensagemDestino: destinoEscolhido,
-                // Conversa e conversão não cabem no mesmo conjunto: marcar a
-                // conversa limpa a conversão (e vice-versa, lá embaixo).
-                conversaoTipo: 'NENHUMA',
-                whatsappPhone: destinoEscolhido === 'WHATSAPP' ? values.whatsappPhone : '',
-              });
-            }}
-          >
-            <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
-              {MENSAGEM_DESTINOS.map((d) => (
-                <SelectItem
-                  key={d.value}
-                  value={d.value}
-                  disabled={d.value === 'INSTAGRAM' && selectedPage ? !selectedPage.hasInstagram : false}
-                >
-                  {d.label} — {d.hint}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {precisaNumero && (
-            <div className="space-y-2">
-              <Label className="text-xs text-slate-400">Número de WhatsApp</Label>
-              {numeros.length > 0 && !digitandoNumero ? (
-                <>
-                  <Select value={values.whatsappPhone} onValueChange={(v: string) => onChange({ whatsappPhone: v })}>
-                    <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
-                      <SelectValue placeholder={loadingWhatsappNumbers ? 'Buscando números da conta...' : 'Escolha o número'} />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
-                      {numeros.map((n) => (
-                        <SelectItem key={n.phone_number} value={n.phone_number}>
-                          {n.phone_number}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-slate-400 hover:text-slate-200"
-                    onClick={() => setDigitandoNumero(true)}
-                  >
-                    Digitar outro número
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Input
-                    value={values.whatsappPhone}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ whatsappPhone: e.target.value })}
-                    placeholder="5511999999999"
-                    className={inputClass}
-                  />
-                  {numeros.length > 0 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-slate-400 hover:text-slate-200"
-                      onClick={() => setDigitandoNumero(false)}
-                    >
-                      Voltar para os números da conta
-                    </Button>
-                  )}
-                </>
-              )}
-              {loadingWhatsappNumbers && <p className="text-xs text-slate-500">Buscando os números que esta conta já usa...</p>}
-              {!loadingWhatsappNumbers && numeros.length === 0 && (
-                <p className="text-xs text-amber-400/80">
-                  Esta conta ainda não tem nenhum conjunto de WhatsApp publicado, então não há número pra suggest. Digite
-                  o número (com DDI e DDD, só números) habilitado no WhatsApp Business da página escolhida.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {podeConverter && (
+      {temConversao && (
         <div className="space-y-3 rounded-md border border-slate-700/70 bg-slate-900/30 p-3">
           <div>
             <Label className="text-xs text-slate-300 font-medium">Onde acontecem as conversões</Label>
@@ -174,7 +81,7 @@ export function AdSetMetaFields({
           </div>
           <Select
             value={values.conversaoTipo}
-            onValueChange={(v: string) => onChange({ conversaoTipo: v as AdSetMetaValues['conversaoTipo'], mensagemDestino: 'WHATSAPP' })}
+            onValueChange={(v: string) => onChange({ conversaoTipo: v as AdSetMetaValues['conversaoTipo'] })}
           >
             <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
               <SelectValue />
@@ -187,6 +94,102 @@ export function AdSetMetaFields({
               ))}
             </SelectContent>
           </Select>
+
+          {/* "Onde a conversa acontece" só faz sentido — e só aparece — quando
+              o tipo de conversão escolhido acima é conversa por mensagem
+              (WhatsApp/Messenger/Direct), nunca pra Formulário ou Site. */}
+          {values.conversaoTipo === 'WHATSAPP' && (
+            <div className="space-y-3 rounded-md border border-sky-900/60 bg-sky-950/20 p-3">
+              <div>
+                <Label className="text-xs text-slate-300 font-medium">Onde a conversa acontece</Label>
+                <p className="text-xs text-slate-500 mt-1">{CONVERSA_DESCRICAO}</p>
+              </div>
+              <Select
+                value={values.mensagemDestino}
+                onValueChange={(v: string) => {
+                  const destinoEscolhido = v as MensagemDestino;
+                  setDigitandoNumero(false);
+                  onChange({
+                    mensagemDestino: destinoEscolhido,
+                    whatsappPhone: destinoEscolhido === 'WHATSAPP' ? values.whatsappPhone : '',
+                  });
+                }}
+              >
+                <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                  {MENSAGEM_DESTINOS.map((d) => (
+                    <SelectItem
+                      key={d.value}
+                      value={d.value}
+                      disabled={d.value === 'INSTAGRAM' && selectedPage ? !selectedPage.hasInstagram : false}
+                    >
+                      {d.label} — {d.hint}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {precisaNumero && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-slate-400">Número de WhatsApp</Label>
+                  {numeros.length > 0 && !digitandoNumero ? (
+                    <>
+                      <Select value={values.whatsappPhone} onValueChange={(v: string) => onChange({ whatsappPhone: v })}>
+                        <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+                          <SelectValue placeholder={loadingWhatsappNumbers ? 'Buscando números da conta...' : 'Escolha o número'} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                          {numeros.map((n) => (
+                            <SelectItem key={n.phone_number} value={n.phone_number}>
+                              {n.phone_number}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-slate-400 hover:text-slate-200"
+                        onClick={() => setDigitandoNumero(true)}
+                      >
+                        Digitar outro número
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Input
+                        value={values.whatsappPhone}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ whatsappPhone: e.target.value })}
+                        placeholder="5511999999999"
+                        className={inputClass}
+                      />
+                      {numeros.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-slate-400 hover:text-slate-200"
+                          onClick={() => setDigitandoNumero(false)}
+                        >
+                          Voltar para os números da conta
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  {loadingWhatsappNumbers && <p className="text-xs text-slate-500">Buscando os números que esta conta já usa...</p>}
+                  {!loadingWhatsappNumbers && numeros.length === 0 && (
+                    <p className="text-xs text-amber-400/80">
+                      Esta conta ainda não tem nenhum conjunto de WhatsApp publicado, então não há número pra suggest. Digite
+                      o número (com DDI e DDD, só números) habilitado no WhatsApp Business da página escolhida.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {values.conversaoTipo === 'SITE' && (
             <>

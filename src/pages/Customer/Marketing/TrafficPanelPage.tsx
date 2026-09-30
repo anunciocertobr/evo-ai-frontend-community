@@ -2175,6 +2175,11 @@ interface AdFormState {
   // "Duplicar" não tem o arquivo da origem no navegador: manda o id do
   // anúncio de origem e o backend resolve a mídia (imagem OU vídeo) dele.
   mediaFromAdId?: string;
+  // Só pra MOSTRAR uma prévia de qual criativo está sendo copiado (não é
+  // reenviada pro backend) — sem isso o formulário de "Duplicar" ficava sem
+  // nenhuma pista visual de qual imagem/vídeo o anúncio de origem tinha.
+  mediaPreviewUrl?: string;
+  mediaPreviewIsVideo?: boolean;
 }
 
 interface AdSetFormState {
@@ -2350,6 +2355,8 @@ function adFromSource(origem: StructuralAd, modelo: AdFormState): AdFormState {
     // A mídia do anúncio original é resolvida pelo backend a partir deste id
     // (imagem OU vídeo) — o arquivo não existe no navegador.
     mediaFromAdId: origem.id,
+    mediaPreviewUrl: criativo.image_url || undefined,
+    mediaPreviewIsVideo: !criativo.image_url && Boolean(criativo.video_id),
   };
 }
 
@@ -2466,10 +2473,24 @@ function AdBlock({
       </div>
       <div>
         <Label className="text-xs text-slate-400 block mb-1">Mídia (imagem ou vídeo)</Label>
+        {/* Prévia do criativo de ORIGEM (duplicar): some assim que a pessoa
+            escolhe um arquivo novo ou da biblioteca, porque aí o mediaFile
+            já substitui o que seria copiado do anúncio original. */}
+        {ad.mediaFromAdId && !ad.mediaFile && (
+          <div className="mb-2">
+            {ad.mediaPreviewUrl ? (
+              <img src={ad.mediaPreviewUrl} alt="Criativo de origem" className="w-24 h-24 object-cover rounded-md border border-slate-600" />
+            ) : ad.mediaPreviewIsVideo ? (
+              <p className="text-xs text-slate-500">Vídeo do anúncio de origem (sem prévia) — será copiado ao publicar.</p>
+            ) : (
+              <p className="text-xs text-amber-400/80">Não encontrei a mídia do anúncio de origem — confira antes de publicar.</p>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-4">
           <label className="flex items-center gap-2 text-sm text-sky-300 cursor-pointer hover:text-sky-200">
             <ImagePlus className="w-4 h-4" />
-            {ad.mediaFile ? ad.mediaFile.name : 'Selecionar arquivo'}
+            {ad.mediaFile ? ad.mediaFile.name : ad.mediaFromAdId ? 'Substituir arquivo' : 'Selecionar arquivo'}
             <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => onChange({ mediaFile: e.target.files?.[0] || null })} />
           </label>
           <button
