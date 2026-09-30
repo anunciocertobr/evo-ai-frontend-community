@@ -8,6 +8,9 @@ import {
   Settings,
   AlertTriangle,
   Code2,
+  Save,
+  Trash2,
+  Users,
 } from 'lucide-react';
 import {
   Button,
@@ -47,13 +50,17 @@ import { toast } from 'sonner';
 import { BaseHeader } from '@/components/base';
 import { fiscalEstablishmentsService } from '@/services/finances/fiscalEstablishmentsService';
 import { serviceInvoicesService } from '@/services/finances/serviceInvoicesService';
+import { fiscalTomadoresService } from '@/services/finances/fiscalTomadoresService';
 import { apiErrorMessage } from '@/utils/apiHelpers';
 import {
   FiscalEstablishment,
+  FiscalTomador,
   ServiceInvoice,
   ServiceInvoiceFormData,
   ServiceInvoiceStatus,
 } from '@/types/fiscalInvoices';
+import { MunicipioSearchButton } from '@/components/finances/MunicipioAutocomplete';
+import { ServicoLC116SearchButton } from '@/components/finances/ServicoLC116Autocomplete';
 
 const STATUS_META: Record<ServiceInvoiceStatus, { label: string; variant: 'default' | 'destructive' | 'secondary' | 'outline' }> = {
   pending: { label: 'Pendente', variant: 'secondary' },
@@ -94,17 +101,27 @@ export default function NotaFiscalServicoPage() {
   const [cancelTarget, setCancelTarget] = useState<ServiceInvoice | null>(null);
   const [cancelling, setCancelling] = useState(false);
 
+  // Tomadores (clientes) salvos — pedido do usuário pra não redigitar nome/
+  // CPF-CNPJ/endereço toda vez que emite nota pra um cliente recorrente.
+  const [savedTomadores, setSavedTomadores] = useState<FiscalTomador[]>([]);
+  const [selectedTomadorId, setSelectedTomadorId] = useState('');
+  const [savingTomador, setSavingTomador] = useState(false);
+  const [manageTomadoresOpen, setManageTomadoresOpen] = useState(false);
+  const [deletingTomadorId, setDeletingTomadorId] = useState<string | null>(null);
+
   const activeEstablishments = useMemo(() => establishments.filter((e) => e.active), [establishments]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [establishmentsData, invoicesData] = await Promise.all([
+      const [establishmentsData, invoicesData, tomadoresData] = await Promise.all([
         fiscalEstablishmentsService.list(),
         serviceInvoicesService.list(),
+        fiscalTomadoresService.list(),
       ]);
       setEstablishments(establishmentsData);
       setInvoices(invoicesData);
+      setSavedTomadores(tomadoresData);
     } catch (error) {
       toast.error(apiErrorMessage(error) || 'Erro ao carregar notas fiscais de serviço.');
     } finally {
@@ -122,7 +139,67 @@ export default function NotaFiscalServicoPage() {
       fiscal_establishment_id: activeEstablishments[0]?.id || '',
       aliquota_iss_pct: activeEstablishments[0] ? parseFloat(activeEstablishments[0].aliquota_iss_pct) : undefined,
     });
+    setSelectedTomadorId('');
     setDialogOpen(true);
+  };
+
+  const handleSelectTomador = (tomadorId: string) => {
+    setSelectedTomadorId(tomadorId);
+    const tomador = savedTomadores.find((t) => t.id === tomadorId);
+    if (!tomador) return;
+    setForm((prev) => ({
+      ...prev,
+      tomador_nome: tomador.nome,
+      tomador_cpf_cnpj: tomador.cpf_cnpj,
+      tomador_email: tomador.email || '',
+      tomador_endereco: { ...tomador.endereco },
+    }));
+  };
+
+  // Salva (ou atualiza, se o CPF/CNPJ já existir na lista) o tomador
+  // preenchido no formulário — assim a próxima nota pra esse cliente já
+  // aparece no seletor "Tomador salvo" acima, sem redigitar nada.
+  const handleSaveTomador = async () => {
+    if (!form.tomador_nome.trim() || !form.tomador_cpf_cnpj.trim()) {
+      toast.error('Preencha nome e CPF/CNPJ do tomador antes de salvar.');
+      return;
+    }
+    setSavingTomador(true);
+    try {
+      const existing = savedTomadores.find((t) => t.cpf_cnpj === form.tomador_cpf_cnpj.trim());
+      const payload = {
+        nome: form.tomador_nome.trim(),
+        cpf_cnpj: form.tomador_cpf_cnpj.trim(),
+        email: form.tomador_email?.trim() || undefined,
+        endereco: form.tomador_endereco,
+      };
+      const saved = existing
+        ? await fiscalTomadoresService.update(existing.id, payload)
+        : await fiscalTomadoresService.create(payload);
+      setSavedTomadores((prev) =>
+        existing ? prev.map((t) => (t.id === saved.id ? saved : t)) : [...prev, saved].sort((a, b) => a.nome.localeCompare(b.nome)),
+      );
+      setSelectedTomadorId(saved.id);
+      toast.success(existing ? 'Tomador atualizado.' : 'Tomador salvo — vai aparecer no seletor nas próximas notas.');
+    } catch (error) {
+      toast.error(apiErrorMessage(error) || 'Erro ao salvar tomador.');
+    } finally {
+      setSavingTomador(false);
+    }
+  };
+
+  const handleDeleteTomador = async (tomador: FiscalTomador) => {
+    setDeletingTomadorId(tomador.id);
+    try {
+      await fiscalTomadoresService.remove(tomador.id);
+      setSavedTomadores((prev) => prev.filter((t) => t.id !== tomador.id));
+      if (selectedTomadorId === tomador.id) setSelectedTomadorId('');
+      toast.success('Tomador removido.');
+    } catch (error) {
+      toast.error(apiErrorMessage(error) || 'Erro ao remover tomador.');
+    } finally {
+      setDeletingTomadorId(null);
+    }
   };
 
   const handleSave = async () => {
@@ -300,6 +377,43 @@ export default function NotaFiscalServicoPage() {
               </Select>
             </div>
 
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <Label className="text-xs">Tomador salvo</Label>
+                <Select value={selectedTomadorId} onValueChange={handleSelectTomador}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={savedTomadores.length ? 'Escolha pra preencher automaticamente' : 'Nenhum tomador salvo ainda'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {savedTomadores.map((tomador) => (
+                      <SelectItem key={tomador.id} value={tomador.id}>
+                        {tomador.nome} — {tomador.cpf_cnpj}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                title="Salvar/atualizar como tomador"
+                onClick={handleSaveTomador}
+                disabled={savingTomador}
+              >
+                {savingTomador ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                title="Gerenciar tomadores salvos"
+                onClick={() => setManageTomadoresOpen(true)}
+              >
+                <Users className="h-4 w-4" />
+              </Button>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Nome do tomador</Label>
@@ -361,12 +475,22 @@ export default function NotaFiscalServicoPage() {
               </div>
               <div>
                 <Label className="text-xs">Código IBGE do município</Label>
-                <Input
-                  value={form.tomador_endereco.codigo_municipio}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setForm((prev) => ({ ...prev, tomador_endereco: { ...prev.tomador_endereco, codigo_municipio: e.target.value } }))
-                  }
-                />
+                <div className="flex gap-1">
+                  <Input
+                    value={form.tomador_endereco.codigo_municipio}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setForm((prev) => ({ ...prev, tomador_endereco: { ...prev.tomador_endereco, codigo_municipio: e.target.value } }))
+                    }
+                  />
+                  <MunicipioSearchButton
+                    onSelect={(m) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        tomador_endereco: { ...prev.tomador_endereco, codigo_municipio: m.codigo, uf: m.uf },
+                      }))
+                    }
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs">UF</Label>
@@ -404,13 +528,18 @@ export default function NotaFiscalServicoPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <Label className="text-xs">Cód. serviço municipal</Label>
-                <Input
-                  value={form.codigo_servico_municipal}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setForm((prev) => ({ ...prev, codigo_servico_municipal: e.target.value }))
-                  }
-                  placeholder="Lista LC116"
-                />
+                <div className="flex gap-1">
+                  <Input
+                    value={form.codigo_servico_municipal}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setForm((prev) => ({ ...prev, codigo_servico_municipal: e.target.value }))
+                    }
+                    placeholder="Lista LC116"
+                  />
+                  <ServicoLC116SearchButton
+                    onSelect={(s) => setForm((prev) => ({ ...prev, codigo_servico_municipal: s.codigo }))}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs">Valor do serviço (R$)</Label>
@@ -505,6 +634,55 @@ export default function NotaFiscalServicoPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={manageTomadoresOpen} onOpenChange={setManageTomadoresOpen}>
+        <DialogContent className="max-w-lg max-h-[70vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Tomadores salvos</DialogTitle>
+            <DialogDescription>
+              Clientes salvos pra preencher automaticamente ao emitir uma nova NFS-e.
+            </DialogDescription>
+          </DialogHeader>
+          {savedTomadores.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">
+              Nenhum tomador salvo ainda — preencha os dados ao emitir uma nota e clique no ícone de salvar.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>CPF/CNPJ</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {savedTomadores.map((tomador) => (
+                  <TableRow key={tomador.id}>
+                    <TableCell className="max-w-[180px] truncate">{tomador.nome}</TableCell>
+                    <TableCell>{tomador.cpf_cnpj}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteTomador(tomador)}
+                        disabled={deletingTomadorId === tomador.id}
+                        title="Remover"
+                      >
+                        {deletingTomadorId === tomador.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

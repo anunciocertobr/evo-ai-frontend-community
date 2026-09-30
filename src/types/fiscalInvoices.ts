@@ -86,6 +86,23 @@ export interface ServiceInvoice {
   updated_at: string;
 }
 
+export interface FiscalTomador {
+  id: string;
+  nome: string;
+  cpf_cnpj: string;
+  email?: string | null;
+  endereco: ServiceInvoiceEndereco;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FiscalTomadorFormData {
+  nome: string;
+  cpf_cnpj: string;
+  email?: string;
+  endereco: ServiceInvoiceEndereco;
+}
+
 export interface ServiceInvoiceFormData {
   fiscal_establishment_id: string;
   work_order_id?: string;
