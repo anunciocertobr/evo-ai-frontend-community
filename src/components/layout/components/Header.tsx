@@ -22,6 +22,7 @@ import { useLanguage } from '../../../hooks/useLanguage';
 import NotificationBell from '../NotificationBell';
 import ProfileMenu from './ProfileMenu';
 import { TourFab } from '@/components/TourFab';
+import { AiAssistantButton } from '@/components/layout/AiAssistantButton';
 import MenuItem from './MenuItem';
 import { MenuItem as MenuItemType } from '../config/menuItems';
 import { ThemeToggle } from '../../ThemeToggle';
@@ -219,6 +220,7 @@ export default function Header({
         <div className="flex-1 flex justify-end items-center gap-2">
           <PluginSlot id="header.right" />
           <TourFab />
+          <AiAssistantButton />
           <ThemeToggle />
           <NotificationBell />
           <ProfileMenu
@@ -276,6 +278,7 @@ export default function Header({
           <PluginSlot id="header.left" />
           <PluginSlot id="header.right" />
           <TourFab />
+          <AiAssistantButton />
           {/* Theme Toggle */}
           <ThemeToggle />
           {/* Notifications */}
