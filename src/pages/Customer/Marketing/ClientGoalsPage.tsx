@@ -45,6 +45,7 @@ import {
   Card,
   CardContent,
   Separator,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -148,6 +149,7 @@ const emptyObjective = (): ClientGoalObjective => ({
   cost_margin_weekly_max: null,
   cost_margin_monthly_min: null,
   cost_margin_monthly_max: null,
+  notify_when_out_of_goal: true,
 });
 
 // Cada conta de anúncio tem seus PRÓPRIOS objetivos — contas diferentes do
@@ -702,6 +704,13 @@ function ObjectivesEditor({
                       value={obj.budget ?? ''}
                       onChange={(e) => onUpdate(objIndex, { budget: e.target.value === '' ? null : Number(e.target.value) })}
                     />
+                  </div>
+                  <div className="flex items-center gap-2 mt-6">
+                    <Switch
+                      checked={obj.notify_when_out_of_goal ?? true}
+                      onCheckedChange={(checked) => onUpdate(objIndex, { notify_when_out_of_goal: checked })}
+                    />
+                    <Label className="text-xs text-muted-foreground">Notificar fora da meta</Label>
                   </div>
                   <Button size="icon" variant="ghost" className="mt-6" onClick={() => onRemove(objIndex)}>
                     <Trash2 className="h-4 w-4 text-red-500" />

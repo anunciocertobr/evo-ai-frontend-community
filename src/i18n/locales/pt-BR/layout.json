@@ -51,7 +51,8 @@
         "conversation_closed": "Conversa Fechada",
         "message_updated": "Mensagem Atualizada",
         "message_deleted": "Mensagem Deletada",
-        "channel_message": "Nova mensagem via {{channel}}"
+        "channel_message": "Nova mensagem via {{channel}}",
+        "marketing_goal_out_of_margin": "Meta fora da margem"
       }
     }
   },

@@ -124,6 +124,12 @@ export interface ClientGoalObjective {
   cost_margin_weekly_max?: number | null;
   cost_margin_monthly_min?: number | null;
   cost_margin_monthly_max?: number | null;
+  // Liga/desliga o aviso no sino de notificações do CRM quando o
+  // acompanhamento diário (Marketing::GoalTrackingJob) encontra o
+  // resultado fora da margem de custo configurada acima. Ausente em
+  // objetivos salvos antes deste campo existir — tratado como ligado por
+  // padrão (ver notify_when_out_of_goal em MarketingClientGoalSerializer).
+  notify_when_out_of_goal?: boolean;
   status?: ClientGoalObjectiveStatus;
 }
 
