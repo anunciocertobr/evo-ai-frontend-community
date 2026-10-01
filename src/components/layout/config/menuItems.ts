@@ -1,6 +1,7 @@
 import { LucideIcon } from 'lucide-react';
 import {
   User,
+  UserPlus,
   LogOut,
   Cog,
   MessageSquare,
@@ -303,6 +304,11 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         name: 'Imobiliária',
         href: '/organizacao/imobiliaria',
         icon: Home,
+      },
+      {
+        name: 'Lead Ads (Meta)',
+        href: '/organizacao/lead-ads-meta',
+        icon: UserPlus,
       },
     ],
   },

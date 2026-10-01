@@ -99,6 +99,7 @@ import DashboardContentPage from '@/pages/Customer/Dashboard/DashboardContentPag
 import OrganizationDataPage from '@/pages/Customer/Organization/OrganizationDataPage';
 import DigitalMenuSettingsPage from '@/pages/Customer/Organization/DigitalMenuSettingsPage';
 import RealEstateSettingsPage from '@/pages/Customer/Organization/RealEstateSettingsPage';
+import MetaLeadFormsSettingsPage from '@/pages/Customer/Organization/MetaLeadFormsSettingsPage';
 import CrmForms from '@/pages/Customer/Settings/CrmForms';
 import ChatPages from '@/pages/Customer/Settings/ChatPages';
 import Templates from '@/pages/Customer/Settings/Templates/Templates';
@@ -1431,6 +1432,19 @@ const AppRouter = () => {
                 <CustomerRoute>
                   <MainLayout>
                     <RealEstateSettingsPage />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/organizacao/lead-ads-meta"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <MetaLeadFormsSettingsPage />
                   </MainLayout>
                 </CustomerRoute>
               </PrivateRoute>
