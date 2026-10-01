@@ -83,8 +83,16 @@ encerrar a sessão — nunca deixe o hotfix pendurado só na branch.
      (import não usado num arquivo novo, tipo que só existe de um lado,
      etc.).
    - `npx eslint <arquivos tocados>`
-   - `npx vite build` (build de produção de verdade, não só o dev server)
+   - `npx vite build` (build de produção de verdade, não só o dev server) —
+     **rodar `tsc -b --force`/`vite build` direto com saída redirecionada
+     (`> arquivo` ou `| tail`) na mesma chamada trava com o buffer vazio
+     nesta máquina; usar `nohup ... > /tmp/log &` e consultar o log depois,
+     ver `~/CLAUDE.md` ("Builds longos LOCAIS")** — os dois comandos levam
+     vários minutos neste projeto (~10 mil módulos), não é travamento.
 5. Commit detalhado explicando cada conflito resolvido e por quê. `git push
-   origin main`. Só depois, `bin/deploy_vps.sh <nota>`.
+   origin main`. Só depois, `bin/deploy_vps.sh <nota>` — **a partir de uma
+   sessão Claude Code, ver `~/CLAUDE.md` ("Rodando bin/deploy_vps.sh a partir
+   desta sessão") antes: chamar o script direto em primeiro plano via SSH já
+   deixou um deploy pela metade por interromper o script no meio.**
 6. Depois do deploy: `curl` checando 200 em
    `https://crmcerto.anunciocertobr.com.br/`.
