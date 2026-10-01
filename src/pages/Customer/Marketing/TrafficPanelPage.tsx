@@ -13,6 +13,7 @@ import {
   AGE_RANGES,
   ageRangeFor,
   ConversaoTipo,
+  conversaoTiposFor,
   emptyAdSetMeta,
   FACEBOOK_POSITION_OPTIONS,
   INSTAGRAM_POSITION_OPTIONS,
@@ -3175,7 +3176,29 @@ function CreateCampaignModal({
             </div>
             <div>
               <Label className="text-xs text-slate-400">Objetivo</Label>
-              <Select value={objectiveKey} onValueChange={(v) => setObjectiveKey(v as ObjectiveKey)}>
+              <Select
+                value={objectiveKey}
+                onValueChange={(v) => {
+                  const newObjectiveKey = v as ObjectiveKey;
+                  setObjectiveKey(newObjectiveKey);
+                  // Trocar o objetivo (ex: duplicar uma campanha de Formulário e mudar
+                  // pra Alcance) pode deixar "onde acontecem as conversões" com um
+                  // valor que o novo objetivo nem oferece mais — sem isso,
+                  // `optimizationGoalFor` caía num fallback silencioso (ex: virava
+                  // Conversão no site com local/evento vazios, sem o usuário nunca
+                  // ver esses campos). Reseta só os campos dependentes do objetivo
+                  // pro padrão de "conjunto novo"; público, criativos, textos e
+                  // orçamento (fora de `meta`) continuam exatamente como estavam.
+                  const tiposValidos = conversaoTiposFor(newObjectiveKey).map((o) => o.value);
+                  setAdSets((prev) =>
+                    prev.map((adSet) =>
+                      tiposValidos.includes(adSet.meta.conversaoTipo)
+                        ? adSet
+                        : { ...adSet, meta: { ...emptyAdSetMeta(), pageId: adSet.meta.pageId } }
+                    )
+                  );
+                }}
+              >
                 <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
                   <SelectValue />
                 </SelectTrigger>
