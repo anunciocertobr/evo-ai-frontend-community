@@ -176,6 +176,17 @@ class PipelinesService {
     return extractData<{ success: boolean; message: string }>(response);
   }
 
+  // Botão "Qualificar Lead" do card do Kanban
+  async qualifyItem(
+    pipelineId: string,
+    itemId: string,
+    data: { lead_quality: string | null; lead_score: number | null; lead_objection: string | null; lead_observation: string | null },
+  ): Promise<PipelineItem> {
+    const response = await api.patch(`/pipelines/${pipelineId}/pipeline_items/${itemId}/qualify`, data);
+    const payload = extractData<{ pipeline_item: PipelineItem }>(response);
+    return payload.pipeline_item;
+  }
+
   // Get available conversations for pipeline
   async getAvailableConversations(
     pipelineId: string,

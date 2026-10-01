@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { RefreshCw, Loader2, Download, Upload, MessageCircle, CheckSquare, Square } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@evoapi/design-system';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Switch, Label } from '@evoapi/design-system';
 import { BaseHeader } from '@/components/base';
+import { adminConfigService } from '@/services/admin/adminConfigService';
 import {
   googleContactsService,
   GoogleContactCandidate,
@@ -10,10 +11,16 @@ import {
   WhatsappContactCandidate,
 } from '@/services/contacts/googleContactsService';
 
+const AUTO_SAVE_CONFIG_TYPE = 'google_contacts';
+
 export default function GoogleContactsSync() {
   const [statusLoaded, setStatusLoaded] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
+
+  const [autoSave, setAutoSave] = useState(false);
+  const [autoSaveLoaded, setAutoSaveLoaded] = useState(false);
+  const [autoSaveSaving, setAutoSaveSaving] = useState(false);
 
   const [loadingGoogle, setLoadingGoogle] = useState(false);
   const [onlyInGoogle, setOnlyInGoogle] = useState<GoogleContactCandidate[]>([]);
@@ -43,6 +50,30 @@ export default function GoogleContactsSync() {
   useEffect(() => {
     loadStatus();
   }, [loadStatus]);
+
+  useEffect(() => {
+    adminConfigService
+      .getConfig(AUTO_SAVE_CONFIG_TYPE)
+      .then((config) => setAutoSave(config.GOOGLE_CONTACTS_AUTO_SAVE === 'true'))
+      .catch(() => {
+        // silencioso — o toggle só fica desmarcado, sem travar o resto da tela
+      })
+      .finally(() => setAutoSaveLoaded(true));
+  }, []);
+
+  const toggleAutoSave = async (checked: boolean) => {
+    setAutoSave(checked);
+    setAutoSaveSaving(true);
+    try {
+      await adminConfigService.saveConfig(AUTO_SAVE_CONFIG_TYPE, { GOOGLE_CONTACTS_AUTO_SAVE: checked ? 'true' : 'false' });
+      toast.success(checked ? 'Salvamento automático ativado.' : 'Salvamento automático desativado.');
+    } catch {
+      setAutoSave(!checked);
+      toast.error('Falha ao salvar essa preferência.');
+    } finally {
+      setAutoSaveSaving(false);
+    }
+  };
 
   const withBusy = (key: string, on: boolean) => {
     setBusyKeys((prev) => {
@@ -160,6 +191,21 @@ export default function GoogleContactsSync() {
   return (
     <div className="p-4 md:p-6 space-y-6">
       <BaseHeader title="Contatos Google" subtitle="Sincronize os Contatos do CRM com o Google e recupere contatos do WhatsApp que não foram salvos." />
+
+      <Card>
+        <CardContent className="flex items-center justify-between pt-6">
+          <div>
+            <Label className="text-sm font-medium">Salvar novos contatos automaticamente no Google</Label>
+            <p className="text-xs text-muted-foreground">
+              Todo contato novo (com telefone ou e-mail) é criado no Google Contatos assim que entra no CRM — sem
+              precisar sincronizar manualmente aqui embaixo.
+            </p>
+          </div>
+          {autoSaveLoaded && (
+            <Switch checked={autoSave} onCheckedChange={toggleAutoSave} disabled={autoSaveSaving} />
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">

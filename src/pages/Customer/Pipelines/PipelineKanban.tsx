@@ -42,6 +42,11 @@ import {
   FileText,
   Link2,
   CheckSquare,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Megaphone,
+  Target,
+  Gauge,
 } from 'lucide-react';
 
 import { pipelinesService } from '@/services/pipelines';
@@ -66,6 +71,8 @@ import ReorderStagesModal from '@/components/pipelines/ReorderStagesModal';
 import PipelineCaptureFormsModal from '@/components/pipelines/PipelineCaptureFormsModal';
 import PipelinePurchaseWebhookModal from '@/components/pipelines/PipelinePurchaseWebhookModal';
 import { ScheduleActionModal } from '@/components/scheduledActions';
+import LeadQualificationDialog from '@/components/pipelines/LeadQualificationDialog';
+import LeadAdDataModal from '@/components/pipelines/LeadAdDataModal';
 
 // Status/priority badge styles use the design system's semantic Tailwind classes
 // (same palette Chat/Contacts use), with dark-mode variants — NOT arbitrary hex.
@@ -115,6 +122,25 @@ const TASK_STATUS_BADGE_CLASS: Record<string, string> = {
   completed: 'bg-primary/10 text-primary',
   cancelled: 'bg-muted text-muted-foreground line-through',
   overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+};
+
+// lead_quality shares values with priority ('alta'/'media'/'baixa'), so it
+// reuses PRIORITY_BADGE_CLASS's palette instead of a second color map.
+const LEAD_QUALITY_LABEL: Record<string, string> = {
+  alta: 'Lead quente',
+  media: 'Lead morno',
+  baixa: 'Lead frio',
+};
+
+const COLLAPSED_ITEMS_STORAGE_KEY = 'pipeline_kanban_collapsed_items';
+
+const loadCollapsedItemIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_ITEMS_STORAGE_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
 };
 
 export default function PipelineKanban() {
@@ -200,6 +226,29 @@ export default function PipelineKanban() {
   const scheduleActionContactId =
     selectedConversationForSchedule?.conversation?.contact?.id ??
     selectedConversationForSchedule?.contact?.id;
+
+  // Encolher card inteiro pro título só — persistido no navegador (não é
+  // dado de servidor, é só uma preferência visual local).
+  const [collapsedItemIds, setCollapsedItemIds] = useState<Set<string>>(loadCollapsedItemIds);
+  const toggleCollapsedItem = (itemId: string) => {
+    setCollapsedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      try {
+        localStorage.setItem(COLLAPSED_ITEMS_STORAGE_KEY, JSON.stringify(Array.from(next)));
+      } catch {
+        // localStorage indisponível (modo privado etc.) — a preferência só não persiste
+      }
+      return next;
+    });
+  };
+
+  // Botão "Qualificar Lead" e modal "Dados do Lead" (UTMs/anúncio)
+  const [qualifyItem, setQualifyItem] = useState<PipelineItem | null>(null);
+  const [showQualifyDialog, setShowQualifyDialog] = useState(false);
+  const [leadDataItem, setLeadDataItem] = useState<PipelineItem | null>(null);
+  const [showLeadDataModal, setShowLeadDataModal] = useState(false);
 
   // Load pipeline data
   const loadPipelineData = useCallback(async () => {
@@ -1288,6 +1337,8 @@ export default function PipelineKanban() {
                         const pBucket = priorityBucket(item.conversation?.priority);
                         const firstLabel = item.conversation?.labels?.[0]?.title;
                         const moveTargets = stages.filter(s => s.id !== item.stage_id);
+                        const isCollapsed = collapsedItemIds.has(item.id);
+                        const platform = item.ad_attribution?.platform;
                         return (
                         <div
                           key={item.id}
@@ -1366,6 +1417,28 @@ export default function PipelineKanban() {
                                     {t('kanban.item.scheduleAction')}
                                   </DropdownMenuItem>
                                 )}
+                                {item.type !== 'task' && (
+                                  <>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setQualifyItem(item);
+                                        setShowQualifyDialog(true);
+                                      }}
+                                    >
+                                      <Gauge className="h-4 w-4 mr-2" />
+                                      Qualificar Lead
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setLeadDataItem(item);
+                                        setShowLeadDataModal(true);
+                                      }}
+                                    >
+                                      <Link2 className="h-4 w-4 mr-2" />
+                                      Dados do Lead
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem className="text-destructive" onClick={() => handleRemoveItem(item)}>
                                   <Trash2 className="h-4 w-4 mr-2" />
@@ -1373,6 +1446,15 @@ export default function PipelineKanban() {
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto p-1 text-muted-foreground hover:bg-muted"
+                              onClick={() => toggleCollapsedItem(item.id)}
+                              aria-label={isCollapsed ? 'Expandir card' : 'Minimizar card'}
+                            >
+                              {isCollapsed ? <ChevronsUpDown className="w-4 h-4" /> : <ChevronsDownUp className="w-4 h-4" />}
+                            </Button>
                           </div>
 
                           {/* Card header: task title vs. contact identity */}
@@ -1389,11 +1471,27 @@ export default function PipelineKanban() {
                             </div>
                           ) : (
                             <div className="flex items-start gap-3 mb-2.5 pr-14">
-                              <div
-                                className="w-[34px] h-[34px] shrink-0 rounded-full flex items-center justify-center text-white text-[13px] font-bold shadow-sm"
-                                style={{ backgroundColor: getContactColor(item.contact?.name) }}
-                              >
-                                {item.contact?.name?.[0]?.toUpperCase() || 'U'}
+                              <div className="relative shrink-0">
+                                <div
+                                  className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-white text-[13px] font-bold shadow-sm"
+                                  style={{ backgroundColor: getContactColor(item.contact?.name) }}
+                                >
+                                  {item.contact?.name?.[0]?.toUpperCase() || 'U'}
+                                </div>
+                                {platform && (
+                                  <div
+                                    className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center border-2 border-background ${
+                                      platform === 'meta' ? 'bg-blue-600' : 'bg-amber-500'
+                                    }`}
+                                    title={platform === 'meta' ? 'Veio de um anúncio Meta (Facebook/Instagram)' : `Veio de ${platform}`}
+                                  >
+                                    {platform === 'meta' ? (
+                                      <Megaphone className="w-2.5 h-2.5 text-white" />
+                                    ) : (
+                                      <Target className="w-2.5 h-2.5 text-white" />
+                                    )}
+                                  </div>
+                                )}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1.5">
@@ -1402,6 +1500,14 @@ export default function PipelineKanban() {
                                   </h4>
                                   {item.conversation?.display_id && (
                                     <span className="text-xs text-muted-foreground shrink-0">#{item.conversation.display_id}</span>
+                                  )}
+                                  {item.lead_quality && (
+                                    <span
+                                      className={`inline-flex items-center gap-0.5 text-[10.5px] font-bold px-1.5 py-0.5 rounded shrink-0 ${PRIORITY_BADGE_CLASS[item.lead_quality]}`}
+                                      title={LEAD_QUALITY_LABEL[item.lead_quality]}
+                                    >
+                                      <Gauge className="w-2.5 h-2.5" />
+                                    </span>
                                   )}
                                 </div>
                                 {item.contact?.phone_number && (
@@ -1414,6 +1520,8 @@ export default function PipelineKanban() {
                             </div>
                           )}
 
+                          {!isCollapsed && (
+                          <>
                           {/* Task description preview */}
                           {item.type === 'task' && item.description && (
                             <div className="mb-2.5 p-2.5 bg-muted/50 rounded-lg">
@@ -1533,6 +1641,8 @@ export default function PipelineKanban() {
                                   </span>
                                 )}
                           </div>
+                          </>
+                          )}
                         </div>
                         );
                       })}
@@ -1714,6 +1824,20 @@ export default function PipelineKanban() {
         onOpenChange={setShowPurchaseWebhookModal}
         pipeline={pipeline}
       />
+
+      {/* Botão "Qualificar Lead" do card */}
+      <LeadQualificationDialog
+        open={showQualifyDialog}
+        onOpenChange={setShowQualifyDialog}
+        pipelineId={qualifyItem?.pipeline_id || pipelineId || ''}
+        item={qualifyItem}
+        onQualified={() => {
+          loadPipelineData();
+        }}
+      />
+
+      {/* "Dados do Lead" — UTMs e clique de anúncio */}
+      <LeadAdDataModal open={showLeadDataModal} onOpenChange={setShowLeadDataModal} item={leadDataItem} />
     </div>
   );
 }

@@ -284,6 +284,36 @@ export interface PipelineItem {
   completed_at?: number | null;
   days_in_pipeline?: number;
   days_in_current_stage?: number;
+  // Botão "Qualificar Lead" — ver PipelineItem#qualify! no backend.
+  lead_quality?: 'baixa' | 'media' | 'alta' | null;
+  lead_score?: number | null;
+  lead_objection?: string | null;
+  lead_observation?: string | null;
+  lead_qualified_at?: number | null;
+  // Clique de anúncio que originou o contato (Whatsapp::AdReferralCapture no
+  // backend) — ausente quando o contato não veio de um anúncio rastreado.
+  ad_attribution?: {
+    platform: string;
+    source_id?: string | null;
+    source_type?: string | null;
+    source_url?: string | null;
+    ctwaclid?: string | null;
+    gclid?: string | null;
+    headline?: string | null;
+    body?: string | null;
+    thumbnail_url?: string | null;
+    campaign_id?: string | null;
+    campaign_name?: string | null;
+    adset_id?: string | null;
+    adset_name?: string | null;
+    ad_id?: string | null;
+    ad_name?: string | null;
+    utm_source?: string | null;
+    utm_medium?: string | null;
+    utm_campaign?: string | null;
+    utm_content?: string | null;
+    utm_term?: string | null;
+  } | null;
   // type === 'task': card data comes from the root PipelineTask (title,
   // description, priority, due_date, status, assignee), not from a
   // conversation/contact — this is a standalone "Asana-like" task card.
