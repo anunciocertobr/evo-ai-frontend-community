@@ -247,10 +247,27 @@ function getDaysLeftColor(daysLeft: number): string {
   return 'text-red-400';
 }
 
+// `balance`/`spend_cap`/`amount_spent` vêm da Graph API na MENOR unidade da
+// moeda (centavos pro BRL) — diferente de `insight.spend` (API de Insights),
+// que já vem na unidade principal. Pra conta PRÉ-PAGA, `balance` sozinho não
+// é "quanto ainda dá pra gastar" (é outro valor de billing da Meta); o saldo
+// restante de verdade é spend_cap - amount_spent. Confirmado ao vivo contra
+// a Graph API (conta Rescue Brasil: balance cru mostrava R$ dezenas vezes
+// maior que o saldo real da conta, exatamente a proporção de um "sem ÷100"
+// combinado com o campo errado).
+function resolveAccountBalance(account: TrafficAccount): number {
+  if (account.is_prepay_account && account.spend_cap) {
+    const spendCap = parseFloat(account.spend_cap) / 100;
+    const amountSpent = parseFloat(account.amount_spent || '0') / 100;
+    return Math.max(spendCap - amountSpent, 0);
+  }
+  return parseFloat(account.balance || '0') / 100;
+}
+
 // null = tem saldo mas sem gasto nos últimos 30 dias (não dá pra projetar);
 // 0 = sem saldo; >0 = dias estimados.
 function computeDaysLeft(account: TrafficAccount): number | null {
-  const balance = parseFloat(account.balance || '0');
+  const balance = resolveAccountBalance(account);
   const periodSpend = parseFloat(account.insights_30d?.[0]?.spend || '0');
   const dailySpend = periodSpend / DAYS_LEFT_SPEND_WINDOW;
   if (!(balance > 0)) return 0;
@@ -300,7 +317,7 @@ function accountToMetricValues(account: TrafficAccount): Partial<Record<MetricKe
     'offsite_complete_registration_add_meta_leads',
   ]);
   return {
-    balance: parseFloat(account.balance || '0'),
+    balance: resolveAccountBalance(account),
     spend,
     impressions,
     reach,
