@@ -15,6 +15,18 @@ export interface LeadForm {
   created_time?: string;
 }
 
+export interface LeadFormLead {
+  id: string;
+  created_time: string;
+  field_data: Array<{ name: string; values: string[] }>;
+  ad_id?: string;
+  ad_name?: string;
+  adset_id?: string;
+  adset_name?: string;
+  campaign_id?: string;
+  campaign_name?: string;
+}
+
 export interface LeadQuestionOption {
   key: string;
   value: string;
@@ -380,6 +392,17 @@ class MetaCreationService {
       id_formulario: formId,
       status,
     });
+  }
+
+  // Todos os leads já recebidos por esse formulário, direto na Graph API
+  // (histórico completo, não só o que passou pelo webhook de importação).
+  async listFormLeads(pageId: string, formId: string): Promise<LeadFormLead[]> {
+    const response = await api.post<LeadFormLead[]>(ENDPOINT, {
+      acao: 'leads_formulario_lead',
+      id_pagina: pageId,
+      id_formulario: formId,
+    });
+    return response.data || [];
   }
 
   private toLeadFormParams(payload: LeadFormCreatePayload) {

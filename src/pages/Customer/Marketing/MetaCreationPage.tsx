@@ -8,11 +8,12 @@ import {
   TabsList,
   TabsTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2 } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import { LeadFormCreateDialog } from '@/components/marketing/LeadFormCreateDialog';
+import LeadFormLeadsDialog from '@/components/marketing/LeadFormLeadsDialog';
 import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialog';
 import { AudienceContactsPickerDialog } from '@/components/marketing/AudienceContactsPickerDialog';
 import { TargetingBuilder } from '@/components/marketing/TargetingBuilder';
@@ -67,6 +68,7 @@ export default function MetaCreationPage() {
   const [duplicateContext, setDuplicateContext] = useState<DuplicateContext | null>(null);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [loadingFormAction, setLoadingFormAction] = useState<string | null>(null);
+  const [leadsForm, setLeadsForm] = useState<LeadForm | null>(null);
 
   // Públicos
   const [account, setAccount] = useState<{ id: string; name: string } | null>(null);
@@ -287,6 +289,9 @@ export default function MetaCreationPage() {
                         >
                           <Copy className="w-3.5 h-3.5 mr-1" /> Duplicar
                         </Button>
+                        <Button size="sm" variant="outline" onClick={() => setLeadsForm(form)}>
+                          <ListChecks className="w-3.5 h-3.5 mr-1" /> Ver leads
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -315,6 +320,16 @@ export default function MetaCreationPage() {
                 defaultPage={page}
                 duplicateFrom={duplicateContext}
               />
+
+              {leadsForm && (
+                <LeadFormLeadsDialog
+                  open={Boolean(leadsForm)}
+                  onOpenChange={(open) => !open && setLeadsForm(null)}
+                  pageId={page.id}
+                  formId={leadsForm.id}
+                  formName={leadsForm.name}
+                />
+              )}
             </>
           )}
         </TabsContent>
