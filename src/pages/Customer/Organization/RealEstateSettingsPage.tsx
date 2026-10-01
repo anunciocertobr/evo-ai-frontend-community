@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Palette, MessageSquare, Code2, Save, ExternalLink, Users, Shuffle } from 'lucide-react';
+import { Palette, MessageSquare, Code2, Save, ExternalLink, Users, Shuffle, Rss, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { BaseHeader } from '@/components/base';
 import {
@@ -15,6 +15,8 @@ import {
 } from '@evoapi/design-system';
 import { adminConfigService } from '@/services/admin/adminConfigService';
 import { RealEstateAgentsDialog, type RealEstateAgent } from '@/components/real-estate/RealEstateAgentsDialog';
+import CopyCallbackUrl from '@/components/common/CopyCallbackUrl';
+import { apiOrigin } from '@/utils/assetUrl';
 
 const CONFIG_TYPE = 'real_estate';
 const AGENTS_CONFIG_KEY = 'REAL_ESTATE_AGENTS';
@@ -37,6 +39,8 @@ interface RealEstateSettings {
   REAL_ESTATE_LEAD_DISTRIBUTION_AGENT_SCOPE: AgentScope;
   REAL_ESTATE_LEAD_DISTRIBUTION_RESPECT_HOURS: string;
   REAL_ESTATE_LEAD_DISTRIBUTION_SINGLE_AGENT_ID: string;
+  ZAP_FEED_TOKEN: string;
+  ZAP_CONTACT_EMAIL: string;
 }
 
 const DEFAULTS: RealEstateSettings = {
@@ -54,6 +58,8 @@ const DEFAULTS: RealEstateSettings = {
   REAL_ESTATE_LEAD_DISTRIBUTION_AGENT_SCOPE: 'active',
   REAL_ESTATE_LEAD_DISTRIBUTION_RESPECT_HOURS: 'false',
   REAL_ESTATE_LEAD_DISTRIBUTION_SINGLE_AGENT_ID: '',
+  ZAP_FEED_TOKEN: '',
+  ZAP_CONTACT_EMAIL: '',
 };
 
 function safeParseAgents(raw: unknown): RealEstateAgent[] {
@@ -113,6 +119,14 @@ export default function RealEstateSettingsPage() {
 
   const set = (key: keyof RealEstateSettings, value: string) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // Token só identifica a URL (evita que ela seja adivinhada antes de ser
+  // cadastrada no Canal Pro) — gerado no navegador, não precisa ir e voltar
+  // do backend; só é persistido quando "Salvar" é clicado, igual os outros campos.
+  const generateFeedToken = () => {
+    const token = crypto.randomUUID().replace(/-/g, '');
+    set('ZAP_FEED_TOKEN', token);
   };
 
   const setMode = (value: DistributionMode) => {
@@ -316,6 +330,45 @@ export default function RealEstateSettingsPage() {
             placeholder="55 11 91234-1234"
           />
         </div>
+      </section>
+
+      {/* Portais */}
+      <section className="rounded-lg border border-border bg-card p-4 space-y-3">
+        <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Rss className="w-4 h-4 text-primary" /> Portais (ZAP Imóveis / Viva Real / OLX)
+        </h4>
+        <p className="text-xs text-muted-foreground">
+          Gera um feed XML (formato VrSync) com os imóveis ativos — cole a URL abaixo em "Configurações
+          da conta → Integrações" no Canal Pro da ZAP. O portal relê o arquivo sozinho a cada ~12h, sem
+          precisar republicar manualmente.
+        </p>
+        <div className="space-y-1.5 max-w-sm">
+          <Label>E-mail de contato (exigido pelo portal)</Label>
+          <Input
+            type="email"
+            value={settings.ZAP_CONTACT_EMAIL}
+            onChange={(e) => set('ZAP_CONTACT_EMAIL', e.target.value)}
+            placeholder="contato@suaempresa.com.br"
+          />
+        </div>
+        {settings.ZAP_FEED_TOKEN ? (
+          <div className="space-y-2">
+            <CopyCallbackUrl
+              url={`${apiOrigin}/public/api/v1/real_estate/zap_feed/${settings.ZAP_FEED_TOKEN}.xml`}
+              label="URL do feed XML"
+              hint="Cole esta URL no Canal Pro. Gerar um novo token invalida a URL antiga — você precisará atualizar no Canal Pro de novo."
+              copiedMessage="URL copiada!"
+              copyLabel="Copiar URL do feed"
+            />
+            <Button variant="outline" size="sm" onClick={generateFeedToken}>
+              <RefreshCw className="w-3.5 h-3.5 mr-2" /> Gerar novo token
+            </Button>
+          </div>
+        ) : (
+          <Button variant="outline" size="sm" onClick={generateFeedToken}>
+            <RefreshCw className="w-3.5 h-3.5 mr-2" /> Gerar URL do feed
+          </Button>
+        )}
       </section>
     </div>
   );

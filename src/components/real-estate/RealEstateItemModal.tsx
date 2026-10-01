@@ -43,6 +43,27 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
+// Espelha RealEstate::ZapImoveisFeedBuilder::TRANSACTION_TYPES/PROPERTY_TYPES
+// no backend (crm_certo) — mudar um lado sem o outro faz o imóvel ser pulado
+// silenciosamente do feed da ZAP (metadata não bate com nenhuma chave aceita).
+const TRANSACTION_TYPE_OPTIONS = [
+  { value: 'venda', label: 'Venda' },
+  { value: 'aluguel', label: 'Aluguel' },
+  { value: 'venda_aluguel', label: 'Venda e Aluguel' },
+] as const;
+
+const PROPERTY_TYPE_OPTIONS = [
+  { value: 'apartamento', label: 'Apartamento' },
+  { value: 'casa', label: 'Casa' },
+  { value: 'condominio', label: 'Casa em Condomínio' },
+  { value: 'sobrado', label: 'Sobrado' },
+  { value: 'cobertura', label: 'Cobertura' },
+  { value: 'kitnet', label: 'Kitnet' },
+  { value: 'studio', label: 'Studio' },
+  { value: 'loft', label: 'Loft' },
+  { value: 'terreno', label: 'Terreno' },
+] as const;
+
 const formatCep = (value: string): string => {
   const digits = value.replace(/\D/g, '').slice(0, 8);
   return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
@@ -78,6 +99,12 @@ interface RealEstateFormState {
   latitude: number | null;
   longitude: number | null;
   contact_mode: 'whatsapp' | 'formulario';
+  // Exigidos pelo feed VrSync da ZAP Imóveis — opcionais aqui porque o
+  // imóvel continua funcionando normalmente no site público sem eles,
+  // só fica de fora do feed (ver RealEstate::ZapImoveisFeedBuilder#skip_reason).
+  transaction_type: string;
+  property_type: string;
+  area_util: number | null;
 }
 
 function emptyForm(): RealEstateFormState {
@@ -105,6 +132,9 @@ function emptyForm(): RealEstateFormState {
     latitude: null,
     longitude: null,
     contact_mode: 'whatsapp',
+    transaction_type: '',
+    property_type: '',
+    area_util: null,
   };
 }
 
@@ -215,6 +245,9 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
             latitude: asNumber(metadata.latitude),
             longitude: asNumber(metadata.longitude),
             contact_mode: metadata.contact_mode === 'formulario' ? 'formulario' : 'whatsapp',
+            transaction_type: asString(metadata.transaction_type),
+            property_type: asString(metadata.property_type),
+            area_util: asNumber(metadata.area_util),
           }
         : emptyForm(),
     );
@@ -479,6 +512,9 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
         latitude: form.latitude,
         longitude: form.longitude,
         contact_mode: form.contact_mode,
+        transaction_type: form.transaction_type || null,
+        property_type: form.property_type || null,
+        area_util: form.area_util,
       },
     };
 
@@ -556,6 +592,58 @@ export default function RealEstateItemModal({ open, item, loading, errors, onOpe
                   <SelectItem value="draft">Rascunho</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="re-transaction-type">Tipo de transação</Label>
+              <Select
+                value={form.transaction_type}
+                onValueChange={(v) => setForm({ ...form, transaction_type: v })}
+              >
+                <SelectTrigger id="re-transaction-type">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRANSACTION_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="re-property-type">Tipo de imóvel</Label>
+              <Select value={form.property_type} onValueChange={(v) => setForm({ ...form, property_type: v })}>
+                <SelectTrigger id="re-property-type">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROPERTY_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="re-area-util">Área útil (m²)</Label>
+              <Input
+                id="re-area-util"
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.area_util ?? ''}
+                onChange={(e) => setForm({ ...form, area_util: e.target.value === '' ? null : Number(e.target.value) })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Tipo de transação, tipo de imóvel, área útil e pelo menos 5 fotos são exigidos pelo feed
+                da ZAP Imóveis/Viva Real/OLX (Organização &gt; Imobiliária) — sem eles o imóvel continua
+                aparecendo no site, só fica de fora desse feed.
+              </p>
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">

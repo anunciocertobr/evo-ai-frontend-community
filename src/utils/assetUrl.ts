@@ -1,7 +1,7 @@
 const rawApiBaseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // Strip a trailing /api/vN and any trailing slash to get the bare API origin.
-const apiOrigin = rawApiBaseURL.replace(/\/api\/v\d+$/i, '').replace(/\/$/, '');
+export const apiOrigin = rawApiBaseURL.replace(/\/api\/v\d+$/i, '').replace(/\/$/, '');
 
 /**
  * Resolves a backend asset URL against the API origin. The API serialises blob URLs as
