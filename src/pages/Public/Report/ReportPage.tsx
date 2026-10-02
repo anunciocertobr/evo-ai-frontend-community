@@ -1,212 +1,292 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { fetchPublicReport, PublicReportPayload } from '@/services/marketing/reportLinksService';
+import { Card, CardContent, CardHeader, CardTitle } from '@evoapi/design-system';
 import {
-  ClientGoal,
-  ClientGoalAdAccount,
-  ClientGoalObjective,
-  OBJECTIVE_TYPE_OPTIONS,
-} from '@/services/marketing/clientGoalsService';
+  fetchPublicReport,
+  type PublicReportPayload,
+  type AdsInsightRow,
+  type AdsReportData,
+} from '@/services/marketing/reportLinksService';
+import type { ClientGoal } from '@/services/marketing/clientGoalsService';
 
-const currency = (value: number | null | undefined) =>
-  value === null || value === undefined
-    ? '—'
-    : value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+type State =
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | { kind: 'gone'; message: string }
+  | { kind: 'ready'; payload: PublicReportPayload };
 
-const decimal = (value: number | null | undefined) =>
-  value === null || value === undefined ? '—' : value.toLocaleString('pt-BR');
+const RANGE_OPTIONS = [
+  { label: '7 dias', days: 7 },
+  { label: '30 dias', days: 30 },
+  { label: '90 dias', days: 90 },
+];
 
-// O backend não manda `label` no tipo compartilhado (só o OBJECTIVE_LABELS
-// interno dele), então resolvemos pelo objetivo — 'outro' usa o rótulo livre.
-const objectiveLabel = (objective: ClientGoalObjective): string => {
-  if (objective.objective_type === 'outro') {
-    return objective.custom_label || 'Outro';
-  }
-  return (
-    OBJECTIVE_TYPE_OPTIONS.find((option) => option.value === objective.objective_type)?.label ??
-    'Objetivo'
-  );
-};
-
-const ObjectiveRow = ({ objective }: { objective: ClientGoalObjective }) => {
-  const status = objective.status;
-  const hasStatus = Boolean(status?.trackable);
-
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-medium text-foreground">{objectiveLabel(objective)}</span>
-        <span className="text-sm text-muted-foreground">
-          Orçamento: {currency(objective.budget)}
-        </span>
-      </div>
-
-      <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-        <div>
-          <dt className="text-muted-foreground">Meta diária</dt>
-          <dd className="text-foreground">{decimal(objective.target_result_daily)}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Meta semanal</dt>
-          <dd className="text-foreground">{decimal(objective.target_result_weekly)}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Meta mensal</dt>
-          <dd className="text-foreground">{decimal(objective.target_result_monthly)}</dd>
-        </div>
-      </dl>
-
-      {hasStatus && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              status?.last_within_margin
-                ? 'bg-green-100 text-green-800'
-                : 'bg-red-100 text-red-800'
-            }`}
-          >
-            {status?.last_within_margin ? 'Dentro da meta' : 'Fora da meta'}
-          </span>
-          <span className="text-muted-foreground">
-            Custo por resultado: {currency(status?.last_cost_per_result)}
-          </span>
-          {Boolean(status?.days_out_of_margin) && (
-            <span className="text-muted-foreground">
-              {status?.days_out_of_margin} dia(s) fora da meta
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const AccountCard = ({ account }: { account: ClientGoalAdAccount }) => (
-  <div className="rounded-lg border border-border bg-background p-4">
-    <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <span className="font-medium text-foreground">{account.name || 'Conta sem nome'}</span>
-      {account.id && (
-        <span className="font-mono text-xs text-muted-foreground">{account.id}</span>
-      )}
-    </div>
-    <div className="mt-3 space-y-2">
-      {account.objectives.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma meta definida nesta conta.</p>
-      ) : (
-        account.objectives.map((objective, index) => (
-          <ObjectiveRow key={objective.key ?? index} objective={objective} />
-        ))
-      )}
-    </div>
-  </div>
-);
-
-const GoalCard = ({ goal }: { goal: ClientGoal }) => (
-  <section className="space-y-3">
-    <header className="space-y-1">
-      <h2 className="text-lg font-semibold text-foreground">{goal.name}</h2>
-      <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-        {goal.sales_channel && <span>Canal: {goal.sales_channel}</span>}
-        <span>Orçamento total: {currency(goal.meta_budget)}</span>
-        {Array.isArray(goal.segments) && goal.segments.length > 0 && (
-          <span>Segmentos: {goal.segments.join(', ')}</span>
-        )}
-      </div>
-    </header>
-    <div className="space-y-3">
-      {goal.ad_accounts.map((account, index) => (
-        <AccountCard key={account.id || index} account={account} />
-      ))}
-    </div>
-  </section>
-);
-
-const PublicReportPage = () => {
+/**
+ * Relatório público de anúncios. Sem login: quem tem o link vê só as contas
+ * que o dono marcou, e a filtragem acontece no servidor (AdsReportsPayload) —
+ * esta tela não escolhe conta nenhuma.
+ *
+ * Não existe token de API no browser aqui, ao contrário da tela interna de
+ * Relatórios, que carrega um Personal Access Token dentro do HTML e por isso
+ * não pode simplesmente ser transformada em link público.
+ */
+export default function ReportPage() {
   const { token } = useParams<{ token: string }>();
-  const [payload, setPayload] = useState<PublicReportPayload | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [state, setState] = useState<State>({ kind: 'loading' });
+  const [days, setDays] = useState(30);
+
+  const load = useCallback(
+    async (rangeDays: number) => {
+      if (!token) return;
+      setState({ kind: 'loading' });
+      const stop = new Date();
+      const start = new Date();
+      start.setDate(stop.getDate() - (rangeDays - 1));
+      const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+      try {
+        const payload = await fetchPublicReport(token, {
+          dateStart: fmt(start),
+          dateStop: fmt(stop),
+        });
+        setState({ kind: 'ready', payload });
+      } catch (e) {
+        const status = (e as { response?: { status?: number } })?.response?.status;
+        if (status === 410) {
+          setState({ kind: 'gone', message: 'Este link expirou ou foi revogado.' });
+        } else if (status === 404) {
+          setState({ kind: 'error', message: 'Link inválido.' });
+        } else {
+          setState({ kind: 'error', message: 'Não foi possível carregar o relatório.' });
+        }
+      }
+    },
+    [token],
+  );
 
   useEffect(() => {
-    let cancelled = false;
+    void load(days);
+  }, [load, days]);
 
-    const load = async () => {
-      if (!token) return;
-      setIsLoading(true);
-      setErrorMessage(null);
-      try {
-        const result = await fetchPublicReport(token);
-        if (!cancelled) setPayload(result);
-      } catch (error: unknown) {
-        if (cancelled) return;
-        // 404 = link nunca existiu; 410 = expirado ou revogado. A mensagem
-        // do servidor é usada porque ela já é escrita pro visitante final.
-        const response = (error as { response?: { status?: number; data?: { error?: string } } })
-          ?.response;
-        setErrorMessage(
-          response?.data?.error ??
-            (response?.status === 404
-              ? 'Link inválido.'
-              : 'Não foi possível carregar o relatório.'),
-        );
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
-
-  if (isLoading) {
+  if (state.kind === 'loading') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="animate-spin h-8 w-8 border-b-2 border-primary rounded-full" />
-      </div>
+      <Shell title="">
+        <p className="p-8 text-center text-muted-foreground">Carregando relatório…</p>
+      </Shell>
     );
   }
 
-  if (errorMessage) {
+  if (state.kind !== 'ready') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="max-w-md rounded-lg border border-border bg-card p-6 text-center">
-          <h1 className="text-lg font-semibold text-foreground">Relatório indisponível</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{errorMessage}</p>
-        </div>
-      </div>
+      <Shell title="">
+        <p className="p-8 text-center text-muted-foreground">{state.message}</p>
+      </Shell>
     );
   }
+
+  const { link, report, goals } = state.payload;
+  const isAds = Boolean(report);
 
   return (
-    <div className="min-h-screen bg-background px-4 py-8">
-      <div className="mx-auto max-w-4xl space-y-8">
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-foreground">
-            {payload?.link.title || 'Relatório'}
-          </h1>
-          {typeof payload?.link.days_left === 'number' && (
+    <Shell title={link.title}>
+      <div className="space-y-6 p-4 md:p-6">
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">{link.title}</h1>
             <p className="text-sm text-muted-foreground">
-              Este link expira em {payload.link.days_left} dia(s).
+              {report &&
+                `${formatBr(report.range.date_start)} a ${formatBr(report.range.date_stop)}`}
+              {link.days_left > 0 && ` · válido por mais ${link.days_left} dia(s)`}
             </p>
-          )}
-        </header>
-
-        {payload?.goals.length === 0 ? (
-          <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
-            Nenhuma conta de anúncio foi compartilhada neste link.
           </div>
-        ) : (
-          <div className="space-y-10">
-            {payload?.goals.map((goal) => (
-              <GoalCard key={goal.id} goal={goal} />
+          <div className="flex gap-1">
+            {RANGE_OPTIONS.map(o => (
+              <button
+                key={o.days}
+                onClick={() => setDays(o.days)}
+                className={
+                  days === o.days
+                    ? 'rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground'
+                    : 'rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted'
+                }
+              >
+                {o.label}
+              </button>
             ))}
           </div>
-        )}
+        </header>
+
+        {isAds ? <AdsSections report={report!} /> : <GoalsSections goals={goals ?? []} />}
       </div>
+    </Shell>
+  );
+}
+
+function Shell({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-background">
+      {title && <div className="sr-only">{title}</div>}
+      {children}
     </div>
   );
-};
+}
 
-export default PublicReportPage;
+function AdsSections({ report }: { report: AdsReportData }) {
+  const totalSpend = useMemo(
+    () => report.meta.reduce((acc, b) => acc + num(b.totals['Gasto']), 0),
+    [report.meta],
+  );
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Resumo</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <Stat label="Contas" value={String(report.meta.length)} />
+          <Stat label="Investimento" value={brl(totalSpend)} />
+          <Stat label="Cliques" value={String(sum(report.meta, 'Cliques'))} />
+          <Stat label="Impressões" value={String(sum(report.meta, 'Impressões'))} />
+        </CardContent>
+      </Card>
+
+      {report.meta.map(acc => (
+        <Card key={acc.id}>
+          <CardHeader>
+            <CardTitle>{acc.name}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
+              <Stat label="Investido" value={brl(num(acc.totals['Gasto']))} />
+              <Stat label="Cliques" value={String(num(acc.totals['Cliques']))} />
+              <Stat label="Mensagens" value={String(num(acc.totals['Mensagens']))} />
+              <Stat label="Leads Pixel" value={String(num(acc.totals['Leads do Pixel']))} />
+              <Stat label="Leads Ads" value={String(num(acc.totals['Leads do Meta Ads']))} />
+              <Stat label="Impressões" value={String(num(acc.totals['Impressões']))} />
+            </div>
+            <RowsTable rows={acc.rows} />
+          </CardContent>
+        </Card>
+      ))}
+
+      {report.google_ads && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Google Ads</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="overflow-x-auto text-xs">
+              {JSON.stringify(report.google_ads, null, 2)}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
+}
+
+function RowsTable({ rows }: { rows: AdsInsightRow[] }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-muted-foreground">Sem dados no período.</p>;
+  }
+
+  const columns = [
+    'Campanha',
+    'Gasto',
+    'Cliques',
+    'CPC',
+    'Impressões',
+    'Mensagens',
+    'Leads do Meta Ads',
+  ];
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-left">
+            {columns.map(c => (
+              <th key={c} className="py-2 pr-3 font-medium">
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className="border-b last:border-0">
+              {columns.map(c => (
+                <td key={c} className="py-1.5 pr-3">
+                  {String(r[c] ?? '-')}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function GoalsSections({ goals }: { goals: ClientGoal[] }) {
+  if (goals.length === 0) {
+    return <p className="text-muted-foreground">Nenhuma meta para exibir.</p>;
+  }
+  return (
+    <div className="space-y-4">
+      {goals.map(g => (
+        <Card key={g.id}>
+          <CardHeader>
+            <CardTitle>{g.name}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+              <Stat label="Investimento" value={brl(Number(g.meta_budget ?? 0))} />
+              <Stat label="Canal" value={g.sales_channel || '-'} />
+              <Stat label="Contas" value={String((g.ad_accounts ?? []).length)} />
+            </div>
+            {(g.ad_accounts ?? []).map(a => (
+              <div key={a.id} className="border-t pt-3">
+                <div className="text-sm font-medium">{a.name}</div>
+                <div className="text-xs text-muted-foreground">{a.id}</div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-lg font-semibold text-foreground">{value}</div>
+    </div>
+  );
+}
+
+/** '678,12' -> 678.12. As strings do relatório são pt-BR. */
+function num(v: string | number | undefined): number {
+  return typeof v === 'number'
+    ? v
+    : Number(
+        String(v ?? '0')
+          .replace(/\./g, '')
+          .replace(',', '.'),
+      ) || 0;
+}
+
+function sum(blocks: AdsReportData['meta'], key: string): number {
+  return blocks.reduce((acc, b) => acc + num(b.totals[key]), 0);
+}
+
+function brl(v: number): string {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatBr(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}

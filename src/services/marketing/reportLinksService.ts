@@ -16,13 +16,50 @@ export interface ReportLink {
   created_at: string;
 }
 
+export type ReportType = 'marketing_client_goals' | 'ads_reports';
+
+/** Uma linha já no formato do relatório (chaves em português, vírgula decimal). */
+export interface AdsInsightRow {
+  Data?: string;
+  Campanha?: string;
+  'Conjunto de Anúncios'?: string;
+  Gasto?: string;
+  Mensagens?: number;
+  Cliques?: number;
+  CPC?: string;
+  Impressões?: number;
+  CPM?: string;
+  Alcance?: number;
+  'Leads do Pixel'?: number;
+  'Leads do Meta Ads'?: number;
+  [key: string]: string | number | undefined;
+}
+
+export interface AdsAccountBlock {
+  id: string;
+  name: string;
+  rows: AdsInsightRow[];
+  totals: Record<string, string | number>;
+}
+
+export interface AdsReportData {
+  range: { date_start: string; date_stop: string };
+  meta: AdsAccountBlock[];
+  google_ads: { campaigns?: unknown[]; cost?: unknown } | null;
+  ga4: { property_id: string; overview?: unknown; by_channel?: unknown } | null;
+}
+
 export interface PublicReportPayload {
   link: {
     title: string;
+    report_type?: ReportType;
     expires_at: string;
     days_left: number;
   };
-  goals: ClientGoal[];
+  /** Presente em link do tipo `marketing_client_goals`. */
+  goals?: ClientGoal[];
+  /** Presente em link do tipo `ads_reports`. */
+  report?: AdsReportData;
 }
 
 /** Validades oferecidas na tela, em dias. O backend recusa acima de 365. */
@@ -58,13 +95,18 @@ class ReportLinksService {
     title: string;
     validDays: number;
     adAccountIds: string[];
+    reportType?: ReportType;
+    includeGoogleAds?: boolean;
+    includeGa4?: boolean;
   }): Promise<ReportLink> {
     const response = await api.post<ApiEnvelope<ReportLink>>(this.baseUrl, {
       report_snapshot: {
         title: input.title,
-        report_type: 'marketing_client_goals',
+        report_type: input.reportType ?? 'marketing_client_goals',
         valid_days: input.validDays,
         ad_account_ids: input.adAccountIds,
+        include_google_ads: input.includeGoogleAds ? 1 : 0,
+        include_ga4: input.includeGa4 ? 1 : 0,
       },
     });
     return response.data.data;
@@ -87,12 +129,26 @@ class ReportLinksService {
  *    interceptor evita que uma falha do relatório derrube a sessão de quem
  *    está logado no CRM.
  */
-export async function fetchPublicReport(token: string): Promise<PublicReportPayload> {
+export async function fetchPublicReport(
+  token: string,
+  range?: { dateStart: string; dateStop: string },
+): Promise<PublicReportPayload> {
   const base = `${import.meta.env.VITE_API_URL}/public/api/v1`;
   const response = await axios.get<ApiEnvelope<PublicReportPayload>>(
     `${base}/report_links/${encodeURIComponent(token)}`,
+    // O período vai na query porque quem abre o link escolhe o intervalo na
+    // tela. O escopo de contas NÃO vem daqui — esse fica no servidor.
+    { params: range },
   );
   return response.data.data;
+}
+
+/** Contas de anúncio da Meta, para o seletor do link de relatório. */
+export async function fetchMetaAdAccounts(): Promise<{ id: string; name: string }[]> {
+  const response = await api.get<{ data: { id: string; name: string }[] }>(
+    '/reports/meta_ads/accounts',
+  );
+  return response.data.data ?? [];
 }
 
 export const reportLinksService = new ReportLinksService();

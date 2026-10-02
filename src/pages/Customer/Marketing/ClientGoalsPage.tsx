@@ -1968,7 +1968,7 @@ export default function ClientGoalsPage() {
 
       <div className="flex-1 overflow-y-auto p-4">
         <div className="mb-4">
-          <ReportLinksManager goals={goals} />
+          <ReportLinksManager reportType="marketing_client_goals" defaultTitle="Metas de Clientes" />
         </div>
 
         {!loading && goals.length > 0 && (
