@@ -144,11 +144,29 @@ export async function fetchPublicReport(
 }
 
 /** Contas de anúncio da Meta, para o seletor do link de relatório. */
-export async function fetchMetaAdAccounts(): Promise<{ id: string; name: string }[]> {
-  const response = await api.get<{ data: { id: string; name: string }[] }>(
-    '/reports/meta_ads/accounts',
-  );
-  return response.data.data ?? [];
+export interface MetaAccount {
+  id: string;
+  name: string;
+}
+
+/**
+ * ATENÇÃO ao formato da resposta: `MetaAdsController#accounts` e
+ * `#business_managers` respondem com `render json: <array>` — o array vai
+ * direto no corpo, sem envelope `{ data: ... }`. Ler `response.data.data`
+ * aqui devolve `undefined` e a lista aparece vazia sem erro nenhum no console,
+ * que é exatamente o bug que já passou.
+ */
+export async function fetchMetaBusinessManagers(): Promise<MetaAccount[]> {
+  const response = await api.get<MetaAccount[]>('/reports/meta_ads/business_managers');
+  return response.data ?? [];
+}
+
+/** Contas de anúncio. `businessId` opcional restringe às contas de uma BM. */
+export async function fetchMetaAdAccounts(businessId?: string): Promise<MetaAccount[]> {
+  const response = await api.get<MetaAccount[]>('/reports/meta_ads/accounts', {
+    params: businessId ? { business_id: businessId } : undefined,
+  });
+  return response.data ?? [];
 }
 
 export const reportLinksService = new ReportLinksService();

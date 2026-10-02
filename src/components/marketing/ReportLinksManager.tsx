@@ -21,9 +21,11 @@ import {
 import {
   reportLinksService,
   fetchMetaAdAccounts,
+  fetchMetaBusinessManagers,
   VALIDITY_OPTIONS,
   type ReportLink,
   type ReportType,
+  type MetaAccount,
 } from '@/services/marketing/reportLinksService';
 
 /**
@@ -32,6 +34,9 @@ import {
  * não proteção.
  */
 const MAX_ACCOUNTS = 12;
+
+/** "Todas as contas de anúncio" no seletor de BM — backend sem business_id. */
+const ALL_BUSINESS_ID = '__all__';
 
 interface Props {
   reportType: ReportType;
@@ -57,7 +62,10 @@ export default function ReportLinksManager({ reportType, defaultTitle }: Props) 
   const [selected, setSelected] = useState<string[]>([]);
   const [includeGoogle, setIncludeGoogle] = useState(false);
   const [includeGa4, setIncludeGa4] = useState(false);
-  const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
+  const [accounts, setAccounts] = useState<MetaAccount[]>([]);
+  const [businessManagers, setBusinessManagers] = useState<MetaAccount[]>([]);
+  const [businessId, setBusinessId] = useState<string>(ALL_BUSINESS_ID);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [accountsError, setAccountsError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,9 +84,25 @@ export default function ReportLinksManager({ reportType, defaultTitle }: Props) 
   useEffect(() => {
     if (!open) return;
     void loadLinks();
-    // Contas vêm da Graph API (mesma lista da tela de Relatórios) — não das
-    // metas de cliente, que só conhecem as contas já cadastradas em meta.
-    fetchMetaAdAccounts()
+    // Contas e BMs vêm da Graph API (mesma lista da tela de Relatórios) — não
+    // das metas de cliente, que só conhecem as contas já cadastradas em meta.
+    fetchMetaBusinessManagers()
+      .then(list => {
+        setBusinessManagers(list);
+        setAccountsError(null);
+      })
+      .catch(() => {
+        setBusinessManagers([]);
+        setAccountsError('Não foi possível carregar as carteiras (BMs).');
+      });
+  }, [open, loadLinks]);
+
+  // Contas dependem da BM escolhida; trocar a BM recarrega a lista.
+  useEffect(() => {
+    if (!open) return;
+    setLoadingAccounts(true);
+    setSelected([]);
+    fetchMetaAdAccounts(businessId === ALL_BUSINESS_ID ? undefined : businessId)
       .then(list => {
         setAccounts(list);
         setAccountsError(null);
@@ -86,8 +110,17 @@ export default function ReportLinksManager({ reportType, defaultTitle }: Props) 
       .catch(() => {
         setAccounts([]);
         setAccountsError('Não foi possível carregar as contas de anúncio.');
-      });
-  }, [open, loadLinks]);
+      })
+      .finally(() => setLoadingAccounts(false));
+  }, [open, businessId]);
+
+  const bmOptions = useMemo(
+    () => [
+      { value: ALL_BUSINESS_ID, label: 'Todas as contas de anúncio' },
+      ...businessManagers.map(bm => ({ value: bm.id, label: bm.name })),
+    ],
+    [businessManagers],
+  );
 
   const options = useMemo(
     () => accounts.map(a => ({ value: a.id, label: `${a.name} (${a.id})` })),
@@ -188,11 +221,37 @@ export default function ReportLinksManager({ reportType, defaultTitle }: Props) 
               </Select>
             </div>
 
+            {reportType === 'ads_reports' && (
+              <div className="space-y-2">
+                <Label>Carteira de anúncios (BM)</Label>
+                <Select value={businessId} onValueChange={setBusinessId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas as contas de anúncio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bmOptions.map(bm => (
+                      <SelectItem key={bm.value} value={bm.value}>
+                        {bm.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Escolha uma BM para ver só as contas dela, como na tela de Relatórios.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Contas de anúncio que o cliente pode ver</Label>
               {accountsError && <p className="text-sm text-destructive">{accountsError}</p>}
-              {!accountsError && options.length === 0 && (
+              {!accountsError && loadingAccounts && (
                 <p className="text-sm text-muted-foreground">Carregando contas…</p>
+              )}
+              {!accountsError && !loadingAccounts && options.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma conta de anúncio encontrada nesta carteira.
+                </p>
               )}
               <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border p-3">
                 {options.map(o => (
