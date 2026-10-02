@@ -12,15 +12,16 @@ interface RouterGuardProps {
 }
 
 const SPECIAL_ROUTES = {
-  // Anonymous public pages: auth, widget, setup and the lead-capture form
-  // (/f/:slug) + public chat page (/chat/:slug). The latter two must be
-  // reachable by logged-out visitors — they bypass the protected-route auth
-  // check below.
-  PUBLIC_ROUTES: ['/auth', '/login', '/register', '/widget', '/setup', '/f/', '/chat/'],
+  // Anonymous public pages: auth, widget, setup, the lead-capture form
+  // (/f/:slug), public chat page (/chat/:slug) and the shared report
+  // (/r/:token). All four must be reachable by logged-out visitors — they
+  // bypass the protected-route auth check below.
+  PUBLIC_ROUTES: ['/auth', '/login', '/register', '/widget', '/setup', '/f/', '/chat/', '/r/'],
   // Routes that bypass the "redirect authenticated users to /conversations" rule.
-  // /f/ and /chat/ are public-facing pages an authenticated user may legitimately
-  // open (e.g. to preview their own form/chat page) without being bounced away.
-  AUTH_EXEMPT_ROUTES: ['/setup/onboarding', '/f/', '/chat/'],
+  // /f/, /chat/ and /r/ are public-facing pages an authenticated user may
+  // legitimately open (e.g. to preview the exact link the client will get)
+  // without being bounced away.
+  AUTH_EXEMPT_ROUTES: ['/setup/onboarding', '/f/', '/chat/', '/r/'],
 };
 
 const RouterGuard: React.FC<RouterGuardProps> = ({ children }) => {

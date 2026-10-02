@@ -9,8 +9,10 @@ import RouterGuard from './RouterGuard';
 
 const mockLocation = { pathname: '/conversations', search: '' };
 
+const mockNavigate = vi.fn();
+
 vi.mock('react-router-dom', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
   useLocation: () => mockLocation,
 }));
 
@@ -18,8 +20,13 @@ vi.mock('@/store/authStore', () => ({
   useAuthStore: () => ({ isLoading: false }),
 }));
 
+// Configurable because the bug that matters here is the *anonymous* visitor:
+// with a hardcoded "authenticated" mock this file can never catch a public
+// route being gated.
+const mockUseAuth = vi.fn();
+
 vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'user-1' }, isAuthenticated: true, logout: vi.fn() }),
+  useAuth: () => mockUseAuth(),
 }));
 
 const mockUsePermissions = vi.fn();
@@ -59,6 +66,11 @@ function renderGuard(pathname: string) {
 describe('RouterGuard — a failed permission load is not a denial (CRM-164)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseAuth.mockReturnValue({
+      user: { id: 'user-1' },
+      isAuthenticated: true,
+      logout: vi.fn(),
+    });
   });
 
   it('shows the load-failure panel on a protected path instead of spinning forever', () => {
@@ -96,5 +108,38 @@ describe('RouterGuard — a failed permission load is not a denial (CRM-164)', (
 
     expect(screen.getByTestId('app')).toBeTruthy();
     expect(screen.queryByTestId('permissions-load-failure')).toBeNull();
+  });
+});
+
+describe('RouterGuard — o link público de relatório não pede login', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuth.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      logout: vi.fn(),
+    });
+    mockUsePermissions.mockReturnValue(permissions({ isReady: true }));
+  });
+
+  it('deixa o visitante anônimo abrir /r/:token sem mandar pro login', () => {
+    // O cliente do link não tem usuário do CRM. Se o guard tratar /r/ como
+    // rota protegida, ele nunca chega a ver o relatório.
+    renderGuard('/r/cTBdqUJtVTHQBx3WPt2YyzknZO53G4zs');
+
+    expect(screen.getByTestId('app')).toBeTruthy();
+    expect(mockNavigate).not.toHaveBeenCalledWith('/login', expect.anything());
+  });
+
+  it('não expulsa para /conversations quem está logado e só quer pré-visualizar', () => {
+    mockUseAuth.mockReturnValue({
+      user: { id: 'user-1' },
+      isAuthenticated: true,
+      logout: vi.fn(),
+    });
+
+    renderGuard('/r/cTBdqUJtVTHQBx3WPt2YyzknZO53G4zs');
+
+    expect(mockNavigate).not.toHaveBeenCalledWith('/conversations', expect.anything());
   });
 });
