@@ -38,13 +38,16 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
   // Redirecionar para página inicial se já estiver autenticado
   // EXCEPT when there are OAuth parameters, specific OAuth routes, widget route, or survey route
   if (isAuthenticated) {
-    // Widget, Survey and the anonymous public pages (lead-capture form /f/:slug
-    // and chat /chat/:slug) should always be accessible regardless of auth status
+    // Widget, Survey and the anonymous public pages (lead-capture form /f/:slug,
+    // chat /chat/:slug and public report /r/:token) should always be accessible
+    // regardless of auth status — /r/ included so someone logged into the CRM
+    // can still preview the exact page the client will open.
     if (
       location.pathname === '/widget' ||
       location.pathname.startsWith('/survey/responses/') ||
       location.pathname.startsWith('/f/') ||
       location.pathname.startsWith('/chat/') ||
+      location.pathname.startsWith('/r/') ||
       location.pathname === '/cardapio-digital' ||
       location.pathname === '/imoveis' ||
       location.pathname === '/politica-de-privacidade'

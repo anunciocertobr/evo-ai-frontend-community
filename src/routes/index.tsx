@@ -29,6 +29,7 @@ import MicrosoftCallback from '@/pages/MicrosoftCallback';
 import SurveyResponse from '@/pages/Public/Survey/SurveyResponse';
 import PublicChatPage from '@/pages/Public/Chat/ChatPage';
 import FormPage from '@/pages/Public/Form/FormPage';
+import PublicReportPage from '@/pages/Public/Report/ReportPage';
 import DigitalMenuPage from '@/pages/Public/Menu/DigitalMenuPage';
 import RealEstatePage from '@/pages/Public/RealEstate/RealEstatePage';
 import PrivacyPolicyPage from '@/pages/Public/PrivacyPolicy/PrivacyPolicyPage';
@@ -501,6 +502,17 @@ const AppRouter = () => {
             element={
               <PublicRoute>
                 <PublicChatPage />
+              </PublicRoute>
+            }
+          />
+
+          {/* Link público de relatório (metas por cliente): a credencial é o
+              token da URL, sem login — mesmo padrão de /f/:slug e /chat/:slug. */}
+          <Route
+            path="/r/:token"
+            element={
+              <PublicRoute>
+                <PublicReportPage />
               </PublicRoute>
             }
           />

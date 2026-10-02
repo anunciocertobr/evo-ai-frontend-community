@@ -55,6 +55,7 @@ import {
 } from '@evoapi/design-system';
 import { BaseHeader } from '@/components/base';
 import { MetaAdAccountPicker } from '@/components/marketing/MetaAdAccountPicker';
+import ReportLinksManager from '@/components/marketing/ReportLinksManager';
 import {
   clientGoalsService,
   ClientGoal,
@@ -1966,6 +1967,10 @@ export default function ClientGoalsPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-4">
+        <div className="mb-4">
+          <ReportLinksManager goals={goals} />
+        </div>
+
         {!loading && goals.length > 0 && (
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <Input
