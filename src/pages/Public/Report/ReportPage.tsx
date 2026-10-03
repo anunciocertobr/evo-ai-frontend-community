@@ -91,15 +91,15 @@ export default function ReportPage() {
     <Shell title={link.title}>
       <div className="space-y-6 p-4 md:p-6">
         <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">{link.title}</h1>
+          <div className="min-w-0">
+            <h1 className="break-words text-xl font-semibold text-foreground">{link.title}</h1>
             <p className="text-sm text-muted-foreground">
               {report &&
                 `${formatBr(report.range.date_start)} a ${formatBr(report.range.date_stop)}`}
               {link.days_left > 0 && ` · válido por mais ${link.days_left} dia(s)`}
             </p>
           </div>
-          <div className="flex gap-1">
+          <div className="flex shrink-0 gap-1">
             {RANGE_OPTIONS.map(o => (
               <button
                 key={o.days}
@@ -122,11 +122,25 @@ export default function ReportPage() {
   );
 }
 
+/**
+ * O app é app-shell: `html, body { overflow: hidden }` e `#root { height: 100% }`
+ * (src/styles/globals.css). A rolagem não acontece no documento — acontece
+ * dentro de um filho com overflow próprio. Sem este container a página não
+ * rolava no celular: o conteúdo passava da viewport e ficava preso atrás da
+ * barra do navegador, sem caminho pra chegar nele.
+ *
+ * `overflow-x-hidden` no scroller (e não em cada tabela) impede que uma tabela
+ * larga empurre a página inteira de lado; as tabelas mantêm o scroll próprio.
+ */
 function Shell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
-      {title && <div className="sr-only">{title}</div>}
-      {children}
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-background">
+      {/* pb com safe-area: sem isso o último card fica embaixo da barra do
+          celular (e do indicador de home do iOS). */}
+      <div className="min-h-full pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        {title && <div className="sr-only">{title}</div>}
+        {children}
+      </div>
     </div>
   );
 }
@@ -176,7 +190,7 @@ function AdsSections({ report }: { report: AdsReportData }) {
             <CardTitle>Google Ads</CardTitle>
           </CardHeader>
           <CardContent>
-            <pre className="overflow-x-auto text-xs">
+            <pre className="max-w-full overflow-x-auto text-xs">
               {JSON.stringify(report.google_ads, null, 2)}
             </pre>
           </CardContent>
@@ -201,8 +215,10 @@ function RowsTable({ rows }: { rows: AdsInsightRow[] }) {
     'Leads do Meta Ads',
   ];
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="max-w-full overflow-x-auto">
+      {/* min-w-max impede que o browser esmague as 7 colunas em telas
+          estreitas; o scroll horizontal fica confinado a este wrapper. */}
+      <table className="w-full min-w-max text-sm">
         <thead>
           <tr className="border-b text-left">
             {columns.map(c => (
@@ -262,7 +278,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-lg font-semibold text-foreground">{value}</div>
+      <div className="break-words text-base font-semibold text-foreground md:text-lg">{value}</div>
     </div>
   );
 }
