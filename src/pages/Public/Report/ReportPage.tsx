@@ -135,9 +135,12 @@ export default function ReportPage() {
 function Shell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden bg-background">
-      {/* pb com safe-area: sem isso o último card fica embaixo da barra do
-          celular (e do indicador de home do iOS). */}
-      <div className="min-h-full pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      {/* pb com safe-area: sem isso o último card fica embaixo da barra de
+          sistema do celular. O index.html não tem `viewport-fit=cover`, então
+          `env(safe-area-inset-bottom)` é 0 no WebView do app Android e o max()
+          cai no primeiro valor — daí 2.5rem, folga suficiente para a barra de
+          navegação do aparelho. */}
+      <div className="min-h-full pb-[max(2.5rem,env(safe-area-inset-bottom))]">
         {title && <div className="sr-only">{title}</div>}
         {children}
       </div>
@@ -214,33 +217,55 @@ function RowsTable({ rows }: { rows: AdsInsightRow[] }) {
     'Mensagens',
     'Leads do Meta Ads',
   ];
+
   return (
-    <div className="max-w-full overflow-x-auto">
-      {/* min-w-max impede que o browser esmague as 7 colunas em telas
-          estreitas; o scroll horizontal fica confinado a este wrapper. */}
-      <table className="w-full min-w-max text-sm">
-        <thead>
-          <tr className="border-b text-left">
-            {columns.map(c => (
-              <th key={c} className="py-2 pr-3 font-medium">
-                {c}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={i} className="border-b last:border-0">
+    <>
+      {/* Celular: 7 colunas dão 685px dentro de uns 330px — o cliente
+          via metade dos números e o resto fica fora da tela, com scroll
+          horizontal para uncovering. Virando um bloco por campanha, todas as
+          métricas cabem sem nenhum scroll lateral. */}
+      <ul className="space-y-3 sm:hidden">
+        {rows.map((r, i) => (
+          <li key={i} className="rounded-md border p-3 text-sm">
+            <div className="break-words font-medium">{String(r['Campanha'] ?? '-')}</div>
+            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+              {columns.slice(1).map(c => (
+                <div key={c} className="flex items-baseline justify-between gap-2">
+                  <dt className="text-muted-foreground">{c}</dt>
+                  <dd className="font-medium">{String(r[c] ?? '-')}</dd>
+                </div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ul>
+
+      {/* Desktop: a tabela rola dentro do próprio wrapper se precisar. */}
+      <div className="hidden max-w-full overflow-x-auto sm:block">
+        <table className="w-full min-w-max text-sm">
+          <thead>
+            <tr className="border-b text-left">
               {columns.map(c => (
-                <td key={c} className="py-1.5 pr-3">
-                  {String(r[c] ?? '-')}
-                </td>
+                <th key={c} className="py-2 pr-3 font-medium">
+                  {c}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="border-b last:border-0">
+                {columns.map(c => (
+                  <td key={c} className="py-1.5 pr-3">
+                    {String(r[c] ?? '-')}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
