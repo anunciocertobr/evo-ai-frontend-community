@@ -116,6 +116,12 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         icon: PieChart,
       },
     ],
+  },  {
+    name: t('menu.customer.courses'),
+    href: '/cursos',
+    icon: GraduationCap,
+    resource: 'courses',
+    action: 'read',
   },
   {
     name: t('menu.customer.conversations'),

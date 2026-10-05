@@ -89,6 +89,11 @@ import MetaCreationPage from '@/pages/Customer/Marketing/MetaCreationPage';
 import GoogleAdsCreationPage from '@/pages/Customer/Marketing/GoogleAdsCreationPage';
 import TrafficPanelPage from '@/pages/Customer/Marketing/TrafficPanelPage';
 import MarketingAlertsSettingsPage from '@/pages/Customer/Marketing/MarketingAlertsSettingsPage';
+import CoursesHomePage from '@/pages/Customer/Courses/CoursesHomePage';
+import CourseDetailPage from '@/pages/Customer/Courses/CourseDetailPage';
+import LessonPlayerPage from '@/pages/Customer/Courses/LessonPlayerPage';
+import CreatorPagePublic from '@/pages/Customer/Courses/CreatorPagePublic';
+import CreatorCoursesPage from '@/pages/Customer/Creator/Courses';
 import OrdersPage from '@/pages/Customer/Orders/OrdersPage';
 import IfoodOrdersPage from '@/pages/Customer/Orders/IfoodOrdersPage';
 import NinetyNineOrdersPage from '@/pages/Customer/Orders/NinetyNineOrdersPage';
@@ -2274,6 +2279,58 @@ const AppRouter = () => {
               <PrivateRoute>
                 <Unauthorized />
               </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/cursos"
+            element={
+              <CustomerRoute>
+                <MainLayout>
+                  <CoursesHomePage />
+                </MainLayout>
+              </CustomerRoute>
+            }
+          />
+          <Route
+            path="/cursos/:slug"
+            element={
+              <CustomerRoute>
+                <MainLayout>
+                  <CourseDetailPage />
+                </MainLayout>
+              </CustomerRoute>
+            }
+          />
+          <Route
+            path="/cursos/:slug/aula/:lessonId"
+            element={
+              <CustomerRoute>
+                <MainLayout>
+                  <LessonPlayerPage />
+                </MainLayout>
+              </CustomerRoute>
+            }
+          />
+          <Route
+            path="/criador/cursos"
+            element={
+              <CustomerRoute>
+                <MainLayout>
+                  <CreatorCoursesPage />
+                </MainLayout>
+              </CustomerRoute>
+            }
+          />
+
+          <Route
+            path="/criadores/:slug"
+            element={
+              <CustomerRoute>
+                <MainLayout>
+                  <CreatorPagePublic />
+                </MainLayout>
+              </CustomerRoute>
             }
           />
 
