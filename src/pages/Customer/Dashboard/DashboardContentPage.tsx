@@ -26,13 +26,11 @@ export default function DashboardContentPage() {
 
   return (
     <>
-      {/* Botão fica no wrapper React da página, e não dentro do conteúdo: o
-          HTML dos itens do submenu Dashboard é salvo por usuário e editável à
-          mão — um botão injetado nele sumiria na primeira edição. */}
-      <div className="flex justify-end border-b p-3">
-        <ReportLinksManager reportType="ads_reports" defaultTitle={item.title} />
-      </div>
+      {/* O botão vai na barra do título (headerActions), e não dentro do
+          conteúdo: o HTML dos itens do submenu Dashboard é salvo por usuário e
+          editável à mão — um botão injetado nele sumiria na primeira edição. */}
       <ContentViewer
+        headerActions={<ReportLinksManager reportType="ads_reports" defaultTitle={item.title} />}
         backHref={DASHBOARD_DEFAULT_HREF}
         backLabel="Voltar ao Dashboard"
         title={item.title}

@@ -269,7 +269,7 @@
   var GENDER_LABEL = { female: 'Feminino', male: 'Masculino' };
   var DIM = {
     objective: { label: 'Objetivo', src: 'geral', key: function (ad) { return ad.Objetivo || 'Não especificado'; }, order: 'value', first: 'Objetivo' },
-    day: { label: 'Dia', src: 'geral', key: function (ad) { return ad.Dia; }, order: 'date', first: 'Dia' },
+    day: { label: 'Dia', src: 'geral', key: function (ad) { return ad.Dia; }, fmt: function (k) { return dayjs(k).format('DD/MM'); }, order: 'date', first: 'Dia' },
     hour: { label: 'Hora do dia', src: 'hora', key: function (ad) { return ad.hora ? ad.hora.substring(0, 2) : null; }, fmt: function (k) { return k + 'h'; }, order: 'num', first: 'Hora' },
     platform: { label: 'Plataforma', src: 'posicionamento', key: function (ad) { return ad.publisher_platform || 'N/A'; }, order: 'value', first: 'Plataforma' },
     position: { label: 'Posicionamento', src: 'posicionamento', key: function (ad) { return ad.platform_position || 'N/A'; }, order: 'value', first: 'Posicionamento' },
@@ -306,6 +306,9 @@
     return parts.join(' | ');
   }
 
+  // Período do relatório que está sendo gerado (preenchido em gerar).
+  var reportPeriod = null;
+
   function dimensionItems(dimId, metricKeys, filt) {
     var d = dimDef(dimId);
     var groups = {};
@@ -317,7 +320,25 @@
     var items = Object.keys(groups).map(function (k) {
       return { key: k, label: d.fmt ? d.fmt(k) : k, m: calcMetrics(groups[k]) };
     });
-    if (d.order === 'date') items.sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; });
+    if (d.order === 'date') {
+      items.sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; });
+      // Dia sem nenhuma linha (anúncio não entregou) ainda faz parte do período:
+      // entra no gráfico com zero, para o eixo mostrar todos os dias.
+      if (reportPeriod && reportPeriod.start && reportPeriod.end) {
+        var porDia = {};
+        items.forEach(function (it) { porDia[it.key] = it; });
+        var todos = [];
+        var cursor = dayjs(reportPeriod.start);
+        var fim = dayjs(reportPeriod.end);
+        while (!cursor.isAfter(fim, 'day')) {
+          var chave = cursor.format('YYYY-MM-DD');
+          todos.push(porDia[chave] || { key: chave, label: chave, m: calcMetrics([]) });
+          cursor = cursor.add(1, 'day');
+        }
+        items = todos;
+      }
+      items.forEach(function (it) { it.label = d.fmt ? d.fmt(it.key) : it.key; });
+    }
     else if (d.order === 'num') items.sort(function (a, b) { return (parseFloat(a.key) || 0) - (parseFloat(b.key) || 0); });
     else {
       var first = metricKeys[0];
@@ -1429,6 +1450,7 @@
 
       var accountLabel = (document.getElementById('meta-act-id').selectedOptions[0] || {}).textContent || '';
 
+      reportPeriod = selection.period;
       withState(selection, function () {
         return loadJsPdf().then(function () {
           var blocks = [];

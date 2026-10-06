@@ -18,6 +18,8 @@ export interface ContentViewerProps {
   html?: string;
   fileName?: string;
   fileData?: string;
+  // Ações pequenas na mesma barra do título (ex.: compartilhar), sem barra extra.
+  headerActions?: React.ReactNode;
 }
 
 /**
@@ -38,6 +40,7 @@ export function ContentViewer({
   html,
   fileName,
   fileData,
+  headerActions,
 }: ContentViewerProps) {
   const isHtmlDoc =
     contentType === 'html' || (contentType === 'file' && /\.html?$/i.test(fileName ?? ''));
@@ -151,19 +154,20 @@ export function ContentViewer({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border bg-card">
+      <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-card">
         <Button variant="ghost" size="icon" asChild title={backLabel}>
           <Link to={backHref}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-medium truncate">{title}</p>
           <p className="text-xs text-muted-foreground truncate">
             {subtitle}
             {fileName ? ` · ${fileName}` : ''}
           </p>
         </div>
+        {headerActions && <div className="shrink-0">{headerActions}</div>}
       </div>
       <iframe
         ref={iframeRef}
