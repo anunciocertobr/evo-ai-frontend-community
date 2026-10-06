@@ -111,14 +111,20 @@
 
   // ------------------------------------------------------------- agregação
 
-  function filteredRows() {
+  // Mesmos filtros de tela (objetivo, campanha, conjunto, anúncio) para qualquer
+  // conjunto de dados do relatório: geral, hora, posicionamento, região, idade...
+  function filterDataset(data) {
     var st = metaAdsState;
-    return (metaAdsAllData.geral || []).filter(function (ad) {
+    return (data || []).filter(function (ad) {
       return (st.selectedObjective === 'all' || ad.Objetivo === st.selectedObjective) &&
         (st.selectedCampaign === 'all' || ad['Nome da campanha'] === st.selectedCampaign) &&
         (st.selectedAdSet === 'all' || ad['Nome do conjunto de anúncios'] === st.selectedAdSet) &&
         (st.selectedAd === 'all' || ad['Nome do anúncio'] === st.selectedAd);
     });
+  }
+
+  function filteredRows() {
+    return filterDataset(metaAdsAllData.geral);
   }
 
   // Mesmas fórmulas do calculateMetrics do relatório — se um dia elas mudarem
@@ -247,24 +253,70 @@
     return { kind: chart.config.type, labels: labels, series: series };
   }
 
-  // Gráfico personalizado de linha: evolução diária das métricas escolhidas.
-  function dailySpec(rows, keys, title) {
-    var byDay = {};
-    rows.forEach(function (ad) {
-      if (ad.Dia) (byDay[ad.Dia] = byDay[ad.Dia] || []).push(ad);
+  // Dimensões que um gráfico personalizado pode usar. `src` é o conjunto de
+  // dados do relatório (mesmo mapeamento do processMetaAdsData da tela).
+  var GENDER_LABEL = { female: 'Feminino', male: 'Masculino' };
+  var DIM = {
+    day: { label: 'Dia', src: 'geral', key: function (ad) { return ad.Dia; }, order: 'date', first: 'Dia' },
+    hour: { label: 'Hora do dia', src: 'hora', key: function (ad) { return ad.hora ? ad.hora.substring(0, 2) : null; }, fmt: function (k) { return k + 'h'; }, order: 'num', first: 'Hora' },
+    platform: { label: 'Plataforma', src: 'posicionamento', key: function (ad) { return ad.publisher_platform || 'N/A'; }, order: 'value', first: 'Plataforma' },
+    position: { label: 'Posicionamento', src: 'posicionamento', key: function (ad) { return ad.platform_position || 'N/A'; }, order: 'value', first: 'Posicionamento' },
+    device: { label: 'Dispositivo', src: 'posicionamento', key: function (ad) { return ad.impression_device || 'N/A'; }, order: 'value', first: 'Dispositivo' },
+    region: { label: 'Região', src: 'regiao', key: function (ad) { return ad.Regiao || 'N/A'; }, order: 'value', limit: 15, first: 'Região' },
+    age: { label: 'Idade', src: 'idade_genero', key: function (ad) { return ad.Idade || 'N/A'; }, order: 'num', first: 'Idade' },
+    gender: { label: 'Gênero', src: 'idade_genero', key: function (ad) { return GENDER_LABEL[ad['Gênero']] || 'Desconhecido'; }, order: 'value', first: 'Gênero' }
+  };
+
+  function dimDef(id) {
+    if (id.indexOf('top5:') === 0) {
+      var cfg = META_TOP5_DIMENSION_CONFIG[id.slice(5)] || {};
+      return { label: 'Top 5 · ' + (cfg.label || id), src: 'geral', key: function (ad) { return ad[cfg.key] || 'Não especificado'; }, order: 'value', limit: 5, first: cfg.label || 'Item' };
+    }
+    return DIM[id];
+  }
+
+  // Agrupa por dimensão e calcula as métricas de cada grupo. Ordem: data,
+  // número (hora/idade) ou valor da primeira métrica escolhida, do maior pro menor.
+  function dimensionItems(dimId, metricKeys) {
+    var d = dimDef(dimId);
+    var groups = {};
+    filterDataset(metaAdsAllData[d.src]).forEach(function (ad) {
+      var k = d.key(ad);
+      if (!k) return;
+      (groups[k] = groups[k] || []).push(ad);
     });
-    var days = Object.keys(byDay).sort();
-    var perDay = days.map(function (d) { return calcMetrics(byDay[d]); });
+    var items = Object.keys(groups).map(function (k) {
+      return { key: k, label: d.fmt ? d.fmt(k) : k, m: calcMetrics(groups[k]) };
+    });
+    if (d.order === 'date') items.sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; });
+    else if (d.order === 'num') items.sort(function (a, b) { return (parseFloat(a.key) || 0) - (parseFloat(b.key) || 0); });
+    else {
+      var first = metricKeys[0];
+      items.sort(function (a, b) { return (b.m[first] || 0) - (a.m[first] || 0); });
+    }
+    return d.limit ? items.slice(0, d.limit) : items;
+  }
+
+  function metricLabels(keys) {
+    return keys.map(function (k) { return META_METRIC_CONFIG[k].label; }).join(', ');
+  }
+
+  // Gráfico de uma dimensão: uma série por métrica escolhida. `type` é 'bar' ou 'line'.
+  function dimensionSpec(dimId, metricKeys, title, type) {
+    var d = dimDef(dimId);
+    var items = dimensionItems(dimId, metricKeys);
     return {
       title: title,
-      subtitle: 'Um gráfico por métrica, com o valor de cada dia. Tabela completa logo abaixo.',
-      kind: 'line',
-      labels: days.map(function (d) { return dayjs(parseAPIDate(d)).format('DD/MM'); }),
-      series: keys.map(function (k, i) {
+      subtitle: 'Métricas: ' + metricLabels(metricKeys),
+      kind: type,
+      labels: items.map(function (it) { return it.label; }),
+      firstHead: d.first,
+      tableTitle: 'Valores por ' + d.label.toLowerCase(),
+      series: metricKeys.map(function (k, i) {
         return {
           label: META_METRIC_CONFIG[k].label,
           color: PALETTE[i % PALETTE.length],
-          data: perDay.map(function (m) { return m[k]; }),
+          data: items.map(function (it) { return it.m[k] || 0; }),
           fmt: function (v) { return formatValue(k, v); }
         };
       })
@@ -591,13 +643,13 @@
     y = top + H + 4;
 
     // Tabela com todos os valores: uma linha por dia
-    var head = ['Dia'].concat(series.map(function (s) { return s.label; }));
+    var head = [spec.firstHead || 'Dia'].concat(series.map(function (s) { return s.label; }));
     var rows = spec.labels.map(function (lb, idx) {
       return [lb].concat(series.map(function (s) { return s.fmt(s.data[idx]); }));
     });
     var wFirst = 22;
     var wCol = (contentW - wFirst) / series.length;
-    text('Valores por dia', { size: 8.5, bold: true, color: THEME.text });
+    text(spec.tableTitle || 'Valores', { size: 8.5, bold: true, color: THEME.text });
     spacer(1);
     drawTable(head, rows, [wFirst].concat(series.map(function () { return wCol; })));
   }
@@ -1010,20 +1062,35 @@
       'Barras: total de cada métrica escolhida. Linha: evolução dia a dia. Cada gráfico aparece com os valores.'));
     custom.appendChild(customList);
 
+    // Dimensões disponíveis no formulário (Top 5 vem da configuração da tela)
+    var dimOptions = [['day', 'Dia (evolução diária)'], ['totals', 'Total por métrica (barras horizontais)'],
+      ['hour', 'Hora do dia'], ['platform', 'Plataforma'], ['position', 'Posicionamento'],
+      ['device', 'Dispositivo'], ['region', 'Região'], ['age', 'Idade'], ['gender', 'Gênero']];
+    Object.keys(META_TOP5_DIMENSION_CONFIG).forEach(function (k) {
+      dimOptions.push(['top5:' + k, 'Top 5 · ' + ((META_TOP5_DIMENSION_CONFIG[k] || {}).label || k)]);
+    });
+
     function addCustomBlock() {
       var wrap = el('div', 'bg-slate-900/40 border border-slate-700 rounded-md px-3 py-2 mb-2 space-y-2');
       var top = el('div', 'flex flex-wrap items-center gap-2');
       var tIn = el('input', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs flex-1 min-w-[10rem]');
       tIn.type = 'text';
       tIn.placeholder = 'Título (opcional)';
+      var dSel = el('select', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs');
+      dimOptions.forEach(function (opt) {
+        var op = el('option', '', opt[1]);
+        op.value = opt[0];
+        dSel.appendChild(op);
+      });
       var tSel = el('select', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs');
-      [['bar', 'Barras: total por métrica'], ['line', 'Linha: evolução diária']].forEach(function (opt) {
+      [['bar', 'Barras'], ['line', 'Linha']].forEach(function (opt) {
         var op = el('option', '', opt[1]);
         op.value = opt[0];
         tSel.appendChild(op);
       });
       var rm = el('button', 'text-xs text-red-400 hover:text-red-300 px-2', 'Remover');
       top.appendChild(tIn);
+      top.appendChild(dSel);
       top.appendChild(tSel);
       top.appendChild(rm);
       wrap.appendChild(top);
@@ -1039,8 +1106,9 @@
         grid.appendChild(l);
       });
       wrap.appendChild(grid);
+      wrap.appendChild(el('p', 'text-[11px] text-slate-500', 'Barras e linhas: uma série por métrica marcada. Cada métrica usa a própria escala e mostra o valor.'));
 
-      var block = { el: wrap, tIn: tIn, tSel: tSel, boxes: boxes };
+      var block = { el: wrap, tIn: tIn, dSel: dSel, tSel: tSel, boxes: boxes };
       customs.push(block);
       rm.onclick = function () {
         wrap.remove();
@@ -1117,7 +1185,13 @@
             }).filter(Boolean).join(' | ');
             var spec = chartSpec(c.id);
             if (spec) {
-              spec.title = c.title;
+              var metricOpt = (c.opts || []).filter(function (o) { return o.type === 'metric' || o.type === 'metrics'; })[0];
+              var metricTxt = '';
+              if (metricOpt) {
+                var mv = selection.opts[metricOpt.key];
+                metricTxt = Array.isArray(mv) ? metricLabels(mv) : optionLabel(metricOpt, mv);
+              }
+              spec.title = metricTxt ? c.title + ' · ' + metricTxt : c.title;
               spec.subtitle = sub;
               blocks.push({ kind: 'chart', spec: spec });
               return;
@@ -1136,10 +1210,10 @@
           customs.forEach(function (b, idx) {
             var keys = Object.keys(b.boxes).filter(function (k) { return b.boxes[k].checked; });
             if (!keys.length) return;
-            var title = b.tIn.value.trim() || ('Gráfico personalizado ' + (idx + 1));
-            if (b.tSel.value === 'line') {
-              blocks.push({ kind: 'chart', spec: dailySpec(rows, keys, title) });
-            } else {
+            var dim = b.dSel.value;
+            var dimName = dim === 'totals' ? 'Total por métrica' : dimDef(dim).label;
+            var title = b.tIn.value.trim() || (dimName + ' · ' + metricLabels(keys));
+            if (dim === 'totals') {
               blocks.push({
                 kind: 'rows',
                 spec: {
@@ -1148,7 +1222,14 @@
                   rows: totalsRows(totals, keys)
                 }
               });
+              return;
             }
+            var spec = dimensionSpec(dim, keys, title, b.tSel.value);
+            if (!spec.labels.length) {
+              status.textContent = 'Sem dados para "' + title + '" no período; gráfico deixado de fora.';
+              return;
+            }
+            blocks.push({ kind: 'chart', spec: spec });
           });
 
           return buildPdf(selection, blocks, totals, perObjective, accountLabel);
