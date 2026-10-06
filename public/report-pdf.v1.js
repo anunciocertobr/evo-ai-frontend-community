@@ -1,9 +1,11 @@
 /**
  * Geração de PDF do relatório de Meta Ads (Dashboard › Relatórios e link público /r/:token).
  *
- * O PDF é montado no navegador com jsPDF: cada gráfico selecionado entra como
- * imagem (o Chart.js desenha em <canvas>, e o jsPDF não sabe ler canvas), e o
- * resumo de métricas vai como texto de verdade, pesquisável.
+ * O PDF é montado no navegador com jsPDF e segue o mesmo visual do relatório
+ * (fundo escuro, cards de totais, cores da tela). Os gráficos são desenhados
+ * direto no PDF a partir dos dados do Chart.js (ou dos dados do período, nos
+ * gráficos personalizados), para que os valores apareçam em cada barra/ponto.
+ * Só cai para imagem do canvas quando o tipo de gráfico não é barra nem linha.
  *
  * Este arquivo é carregado pelo HTML do item `mtlsot4v-cf6f9s` de
  * `dashboard-menu-items` (ver Public::ReportHtml do backend). Ele depende de
@@ -56,6 +58,17 @@
   var BASE_METRICS = ['spent', 'impressions', 'reach', 'clicks', 'messages', 'leads', 'purchases'];
 
   var MONTH_CAP = 3; // mesmo limite do handleDateFilterClick do relatório
+
+  // Cores do relatório (Tailwind slate + as cores dos gráficos da tela).
+  var THEME = {
+    page: [15, 23, 42],      // slate-900: fundo da página
+    card: [30, 41, 59],      // slate-800: cards e blocos de gráfico
+    cardAlt: [51, 65, 85],   // slate-700: cabeçalho de tabela e linhas
+    text: [241, 245, 249],   // slate-100: títulos e valores
+    body: [226, 232, 240],   // slate-200: texto corrido
+    muted: [148, 163, 184]   // slate-400: rótulos e legendas
+  };
+  var PALETTE = ['#38bdf8', '#a78bfa', '#34d399', '#fbbf24', '#f87171', '#fb923c', '#60a5fa', '#e879f9'];
 
   // ---------------------------------------------------------------- período
 
@@ -183,9 +196,92 @@
     return formatNumber(Math.round(value));
   }
 
+  // Grupo de escala: barras só se comparam dentro do mesmo tipo de métrica
+  // (R$ com R$, quantidade com quantidade). Mensagens e custo por mensagem
+  // ficam em escalas separadas, cada uma com o próprio valor marcado.
+  function scaleGroup(key) {
+    var m = META_METRIC_CONFIG[key] || {};
+    if (m.isCurrency) return 'currency';
+    if (m.isPercentage) return 'percent';
+    if (m.isRatio) return 'ratio';
+    return 'count';
+  }
+
+  function keyForLabel(label) {
+    var ks = Object.keys(META_METRIC_CONFIG);
+    for (var i = 0; i < ks.length; i++) {
+      if (META_METRIC_CONFIG[ks[i]].label === label) return ks[i];
+    }
+    return null;
+  }
+
+  // ------------------------------------------------------ dados dos gráficos
+
+  // Lê o gráfico que já está na tela (Chart.js) e devolve os mesmos dados,
+  // para o PDF desenhar com valores. Gráfico que não é barra nem linha → null.
+  function chartSpec(canvasId) {
+    var el = document.getElementById(canvasId);
+    if (!el || typeof Chart === 'undefined') return null;
+    var chart = Chart.getChart(el);
+    if (!chart || (chart.config.type !== 'bar' && chart.config.type !== 'line')) return null;
+    var labels = (chart.data.labels || []).map(String);
+    var series = [];
+    chart.data.datasets.forEach(function (ds, i) {
+      if (chart.isDatasetVisible && !chart.isDatasetVisible(i)) return;
+      var label = ds.label || '';
+      var key = keyForLabel(label);
+      var color = typeof ds.backgroundColor === 'string' ? ds.backgroundColor : ds.borderColor;
+      series.push({
+        label: label,
+        color: hexOrPalette(color, series.length),
+        data: (ds.data || []).map(function (v) { return Number(v) || 0; }),
+        fmt: function (v) { return key ? formatValue(key, v) : formatNumber(Math.round(v)); }
+      });
+    });
+    if (!series.length) return null;
+    return { kind: chart.config.type, labels: labels, series: series };
+  }
+
+  // Gráfico personalizado de linha: evolução diária das métricas escolhidas.
+  function dailySpec(rows, keys, title) {
+    var byDay = {};
+    rows.forEach(function (ad) {
+      if (ad.Dia) (byDay[ad.Dia] = byDay[ad.Dia] || []).push(ad);
+    });
+    var days = Object.keys(byDay).sort();
+    var perDay = days.map(function (d) { return calcMetrics(byDay[d]); });
+    return {
+      title: title,
+      subtitle: 'Cada linha usa a própria escala. Os valores reais aparecem nos pontos.',
+      kind: 'line',
+      labels: days.map(function (d) { return dayjs(parseAPIDate(d)).format('DD/MM'); }),
+      series: keys.map(function (k, i) {
+        return {
+          label: META_METRIC_CONFIG[k].label,
+          color: PALETTE[i % PALETTE.length],
+          data: perDay.map(function (m) { return m[k]; }),
+          fmt: function (v) { return formatValue(k, v); }
+        };
+      })
+    };
+  }
+
+  // Gráfico personalizado de barras: total de cada métrica escolhida.
+  function totalsRows(totals, keys) {
+    return keys.map(function (k) {
+      return {
+        label: META_METRIC_CONFIG[k].label,
+        value: totals[k] || 0,
+        fmt: function (v) { return formatValue(k, v); },
+        group: scaleGroup(k)
+      };
+    });
+  }
+
   // ---------------------------------------------------------------- canvas
 
-  // O canvas do Chart.js é transparente e o texto dos gráficos é claro: sem
+  // Só usado para o caso de fallback (gráfico que não é barra nem linha). O
+  // canvas do Chart.js é transparente e o texto dos gráficos é claro: sem
   // pintar o fundo antes, o PNG sairia com texto branco sobre branco no PDF.
   function resolveBackground(el) {
     var node = el;
@@ -211,7 +307,6 @@
     ctx.fillRect(0, 0, out.width, out.height);
     ctx.drawImage(src, 0, 0);
     return {
-      dataUrl: out.toDataURL('image/png'),
       jpegUrl: out.toDataURL('image/jpeg', 0.95),
       w: src.width,
       h: src.height
@@ -222,9 +317,29 @@
 
   var M = { top: 14, bottom: 16, left: 12, right: 12 };
   var doc, pageW, pageH, contentW, y;
+  var CHART_H = 104;
+
+  function hexOrPalette(c, idx) {
+    return /^#[0-9a-f]{6}$/i.test(c || '') ? c : PALETTE[idx % PALETTE.length];
+  }
+
+  function hexRgb(hex) {
+    var m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return [56, 189, 248];
+    var n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  // Pinta a página inteira de escuro. Chamado em toda página nova, senão a
+  // página nasce branca.
+  function paintPage() {
+    doc.setFillColor.apply(doc, THEME.page);
+    doc.rect(0, 0, pageW, pageH, 'F');
+  }
 
   function newPage() {
     doc.addPage();
+    paintPage();
     y = M.top;
   }
 
@@ -232,13 +347,16 @@
     if (y + h > pageH - M.bottom) newPage();
   }
 
+  function spacer(h) { y += h || 6; }
+
   function text(str, opts) {
     opts = opts || {};
-    doc.setFontSize(opts.size || 9);
+    var size = opts.size || 9;
+    doc.setFontSize(size);
     doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
-    if (opts.color) doc.setTextColor.apply(doc, opts.color);
+    doc.setTextColor.apply(doc, opts.color || THEME.body);
     var lines = doc.splitTextToSize(String(str), opts.width || contentW);
-    var lh = (opts.size || 9) * 0.42 + 1;
+    var lh = size * 0.42 + 1;
     need(lines.length * lh);
     doc.text(lines, opts.x === undefined ? M.left : opts.x, y, { lineHeightFactor: 0.42 });
     y += lines.length * lh;
@@ -247,24 +365,67 @@
   function heading(str) {
     need(24);
     y += 4;
-    text(str, { size: 13, bold: true, color: [15, 23, 42] });
+    text(str, { size: 13, bold: true, color: THEME.text });
     y += 2;
   }
 
-  function spacer(h) { y += h || 6; }
+  // Texto solto numa posição (rótulos de gráfico). Não mexe em `y`.
+  function label(str, x, yy, o) {
+    o = o || {};
+    doc.setFontSize(o.size || 7);
+    doc.setFont('helvetica', o.bold ? 'bold' : 'normal');
+    doc.setTextColor.apply(doc, o.color || THEME.body);
+    var opts = { align: o.align || 'left' };
+    if (o.angle) opts.angle = o.angle;
+    doc.text(String(str), x, yy, opts);
+  }
+
+  // Corta o texto até caber na largura. Precisa do tamanho de fonte já definido.
+  function fitText(str, maxW) {
+    var s = String(str);
+    if (doc.getTextWidth(s) <= maxW) return s;
+    while (s.length > 1 && doc.getTextWidth(s + '…') > maxW) s = s.slice(0, -1);
+    return s + '…';
+  }
+
+  function card(x, yy, w, h) {
+    doc.setFillColor.apply(doc, THEME.card);
+    doc.roundedRect(x, yy, w, h, 2, 2, 'F');
+  }
+
+  // Cards de totais (mesmo formato dos cards do relatório).
+  function drawKpiCards(items) {
+    var cols = 3, gap = 4;
+    var w = (contentW - gap * (cols - 1)) / cols;
+    var h = 22;
+    var i = 0;
+    while (i < items.length) {
+      need(h + gap);
+      for (var c = 0; c < cols && i < items.length; c++, i++) {
+        var it = items[i];
+        var x = M.left + c * (w + gap);
+        card(x, y, w, h);
+        label(it.label, x + 4, y + 6.5, { size: 8, color: THEME.muted });
+        label(it.value, x + 4, y + 14.5, { size: 13, bold: true, color: THEME.text });
+        if (it.sub) label(it.sub, x + 4, y + 19.2, { size: 7, color: THEME.muted });
+      }
+      y += h + gap;
+    }
+    spacer(2);
+  }
 
   function drawTable(head, rows, widths) {
     var rowH = 7;
     function header() {
       need(rowH * 2);
-      doc.setFillColor(226, 232, 240);
+      doc.setFillColor.apply(doc, THEME.cardAlt);
       doc.rect(M.left, y, contentW, rowH, 'F');
       var x = M.left;
       doc.setFontSize(8.5);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 23, 42);
+      doc.setTextColor.apply(doc, THEME.text);
       head.forEach(function (h, i) {
-        doc.text(String(h), x + 2, y + 4.8, { maxWidth: widths[i] - 4 });
+        doc.text(fitText(h, widths[i] - 4), x + 2, y + 4.8);
         x += widths[i];
       });
       y += rowH;
@@ -272,22 +433,16 @@
     header();
     rows.forEach(function (row, r) {
       if (y + rowH > pageH - M.bottom) { newPage(); header(); }
-      if (r % 2 === 1) {
-        doc.setFillColor(248, 250, 252);
-        doc.rect(M.left, y, contentW, rowH, 'F');
-      }
+      doc.setFillColor.apply(doc, r % 2 === 1 ? THEME.card : THEME.page);
+      doc.rect(M.left, y, contentW, rowH, 'F');
       var x = M.left;
       row.forEach(function (cell, i) {
         doc.setFontSize(8.5);
         doc.setFont('helvetica', i === 0 ? 'bold' : 'normal');
-        doc.setTextColor(30, 41, 59);
+        doc.setTextColor.apply(doc, THEME.body);
         var val = String(cell);
-        // números à direita, texto à esquerda
         if (i > 0) {
-          var w = doc.getTextWidth(val);
-          if (w > widths[i] - 4) val = doc.splitTextToSize(val, widths[i] - 4);
-          if (Array.isArray(val)) doc.text(val, x + widths[i] - 2, y + 4.8, { align: 'right' });
-          else doc.text(val, x + widths[i] - 2, y + 4.8, { align: 'right' });
+          doc.text(val, x + widths[i] - 2, y + 4.8, { align: 'right' });
         } else {
           doc.text(doc.splitTextToSize(val, widths[i] - 4), x + 2, y + 4.8);
         }
@@ -296,6 +451,137 @@
       y += rowH;
     });
     spacer(4);
+  }
+
+  // Bloco de gráfico de barras ou linhas, com valores em cada barra/ponto.
+  function drawChartBlock(spec) {
+    need(CHART_H + 4);
+    var top = y;
+    card(M.left, top, contentW, CHART_H);
+
+    label(spec.title, M.left + 6, top + 7, { size: 10.5, bold: true, color: THEME.text });
+    label(fitText(spec.subtitle || '', contentW - 12), M.left + 6, top + 12, { size: 7.5, color: THEME.muted });
+
+    var series = spec.series;
+    var x0 = M.left + 10, plotW = contentW - 20;
+    var legendY = top + 17;
+    var lx = x0;
+    series.forEach(function (s) {
+      var rgb = hexRgb(s.color);
+      doc.setFillColor.apply(doc, rgb);
+      doc.rect(lx, legendY - 2.2, 2.2, 2.2, 'F');
+      doc.setFontSize(7.5);
+      var itemW = Math.min(doc.getTextWidth(s.label), 50);
+      label(fitText(s.label, 50), lx + 3.4, legendY, { size: 7.5, color: THEME.body });
+      lx += 3.4 + itemW + 7;
+    });
+
+    var plotTop = top + 23;
+    var plotBottom = top + CHART_H - 11;
+    var plotH = plotBottom - plotTop;
+    var n = spec.labels.length;
+    if (!n || !series.length) { y = top + CHART_H + 5; return; }
+
+    // Eixo de base
+    doc.setDrawColor.apply(doc, THEME.cardAlt);
+    doc.setLineWidth(0.2);
+    doc.line(x0, plotBottom, x0 + plotW, plotBottom);
+
+    var gw = plotW / n;
+    var i;
+
+    if (spec.kind === 'bar') {
+      var groupW = Math.min(gw * 0.8, 40);
+      var bw = groupW / series.length;
+      var rotate = bw < 6.5;
+      var headroom = rotate ? plotH - 14 : plotH - 5;
+      series.forEach(function (s, si2) {
+        var mx = Math.max.apply(null, s.data.concat([0])) || 1;
+        var barRgb = hexRgb(s.color);
+        s.data.forEach(function (v, idx) {
+          var h = Math.max(0, v) / mx * headroom;
+          var bx = x0 + idx * gw + (gw - groupW) / 2 + si2 * bw;
+          var by = plotBottom - h;
+          // o texto também usa a cor de preenchimento no jsPDF: redefinir a cor a cada forma
+          doc.setFillColor.apply(doc, barRgb);
+          doc.rect(bx + 0.3, by, Math.max(bw - 0.6, 0.5), h, 'F');
+          if (rotate) {
+            label(s.fmt(v), bx + bw / 2 + 1.2, by - 1.5, { size: 6.5, angle: 90, bold: true, color: THEME.text });
+          } else {
+            label(s.fmt(v), bx + bw / 2, by - 1.5, { size: 6.5, bold: true, color: THEME.text, align: 'center' });
+          }
+        });
+      });
+    } else {
+      var step = Math.max(1, Math.ceil(n / 14));
+      series.forEach(function (s, si3) {
+        var mx = Math.max.apply(null, s.data.concat([0])) || 1;
+        var rgb = hexRgb(s.color);
+        var pts = s.data.map(function (v, idx) {
+          return {
+            x: n === 1 ? x0 + plotW / 2 : x0 + idx * plotW / (n - 1),
+            y: plotBottom - Math.max(0, v) / mx * (plotH - 8)
+          };
+        });
+        doc.setDrawColor.apply(doc, rgb);
+        doc.setLineWidth(0.6);
+        for (i = 1; i < pts.length; i++) doc.line(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y);
+        pts.forEach(function (p, idx) {
+          doc.setFillColor.apply(doc, rgb);
+          doc.circle(p.x, p.y, 0.8, 'F');
+          if (idx % step === 0) {
+            // séries alternam acima/abaixo do ponto para não sobrepor os valores
+            var ly = si3 % 2 ? p.y + 4 : p.y - 2.2;
+            label(s.fmt(s.data[idx]), p.x, ly, { size: 6.5, bold: true, color: THEME.text, align: 'center' });
+          }
+        });
+      });
+    }
+
+    // Rótulos do eixo X
+    var stepX = 1;
+    if (spec.kind === 'bar') stepX = Math.max(1, Math.ceil(7 / gw));
+    else stepX = Math.max(1, Math.ceil(n / 14));
+    spec.labels.forEach(function (lb, idx) {
+      if (idx % stepX) return;
+      doc.setFontSize(7);
+      var cx = spec.kind === 'bar' ? x0 + idx * gw + gw / 2 : (n === 1 ? x0 + plotW / 2 : x0 + idx * plotW / (n - 1));
+      var w = spec.kind === 'bar' ? gw * stepX - 1 : 14;
+      label(fitText(lb, w), cx, plotBottom + 4.5, { size: 7, color: THEME.muted, align: 'center' });
+    });
+
+    y = top + CHART_H + 5;
+  }
+
+  // Barras horizontais: uma linha por métrica, cada grupo de escala usa seu
+  // próprio máximo (R$ com R$, quantidade com quantidade...).
+  function drawRowsBlock(spec) {
+    var rows = spec.rows;
+    var H = 22 + rows.length * 9 + 4;
+    need(H + 4);
+    var top = y;
+    card(M.left, top, contentW, H);
+    label(spec.title, M.left + 6, top + 7, { size: 10.5, bold: true, color: THEME.text });
+    label(fitText(spec.subtitle || '', contentW - 12), M.left + 6, top + 12, { size: 7.5, color: THEME.muted });
+
+    var labelW = 56, valueW = 34;
+    var barX = M.left + 6 + labelW;
+    var barMaxW = contentW - 12 - labelW - valueW;
+    var groupMax = {};
+    rows.forEach(function (r) { groupMax[r.group] = Math.max(groupMax[r.group] || 0, r.value); });
+
+    rows.forEach(function (r, i) {
+      var ry = top + 20 + i * 9;
+      doc.setFontSize(8);
+      label(fitText(r.label, labelW - 3), M.left + 6, ry + 3.6, { size: 8, color: THEME.body });
+      var gm = groupMax[r.group] || 1;
+      var w = Math.max(0, r.value) / gm * barMaxW;
+      doc.setFillColor.apply(doc, hexRgb(PALETTE[i % PALETTE.length]));
+      doc.rect(barX, ry, Math.max(w, 0.5), 4.6, 'F');
+      label(r.fmt(r.value), barX + w + 2, ry + 3.6, { size: 8, bold: true, color: THEME.text });
+    });
+
+    y = top + H + 5;
   }
 
   function drawImage(img, title, subtitle) {
@@ -309,16 +595,11 @@
     var titleH = (title ? (11 * 0.42 + 1) : 0) + (subtitle ? (8.5 * 0.42 + 1) : 0) + 3;
     if (y + titleH + dh > pageH - M.bottom) newPage();
 
-    if (title) text(title, { size: 11, bold: true, color: [15, 23, 42] });
-    if (subtitle) text(subtitle, { size: 8.5, color: [71, 85, 105] });
+    if (title) text(title, { size: 11, bold: true, color: THEME.text });
+    if (subtitle) text(subtitle, { size: 8.5, color: THEME.muted });
     y += 3;
-// Sempre JPEG, nunca PNG: o jsPDF decodifica o PNG e grava os pixels em RGB
-    // cru dentro do PDF (1230x350x3 = 1,29 MB por gráfico, sem /Filter), e o
-    // arquivo chega a 6,8 MB — grande demais para e-mail/WhatsApp. Com JPEG o
-    // mesmo gráfico entra em ~60 KB. A 0.95 o texto da legenda continua
-    // legível; é imagem de gráfico, não texto de verdade.
-    var isPng = false;
-    doc.addImage(isPng ? img.dataUrl : img.jpegUrl, isPng ? 'PNG' : 'JPEG', M.left + (contentW - dw) / 2, y, dw, dh);
+    // Sempre JPEG, nunca PNG: o jsPDF grava PNG em RGB cru (1,29 MB por gráfico).
+    doc.addImage(img.jpegUrl, 'JPEG', M.left + (contentW - dw) / 2, y, dw, dh);
     y += dh + 8;
   }
 
@@ -328,7 +609,7 @@
       doc.setPage(i);
       doc.setFontSize(7.5);
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(120, 130, 145);
+      doc.setTextColor.apply(doc, THEME.muted);
       doc.text('Página ' + i + ' de ' + total, pageW - M.right, pageH - 8, { align: 'right' });
       doc.text('Relatório de Meta Ads', M.left, pageH - 8);
     }
@@ -411,7 +692,6 @@
 
     return work
       .then(fn)
-      .catch(function (err) { throw err; })
       .then(function (out) {
         Chart.defaults.animation = animBackup;
         var restore = Promise.resolve();
@@ -429,23 +709,25 @@
       });
   }
 
-  function buildPdf(selection, shots, stats, perObjective, accountLabel) {
+  function buildPdf(selection, blocks, stats, perObjective, accountLabel) {
     var JsPDF = window.jspdf.jsPDF;
     doc = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
     pageW = doc.internal.pageSize.getWidth();
     pageH = doc.internal.pageSize.getHeight();
     contentW = pageW - M.left - M.right;
     y = M.top;
+    paintPage();
 
     // Cabeçalho
-    doc.setFillColor(15, 23, 42);
+    doc.setFillColor.apply(doc, THEME.card);
     doc.rect(0, 0, pageW, 26, 'F');
-    doc.setTextColor(248, 250, 252);
+    doc.setTextColor.apply(doc, THEME.text);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(15);
     doc.text('Relatório de Meta Ads', M.left, 11);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
+    doc.setTextColor.apply(doc, THEME.body);
     doc.text('Período: ' + periodLabel(selection.period), M.left, 17.5);
     if (accountLabel) doc.text('Conta: ' + accountLabel, M.left, 22);
     doc.text('Gerado em ' + new Date().toLocaleString('pt-BR'), pageW - M.right, 17.5, { align: 'right' });
@@ -459,32 +741,27 @@
       st.selectedAdSet !== 'all' ? 'Conjunto: ' + st.selectedAdSet : null,
       st.selectedAd !== 'all' ? 'Anúncio: ' + st.selectedAd : null
     ].filter(Boolean);
-    if (filtros.length) text('Filtros aplicados — ' + filtros.join(' | '), { size: 8.5, color: [71, 85, 105] });
+    if (filtros.length) text('Filtros aplicados — ' + filtros.join(' | '), { size: 8.5, color: THEME.muted });
 
     if (selection.wantTotals || selection.wantAverage) {
       heading('Resumo de métricas');
-      var keys = selection.metrics.slice();
-      var rows = keys.map(function (k) {
-        var line = [META_METRIC_CONFIG[k].label];
-        if (selection.wantTotals) line.push(formatValue(k, stats[k]));
-        if (selection.wantAverage) line.push(formatAverage(k, stats.avg[k]));
-        return line;
+      var items = selection.metrics.map(function (k) {
+        var label = META_METRIC_CONFIG[k].label;
+        if (selection.wantTotals) {
+          return {
+            label: label,
+            value: formatValue(k, stats[k]),
+            sub: selection.wantAverage ? 'Média/dia: ' + formatAverage(k, stats.avg[k]) : null
+          };
+        }
+        return { label: label, value: formatAverage(k, stats.avg[k]), sub: 'Média por dia' };
       });
-      var head = ['Métrica'];
-      if (selection.wantTotals) head.push('Total');
-      if (selection.wantAverage) head.push('Média por dia');
-      var w0 = 70;
-      var wRest = (contentW - w0) / (head.length - 1);
-      drawTable(head, rows, [w0].concat(head.slice(1).map(function () { return wRest; })));
-      text(stats.dayCount > 1
-        ? 'Média diária calculada sobre ' + stats.dayCount + ' dias com dados no período.'
-        : 'Média diária: o período tem ' + stats.dayCount + ' dia com dados.', { size: 8, color: [120, 130, 145] });
-      spacer(4);
+      drawKpiCards(items);
     }
 
     if (selection.wantObjective && perObjective.length) {
       heading('Por Resultado');
-      text('Agrupado pelo resultado configurado na campanha (Objetivo).', { size: 8, color: [120, 130, 145] });
+      text('Agrupado pelo resultado configurado na campanha (Objetivo).', { size: 8, color: THEME.muted });
       spacer(2);
       // 5 colunas de métrica por vez: 14 métricas não cabem na largura da
       // página e uma tabela ilegível é pior que duas.
@@ -503,9 +780,13 @@
       }
     }
 
-    if (shots.length) {
+    if (blocks.length) {
       heading('Gráficos');
-      shots.forEach(function (s) { drawImage(s.img, s.title, s.subtitle); });
+      blocks.forEach(function (b) {
+        if (b.kind === 'chart') drawChartBlock(b.spec);
+        else if (b.kind === 'rows') drawRowsBlock(b.spec);
+        else if (b.kind === 'image') drawImage(b.img, b.title, b.subtitle);
+      });
     }
 
     addFooters();
@@ -623,7 +904,7 @@
 
     // --- gráficos
     var gra = el('div');
-    gra.appendChild(el('h4', 'font-semibold text-white mb-2', 'Gráficos'));
+    gra.appendChild(el('h4', 'font-semibold text-white mb-2', 'Gráficos da tela'));
     CHARTS.forEach(function (c) {
       var wrap = el('div', 'bg-slate-900/40 border border-slate-700 rounded-md px-3 py-2 mb-2');
       var head = el('label', 'flex items-center gap-2 cursor-pointer');
@@ -670,6 +951,60 @@
       gra.appendChild(wrap);
     });
     body.appendChild(gra);
+
+    // --- gráficos personalizados (só existem no PDF)
+    var customs = [];
+    var customList = el('div');
+    var custom = el('div');
+    custom.appendChild(el('h4', 'font-semibold text-white mb-1', 'Gráficos personalizados'));
+    custom.appendChild(el('p', 'text-xs text-slate-500 mb-2',
+      'Barras: total de cada métrica escolhida. Linha: evolução dia a dia. Cada gráfico aparece com os valores.'));
+    custom.appendChild(customList);
+
+    function addCustomBlock() {
+      var wrap = el('div', 'bg-slate-900/40 border border-slate-700 rounded-md px-3 py-2 mb-2 space-y-2');
+      var top = el('div', 'flex flex-wrap items-center gap-2');
+      var tIn = el('input', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs flex-1 min-w-[10rem]');
+      tIn.type = 'text';
+      tIn.placeholder = 'Título (opcional)';
+      var tSel = el('select', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs');
+      [['bar', 'Barras: total por métrica'], ['line', 'Linha: evolução diária']].forEach(function (opt) {
+        var op = el('option', '', opt[1]);
+        op.value = opt[0];
+        tSel.appendChild(op);
+      });
+      var rm = el('button', 'text-xs text-red-400 hover:text-red-300 px-2', 'Remover');
+      top.appendChild(tIn);
+      top.appendChild(tSel);
+      top.appendChild(rm);
+      wrap.appendChild(top);
+
+      var grid = el('div', 'flex flex-wrap gap-1 text-xs');
+      var boxes = {};
+      Object.keys(META_METRIC_CONFIG).forEach(function (k) {
+        var l = el('label', 'flex items-center gap-1 bg-slate-700 rounded px-1.5 py-0.5 cursor-pointer');
+        var b = el('input'); b.type = 'checkbox';
+        boxes[k] = b;
+        l.appendChild(b);
+        l.appendChild(el('span', '', META_METRIC_CONFIG[k].label));
+        grid.appendChild(l);
+      });
+      wrap.appendChild(grid);
+
+      var block = { el: wrap, tIn: tIn, tSel: tSel, boxes: boxes };
+      customs.push(block);
+      rm.onclick = function () {
+        wrap.remove();
+        customs.splice(customs.indexOf(block), 1);
+      };
+      customList.appendChild(wrap);
+    }
+
+    var addBtn = el('button', 'px-3 py-1.5 text-sm rounded-md bg-slate-700 hover:bg-slate-600 text-white border border-slate-600', '+ Adicionar gráfico');
+    addBtn.type = 'button';
+    addBtn.onclick = addCustomBlock;
+    custom.appendChild(addBtn);
+    body.appendChild(custom);
 
     // --- rodapé
     var status = el('div', 'text-xs text-slate-400 min-h-[1.2rem]');
@@ -723,17 +1058,23 @@
 
       withState(selection, function () {
         return loadJsPdf().then(function () {
-          var shots = [];
+          var blocks = [];
           CHARTS.forEach(function (c) {
             if (!c._box.checked) return;
-            var img = captureChart(c.id);
-            if (!img) return;
             var sub = (c.opts || []).map(function (o) {
               var v = selection.opts[o.key];
               if (Array.isArray(v)) return o.label + ': ' + v.map(function (k) { return META_METRIC_CONFIG[k].label; }).join(', ');
               return o.label + ': ' + optionLabel(o, v);
             }).filter(Boolean).join(' | ');
-            shots.push({ img: img, title: c.title, subtitle: sub });
+            var spec = chartSpec(c.id);
+            if (spec) {
+              spec.title = c.title;
+              spec.subtitle = sub;
+              blocks.push({ kind: 'chart', spec: spec });
+              return;
+            }
+            var img = captureChart(c.id);
+            if (img) blocks.push({ kind: 'image', img: img, title: c.title, subtitle: sub });
           });
 
           var rows = filteredRows();
@@ -743,7 +1084,25 @@
           totals.dayCount = avg.dayCount;
           var perObjective = groupByObjective(rows);
 
-          return buildPdf(selection, shots, totals, perObjective, accountLabel);
+          customs.forEach(function (b, idx) {
+            var keys = Object.keys(b.boxes).filter(function (k) { return b.boxes[k].checked; });
+            if (!keys.length) return;
+            var title = b.tIn.value.trim() || ('Gráfico personalizado ' + (idx + 1));
+            if (b.tSel.value === 'line') {
+              blocks.push({ kind: 'chart', spec: dailySpec(rows, keys, title) });
+            } else {
+              blocks.push({
+                kind: 'rows',
+                spec: {
+                  title: title,
+                  subtitle: 'Cada barra usa a escala do seu tipo (R$, quantidade, % ou taxa).',
+                  rows: totalsRows(totals, keys)
+                }
+              });
+            }
+          });
+
+          return buildPdf(selection, blocks, totals, perObjective, accountLabel);
         });
       }).then(function (nome) {
         status.textContent = 'PDF gerado: ' + nome;
