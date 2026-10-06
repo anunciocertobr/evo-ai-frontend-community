@@ -220,6 +220,7 @@ export function LocationMapPicker({
       setListaAtual([...listaAtual, entry]);
     }
     setPin({ name: displayName, lat, lng, radius: pin.radius });
+    mapRef.current?.setView([lat, lng], 11);
     setSearchQuery('');
     setSuggestions([]);
   };
@@ -350,7 +351,7 @@ export function LocationMapPicker({
         </Button>
       </div>
 
-      <div className="space-y-2 max-h-32 overflow-y-auto border border-slate-700 p-2 rounded-lg bg-slate-900/50">
+      <div className="shrink-0 space-y-2 max-h-32 overflow-y-auto border border-slate-700 p-2 rounded-lg bg-slate-900/50">
         {listaAtual.length === 0 ? (
           <p className="text-xs text-slate-500 italic text-center">
             {modoEfetivo === 'INCLUIR' ? 'Nenhuma localização adicionada.' : 'Nenhuma localização excluída.'}
