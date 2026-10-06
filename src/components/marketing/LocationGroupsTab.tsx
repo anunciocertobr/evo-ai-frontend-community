@@ -16,17 +16,34 @@ import { Building2, Copy, Import, ListChecks, MapPin, Pencil, Plus, Trash2 } fro
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { useMetaAdAccountScope } from '@/components/marketing/metaAdAccountScope';
 import { LocationMapPicker, type LocationEntry } from '@/components/marketing/LocationMapPicker';
+import { LocationImportDialog } from '@/components/marketing/LocationImportDialog';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import { metaCreationService, type LocationGroup, type LocationGroupPin } from '@/services/marketing/metaCreationService';
 import { pinsFromOrigin } from '@/utils/marketing/geoResolve';
 import { apiErrorMessage } from '@/utils/apiHelpers';
 
-function pinsToLocations(pins: LocationGroupPin[]): LocationEntry[] {
-  return pins.map((p) => ({ id: crypto.randomUUID(), name: p.name, lat: p.lat, lng: p.lng, radius: p.radius }));
+function pinsToLocations(pins: LocationGroupPin[], exclude = false): LocationEntry[] {
+  return pins
+    .filter((p) => Boolean(p.exclude) === exclude)
+    .map((p) => ({ id: crypto.randomUUID(), name: p.name, lat: p.lat, lng: p.lng, radius: p.radius }));
 }
 
-function locationsToPins(locations: LocationEntry[]): LocationGroupPin[] {
-  return locations.map((l) => ({ name: l.name, lat: l.lat, lng: l.lng, radius: l.radius }));
+// Junta sem repetir: mesmo ponto (coordenada e raio) não entra duas vezes.
+function mergeLocations(atual: LocationEntry[], novos: LocationEntry[]): LocationEntry[] {
+  const chave = (l: LocationEntry) => `${l.lat.toFixed(4)}|${l.lng.toFixed(4)}|${l.radius}`;
+  const existentes = new Set(atual.map(chave));
+  return [...atual, ...novos.filter((l) => !existentes.has(chave(l)))];
+}
+
+function locationsToPins(locations: LocationEntry[], excluded: LocationEntry[] = []): LocationGroupPin[] {
+  const toPin = (l: LocationEntry, exclude: boolean): LocationGroupPin => ({
+    name: l.name,
+    lat: l.lat,
+    lng: l.lng,
+    radius: l.radius,
+    ...(exclude ? { exclude: true } : {}),
+  });
+  return [...locations.map((l) => toPin(l, false)), ...excluded.map((l) => toPin(l, true))];
 }
 
 // "Duplicar pra outra conta": escolhe BM > conta de destino (qualquer uma —
@@ -511,6 +528,7 @@ function LocationGroupEditorDialog({
   onOpenChange,
   group,
   allGroups,
+  accountId,
   onSaved,
   onSave,
 }: {
@@ -518,18 +536,22 @@ function LocationGroupEditorDialog({
   onOpenChange: (open: boolean) => void;
   group: LocationGroup | null;
   allGroups: LocationGroup[];
+  accountId: string;
   onSaved: () => void;
   onSave: (name: string, pins: LocationGroupPin[], group: LocationGroup | null) => Promise<void>;
 }) {
   const [name, setName] = useState('');
   const [locations, setLocations] = useState<LocationEntry[]>([]);
+  const [excludedLocations, setExcludedLocations] = useState<LocationEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const [bankOpen, setBankOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setName(group?.name || '');
     setLocations(group ? pinsToLocations(group.pins) : []);
+    setExcludedLocations(group ? pinsToLocations(group.pins, true) : []);
   }, [open, group]);
 
   const handleSave = async () => {
@@ -544,7 +566,7 @@ function LocationGroupEditorDialog({
     }
     setSaving(true);
     try {
-      await onSave(trimmed, locationsToPins(locations), group);
+      await onSave(trimmed, locationsToPins(locations, excludedLocations), group);
       onOpenChange(false);
       onSaved();
     } catch (error) {
@@ -584,8 +606,28 @@ function LocationGroupEditorDialog({
                   <ListChecks className="w-3.5 h-3.5 mr-1" /> Escolher de locais já usados
                 </Button>
               )}
+              <Button type="button" variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                <Import className="w-3.5 h-3.5 mr-1" /> Importar de…
+              </Button>
             </div>
-            <LocationMapPicker locations={locations} onChange={setLocations} singleListMode fullHeight />
+            <LocationImportDialog
+              open={importOpen}
+              onOpenChange={setImportOpen}
+              accountId={accountId}
+              groups={allGroups}
+              currentGroupId={group?.id}
+              onImport={(pins) => {
+                setLocations((prev) => mergeLocations(prev, pinsToLocations(pins)));
+                setExcludedLocations((prev) => mergeLocations(prev, pinsToLocations(pins, true)));
+              }}
+            />
+            <LocationMapPicker
+              locations={locations}
+              onChange={setLocations}
+              excludedLocations={excludedLocations}
+              onExcludedChange={setExcludedLocations}
+              fullHeight
+            />
           </div>
         </div>
         <DialogFooter>
@@ -805,6 +847,7 @@ export function LocationGroupsTab() {
             onOpenChange={setEditorOpen}
             group={editingGroup}
             allGroups={groups || []}
+            accountId={account?.id || ''}
             onSave={handleSaveEditor}
             onSaved={() => account && loadGroups(account.id)}
           />

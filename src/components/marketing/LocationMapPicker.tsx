@@ -31,6 +31,12 @@ interface NominatimResult {
 // desmonta o conteúdo de verdade a cada abertura) já usado em
 // RealEstateItemModal.tsx. Busca de endereço via Nominatim (OpenStreetMap),
 // mesma API sem chave que o painel legado usava.
+// Pino solto no mapa leva o nome pelas coordenadas: um nome fixo ("Localização
+// Personalizada (Clique)") fazia o segundo pino ser recusado como duplicado.
+function nomeDoPonto(lat: number, lng: number) {
+  return `Ponto (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+}
+
 export function LocationMapPicker({
   locations,
   onChange,
@@ -90,7 +96,7 @@ export function LocationMapPicker({
       marker.on('dragend', () => {
         const pos = marker.getLatLng();
         setEditingId(null);
-        setPin((prev) => ({ ...prev, lat: pos.lat, lng: pos.lng, name: 'Localização Personalizada (Arrastada)' }));
+        setPin((prev) => ({ ...prev, lat: pos.lat, lng: pos.lng, name: nomeDoPonto(pos.lat, pos.lng) }));
       });
       markerRef.current = marker;
     }
@@ -142,7 +148,7 @@ export function LocationMapPicker({
 
     map.on('click', (e: L.LeafletMouseEvent) => {
       setEditingId(null);
-      setPin((prev) => ({ ...prev, lat: e.latlng.lat, lng: e.latlng.lng, name: 'Localização Personalizada (Clique)' }));
+      setPin((prev) => ({ ...prev, lat: e.latlng.lat, lng: e.latlng.lng, name: nomeDoPonto(e.latlng.lat, e.latlng.lng) }));
     });
 
     setTimeout(() => map.invalidateSize(), 50);

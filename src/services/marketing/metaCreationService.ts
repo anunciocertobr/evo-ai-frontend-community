@@ -274,6 +274,8 @@ export interface LocationGroupPin {
   lat: number;
   lng: number;
   radius: number;
+  // true = região de exclusão (a Meta não anuncia ali). Ausente = inclusão.
+  exclude?: boolean;
 }
 
 // Grupo de localizações (região + raio) salvo localmente no CRM, POR CONTA
