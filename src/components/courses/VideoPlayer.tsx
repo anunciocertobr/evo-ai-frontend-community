@@ -18,7 +18,6 @@ interface VideoPlayerProps {
   onEnded?: () => void;
   /** Segundos de onde retomar; só faz sentido quando o aluno está inscrito. */
   startAtSeconds?: number;
-  autoStart?: boolean;
   className?: string;
 }
 
@@ -36,7 +35,6 @@ export const VideoPlayer = ({
   onTimeUpdate,
   onEnded,
   startAtSeconds = 0,
-  autoStart = false,
   className,
 }: VideoPlayerProps) => {
   const startedAtRef = useRef<number | null>(null);
@@ -89,7 +87,6 @@ export const VideoPlayer = ({
         title={title}
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
-        autoPlay={autoStart}
         className="h-full w-full"
         onEnded={onEnded}
       />

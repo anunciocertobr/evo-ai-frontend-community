@@ -112,7 +112,6 @@ export const CourseDetailPage = () => {
               <VideoPlayer
                 embedUrl={selectedLesson.embed_url}
                 title={selectedLesson.title}
-                autoStart
                 onEnded={() => toast.success('Aula concluída!')}
               />
             ) : (

@@ -1,6 +1,7 @@
 import { LucideIcon } from 'lucide-react';
 import {
   User,
+  GraduationCap,
   UserPlus,
   LogOut,
   Cog,

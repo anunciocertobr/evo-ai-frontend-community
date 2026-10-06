@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Plus, Trash2, BookOpen, Upload, FileVideo2 } from 'lucide-react';
+import { Loader2, Plus, Trash2, BookOpen, FileVideo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Button,
@@ -23,7 +23,7 @@ import {
 } from '@evoapi/design-system';
 import { BaseHeader } from '@/components/base';
 import { creatorAreaService } from '@/services/courses';
-import type { CourseCard } from '@/services/courses/types';
+import type { CourseCard, CourseLevel } from '@/services/courses/types';
 import { LEVEL_VALUES } from '@/components/courses/courseFormatters';
 
 const EMPTY_FORM = {
@@ -31,7 +31,7 @@ const EMPTY_FORM = {
   subtitle: '',
   description: '',
   category: '',
-  level: 'beginner' as const,
+  level: 'beginner' as CourseLevel,
   price_cents: 0,
   thumbnail_url: '',
   trailer_url: '',
@@ -110,14 +110,12 @@ export const CreatorCoursesPage = () => {
       <BaseHeader
         title="Meus cursos"
         subtitle="Crie, organize e publique seus cursos."
-        actions={[
-          {
-            label: 'Novo curso',
-            icon: <Plus className="h-4 w-4" />,
-            onClick: () => setOpen(true),
-            variant: 'default',
-          },
-        ]}
+        primaryAction={{
+          label: 'Novo curso',
+          icon: <Plus className="h-4 w-4" />,
+          onClick: () => setOpen(true),
+          variant: 'default',
+        }}
       />
 
       {loading ? (
@@ -251,7 +249,7 @@ export const CreatorCoursesPage = () => {
                 <Label>Nível</Label>
                 <Select
                   value={form.level}
-                  onValueChange={(value: any) => setForm(previous => ({ ...previous, level: value }))}
+                  onValueChange={(value: CourseLevel) => setForm(previous => ({ ...previous, level: value }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
