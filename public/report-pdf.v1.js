@@ -28,7 +28,7 @@
   // tela já oferece, para o PDF sair igual ao que o usuário está vendo.
   var CHARTS = [
     { id: 'meta-chart-daily', title: 'Análise Diária de Métricas', opts: [{ key: 'activeDailyMetrics', label: 'Métricas', type: 'metrics' }] },
-    { id: 'meta-chart-objective', title: 'Desempenho por Objetivo' },
+    { id: 'meta-chart-objective', title: 'Investimento por Objetivo', metricName: 'Valor gasto (R$)', money: true },
     {
       id: 'meta-chart-top5', title: 'Top 5', opts: [
         { key: 'top5Dimension', label: 'Dimensão', type: 'dimension' },
@@ -230,10 +230,21 @@
 
   // Lê o gráfico que já está na tela (Chart.js) e devolve os mesmos dados,
   // para o PDF desenhar com valores. Gráfico que não é barra nem linha → null.
-  function chartSpec(canvasId) {
+  function chartSpec(canvasId, money) {
     var el = document.getElementById(canvasId);
     if (!el || typeof Chart === 'undefined') return null;
     var chart = Chart.getChart(el);
+    if (chart && (chart.config.type === 'pie' || chart.config.type === 'doughnut')) {
+      // pizza não tem como mostrar valores: vira barras horizontais com cada valor
+      var pds = chart.data.datasets[0] || { data: [] };
+      return {
+        kind: 'pie',
+        rows: (chart.data.labels || []).map(function (lb, i) {
+          var v = Number(pds.data[i]) || 0;
+          return { label: String(lb), value: v, group: 'pie', fmt: money ? formatCurrency : formatNumber };
+        })
+      };
+    }
     if (!chart || (chart.config.type !== 'bar' && chart.config.type !== 'line')) return null;
     var labels = (chart.data.labels || []).map(String);
     var series = [];
@@ -257,6 +268,7 @@
   // dados do relatório (mesmo mapeamento do processMetaAdsData da tela).
   var GENDER_LABEL = { female: 'Feminino', male: 'Masculino' };
   var DIM = {
+    objective: { label: 'Objetivo', src: 'geral', key: function (ad) { return ad.Objetivo || 'Não especificado'; }, order: 'value', first: 'Objetivo' },
     day: { label: 'Dia', src: 'geral', key: function (ad) { return ad.Dia; }, order: 'date', first: 'Dia' },
     hour: { label: 'Hora do dia', src: 'hora', key: function (ad) { return ad.hora ? ad.hora.substring(0, 2) : null; }, fmt: function (k) { return k + 'h'; }, order: 'num', first: 'Hora' },
     platform: { label: 'Plataforma', src: 'posicionamento', key: function (ad) { return ad.publisher_platform || 'N/A'; }, order: 'value', first: 'Plataforma' },
@@ -277,10 +289,27 @@
 
   // Agrupa por dimensão e calcula as métricas de cada grupo. Ordem: data,
   // número (hora/idade) ou valor da primeira métrica escolhida, do maior pro menor.
-  function dimensionItems(dimId, metricKeys) {
+  function applyChartFilters(data, filt) {
+    if (!filt) return data;
+    return data.filter(function (ad) {
+      return (filt.objective === 'all' || ad.Objetivo === filt.objective) &&
+        (filt.campaign === 'all' || ad['Nome da campanha'] === filt.campaign) &&
+        (filt.adSet === 'all' || ad['Nome do conjunto de anúncios'] === filt.adSet);
+    });
+  }
+
+  function filterText(filt) {
+    var parts = [];
+    if (filt.objective !== 'all') parts.push('Objetivo: ' + filt.objective);
+    if (filt.campaign !== 'all') parts.push('Campanha: ' + filt.campaign);
+    if (filt.adSet !== 'all') parts.push('Conjunto: ' + filt.adSet);
+    return parts.join(' | ');
+  }
+
+  function dimensionItems(dimId, metricKeys, filt) {
     var d = dimDef(dimId);
     var groups = {};
-    filterDataset(metaAdsAllData[d.src]).forEach(function (ad) {
+    applyChartFilters(filterDataset(metaAdsAllData[d.src]), filt).forEach(function (ad) {
       var k = d.key(ad);
       if (!k) return;
       (groups[k] = groups[k] || []).push(ad);
@@ -302,12 +331,13 @@
   }
 
   // Gráfico de uma dimensão: uma série por métrica escolhida. `type` é 'bar' ou 'line'.
-  function dimensionSpec(dimId, metricKeys, title, type) {
+  function dimensionSpec(dimId, metricKeys, title, type, filt) {
     var d = dimDef(dimId);
-    var items = dimensionItems(dimId, metricKeys);
+    var items = dimensionItems(dimId, metricKeys, filt);
+    var ftxt = filt ? filterText(filt) : '';
     return {
       title: title,
-      subtitle: 'Métricas: ' + metricLabels(metricKeys),
+      subtitle: 'Métricas: ' + metricLabels(metricKeys) + (ftxt ? ' | ' + ftxt : ''),
       kind: type,
       labels: items.map(function (it) { return it.label; }),
       firstHead: d.first,
@@ -1063,12 +1093,38 @@
     custom.appendChild(customList);
 
     // Dimensões disponíveis no formulário (Top 5 vem da configuração da tela)
-    var dimOptions = [['day', 'Dia (evolução diária)'], ['totals', 'Total por métrica (barras horizontais)'],
+    var dimOptions = [['day', 'Dia (evolução diária)'], ['totals', 'Total por métrica (barras horizontais)'], ['objective', 'Objetivo'],
       ['hour', 'Hora do dia'], ['platform', 'Plataforma'], ['position', 'Posicionamento'],
       ['device', 'Dispositivo'], ['region', 'Região'], ['age', 'Idade'], ['gender', 'Gênero']];
     Object.keys(META_TOP5_DIMENSION_CONFIG).forEach(function (k) {
       dimOptions.push(['top5:' + k, 'Top 5 · ' + ((META_TOP5_DIMENSION_CONFIG[k] || {}).label || k)]);
     });
+
+    function selectEl() {
+      return el('select', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs');
+    }
+
+    function optionEl(value, labelText) {
+      var o = document.createElement('option');
+      o.value = value;
+      o.textContent = labelText;
+      return o;
+    }
+
+    function distinctValues(field, where) {
+      var set = {};
+      (metaAdsAllData.geral || []).forEach(function (ad) {
+        if (where && !where(ad)) return;
+        if (ad[field]) set[ad[field]] = true;
+      });
+      return Object.keys(set).sort();
+    }
+
+    function fillSelect(sel, values, allLabel) {
+      sel.innerHTML = '';
+      sel.appendChild(optionEl('all', allLabel));
+      values.forEach(function (v) { sel.appendChild(optionEl(v, v)); });
+    }
 
     function addCustomBlock() {
       var wrap = el('div', 'bg-slate-900/40 border border-slate-700 rounded-md px-3 py-2 mb-2 space-y-2');
@@ -1095,6 +1151,25 @@
       top.appendChild(rm);
       wrap.appendChild(top);
 
+      var filtRow = el('div', 'flex flex-wrap items-center gap-2 text-xs');
+      filtRow.appendChild(el('span', 'text-slate-400', 'Filtrar:'));
+      var oSel = selectEl(), cSel = selectEl(), sSel = selectEl();
+      fillSelect(oSel, distinctValues('Objetivo'), 'Todos os objetivos');
+      fillSelect(cSel, distinctValues('Nome da campanha'), 'Todas as campanhas');
+      fillSelect(sSel, adSetOptions(), 'Todos os conjuntos');
+      cSel.onchange = function () { fillSelect(sSel, adSetOptions(), 'Todos os conjuntos'); };
+      function adSetOptions() {
+        return distinctValues('Nome do conjunto de anúncios', function (ad) {
+          return cSel.value === 'all' || ad['Nome da campanha'] === cSel.value;
+        });
+      }
+      filtRow.appendChild(oSel);
+      filtRow.appendChild(cSel);
+      filtRow.appendChild(sSel);
+      wrap.appendChild(filtRow);
+      wrap.appendChild(el('p', 'text-[11px] text-slate-500',
+        'Top 5 de conjuntos: escolha a campanha. Top 5 de anúncios: escolha o conjunto.'));
+
       var grid = el('div', 'flex flex-wrap gap-1 text-xs');
       var boxes = {};
       Object.keys(META_METRIC_CONFIG).forEach(function (k) {
@@ -1108,7 +1183,7 @@
       wrap.appendChild(grid);
       wrap.appendChild(el('p', 'text-[11px] text-slate-500', 'Barras e linhas: uma série por métrica marcada. Cada métrica usa a própria escala e mostra o valor.'));
 
-      var block = { el: wrap, tIn: tIn, dSel: dSel, tSel: tSel, boxes: boxes };
+      var block = { el: wrap, tIn: tIn, dSel: dSel, tSel: tSel, oSel: oSel, cSel: cSel, sSel: sSel, boxes: boxes };
       customs.push(block);
       rm.onclick = function () {
         wrap.remove();
@@ -1183,17 +1258,19 @@
               if (Array.isArray(v)) return o.label + ': ' + v.map(function (k) { return META_METRIC_CONFIG[k].label; }).join(', ');
               return o.label + ': ' + optionLabel(o, v);
             }).filter(Boolean).join(' | ');
-            var spec = chartSpec(c.id);
+            var spec = chartSpec(c.id, c.money);
             if (spec) {
               var metricOpt = (c.opts || []).filter(function (o) { return o.type === 'metric' || o.type === 'metrics'; })[0];
-              var metricTxt = '';
+              var metricTxt = c.metricName || '';
               if (metricOpt) {
                 var mv = selection.opts[metricOpt.key];
                 metricTxt = Array.isArray(mv) ? metricLabels(mv) : optionLabel(metricOpt, mv);
               }
               spec.title = metricTxt ? c.title + ' · ' + metricTxt : c.title;
               spec.subtitle = sub;
-              blocks.push({ kind: 'chart', spec: spec });
+              blocks.push(spec.kind === 'pie'
+                ? { kind: 'rows', spec: { title: spec.title, subtitle: spec.subtitle, rows: spec.rows } }
+                : { kind: 'chart', spec: spec });
               return;
             }
             var img = captureChart(c.id);
@@ -1212,7 +1289,9 @@
             if (!keys.length) return;
             var dim = b.dSel.value;
             var dimName = dim === 'totals' ? 'Total por métrica' : dimDef(dim).label;
-            var title = b.tIn.value.trim() || (dimName + ' · ' + metricLabels(keys));
+            var filt = { objective: b.oSel.value, campaign: b.cSel.value, adSet: b.sSel.value };
+            var ftxt = filterText(filt);
+            var title = b.tIn.value.trim() || (dimName + ' · ' + metricLabels(keys) + (ftxt ? ' · ' + ftxt : ''));
             if (dim === 'totals') {
               blocks.push({
                 kind: 'rows',
@@ -1224,7 +1303,7 @@
               });
               return;
             }
-            var spec = dimensionSpec(dim, keys, title, b.tSel.value);
+            var spec = dimensionSpec(dim, keys, title, b.tSel.value, filt);
             if (!spec.labels.length) {
               status.textContent = 'Sem dados para "' + title + '" no período; gráfico deixado de fora.';
               return;
