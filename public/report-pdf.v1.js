@@ -177,7 +177,12 @@
     });
   }
 
+  // Custo por resultado com zero conversões: a divisão devolve 0, mas "R$ 0,00"
+  // parece custo baixo. Sem resultado, o custo não existe: mostra travessão.
+  var COST_KEYS = { cpm: 1, cpc: 1, costPerMessage: 1, costPerLead: 1, costPerPurchase: 1 };
+
   function formatValue(key, value) {
+    if (COST_KEYS[key] && !value) return '—';
     var m = META_METRIC_CONFIG[key] || {};
     if (m.isCurrency) return formatCurrency(value);
     if (m.isPercentage) return formatPercentage(value);
@@ -252,7 +257,7 @@
     var perDay = days.map(function (d) { return calcMetrics(byDay[d]); });
     return {
       title: title,
-      subtitle: 'Cada linha usa a própria escala. Os valores reais aparecem nos pontos.',
+      subtitle: 'Um gráfico por métrica, com o valor de cada dia. Tabela completa logo abaixo.',
       kind: 'line',
       labels: days.map(function (d) { return dayjs(parseAPIDate(d)).format('DD/MM'); }),
       series: keys.map(function (k, i) {
@@ -453,22 +458,24 @@
     spacer(4);
   }
 
-  // Bloco de gráfico de barras ou linhas, com valores em cada barra/ponto.
+  // Gráfico de barras, com valores em cada barra. Linhas têm bloco próprio.
   function drawChartBlock(spec) {
+    if (spec.kind === 'line') return drawLineBlock(spec);
+    var series = spec.series;
+    var n = spec.labels.length;
+    if (!n || !series.length) return;
+
     need(CHART_H + 4);
     var top = y;
     card(M.left, top, contentW, CHART_H);
-
     label(spec.title, M.left + 6, top + 7, { size: 10.5, bold: true, color: THEME.text });
     label(fitText(spec.subtitle || '', contentW - 12), M.left + 6, top + 12, { size: 7.5, color: THEME.muted });
 
-    var series = spec.series;
     var x0 = M.left + 10, plotW = contentW - 20;
     var legendY = top + 17;
     var lx = x0;
     series.forEach(function (s) {
-      var rgb = hexRgb(s.color);
-      doc.setFillColor.apply(doc, rgb);
+      doc.setFillColor.apply(doc, hexRgb(s.color));
       doc.rect(lx, legendY - 2.2, 2.2, 2.2, 'F');
       doc.setFontSize(7.5);
       var itemW = Math.min(doc.getTextWidth(s.label), 50);
@@ -479,78 +486,120 @@
     var plotTop = top + 23;
     var plotBottom = top + CHART_H - 11;
     var plotH = plotBottom - plotTop;
-    var n = spec.labels.length;
-    if (!n || !series.length) { y = top + CHART_H + 5; return; }
 
-    // Eixo de base
     doc.setDrawColor.apply(doc, THEME.cardAlt);
     doc.setLineWidth(0.2);
     doc.line(x0, plotBottom, x0 + plotW, plotBottom);
 
     var gw = plotW / n;
-    var i;
-
-    if (spec.kind === 'bar') {
-      var groupW = Math.min(gw * 0.8, 40);
-      var bw = groupW / series.length;
-      var rotate = bw < 6.5;
-      var headroom = rotate ? plotH - 14 : plotH - 5;
-      series.forEach(function (s, si2) {
-        var mx = Math.max.apply(null, s.data.concat([0])) || 1;
-        var barRgb = hexRgb(s.color);
-        s.data.forEach(function (v, idx) {
-          var h = Math.max(0, v) / mx * headroom;
-          var bx = x0 + idx * gw + (gw - groupW) / 2 + si2 * bw;
-          var by = plotBottom - h;
-          // o texto também usa a cor de preenchimento no jsPDF: redefinir a cor a cada forma
-          doc.setFillColor.apply(doc, barRgb);
-          doc.rect(bx + 0.3, by, Math.max(bw - 0.6, 0.5), h, 'F');
-          if (rotate) {
-            label(s.fmt(v), bx + bw / 2 + 1.2, by - 1.5, { size: 6.5, angle: 90, bold: true, color: THEME.text });
-          } else {
-            label(s.fmt(v), bx + bw / 2, by - 1.5, { size: 6.5, bold: true, color: THEME.text, align: 'center' });
-          }
-        });
+    var groupW = Math.min(gw * 0.8, 40);
+    var bw = groupW / series.length;
+    var rotate = bw < 6.5;
+    var headroom = rotate ? plotH - 14 : plotH - 5;
+    series.forEach(function (s, si) {
+      var mx = Math.max.apply(null, s.data.concat([0])) || 1;
+      var barRgb = hexRgb(s.color);
+      s.data.forEach(function (v, idx) {
+        var h = Math.max(0, v) / mx * headroom;
+        var bx = x0 + idx * gw + (gw - groupW) / 2 + si * bw;
+        var by = plotBottom - h;
+        // o texto também usa a cor de preenchimento no jsPDF: redefinir a cor a cada forma
+        doc.setFillColor.apply(doc, barRgb);
+        doc.rect(bx + 0.3, by, Math.max(bw - 0.6, 0.5), h, 'F');
+        if (rotate) {
+          label(s.fmt(v), bx + bw / 2 + 1.2, by - 1.5, { size: 6.5, angle: 90, bold: true, color: THEME.text });
+        } else {
+          label(s.fmt(v), bx + bw / 2, by - 1.5, { size: 6.5, bold: true, color: THEME.text, align: 'center' });
+        }
       });
-    } else {
-      var step = Math.max(1, Math.ceil(n / 14));
-      series.forEach(function (s, si3) {
-        var mx = Math.max.apply(null, s.data.concat([0])) || 1;
-        var rgb = hexRgb(s.color);
-        var pts = s.data.map(function (v, idx) {
-          return {
-            x: n === 1 ? x0 + plotW / 2 : x0 + idx * plotW / (n - 1),
-            y: plotBottom - Math.max(0, v) / mx * (plotH - 8)
-          };
-        });
-        doc.setDrawColor.apply(doc, rgb);
-        doc.setLineWidth(0.6);
-        for (i = 1; i < pts.length; i++) doc.line(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y);
-        pts.forEach(function (p, idx) {
-          doc.setFillColor.apply(doc, rgb);
-          doc.circle(p.x, p.y, 0.8, 'F');
-          if (idx % step === 0) {
-            // séries alternam acima/abaixo do ponto para não sobrepor os valores
-            var ly = si3 % 2 ? p.y + 4 : p.y - 2.2;
-            label(s.fmt(s.data[idx]), p.x, ly, { size: 6.5, bold: true, color: THEME.text, align: 'center' });
-          }
-        });
-      });
-    }
+    });
 
-    // Rótulos do eixo X
-    var stepX = 1;
-    if (spec.kind === 'bar') stepX = Math.max(1, Math.ceil(7 / gw));
-    else stepX = Math.max(1, Math.ceil(n / 14));
+    var stepX = Math.max(1, Math.ceil(7 / gw));
     spec.labels.forEach(function (lb, idx) {
       if (idx % stepX) return;
       doc.setFontSize(7);
-      var cx = spec.kind === 'bar' ? x0 + idx * gw + gw / 2 : (n === 1 ? x0 + plotW / 2 : x0 + idx * plotW / (n - 1));
-      var w = spec.kind === 'bar' ? gw * stepX - 1 : 14;
-      label(fitText(lb, w), cx, plotBottom + 4.5, { size: 7, color: THEME.muted, align: 'center' });
+      var cx = x0 + idx * gw + gw / 2;
+      label(fitText(lb, gw * stepX - 1), cx, plotBottom + 4.5, { size: 7, color: THEME.muted, align: 'center' });
     });
 
     y = top + CHART_H + 5;
+  }
+
+  // Linha: um painel por série, cada um com o próprio máximo e o valor de cada
+  // ponto. Embaixo, tabela com todos os valores por dia (dia = linha).
+  function drawLineBlock(spec) {
+    var series = spec.series;
+    var n = spec.labels.length;
+    if (!n || !series.length) return;
+
+    var PANEL_H = 28;
+    var H = 18 + series.length * PANEL_H + 10;
+    need(H + 4);
+    var top = y;
+    card(M.left, top, contentW, H);
+    label(spec.title, M.left + 6, top + 7, { size: 10.5, bold: true, color: THEME.text });
+    label(fitText(spec.subtitle || '', contentW - 12), M.left + 6, top + 12, { size: 7.5, color: THEME.muted });
+
+    var x0 = M.left + 10, plotW = contentW - 20;
+    var step = Math.max(1, Math.ceil(n / 14));
+    var xs = spec.labels.map(function (_, idx) {
+      return n === 1 ? x0 + plotW / 2 : x0 + idx * plotW / (n - 1);
+    });
+    var lastBase = 0;
+
+    series.forEach(function (s, si) {
+      var pt = top + 18 + si * PANEL_H;
+      var base = pt + PANEL_H - 5;
+      var topPlot = pt + 9;
+      var rgb = hexRgb(s.color);
+      var mx = Math.max.apply(null, s.data.concat([0])) || 1;
+      lastBase = base;
+
+      doc.setFillColor.apply(doc, rgb);
+      doc.rect(x0, pt + 1.2, 2.2, 2.2, 'F');
+      label(s.label, x0 + 3.4, pt + 3, { size: 8, bold: true, color: THEME.body });
+      label('máximo ' + s.fmt(mx), x0 + plotW, pt + 3, { size: 7, color: THEME.muted, align: 'right' });
+
+      doc.setDrawColor.apply(doc, THEME.cardAlt);
+      doc.setLineWidth(0.2);
+      doc.line(x0, base, x0 + plotW, base);
+
+      var pts = s.data.map(function (v, idx) {
+        return { x: xs[idx], y: base - Math.max(0, v) / mx * (base - topPlot) };
+      });
+      doc.setDrawColor.apply(doc, rgb);
+      doc.setLineWidth(0.6);
+      for (var i = 1; i < pts.length; i++) doc.line(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y);
+      pts.forEach(function (p, idx) {
+        doc.setFillColor.apply(doc, rgb);
+        doc.circle(p.x, p.y, 0.8, 'F');
+        if (idx % step === 0) {
+          label(s.fmt(s.data[idx]), p.x, p.y - 2, { size: 6.5, bold: true, color: THEME.text, align: 'center' });
+        }
+      });
+    });
+
+    // Rótulos dos dias: uma vez, embaixo do último painel
+    var stepX = Math.max(1, Math.ceil(n / 14));
+    var spacing = n > 1 ? plotW / (n - 1) : plotW;
+    spec.labels.forEach(function (lb, idx) {
+      if (idx % stepX) return;
+      doc.setFontSize(7);
+      label(fitText(lb, spacing * stepX - 1), xs[idx], lastBase + 4.5, { size: 7, color: THEME.muted, align: 'center' });
+    });
+
+    y = top + H + 4;
+
+    // Tabela com todos os valores: uma linha por dia
+    var head = ['Dia'].concat(series.map(function (s) { return s.label; }));
+    var rows = spec.labels.map(function (lb, idx) {
+      return [lb].concat(series.map(function (s) { return s.fmt(s.data[idx]); }));
+    });
+    var wFirst = 22;
+    var wCol = (contentW - wFirst) / series.length;
+    text('Valores por dia', { size: 8.5, bold: true, color: THEME.text });
+    spacer(1);
+    drawTable(head, rows, [wFirst].concat(series.map(function () { return wCol; })));
   }
 
   // Barras horizontais: uma linha por métrica, cada grupo de escala usa seu
