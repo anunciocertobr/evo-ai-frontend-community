@@ -605,70 +605,96 @@
     y = top + CHART_H + 5;
   }
 
-  // Linha: um painel por série, cada um com o próprio máximo e o valor de cada
-  // ponto. Embaixo, tabela com todos os valores por dia (dia = linha).
+  // Linha: todas as séries no mesmo gráfico. Cada série usa a própria escala
+  // (R$ e quantidade não cabem na mesma altura), então a legenda traz o máximo
+  // de cada uma. Os valores ficam em cada ponto; rótulos alternam acima/abaixo
+  // para não cair um em cima do outro.
   function drawLineBlock(spec) {
     var series = spec.series;
     var n = spec.labels.length;
     if (!n || !series.length) return;
 
-    var PANEL_H = 28;
-    var H = 18 + series.length * PANEL_H + 10;
-    need(H + 4);
+    need(CHART_H + 4);
     var top = y;
-    card(M.left, top, contentW, H);
+    card(M.left, top, contentW, CHART_H);
     label(spec.title, M.left + 6, top + 7, { size: 10.5, bold: true, color: THEME.text });
     label(fitText(spec.subtitle || '', contentW - 12), M.left + 6, top + 12, { size: 7.5, color: THEME.muted });
 
     var x0 = M.left + 10, plotW = contentW - 20;
-    var step = Math.max(1, Math.ceil(n / 14));
+    var maxes = series.map(function (s) { return Math.max.apply(null, s.data.concat([0])) || 1; });
+
+    // legenda em uma ou mais linhas, conforme a largura
+    doc.setFontSize(7.5);
+    var legendRow = 0, lx = 0;
+    var legend = series.map(function (s, si) {
+      var txt = fitText(s.label + ' (máx ' + s.fmt(maxes[si]) + ')', 90);
+      var w = 3.4 + doc.getTextWidth(txt) + 7;
+      if (lx > 0 && lx + w > plotW) { legendRow++; lx = 0; }
+      var pos = { txt: txt, x: lx, row: legendRow, rgb: hexRgb(s.color) };
+      lx += w;
+      return pos;
+    });
+    legend.forEach(function (pos) {
+      var ly = top + 17 + pos.row * 4.2;
+      doc.setFillColor.apply(doc, pos.rgb);
+      doc.rect(x0 + pos.x, ly - 2.2, 2.2, 2.2, 'F');
+      label(pos.txt, x0 + pos.x + 3.4, ly, { size: 7.5, color: THEME.body });
+    });
+
+    var plotTop = top + 17 + (legendRow + 1) * 4.2 + 3;
+    var plotBottom = top + CHART_H - 11;
+    var plotH = plotBottom - plotTop;
+
+    doc.setDrawColor.apply(doc, THEME.cardAlt);
+    doc.setLineWidth(0.2);
+    doc.line(x0, plotBottom, x0 + plotW, plotBottom);
+
     var xs = spec.labels.map(function (_, idx) {
       return n === 1 ? x0 + plotW / 2 : x0 + idx * plotW / (n - 1);
     });
-    var lastBase = 0;
-
-    series.forEach(function (s, si) {
-      var pt = top + 18 + si * PANEL_H;
-      var base = pt + PANEL_H - 5;
-      var topPlot = pt + 9;
-      var rgb = hexRgb(s.color);
-      var mx = Math.max.apply(null, s.data.concat([0])) || 1;
-      lastBase = base;
-
-      doc.setFillColor.apply(doc, rgb);
-      doc.rect(x0, pt + 1.2, 2.2, 2.2, 'F');
-      label(s.label, x0 + 3.4, pt + 3, { size: 8, bold: true, color: THEME.body });
-      label('máximo ' + s.fmt(mx), x0 + plotW, pt + 3, { size: 7, color: THEME.muted, align: 'right' });
-
-      doc.setDrawColor.apply(doc, THEME.cardAlt);
-      doc.setLineWidth(0.2);
-      doc.line(x0, base, x0 + plotW, base);
-
-      var pts = s.data.map(function (v, idx) {
-        return { x: xs[idx], y: base - Math.max(0, v) / mx * (base - topPlot) };
-      });
-      doc.setDrawColor.apply(doc, rgb);
-      doc.setLineWidth(0.6);
-      for (var i = 1; i < pts.length; i++) doc.line(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y);
-      pts.forEach(function (p, idx) {
-        doc.setFillColor.apply(doc, rgb);
-        doc.circle(p.x, p.y, 0.8, 'F');
-        if (idx % step === 0) {
-          label(s.fmt(s.data[idx]), p.x, p.y - 2, { size: 6.5, bold: true, color: THEME.text, align: 'center' });
-        }
+    var pts = series.map(function (s, si) {
+      return s.data.map(function (v, idx) {
+        return { x: xs[idx], y: plotBottom - Math.max(0, v) / maxes[si] * (plotH - 6) };
       });
     });
 
-    // Rótulos dos dias: uma vez, embaixo do último painel
-    var stepX = Math.max(1, Math.ceil(n / 14));
+    series.forEach(function (s, si) {
+      var rgb = hexRgb(s.color);
+      doc.setDrawColor.apply(doc, rgb);
+      doc.setLineWidth(0.6);
+      for (var i = 1; i < pts[si].length; i++) {
+        doc.line(pts[si][i - 1].x, pts[si][i - 1].y, pts[si][i].x, pts[si][i].y);
+      }
+      pts[si].forEach(function (p) {
+        doc.setFillColor.apply(doc, rgb);
+        doc.circle(p.x, p.y, 0.8, 'F');
+      });
+    });
+
+    // rótulos por último, para ficarem por cima das linhas
+    // Em cada dia, as séries são ordenadas de cima para baixo: a 1ª, 3ª... rótulo
+    // acima, a 2ª, 4ª... abaixo. Assim séries que se encostam ficam em lados opostos.
+    var step = Math.max(1, Math.ceil(n / 12));
+    for (var idx = 0; idx < n; idx += step) {
+      var order = series.map(function (_, si) { return si; }).sort(function (a, b) {
+        return pts[a][idx].y - pts[b][idx].y;
+      });
+      order.forEach(function (si, rank) {
+        var p = pts[si][idx];
+        var above = rank % 2 === 0;
+        label(series[si].fmt(series[si].data[idx]), p.x, above ? p.y - 2 : p.y + 4, { size: 6, bold: true, color: THEME.text, align: 'center' });
+      });
+    }
+
+    var stepX = Math.max(1, Math.ceil(n / 12));
     var spacing = n > 1 ? plotW / (n - 1) : plotW;
     spec.labels.forEach(function (lb, idx) {
       if (idx % stepX) return;
       doc.setFontSize(7);
-      label(fitText(lb, spacing * stepX - 1), xs[idx], lastBase + 4.5, { size: 7, color: THEME.muted, align: 'center' });
+      label(fitText(lb, spacing * stepX - 1), xs[idx], plotBottom + 4.5, { size: 7, color: THEME.muted, align: 'center' });
     });
 
-    y = top + H + 5;
+    y = top + CHART_H + 5;
   }
 
   // Barras horizontais: uma linha por métrica, cada grupo de escala usa seu
