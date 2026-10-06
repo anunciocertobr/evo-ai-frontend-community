@@ -21,6 +21,7 @@ import {
 import { Plus, X, Search, Users2, Sparkles, ListPlus, Trash2, ChevronLeft, Copy } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
+import { useMetaAdAccountScope } from '@/components/marketing/metaAdAccountScope';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import {
   metaCreationService,
@@ -69,11 +70,9 @@ function hasEntries(group: Record<string, unknown[]>): boolean {
 }
 
 export function TargetingBuilder() {
-  const [account, setAccount] = useState<{ id: string; name: string } | null>(null);
-  // BM selecionada + contador de reset: o breadcrumb (BM / Conta) precisa
-  // devolver o picker pro passo certo sem perder a BM escolhida.
-  const [selectedBm, setSelectedBm] = useState<{ id: string; name: string } | null>(null);
-  const [pickerResetKey, setPickerResetKey] = useState(0);
+  // Conta e BM vêm da página (compartilhadas com Públicos e Grupos de Locais),
+  // então trocar de aba não obriga a escolher a BM de novo.
+  const { account, setAccount, bm: selectedBm, setBm: setSelectedBm, pickerKey: pickerResetKey, resetPicker } = useMetaAdAccountScope();
 
   const [category, setCategory] = useState<TargetingCategory>('interests');
   const [query, setQuery] = useState('');
@@ -502,7 +501,7 @@ export function TargetingBuilder() {
               type="button"
               onClick={() => {
                 setAccount(null);
-                setPickerResetKey((k) => k + 1);
+                resetPicker();
               }}
               className="text-primary hover:underline break-words min-w-0"
               title={account.name}

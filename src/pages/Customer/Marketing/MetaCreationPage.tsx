@@ -17,6 +17,7 @@ import LeadFormLeadsDialog from '@/components/marketing/LeadFormLeadsDialog';
 import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialog';
 import { AudienceContactsPickerDialog } from '@/components/marketing/AudienceContactsPickerDialog';
 import { TargetingBuilder } from '@/components/marketing/TargetingBuilder';
+import { MetaAdAccountScopeProvider } from '@/components/marketing/MetaAdAccountScopeContext';
 import { LocationGroupsTab } from '@/components/marketing/LocationGroupsTab';
 import { MediaLibraryBrowser } from '@/components/marketing/MediaLibraryBrowser';
 import { CriativoRequestsTab } from '@/components/marketing/CriativoRequestsTab';
@@ -171,6 +172,16 @@ export default function MetaCreationPage() {
     <div className="space-y-4 pb-8">
       <BaseHeader title="Criação Meta" subtitle="Crie formulários de lead e públicos direto na Meta Ads." />
 
+      <MetaAdAccountScopeProvider
+        value={{
+          account,
+          setAccount,
+          bm: accountBm,
+          setBm: setAccountBm,
+          pickerKey: accountPickerKey,
+          resetPicker: () => setAccountPickerKey((k) => k + 1),
+        }}
+      >
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="forms">
@@ -493,6 +504,7 @@ export default function MetaCreationPage() {
           <CriativoRequestsTab />
         </TabsContent>
       </Tabs>
+      </MetaAdAccountScopeProvider>
     </div>
   );
 }

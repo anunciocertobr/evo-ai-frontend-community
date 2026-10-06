@@ -14,6 +14,7 @@ import {
 } from '@evoapi/design-system';
 import { Building2, Copy, Import, ListChecks, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
+import { useMetaAdAccountScope } from '@/components/marketing/metaAdAccountScope';
 import { LocationMapPicker, type LocationEntry } from '@/components/marketing/LocationMapPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import { metaCreationService, type LocationGroup, type LocationGroupPin } from '@/services/marketing/metaCreationService';
@@ -620,9 +621,8 @@ function LocationGroupEditorDialog({
 // account picker do TargetingBuilder (BM > Conta próprios, não os do resto
 // da página).
 export function LocationGroupsTab() {
-  const [account, setAccount] = useState<{ id: string; name: string } | null>(null);
-  const [selectedBm, setSelectedBm] = useState<{ id: string; name: string } | null>(null);
-  const [pickerResetKey, setPickerResetKey] = useState(0);
+  // Conta e BM compartilhadas com a página (ver MetaAdAccountScopeContext).
+  const { account, setAccount, bm: selectedBm, setBm: setSelectedBm, pickerKey: pickerResetKey, resetPicker } = useMetaAdAccountScope();
 
   const [groups, setGroups] = useState<LocationGroup[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -733,7 +733,7 @@ export function LocationGroupsTab() {
                 type="button"
                 onClick={() => {
                   setAccount(null);
-                  setPickerResetKey((k) => k + 1);
+                  resetPicker();
                 }}
                 className="text-primary hover:underline break-words min-w-0"
                 title={account.name}
