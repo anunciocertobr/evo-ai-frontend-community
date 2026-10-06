@@ -340,8 +340,6 @@
       subtitle: 'Métricas: ' + metricLabels(metricKeys) + (ftxt ? ' | ' + ftxt : ''),
       kind: type,
       labels: items.map(function (it) { return it.label; }),
-      firstHead: d.first,
-      tableTitle: 'Valores por ' + d.label.toLowerCase(),
       series: metricKeys.map(function (k, i) {
         return {
           label: META_METRIC_CONFIG[k].label,
@@ -670,18 +668,7 @@
       label(fitText(lb, spacing * stepX - 1), xs[idx], lastBase + 4.5, { size: 7, color: THEME.muted, align: 'center' });
     });
 
-    y = top + H + 4;
-
-    // Tabela com todos os valores: uma linha por dia
-    var head = [spec.firstHead || 'Dia'].concat(series.map(function (s) { return s.label; }));
-    var rows = spec.labels.map(function (lb, idx) {
-      return [lb].concat(series.map(function (s) { return s.fmt(s.data[idx]); }));
-    });
-    var wFirst = 22;
-    var wCol = (contentW - wFirst) / series.length;
-    text(spec.tableTitle || 'Valores', { size: 8.5, bold: true, color: THEME.text });
-    spacer(1);
-    drawTable(head, rows, [wFirst].concat(series.map(function () { return wCol; })));
+    y = top + H + 5;
   }
 
   // Barras horizontais: uma linha por métrica, cada grupo de escala usa seu
@@ -713,6 +700,16 @@
     });
 
     y = top + H + 5;
+  }
+
+  // Tabela personalizada: uma linha por item da dimensão, uma coluna por métrica.
+  function drawCustomTable(spec) {
+    text(spec.title, { size: 11, bold: true, color: THEME.text });
+    if (spec.subtitle) text(spec.subtitle, { size: 8, color: THEME.muted });
+    spacer(2);
+    var wFirst = 46;
+    var wCol = (contentW - wFirst) / (spec.head.length - 1);
+    drawTable(spec.head, spec.rows, [wFirst].concat(spec.head.slice(1).map(function () { return wCol; })));
   }
 
   function drawImage(img, title, subtitle) {
@@ -911,13 +908,19 @@
       }
     }
 
-    if (blocks.length) {
+    var charts = blocks.filter(function (b) { return b.kind !== 'table'; });
+    var tables = blocks.filter(function (b) { return b.kind === 'table'; });
+    if (charts.length) {
       heading('Gráficos');
-      blocks.forEach(function (b) {
+      charts.forEach(function (b) {
         if (b.kind === 'chart') drawChartBlock(b.spec);
         else if (b.kind === 'rows') drawRowsBlock(b.spec);
         else if (b.kind === 'image') drawImage(b.img, b.title, b.subtitle);
       });
+    }
+    if (tables.length) {
+      heading('Tabelas');
+      tables.forEach(function (b) { drawCustomTable(b.spec); });
     }
 
     addFooters();
@@ -1004,7 +1007,7 @@
     bloco.appendChild(el('h4', 'font-semibold text-white mb-2', 'Blocos do resumo'));
     var wantTotals = el('input'); wantTotals.type = 'checkbox'; wantTotals.checked = true;
     var wantAverage = el('input'); wantAverage.type = 'checkbox'; wantAverage.checked = true;
-    var wantObjective = el('input'); wantObjective.type = 'checkbox'; wantObjective.checked = true;
+    var wantObjective = el('input'); wantObjective.type = 'checkbox'; wantObjective.checked = false;
     bloco.appendChild(el('label', 'flex items-center gap-2 mb-1', ''));
     bloco.lastChild.appendChild(wantTotals);
     bloco.lastChild.appendChild(el('span', '', 'Total do período'));
@@ -1085,6 +1088,7 @@
 
     // --- gráficos personalizados (só existem no PDF)
     var customs = [];
+    var customTables = [];
     var customList = el('div');
     var custom = el('div');
     custom.appendChild(el('h4', 'font-semibold text-white mb-1', 'Gráficos personalizados'));
@@ -1198,6 +1202,74 @@
     custom.appendChild(addBtn);
     body.appendChild(custom);
 
+    // --- tabelas personalizadas (só entram no PDF se você adicionar)
+    var tabelas = el('div');
+    var tableList = el('div');
+    tabelas.appendChild(el('h4', 'font-semibold text-white mb-1', 'Tabelas personalizadas'));
+    tabelas.appendChild(el('p', 'text-xs text-slate-500 mb-2',
+      'Nenhuma tabela entra no PDF sem você adicionar. Escolha a dimensão (uma linha por item) e as colunas (métricas).'));
+    tabelas.appendChild(tableList);
+
+    function addTableBlock() {
+      var wrap = el('div', 'bg-slate-900/40 border border-slate-700 rounded-md px-3 py-2 mb-2 space-y-2');
+      var top = el('div', 'flex flex-wrap items-center gap-2');
+      var tIn = el('input', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs flex-1 min-w-[10rem]');
+      tIn.type = 'text';
+      tIn.placeholder = 'Título da tabela (opcional)';
+      var dSel = selectEl();
+      dimOptions.filter(function (o) { return o[0] !== 'totals'; }).forEach(function (opt) {
+        dSel.appendChild(optionEl(opt[0], opt[1]));
+      });
+      var rm = el('button', 'text-xs text-red-400 hover:text-red-300 px-2', 'Remover');
+      top.appendChild(tIn);
+      top.appendChild(dSel);
+      top.appendChild(rm);
+      wrap.appendChild(top);
+
+      var filtRow = el('div', 'flex flex-wrap items-center gap-2 text-xs');
+      filtRow.appendChild(el('span', 'text-slate-400', 'Filtrar:'));
+      var oSel = selectEl(), cSel = selectEl(), sSel = selectEl();
+      fillSelect(oSel, distinctValues('Objetivo'), 'Todos os objetivos');
+      fillSelect(cSel, distinctValues('Nome da campanha'), 'Todas as campanhas');
+      fillSelect(sSel, tableAdSetOptions(), 'Todos os conjuntos');
+      cSel.onchange = function () { fillSelect(sSel, tableAdSetOptions(), 'Todos os conjuntos'); };
+      function tableAdSetOptions() {
+        return distinctValues('Nome do conjunto de anúncios', function (ad) {
+          return cSel.value === 'all' || ad['Nome da campanha'] === cSel.value;
+        });
+      }
+      filtRow.appendChild(oSel);
+      filtRow.appendChild(cSel);
+      filtRow.appendChild(sSel);
+      wrap.appendChild(filtRow);
+
+      var grid = el('div', 'flex flex-wrap gap-1 text-xs');
+      var boxes = {};
+      Object.keys(META_METRIC_CONFIG).forEach(function (k) {
+        var l = el('label', 'flex items-center gap-1 bg-slate-700 rounded px-1.5 py-0.5 cursor-pointer');
+        var b = el('input'); b.type = 'checkbox';
+        boxes[k] = b;
+        l.appendChild(b);
+        l.appendChild(el('span', '', META_METRIC_CONFIG[k].label));
+        grid.appendChild(l);
+      });
+      wrap.appendChild(grid);
+
+      var block = { el: wrap, tIn: tIn, dSel: dSel, oSel: oSel, cSel: cSel, sSel: sSel, boxes: boxes };
+      customTables.push(block);
+      rm.onclick = function () {
+        wrap.remove();
+        customTables.splice(customTables.indexOf(block), 1);
+      };
+      tableList.appendChild(wrap);
+    }
+
+    var addTableBtn = el('button', 'px-3 py-1.5 text-sm rounded-md bg-slate-700 hover:bg-slate-600 text-white border border-slate-600', '+ Adicionar tabela');
+    addTableBtn.type = 'button';
+    addTableBtn.onclick = addTableBlock;
+    tabelas.appendChild(addTableBtn);
+    body.appendChild(tabelas);
+
     // --- rodapé
     var status = el('div', 'text-xs text-slate-400 min-h-[1.2rem]');
     var foot = el('div', 'px-5 py-4 border-t border-slate-700 flex items-center justify-between gap-3');
@@ -1309,6 +1381,32 @@
               return;
             }
             blocks.push({ kind: 'chart', spec: spec });
+          });
+
+          customTables.forEach(function (t, idx) {
+            var keys = Object.keys(t.boxes).filter(function (k) { return t.boxes[k].checked; });
+            if (!keys.length) return;
+            var dim = t.dSel.value;
+            var filt = { objective: t.oSel.value, campaign: t.cSel.value, adSet: t.sSel.value };
+            var items = dimensionItems(dim, keys, filt);
+            var d = dimDef(dim);
+            var title = t.tIn.value.trim() || ('Tabela ' + (idx + 1) + ' · ' + d.label);
+            if (!items.length) {
+              status.textContent = 'Sem dados para a tabela "' + title + '" no período; tabela deixada de fora.';
+              return;
+            }
+            var ftxt = filterText(filt);
+            blocks.push({
+              kind: 'table',
+              spec: {
+                title: title,
+                subtitle: 'Colunas: ' + metricLabels(keys) + (ftxt ? ' | ' + ftxt : ''),
+                head: [d.first].concat(keys.map(function (k) { return META_METRIC_CONFIG[k].label; })),
+                rows: items.map(function (it) {
+                  return [it.label].concat(keys.map(function (k) { return formatValue(k, it.m[k] || 0); }));
+                })
+              }
+            });
           });
 
           return buildPdf(selection, blocks, totals, perObjective, accountLabel);
