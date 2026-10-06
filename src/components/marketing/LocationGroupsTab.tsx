@@ -557,7 +557,7 @@ function LocationGroupEditorDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="bg-slate-800 border-slate-700 text-slate-200 sm:max-w-lg max-h-[85vh] overflow-y-auto"
+        className="bg-slate-800 border-slate-700 text-slate-200 inset-0! translate-x-0! translate-y-0! top-0! left-0! w-screen! h-[100dvh]! max-w-none! max-h-none! rounded-none! flex flex-col p-4 sm:p-6"
         onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
@@ -566,7 +566,7 @@ function LocationGroupEditorDialog({
             Defina as regiões e o raio de cada uma. O grupo fica salvo nesta conta de anúncio e pode ser reaproveitado (ou duplicado) depois.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
+        <div className="flex-1 min-h-0 flex flex-col gap-4 py-2">
           <div>
             <Label className="text-xs text-slate-400">Nome do grupo</Label>
             <Input
@@ -576,7 +576,7 @@ function LocationGroupEditorDialog({
               className="bg-slate-700 border-slate-600 text-slate-200"
             />
           </div>
-          <div>
+          <div className="flex-1 min-h-0 flex flex-col">
             <div className="flex items-center justify-between gap-2 mb-2">
               <Label className="text-xs text-slate-400">Regiões e raio</Label>
               {allGroups.length > 0 && (
@@ -585,7 +585,7 @@ function LocationGroupEditorDialog({
                 </Button>
               )}
             </div>
-            <LocationMapPicker locations={locations} onChange={setLocations} singleListMode />
+            <LocationMapPicker locations={locations} onChange={setLocations} singleListMode fullHeight />
           </div>
         </div>
         <DialogFooter>

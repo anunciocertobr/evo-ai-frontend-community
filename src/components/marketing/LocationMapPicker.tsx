@@ -37,6 +37,7 @@ export function LocationMapPicker({
   excludedLocations,
   onExcludedChange,
   singleListMode = false,
+  fullHeight = false,
 }: {
   locations: LocationEntry[];
   onChange: (locations: LocationEntry[]) => void;
@@ -46,6 +47,8 @@ export function LocationMapPicker({
   excludedLocations?: LocationEntry[];
   onExcludedChange?: (locations: LocationEntry[]) => void;
   singleListMode?: boolean;
+  // Dentro de tela inteira (editor de grupo): o mapa ocupa o espaço que sobrar.
+  fullHeight?: boolean;
 }) {
   const excluded = excludedLocations ?? [];
   const setExcluded = onExcludedChange ?? (() => {});
@@ -69,10 +72,15 @@ export function LocationMapPicker({
   const listaAtual = modoEfetivo === 'INCLUIR' ? locations : excluded;
   const setListaAtual = modoEfetivo === 'INCLUIR' ? onChange : setExcluded;
 
-  const [pin, setPin] = useState({ name: 'São Paulo', lat: -23.5505, lng: -46.6333, radius: 15 });
+  // Sem pino inicial: o campo começa vazio e o mapa abre no Brasil. O pino só
+  // aparece depois de escolher um lugar (clique no mapa, arraste, busca ou sugestão).
+  const [pin, setPin] = useState({ name: '', lat: -14.235, lng: -51.925, radius: 15 });
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
   const [searching, setSearching] = useState(false);
+  // Ponto da lista que está com o raio em edição (clique nele na lista). Enquanto
+  // existir, o controle de raio atualiza esse ponto direto na lista.
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const placePin = (map: L.Map, lat: number, lng: number, radius: number) => {
     if (markerRef.current) {
@@ -81,6 +89,7 @@ export function LocationMapPicker({
       const marker = L.marker([lat, lng], { draggable: true }).addTo(map);
       marker.on('dragend', () => {
         const pos = marker.getLatLng();
+        setEditingId(null);
         setPin((prev) => ({ ...prev, lat: pos.lat, lng: pos.lng, name: 'Localização Personalizada (Arrastada)' }));
       });
       markerRef.current = marker;
@@ -114,11 +123,11 @@ export function LocationMapPicker({
     }
     if (!container) return;
 
-    const map = L.map(container).setView([pin.lat, pin.lng], 10);
+    const map = L.map(container).setView([pin.lat, pin.lng], pin.name ? 10 : 4);
     mapRef.current = map;
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
 
-    placePin(map, pin.lat, pin.lng, pin.radius);
+    if (pin.name) placePin(map, pin.lat, pin.lng, pin.radius);
     redrawExtras(map);
 
     // Quando o mapa já abre com localizações preenchidas (ex.: veio de
@@ -132,6 +141,7 @@ export function LocationMapPicker({
     }
 
     map.on('click', (e: L.LeafletMouseEvent) => {
+      setEditingId(null);
       setPin((prev) => ({ ...prev, lat: e.latlng.lat, lng: e.latlng.lng, name: 'Localização Personalizada (Clique)' }));
     });
 
@@ -140,8 +150,35 @@ export function LocationMapPicker({
   }, []);
 
   useEffect(() => {
-    if (mapRef.current) placePin(mapRef.current, pin.lat, pin.lng, pin.radius);
-  }, [pin.lat, pin.lng, pin.radius]);
+    const map = mapRef.current;
+    if (!map) return;
+    if (pin.name) {
+      placePin(map, pin.lat, pin.lng, pin.radius);
+    } else {
+      markerRef.current?.remove();
+      markerRef.current = null;
+      circleRef.current?.remove();
+      circleRef.current = null;
+    }
+  }, [pin.name, pin.lat, pin.lng, pin.radius]);
+
+  // Recentralizar: as localizações da lista (ou o pino) voltam pra tela, mesmo
+  // depois de o usuário arrastar o mapa pra longe.
+  const verTodas = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    const todas = [...locations, ...excluded];
+    if (todas.length === 0) {
+      if (pin.name) map.setView([pin.lat, pin.lng], 10);
+      return;
+    }
+    map.fitBounds(L.latLngBounds(todas.map((l) => [l.lat, l.lng] as [number, number])), { padding: [30, 30], maxZoom: 12 });
+  };
+
+  const irParaPino = () => {
+    const map = mapRef.current;
+    if (map && pin.name) map.setView([pin.lat, pin.lng], 12);
+  };
 
   useEffect(() => {
     if (mapRef.current) redrawExtras(mapRef.current);
@@ -188,6 +225,10 @@ export function LocationMapPicker({
   };
 
   const addLocation = () => {
+    if (!pin.name) {
+      toast.error('Escolha um lugar no mapa ou na busca.');
+      return;
+    }
     if (!(pin.radius > 0)) {
       toast.error('Informe um raio maior que 0.');
       return;
@@ -203,10 +244,24 @@ export function LocationMapPicker({
 
   // Clicar numa localização da lista carrega ela no pin pra mexer só no raio,
   // sem precisar desarrastar o marcador no mapa.
-  const editarRaio = (loc: LocationEntry) => setPin({ name: loc.name, lat: loc.lat, lng: loc.lng, radius: loc.radius });
+  const editarRaio = (loc: LocationEntry) => {
+    setEditingId(loc.id);
+    setPin({ name: loc.name, lat: loc.lat, lng: loc.lng, radius: loc.radius });
+  };
+
+  // Mudar o raio: se há um ponto da lista em edição, ele é atualizado na lista
+  // (antes o slider só mexia no pino, e o ponto adicionado ficava com o raio antigo).
+  const mudarRaio = (radius: number) => {
+    setPin((prev) => ({ ...prev, radius }));
+    if (editingId) {
+      setListaAtual(listaAtual.map((loc) => (loc.id === editingId ? { ...loc, radius } : loc)));
+    }
+  };
+
+  const editingLoc = editingId ? listaAtual.find((loc) => loc.id === editingId) ?? null : null;
 
   return (
-    <div className="space-y-3">
+    <div className={fullHeight ? 'flex flex-col h-full gap-3 min-h-0' : 'space-y-3'}>
       {!singleListMode && (
         <div className="flex gap-2">
           <button
@@ -265,16 +320,32 @@ export function LocationMapPicker({
             max={80}
             step={1}
             value={pin.radius}
-            onChange={(e) => setPin((prev) => ({ ...prev, radius: parseInt(e.target.value, 10) }))}
+            onChange={(e) => mudarRaio(parseInt(e.target.value, 10))}
             className="flex-grow h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
           />
           <span className="text-sm text-sky-400 font-semibold w-14 text-right">{pin.radius} km</span>
         </div>
       </div>
 
+      {editingLoc && (
+        <div className="flex items-center justify-between gap-2 rounded-md border border-sky-700/60 bg-sky-900/20 px-3 py-2 text-xs text-sky-200">
+          <span className="truncate">
+            Editando o raio de <span className="font-semibold">{editingLoc.name}</span>
+          </span>
+          <button type="button" onClick={() => setEditingId(null)} className="shrink-0 underline hover:text-white">
+            Concluir
+          </button>
+        </div>
+      )}
+
       <div className="flex gap-2">
-        <Input value={pin.name} readOnly className="bg-slate-700 text-slate-400 border-slate-600 text-sm flex-grow" />
-        <Button type="button" onClick={addLocation} size="sm" className="shrink-0">
+        <Input
+          value={pin.name}
+          readOnly
+          placeholder="Clique no mapa, arraste o pino ou busque um lugar"
+          className="bg-slate-700 text-slate-400 border-slate-600 text-sm flex-grow"
+        />
+        <Button type="button" onClick={addLocation} size="sm" className="shrink-0" disabled={!pin.name}>
           <Plus className="w-3.5 h-3.5 mr-1" /> {modoEfetivo === 'INCLUIR' ? 'Adicionar' : 'Excluir'}
         </Button>
       </div>
@@ -312,7 +383,17 @@ export function LocationMapPicker({
 
       {searching && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
 
-      <div ref={initMap} className="w-full h-56 bg-slate-700 rounded-lg border border-slate-600 shadow-inner" />
+      <div className={`relative w-full ${fullHeight ? 'flex-1 min-h-[280px]' : 'h-56'}`}>
+        <div ref={initMap} className="absolute inset-0 bg-slate-700 rounded-lg border border-slate-600 shadow-inner" />
+        <div className="absolute top-2 right-2 z-[1000] flex gap-2">
+          <Button type="button" size="sm" variant="secondary" onClick={verTodas}>
+            Ver todas
+          </Button>
+          <Button type="button" size="sm" variant="secondary" onClick={irParaPino} disabled={!pin.name}>
+            Ir para o pino
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
