@@ -541,6 +541,7 @@
   // Gráfico de barras, com valores em cada barra. Linhas têm bloco próprio.
   function drawChartBlock(spec) {
     if (spec.kind === 'line') return drawLineBlock(spec);
+    if (spec.kind === 'pie' || spec.kind === 'donut') return drawPieBlock(spec);
     var series = spec.series;
     var n = spec.labels.length;
     if (!n || !series.length) return;
@@ -674,27 +675,109 @@
     // rótulos por último, para ficarem por cima das linhas
     // Em cada dia, as séries são ordenadas de cima para baixo: a 1ª, 3ª... rótulo
     // acima, a 2ª, 4ª... abaixo. Assim séries que se encostam ficam em lados opostos.
-    var step = Math.max(1, Math.ceil(n / 12));
-    for (var idx = 0; idx < n; idx += step) {
+    // Todo ponto leva valor (sem pular dias); com muitos dias o texto fica menor e sem "R$".
+    var small = n > 12;
+    for (var idx = 0; idx < n; idx++) {
       var order = series.map(function (_, si) { return si; }).sort(function (a, b) {
         return pts[a][idx].y - pts[b][idx].y;
       });
       order.forEach(function (si, rank) {
         var p = pts[si][idx];
         var above = rank % 2 === 0;
-        label(series[si].fmt(series[si].data[idx]), p.x, above ? p.y - 2 : p.y + 4, { size: 6, bold: true, color: THEME.text, align: 'center' });
+        var txt = series[si].fmt(series[si].data[idx]).replace('R$ ', 'R$');
+        label(txt, p.x, above ? p.y - 2 : p.y + 4, { size: small ? 5.5 : 6, bold: true, color: THEME.text, align: 'center' });
       });
     }
 
+    // Datas: com muitos dias, na vertical, uma por ponto
     var stepX = Math.max(1, Math.ceil(n / 12));
     var spacing = n > 1 ? plotW / (n - 1) : plotW;
     spec.labels.forEach(function (lb, idx) {
+      if (small) {
+        label(lb, xs[idx] + 1.2, plotBottom + 2, { size: 6, color: THEME.muted, angle: -90 });
+        return;
+      }
       if (idx % stepX) return;
       doc.setFontSize(7);
       label(fitText(lb, spacing * stepX - 1), xs[idx], plotBottom + 4.5, { size: 7, color: THEME.muted, align: 'center' });
     });
 
     y = top + CHART_H + 5;
+  }
+
+  // Fatias da pizza: ordena do maior pro menor; acima de 8, os 7 maiores e "Outros".
+  function pieSlices(labels, data) {
+    var pairs = labels.map(function (l, i) { return { label: l, value: Math.max(0, data[i] || 0) }; });
+    pairs.sort(function (a, b) { return b.value - a.value; });
+    if (pairs.length > 8) {
+      var rest = pairs.slice(7).reduce(function (sum, p) { return sum + p.value; }, 0);
+      pairs = pairs.slice(0, 7).concat([{ label: 'Outros', value: rest }]);
+    }
+    return pairs;
+  }
+
+  // Pizza, rosca ou círculo: uma por métrica escolhida, lado a lado. Cada fatia
+  // tem legenda com valor e percentual. O jsPDF não tem pizza nativa: a fatia é
+  // um polígono preenchido, e a rosca é a pizza com um círculo do fundo no meio.
+  function drawPieBlock(spec) {
+    var series = spec.series;
+    var k = series.length;
+    var donut = spec.kind === 'donut';
+    var slices = series.map(function (s) { return pieSlices(spec.labels, s.data); });
+    var rowsMax = Math.max.apply(null, slices.map(function (sl) { return sl.length; })) || 1;
+    var R = 20;
+    var H = 24 + 2 * R + 8 + rowsMax * 4.6 + 6;
+    need(H + 4);
+    var top = y;
+    card(M.left, top, contentW, H);
+    label(spec.title, M.left + 6, top + 7, { size: 10.5, bold: true, color: THEME.text });
+    label(fitText(spec.subtitle || '', contentW - 12), M.left + 6, top + 12, { size: 7.5, color: THEME.muted });
+
+    var colW = (contentW - 12) / k;
+    series.forEach(function (s, si) {
+      var x0 = M.left + 6 + si * colW;
+      var cx = x0 + R + 2, cy = top + 24 + R;
+      var sl = slices[si];
+      var total = sl.reduce(function (sum, p) { return sum + p.value; }, 0);
+      label(fitText(s.label, colW - 4), x0, top + 20, { size: 8, bold: true, color: THEME.body });
+      if (total <= 0) {
+        label('sem dados', x0, cy, { size: 8, color: THEME.muted });
+        return;
+      }
+      var a = -Math.PI / 2;
+      sl.forEach(function (p, i) {
+        var frac = p.value / total;
+        if (frac <= 0) return;
+        var b = a + frac * 2 * Math.PI;
+        var steps = Math.max(3, Math.ceil(frac * 64));
+        var poly = [[cx, cy]];
+        for (var j = 0; j <= steps; j++) {
+          var t = a + (b - a) * j / steps;
+          poly.push([cx + R * Math.cos(t), cy + R * Math.sin(t)]);
+        }
+        var segs = [];
+        for (var q = 1; q < poly.length; q++) {
+          segs.push([poly[q][0] - poly[q - 1][0], poly[q][1] - poly[q - 1][1]]);
+        }
+        doc.setFillColor.apply(doc, hexRgb(PALETTE[i % PALETTE.length]));
+        doc.lines(segs, poly[0][0], poly[0][1], [1, 1], 'F', true);
+        a = b;
+      });
+      if (donut) {
+        doc.setFillColor.apply(doc, THEME.card);
+        doc.circle(cx, cy, R * 0.5, 'F');
+      }
+      var ly = top + 24 + 2 * R + 8;
+      sl.forEach(function (p, i) {
+        var pct = (p.value / total * 100).toFixed(1).replace('.', ',') + '%';
+        var yy = ly + i * 4.6;
+        doc.setFillColor.apply(doc, hexRgb(PALETTE[i % PALETTE.length]));
+        doc.rect(x0, yy - 2.2, 2.2, 2.2, 'F');
+        label(fitText(p.label + ' · ' + s.fmt(p.value) + ' (' + pct + ')', colW - 8), x0 + 3.4, yy, { size: 7, color: THEME.body });
+      });
+    });
+
+    y = top + H + 5;
   }
 
   // Barras horizontais: uma linha por métrica, cada grupo de escala usa seu
@@ -1169,7 +1252,7 @@
         dSel.appendChild(op);
       });
       var tSel = el('select', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs');
-      [['bar', 'Barras'], ['line', 'Linha']].forEach(function (opt) {
+      [['bar', 'Barras'], ['line', 'Linha'], ['pie', 'Pizza'], ['donut', 'Rosca']].forEach(function (opt) {
         var op = el('option', '', opt[1]);
         op.value = opt[0];
         tSel.appendChild(op);
