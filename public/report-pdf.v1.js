@@ -55,7 +55,7 @@
 
   // Metas que compõem o Total. As derivadas (CPM, CPC, CTR...) são sempre
   // recalculadas a partir dos totais do período, nunca tiradas da Meta.
-  var BASE_METRICS = ['spent', 'impressions', 'reach', 'clicks', 'messages', 'leads', 'purchases'];
+  var BASE_METRICS = ['spent', 'impressions', 'reach', 'clicks', 'messages'];
 
   var MONTH_CAP = 3; // mesmo limite do handleDateFilterClick do relatório
 
@@ -1157,7 +1157,9 @@
     Object.keys(META_METRIC_CONFIG).forEach(function (k) {
       var m = META_METRIC_CONFIG[k];
       var lab = el('label', 'flex items-center gap-2 bg-slate-900/40 border border-slate-700 rounded-md px-2 py-1.5 cursor-pointer');
-      var cb = el('input'); cb.type = 'checkbox'; cb.checked = true;
+      var cb = el('input'); cb.type = 'checkbox';
+      var uncheckedByDefault = (k === 'purchases' || k === 'costPerPurchase' || k === 'leads' || k === 'costPerLead');
+      cb.checked = !uncheckedByDefault;
       metricBoxes[k] = cb;
       lab.appendChild(cb);
       lab.appendChild(el('span', '', m.label));
@@ -1174,6 +1176,7 @@
       var head = el('label', 'flex items-center gap-2 cursor-pointer');
       var cb = el('input'); cb.type = 'checkbox'; cb.checked = true;
       c._box = cb;
+      cb.checked = false;
       head.appendChild(cb);
       head.appendChild(el('span', 'font-medium text-white', c.title));
       wrap.appendChild(head);
@@ -1330,6 +1333,24 @@
     addBtn.type = 'button';
     addBtn.onclick = addCustomBlock;
     custom.appendChild(addBtn);
+    setTimeout(function () {
+      try {
+        addCustomBlock();
+        if (customs.length) {
+          var b = customs[customs.length - 1];
+          b.tIn.value = 'Mensagens (evolução diária)';
+          b.dSel.value = 'day'; b.tSel.value = 'line';
+          if (b.boxes && b.boxes.messages) b.boxes.messages.checked = true;
+        }
+        addCustomBlock();
+        if (customs.length) {
+          var b2 = customs[customs.length - 1];
+          b2.tIn.value = 'Custo por Mensagem (evolução diária)';
+          b2.dSel.value = 'day'; b2.tSel.value = 'line';
+          if (b2.boxes && b2.boxes.costPerMessage) b2.boxes.costPerMessage.checked = true;
+        }
+      } catch (e) {}
+    }, 0);
     body.appendChild(custom);
 
     // --- tabelas personalizadas (só entram no PDF se você adicionar)
