@@ -1,5 +1,11 @@
 import { AppLogo } from '@/components/AppLogo';
 
+// Existe uma cópia estática deste conteúdo em public/politica-de-privacidade/index.html
+// — o nginx serve ela direto (sem passar pelo SPA) pra rastreadores que não
+// executam JS, como o da Análise do App da Meta, conseguirem ler o texto. Uma
+// solicitação de App Review já foi rejeitada por causa disso (a versão React
+// sozinha é uma casca vazia pra quem não roda JS). Ao editar o texto abaixo,
+// atualize a cópia estática também.
 const LAST_UPDATED = '29 de setembro de 2026';
 const SUPPORT_EMAIL = 'contato@anunciocertobr.com.br';
 
