@@ -72,6 +72,29 @@ class GtmService {
     return extractData<GtmContainer>(response);
   }
 
+  // Cria o contêiner e dispara em background a importação do modelo padrão
+  // (web: pacote completo de tags/variáveis; server: base de Facebook CAPI
+  // + TikTok Events API) — os campos em `fields` são os IDs/tokens
+  // opcionais; o que não for preenchido vira "0000000000" no backend, pra
+  // ficar óbvio o que falta completar depois direto no GTM. Roda num job
+  // (não espera terminar): importar o modelo inteiro respeitando a cota de
+  // escrita do Google leva vários minutos.
+  async createContainerFromTemplate(
+    accountId: string,
+    clientName: string,
+    usageContext: 'web' | 'server',
+    fields: Record<string, string>,
+    sheetUrl?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const response = await api.post(`${this.baseUrl}/accounts/${accountId}/containers/from_template`, {
+      client_name: clientName,
+      usage_context: usageContext,
+      fields,
+      sheet_url: sheetUrl,
+    });
+    return response.data;
+  }
+
   async getWorkspace(accountId: string, containerId: string): Promise<GtmWorkspaceData> {
     const response = await api.get(`${this.baseUrl}/accounts/${accountId}/containers/${containerId}/workspace`);
     return extractData<GtmWorkspaceData>(response);

@@ -106,6 +106,32 @@ function isMasked(value: unknown): boolean {
   return typeof value === 'string' && value.includes('••••');
 }
 
+// Chaves batendo exatamente com WEB_ID_FIELDS/SERVER_ID_FIELDS do backend
+// (Google::TagManagerService) — nome aqui só pra exibir no formulário.
+const WEB_TEMPLATE_FIELDS: { key: string; label: string }[] = [
+  { key: 'facebook_pixel_id', label: 'Facebook Ads — ID do Pixel' },
+  { key: 'ga4_id', label: 'Google Analytics GA4 — ID' },
+  { key: 'ua_id', label: 'Google Analytics UA — ID (legado)' },
+  { key: 'google_ads_id', label: 'Google Ads — ID' },
+  { key: 'tiktok_pixel_id', label: 'TikTok — ID do Pixel' },
+  { key: 'pinterest_id', label: 'Pinterest — ID' },
+  { key: 'linkedin_id', label: 'LinkedIn — ID' },
+  { key: 'transport_url_facebook', label: 'URL Transporte (servidor) — Facebook' },
+  { key: 'transport_url_tiktok', label: 'URL Transporte (servidor) — TikTok' },
+  { key: 'google_ads_label_ver_conteudo', label: 'Google Ads — rótulo conversão "Ver conteúdo"' },
+  { key: 'google_ads_label_carrinho', label: 'Google Ads — rótulo conversão "Carrinho"' },
+  { key: 'google_ads_label_checkout', label: 'Google Ads — rótulo conversão "Iniciar checkout"' },
+  { key: 'google_ads_label_compra', label: 'Google Ads — rótulo conversão "Compra"' },
+  { key: 'google_ads_label_lead', label: 'Google Ads — rótulo conversão "Lead"' },
+];
+
+const SERVER_TEMPLATE_FIELDS: { key: string; label: string }[] = [
+  { key: 'facebook_pixel_id', label: 'Facebook — ID do Pixel' },
+  { key: 'facebook_token', label: 'Facebook — Token da API de Conversões' },
+  { key: 'tiktok_pixel_id', label: 'TikTok — ID do Pixel' },
+  { key: 'tiktok_token', label: 'TikTok — Token do Pixel' },
+];
+
 function resourceIcon(type: ResourceType) {
   if (type === 'Tag') return Tag;
   if (type === 'Acionador') return Zap;
@@ -139,6 +165,9 @@ export default function GtmPage() {
   const [containerModalOpen, setContainerModalOpen] = useState(false);
   const [containerForAccount, setContainerForAccount] = useState<GtmAccount | null>(null);
   const [containerName, setContainerName] = useState('');
+  const [importTemplate, setImportTemplate] = useState(true);
+  const [templateFields, setTemplateFields] = useState<Record<string, string>>({});
+  const [templateSheetUrl, setTemplateSheetUrl] = useState('');
   const [containerUsageContext, setContainerUsageContext] = useState<'web' | 'server'>('web');
   const [savingContainer, setSavingContainer] = useState(false);
 
@@ -274,19 +303,34 @@ export default function GtmPage() {
     setContainerForAccount(account);
     setContainerName('');
     setContainerUsageContext('web');
+    setImportTemplate(true);
+    setTemplateFields({});
+    setTemplateSheetUrl('');
     setContainerModalOpen(true);
   };
 
   const handleCreateContainer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!containerForAccount || !containerName.trim()) {
-      toast.error('Informe o nome do contêiner.');
+      toast.error('Informe o nome do cliente.');
       return;
     }
     setSavingContainer(true);
     try {
-      await gtmService.createContainer(containerForAccount.accountId, containerName.trim(), containerUsageContext);
-      toast.success('Contêiner criado com sucesso!');
+      if (importTemplate) {
+        await gtmService.createContainerFromTemplate(
+          containerForAccount.accountId,
+          containerName.trim(),
+          containerUsageContext,
+          templateFields,
+          templateSheetUrl.trim() || undefined,
+        );
+        toast.success('Criação iniciada! Importar o modelo inteiro leva alguns minutos — atualize a lista daqui a pouco.');
+      } else {
+        const suffix = containerUsageContext === 'server' ? 'Server' : 'Web';
+        await gtmService.createContainer(containerForAccount.accountId, `${containerName.trim()} (${suffix})`, containerUsageContext);
+        toast.success('Contêiner criado com sucesso!');
+      }
       setContainerModalOpen(false);
       await loadAccounts();
     } catch {
@@ -294,6 +338,10 @@ export default function GtmPage() {
     } finally {
       setSavingContainer(false);
     }
+  };
+
+  const setTemplateField = (key: string, value: string) => {
+    setTemplateFields((prev) => ({ ...prev, [key]: value }));
   };
 
   // --- Criar/editar/remover recurso --------------------------------------
@@ -1102,26 +1150,31 @@ export default function GtmPage() {
       {containerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/30" onClick={() => setContainerModalOpen(false)} />
-          <div className="relative w-full max-w-md bg-white rounded-lg shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-gray-50">
+          <div className="relative w-full max-w-lg bg-white rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
               <h2 className="text-base font-semibold text-gray-800">Criar contêiner</h2>
               <button onClick={() => setContainerModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <form onSubmit={handleCreateContainer} className="p-5 space-y-4">
+            <form onSubmit={handleCreateContainer} className="p-5 space-y-4 overflow-y-auto">
               <p className="text-xs text-gray-500">
                 Conta: <span className="font-medium text-gray-700">{containerForAccount?.name}</span>
               </p>
               <div>
-                <Label className={labelClass}>Nome do contêiner</Label>
+                <Label className={labelClass}>Nome do cliente</Label>
                 <input
                   className={inputClass}
                   value={containerName}
                   onChange={(e) => setContainerName(e.target.value)}
-                  placeholder="Ex: www.meusite.com.br"
+                  placeholder="Ex: Loja da Maria"
                   autoFocus
                 />
+                {containerName.trim() && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Nome final: "{containerName.trim()} ({containerUsageContext === 'server' ? 'Server' : 'Web'})"
+                  </p>
+                )}
               </div>
               <div>
                 <Label className={labelClass}>Tipo</Label>
@@ -1146,6 +1199,54 @@ export default function GtmPage() {
                   </button>
                 </div>
               </div>
+
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={importTemplate}
+                  onChange={(e) => setImportTemplate(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                Importar modelo padrão ({containerUsageContext === 'server' ? 'base Facebook CAPI + TikTok Events API' : 'pacote completo de tags/variáveis'})
+              </label>
+
+              {importTemplate && (
+                <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50/60 p-3">
+                  <p className="text-xs text-gray-500">
+                    Nenhum campo é obrigatório — o que ficar em branco entra como <code className="bg-gray-200 px-1 rounded">0000000000</code> pra
+                    completar depois direto no GTM.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {(containerUsageContext === 'server' ? SERVER_TEMPLATE_FIELDS : WEB_TEMPLATE_FIELDS).map((f) => (
+                      <div key={f.key}>
+                        <Label className="text-xs text-gray-600">{f.label}</Label>
+                        <input
+                          className={inputClass}
+                          value={templateFields[f.key] || ''}
+                          onChange={(e) => setTemplateField(f.key, e.target.value)}
+                          placeholder="0000000000"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {containerUsageContext === 'web' && (
+                    <div>
+                      <Label className="text-xs text-gray-600">URL do Google Sheets (Apps Script, termina em /exec)</Label>
+                      <input
+                        className={inputClass}
+                        value={templateSheetUrl}
+                        onChange={(e) => setTemplateSheetUrl(e.target.value)}
+                        placeholder="https://script.google.com/macros/s/.../exec"
+                      />
+                    </div>
+                  )}
+                  <p className="text-xs text-amber-600">
+                    Importar o modelo inteiro roda em background e leva alguns minutos (cota de escrita do Google) — o
+                    contêiner aparece na lista na hora, mas as tags/variáveis vão sendo criadas aos poucos.
+                  </p>
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setContainerModalOpen(false)}>
                   Cancelar
