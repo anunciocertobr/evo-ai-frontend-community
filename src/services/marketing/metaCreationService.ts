@@ -310,6 +310,30 @@ export interface SavedAudience {
   approximate_count_upper_bound?: number;
 }
 
+// Imagem/vídeo já existente na biblioteca de criativos da conta de anúncio
+// (/act_X/adimages e /act_X/advideos) — reaproveitável em qualquer anúncio
+// novo sem precisar subir de novo.
+export interface AdCreativeImage {
+  id: string;
+  name?: string;
+  url: string;
+  hash: string;
+  width?: number;
+  height?: number;
+  created_time?: string;
+  permalink_url?: string;
+}
+
+export interface AdCreativeVideo {
+  id: string;
+  title?: string;
+  picture?: string;
+  source?: string;
+  created_time?: string;
+  length?: number;
+  status?: { video_status?: string };
+}
+
 export interface ReachEstimate {
   estimate_mau_lower_bound?: number;
   estimate_mau_upper_bound?: number;
@@ -785,6 +809,41 @@ class MetaCreationService {
 
   async deleteSavedAudience(savedAudienceId: string): Promise<void> {
     await api.post(ENDPOINT, { acao: 'excluir_publico_salvo', id_publico_salvo: savedAudienceId });
+  }
+
+  // --- Biblioteca de criativos (imagens/vídeos já na conta de anúncio) --
+  // Testado ao vivo: listar e excluir já funcionam com o acesso atual do
+  // app. Só subir (uploadCreativeImageByUrl) depende do Marketing API
+  // Access Tier estar em "Full access" — até a Meta aprovar, só essa ação
+  // devolve erro (mensagem real da Graph API já vem no response, sem
+  // precisar tratamento especial aqui).
+
+  async listCreativeImages(adAccountId: string): Promise<AdCreativeImage[]> {
+    const response = await api.post<AdCreativeImage[]>(ENDPOINT, {
+      acao: 'listar_imagens_criativo',
+      id_conta_anuncio: adAccountId,
+    });
+    return response.data || [];
+  }
+
+  async listCreativeVideos(adAccountId: string): Promise<AdCreativeVideo[]> {
+    const response = await api.post<AdCreativeVideo[]>(ENDPOINT, {
+      acao: 'listar_videos_criativo',
+      id_conta_anuncio: adAccountId,
+    });
+    return response.data || [];
+  }
+
+  async uploadCreativeImageByUrl(adAccountId: string, url: string): Promise<void> {
+    await api.post(ENDPOINT, { acao: 'subir_imagem_criativo', id_conta_anuncio: adAccountId, url });
+  }
+
+  async deleteCreativeImage(adAccountId: string, imageHash: string): Promise<void> {
+    await api.post(ENDPOINT, { acao: 'excluir_imagem_criativo', id_conta_anuncio: adAccountId, hash: imageHash });
+  }
+
+  async deleteCreativeVideo(videoId: string): Promise<void> {
+    await api.post(ENDPOINT, { acao: 'excluir_video_criativo', id_video: videoId });
   }
 
   // --- Listas de direcionamento (salvas localmente, não na Meta) ---
