@@ -259,6 +259,12 @@ export interface TargetingSpec {
   // Ad Manager permite misturar os dois ("Públicos incluídos" > "Públicos
   // personalizados"). A Graph API espera só os ids em `custom_audiences`.
   custom_audiences?: Array<{ id: string }>;
+  // Advantage+ Audience: quando ligado (1), a Meta trata idade/localização/
+  // interesses como SUGESTÃO e pode expandir o público automaticamente
+  // buscando conversão — perde parte do controle manual. Preferência padrão
+  // do CRM é manual (0/omitido); só liga quando o usuário escolhe
+  // explicitamente no TargetingBuilder.
+  targeting_automation?: { advantage_audience?: 0 | 1 };
 }
 
 // Lista curada e reutilizável de itens de direcionamento, salva localmente

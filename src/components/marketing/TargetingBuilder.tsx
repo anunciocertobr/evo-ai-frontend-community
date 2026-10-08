@@ -6,6 +6,7 @@ import {
   Label,
   Badge,
   Checkbox,
+  Switch,
   Select,
   SelectContent,
   SelectItem,
@@ -119,6 +120,11 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
   const [manualLocations, setManualLocations] = useState<LocationEntry[]>([]);
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
+
+  // Advantage+ Audience — desligado por padrão (preferência do CRM é o
+  // direcionamento manual, mais previsível); dá pra ligar caso a caso pra
+  // quem prefere deixar a Meta expandir automaticamente.
+  const [advantageAudience, setAdvantageAudience] = useState(false);
 
   // Edição de uma lista de direcionamento já salva (reaproveita o mesmo
   // mini-formulário de "criar lista nova" — ver handleSaveList).
@@ -368,8 +374,13 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
     // fora — ela resolve pelo id, que é por conta).
     if (includedCustom.length > 0) spec.custom_audiences = includedCustom.map((a) => ({ id: a.id }));
 
+    // Manda explícito (0 ou 1), nunca omite — alguns objetivos de campanha
+    // já vêm com Advantage+ ligado por padrão na conta, e aqui a
+    // preferência é manual a menos que o usuário ligue o switch.
+    spec.targeting_automation = { advantage_audience: advantageAudience ? 1 : 0 };
+
     return spec;
-  }, [country, pickedLocations, ageMin, ageMax, gender, include, narrow, exclude, includedCustom]);
+  }, [country, pickedLocations, ageMin, ageMax, gender, include, narrow, exclude, includedCustom, advantageAudience]);
 
   const debouncedSpec = useDebounce(buildSpec, 600);
 
@@ -539,6 +550,7 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
       setAgeMax(t.age_max ?? 65);
       setGender(t.genders?.[0] === 1 ? 'male' : t.genders?.[0] === 2 ? 'female' : 'all');
       setCountry(t.geo_locations?.countries?.[0] || 'BR');
+      setAdvantageAudience(t.targeting_automation?.advantage_audience === 1);
 
       const flexible = t.flexible_spec || [];
       setInclude(itemsFromGroup(flexible[0]));
@@ -807,6 +819,22 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
                     <SelectItem value="female">Feminino</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="flex items-start justify-between gap-3 pt-1 border-t">
+                <div className="space-y-0.5 pt-2">
+                  <Label className="text-sm">Advantage+ Audience</Label>
+                  <p className="text-xs text-muted-foreground max-w-[22rem]">
+                    Desligado (recomendado): a Meta respeita exatamente o que foi configurado aqui. Ligado: idade,
+                    localização e interesses viram só uma sugestão — a Meta pode expandir o público automaticamente
+                    buscando conversão, com menos controle manual.
+                  </p>
+                </div>
+                <Switch
+                  checked={advantageAudience}
+                  onCheckedChange={setAdvantageAudience}
+                  className="mt-2 shrink-0"
+                />
               </div>
             </section>
 
