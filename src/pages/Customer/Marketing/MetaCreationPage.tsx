@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ComponentProps } from 'react';
 import { toast } from 'sonner';
 import {
   Button,
@@ -21,6 +21,9 @@ import { MetaAdAccountScopeProvider } from '@/components/marketing/MetaAdAccount
 import { LocationGroupsTab } from '@/components/marketing/LocationGroupsTab';
 import { MediaLibraryBrowser } from '@/components/marketing/MediaLibraryBrowser';
 import { CriativoRequestsTab } from '@/components/marketing/CriativoRequestsTab';
+import { MetaCreationAiButton } from '@/components/marketing/MetaCreationAiButton';
+import { geocodePlace, type AiMetaDraft } from '@/utils/marketing/aiMetaDraft';
+import type { LocationEntry } from '@/components/marketing/LocationMapPicker';
 import {
   metaCreationService,
   type LeadForm,
@@ -83,6 +86,18 @@ export default function MetaCreationPage() {
   // Aba controlada: o público salvo (direcionamento completo) é criado em outra
   // aba, então o diálogo de público personalizado pode mandar o usuário pra lá.
   const [activeTab, setActiveTab] = useState('forms');
+
+  // Rascunhos do Assistente de IA (botão de robô, ver MetaCreationAiButton.tsx):
+  // cada um só preenche o formulário correspondente, nunca cria nada sozinho.
+  const [audienceAiDraft, setAudienceAiDraft] = useState<NonNullable<
+    ComponentProps<typeof AudienceCreateDialog>['initialDraft']
+  > | null>(null);
+  const [targetingAiDraft, setTargetingAiDraft] = useState<NonNullable<
+    NonNullable<ComponentProps<typeof TargetingBuilder>>['initialDraft']
+  > | null>(null);
+  const [locationAiDraft, setLocationAiDraft] = useState<NonNullable<
+    NonNullable<ComponentProps<typeof LocationGroupsTab>>['initialDraft']
+  > | null>(null);
 
   const loadForms = useCallback((pageId: string) => {
     setLoadingForms(true);
@@ -168,9 +183,61 @@ export default function MetaCreationPage() {
     }
   };
 
+  // Rascunho do Assistente de IA (ver MetaCreationAiButton.tsx / aiMetaDraft.ts):
+  // só troca de aba e preenche o formulário certo — nada aqui chama a Graph
+  // API, quem cria de verdade é sempre o usuário, nos mesmos diálogos de
+  // sempre. Localização precisa geocodificar os nomes de lugar antes (a IA
+  // só devolve texto, nunca lat/lng), por isso é assíncrono.
+  const handleAiDraft = async (draft: AiMetaDraft) => {
+    if (!account) {
+      toast.error('Selecione uma conta de anúncio antes de usar o assistente de IA.');
+      return;
+    }
+    if (draft.kind === 'audience') {
+      setAudienceAiDraft(draft.data);
+      setActiveTab('audiences');
+      setAudienceDialogOpen(true);
+      return;
+    }
+    if (draft.kind === 'targeting_list') {
+      setTargetingAiDraft(draft.data);
+      setActiveTab('targeting');
+      return;
+    }
+    if (draft.kind === 'location_group') {
+      const places = draft.data.places || [];
+      const resolved = await Promise.all(
+        places.map(async (place): Promise<LocationEntry | null> => {
+          const geo = await geocodePlace(place.query);
+          if (!geo) return null;
+          return {
+            id: `ai-${Math.random().toString(36).slice(2)}`,
+            name: geo.displayName.split(',')[0]?.trim() || place.query,
+            lat: geo.lat,
+            lng: geo.lng,
+            radius: place.radiusKm ?? 10,
+          };
+        }),
+      );
+      const locations = resolved.filter((entry): entry is LocationEntry => entry !== null);
+      if (!locations.length) {
+        toast.error('Não consegui encontrar nenhum dos lugares que a IA sugeriu.');
+        return;
+      }
+      if (locations.length < places.length) {
+        toast.warning(`${places.length - locations.length} lugar(es) sugerido(s) não foi(ram) encontrado(s).`);
+      }
+      setLocationAiDraft({ name: draft.data.name, locations });
+      setActiveTab('location-groups');
+    }
+  };
+
   return (
     <div className="space-y-4 pb-8">
-      <BaseHeader title="Criação Meta" subtitle="Crie formulários de lead e públicos direto na Meta Ads." />
+      <div className="flex items-start justify-between gap-2">
+        <BaseHeader title="Criação Meta" subtitle="Crie formulários de lead e públicos direto na Meta Ads." />
+        <MetaCreationAiButton onDraft={handleAiDraft} />
+      </div>
 
       <MetaAdAccountScopeProvider
         value={{
@@ -444,7 +511,10 @@ export default function MetaCreationPage() {
 
               <AudienceCreateDialog
                 open={audienceDialogOpen}
-                onOpenChange={setAudienceDialogOpen}
+                onOpenChange={(open) => {
+                  setAudienceDialogOpen(open);
+                  if (!open) setAudienceAiDraft(null);
+                }}
                 adAccountId={account.id}
                 businessId={accountBm?.id ?? null}
                 existingAudiences={audiences || []}
@@ -454,6 +524,7 @@ export default function MetaCreationPage() {
                   setPendingCustomerList(audience);
                   loadAudiences(account.id);
                 }}
+                initialDraft={audienceAiDraft}
               />
 
               <AudienceCreateDialog
@@ -492,11 +563,11 @@ export default function MetaCreationPage() {
         </TabsContent>
 
         <TabsContent value="targeting">
-          <TargetingBuilder />
+          <TargetingBuilder initialDraft={targetingAiDraft} />
         </TabsContent>
 
         <TabsContent value="location-groups">
-          <LocationGroupsTab />
+          <LocationGroupsTab initialDraft={locationAiDraft} />
         </TabsContent>
 
         {/* --- Solicitar Criativo --- */}

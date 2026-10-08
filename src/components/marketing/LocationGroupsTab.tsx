@@ -531,6 +531,7 @@ function LocationGroupEditorDialog({
   accountId,
   onSaved,
   onSave,
+  initialDraft,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -539,6 +540,11 @@ function LocationGroupEditorDialog({
   accountId: string;
   onSaved: () => void;
   onSave: (name: string, pins: LocationGroupPin[], group: LocationGroup | null) => Promise<void>;
+  // Rascunho vindo do Assistente de IA da Criação Meta (ver
+  // MetaCreationAiButton.tsx / aiMetaDraft.ts) — a página-mãe já resolveu os
+  // nomes de lugar em lat/lng (geocodePlace), aqui só preenche o editor; só
+  // vale pra criação nova, nunca sobrescreve um `group` existente.
+  initialDraft?: { name?: string; locations: LocationEntry[] } | null;
 }) {
   const [name, setName] = useState('');
   const [locations, setLocations] = useState<LocationEntry[]>([]);
@@ -549,10 +555,10 @@ function LocationGroupEditorDialog({
 
   useEffect(() => {
     if (!open) return;
-    setName(group?.name || '');
-    setLocations(group ? pinsToLocations(group.pins) : []);
+    setName(group?.name || initialDraft?.name || '');
+    setLocations(group ? pinsToLocations(group.pins) : initialDraft?.locations || []);
     setExcludedLocations(group ? pinsToLocations(group.pins, true) : []);
-  }, [open, group]);
+  }, [open, group, initialDraft]);
 
   const handleSave = async () => {
     const trimmed = name.trim();
@@ -662,7 +668,15 @@ function LocationGroupEditorDialog({
 // mesma conta quanto pra outra. Segue o mesmo padrão self-contained de
 // account picker do TargetingBuilder (BM > Conta próprios, não os do resto
 // da página).
-export function LocationGroupsTab() {
+interface LocationGroupsTabProps {
+  // Rascunho vindo do Assistente de IA da Criação Meta (ver
+  // MetaCreationAiButton.tsx / aiMetaDraft.ts) — abre o editor de "novo
+  // grupo" já com nome e locais preenchidos; o usuário ainda revisa no mapa
+  // e aperta "Salvar" de verdade.
+  initialDraft?: { name?: string; locations: LocationEntry[] } | null;
+}
+
+export function LocationGroupsTab({ initialDraft = null }: LocationGroupsTabProps = {}) {
   // Conta e BM compartilhadas com a página (ver MetaAdAccountScopeContext).
   const { account, setAccount, bm: selectedBm, setBm: setSelectedBm, pickerKey: pickerResetKey, resetPicker } = useMetaAdAccountScope();
 
@@ -671,6 +685,14 @@ export function LocationGroupsTab() {
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<LocationGroup | null>(null);
+  const [draftForCreate, setDraftForCreate] = useState<{ name?: string; locations: LocationEntry[] } | null>(null);
+
+  useEffect(() => {
+    if (!initialDraft || !account) return;
+    setEditingGroup(null);
+    setDraftForCreate(initialDraft);
+    setEditorOpen(true);
+  }, [initialDraft, account]);
   const [duplicatingGroup, setDuplicatingGroup] = useState<LocationGroup | null>(null);
   const [duplicatingSameAccountId, setDuplicatingSameAccountId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -844,12 +866,16 @@ export function LocationGroupsTab() {
 
           <LocationGroupEditorDialog
             open={editorOpen}
-            onOpenChange={setEditorOpen}
+            onOpenChange={(open) => {
+              setEditorOpen(open);
+              if (!open) setDraftForCreate(null);
+            }}
             group={editingGroup}
             allGroups={groups || []}
             accountId={account?.id || ''}
             onSave={handleSaveEditor}
             onSaved={() => account && loadGroups(account.id)}
+            initialDraft={editingGroup ? null : draftForCreate}
           />
 
           <DuplicateToOtherAccountDialog

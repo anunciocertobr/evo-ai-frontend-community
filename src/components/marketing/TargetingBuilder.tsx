@@ -69,7 +69,25 @@ function hasEntries(group: Record<string, unknown[]>): boolean {
   return Object.keys(group).length > 0;
 }
 
-export function TargetingBuilder() {
+interface TargetingBuilderProps {
+  // Rascunho vindo do Assistente de IA da Criação Meta (ver
+  // MetaCreationAiButton.tsx / aiMetaDraft.ts): preenche os campos de
+  // Incluir/Restringir/Excluir e o nome do público, mas não cria nada
+  // sozinho — os itens já vêm resolvidos (id/nome reais da Meta, achados
+  // pela própria IA via a ferramenta buscar_direcionamento) porque o
+  // usuário ainda revisa tudo aqui antes de clicar em "Criar público salvo".
+  initialDraft?: {
+    name?: string;
+    include?: Array<{ category: TargetingCategory; id: string; name: string }>;
+    narrow?: Array<{ category: TargetingCategory; id: string; name: string }>;
+    exclude?: Array<{ category: TargetingCategory; id: string; name: string }>;
+    ageMin?: number;
+    ageMax?: number;
+    genders?: Array<'male' | 'female'>;
+  } | null;
+}
+
+export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps = {}) {
   // Conta e BM vêm da página (compartilhadas com Públicos e Grupos de Locais),
   // então trocar de aba não obriga a escolher a BM de novo.
   const { account, setAccount, bm: selectedBm, setBm: setSelectedBm, pickerKey: pickerResetKey, resetPicker } = useMetaAdAccountScope();
@@ -222,6 +240,19 @@ export function TargetingBuilder() {
       .catch(() => toast.error('Erro ao buscar direcionamento'))
       .finally(() => setSearching(false));
   }, [category, debouncedQuery]);
+
+  useEffect(() => {
+    if (!initialDraft) return;
+    const toChosen = (arr?: Array<{ category: TargetingCategory; id: string; name: string }>): ChosenTargetingItem[] =>
+      (arr || []).map((item) => ({ id: item.id, name: item.name, category: item.category }));
+    if (initialDraft.include) setInclude(toChosen(initialDraft.include));
+    if (initialDraft.narrow) setNarrow(toChosen(initialDraft.narrow));
+    if (initialDraft.exclude) setExclude(toChosen(initialDraft.exclude));
+    if (typeof initialDraft.ageMin === 'number') setAgeMin(initialDraft.ageMin);
+    if (typeof initialDraft.ageMax === 'number') setAgeMax(initialDraft.ageMax);
+    if (initialDraft.genders) setGender(initialDraft.genders.length === 1 ? initialDraft.genders[0] : 'all');
+    if (initialDraft.name) setAudienceName(initialDraft.name);
+  }, [initialDraft]);
 
   const buildSpec = useMemo((): TargetingSpec => {
     const spec: TargetingSpec = {

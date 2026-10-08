@@ -104,6 +104,17 @@ interface AudienceCreateDialogProps {
   // ("Criar público" e "Criar público semelhante") e precisa cair direto no
   // formulário certo em vez de esperar o usuário escolher na lista.
   initialKind?: 'site' | 'lookalike' | null;
+  // Rascunho vindo do Assistente de IA da Criação Meta (ver
+  // MetaCreationAiButton.tsx / aiMetaDraft.ts): preenche o formulário com o
+  // que a IA propôs, mas não envia nada sozinho — o usuário ainda revisa e
+  // aperta "Criar público" de verdade.
+  initialDraft?: {
+    audienceKind: AudienceKind;
+    name?: string;
+    description?: string;
+    retentionDays?: number;
+    urlContains?: string;
+  } | null;
 }
 
 export function AudienceCreateDialog({
@@ -118,6 +129,7 @@ export function AudienceCreateDialog({
   onGoToSavedAudience,
   businessId,
   initialKind = null,
+  initialDraft = null,
 }: AudienceCreateDialogProps) {
   const isDuplicate = Boolean(duplicateFrom);
 
@@ -134,6 +146,18 @@ export function AudienceCreateDialog({
   useEffect(() => {
     if (open && initialKind) setKind(initialKind as AudienceKind);
   }, [open, initialKind]);
+
+  useEffect(() => {
+    if (!open || !initialDraft) return;
+    setKind(initialDraft.audienceKind);
+    if (initialDraft.name) {
+      setName(initialDraft.name);
+      setNameTouched(true);
+    }
+    if (initialDraft.description) setDescription(initialDraft.description);
+    if (typeof initialDraft.retentionDays === 'number') setRetentionDays(clampRetention(initialDraft.retentionDays));
+    if (initialDraft.urlContains) setUrlContains(initialDraft.urlContains);
+  }, [open, initialDraft]);
   const [name, setName] = useState('');
   // Se o usuário editar o nome, paramos de recalcular o sufixo "- Cópia".
   const [nameTouched, setNameTouched] = useState(false);
