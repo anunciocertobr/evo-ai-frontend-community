@@ -783,6 +783,10 @@ class MetaCreationService {
     return response.data;
   }
 
+  async deleteSavedAudience(savedAudienceId: string): Promise<void> {
+    await api.post(ENDPOINT, { acao: 'excluir_publico_salvo', id_publico_salvo: savedAudienceId });
+  }
+
   // --- Listas de direcionamento (salvas localmente, não na Meta) ---
 
   async listTargetingLists(): Promise<TargetingList[]> {

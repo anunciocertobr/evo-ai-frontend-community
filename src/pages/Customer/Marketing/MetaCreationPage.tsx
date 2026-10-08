@@ -8,7 +8,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks, Pencil } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -28,6 +28,7 @@ import {
   type LeadForm,
   type LeadFormDetail,
   type CustomAudience,
+  type SavedAudience,
 } from '@/services/marketing/metaCreationService';
 
 const SUBTYPE_LABEL: Record<string, string> = {
@@ -47,14 +48,15 @@ const SUBTYPE_LABEL: Record<string, string> = {
 // Agrupa a lista de públicos por "família" em vez de misturar tudo — era o
 // problema relatado: personalizado e semelhante apareciam juntos sem
 // distinção clara (a Badge por card já mostrava o subtipo, mas não dava
-// pra escanear a lista de relance).
-const AUDIENCE_GROUP_LABEL = { custom: 'Personalizados', lookalike: 'Semelhantes', saved: 'Públicos salvos' } as const;
+// pra escanear a lista de relance). Público salvo NÃO entra aqui — o
+// endpoint de listar públicos (/customaudiences) nunca devolve esse
+// subtipo; público salvo é um objeto à parte na Graph API, carregado
+// separado em savedAudiences e renderizado na própria seção dele abaixo.
+const AUDIENCE_GROUP_LABEL = { custom: 'Personalizados', lookalike: 'Semelhantes' } as const;
 type AudienceGroupKey = keyof typeof AUDIENCE_GROUP_LABEL;
 
 function groupKeyForSubtype(subtype: string): AudienceGroupKey {
-  if (subtype === 'LOOKALIKE') return 'lookalike';
-  if (subtype === 'SAVED_AUDIENCE') return 'saved';
-  return 'custom';
+  return subtype === 'LOOKALIKE' ? 'lookalike' : 'custom';
 }
 
 function formatSize(a: CustomAudience): string {
@@ -93,9 +95,16 @@ export default function MetaCreationPage() {
   const [audiences, setAudiences] = useState<CustomAudience[] | null>(null);
   const [loadingAudiences, setLoadingAudiences] = useState(false);
   const [audienceDialogOpen, setAudienceDialogOpen] = useState(false);
+  const [savedAudiences, setSavedAudiences] = useState<SavedAudience[] | null>(null);
+  const [loadingSavedAudiences, setLoadingSavedAudiences] = useState(false);
+  const [deletingSavedAudienceId, setDeletingSavedAudienceId] = useState<string | null>(null);
+  // Dispara a edição de um público salvo na aba Direcionamento (ver
+  // TargetingBuilder's editSavedAudienceRequest) — nonce garante que clicar
+  // "Editar" duas vezes no mesmo público recarregue os dados de novo.
+  const [editSavedAudienceRequest, setEditSavedAudienceRequest] = useState<{ id: string; nonce: number } | null>(null);
 
   const groupedAudiences = useMemo(() => {
-    const groups: Record<AudienceGroupKey, CustomAudience[]> = { custom: [], lookalike: [], saved: [] };
+    const groups: Record<AudienceGroupKey, CustomAudience[]> = { custom: [], lookalike: [] };
     (audiences || []).forEach((a) => groups[groupKeyForSubtype(a.subtype)].push(a));
     return groups;
   }, [audiences]);
@@ -168,9 +177,45 @@ export default function MetaCreationPage() {
       .finally(() => setLoadingAudiences(false));
   }, []);
 
+  const loadSavedAudiencesForTab = useCallback((accountId: string) => {
+    setLoadingSavedAudiences(true);
+    metaCreationService
+      .listSavedAudiences(accountId)
+      .then(setSavedAudiences)
+      .catch(() => toast.error('Erro ao carregar públicos salvos'))
+      .finally(() => setLoadingSavedAudiences(false));
+  }, []);
+
   useEffect(() => {
-    if (account) loadAudiences(account.id);
-  }, [account, loadAudiences]);
+    if (account) {
+      loadAudiences(account.id);
+      loadSavedAudiencesForTab(account.id);
+    }
+  }, [account, loadAudiences, loadSavedAudiencesForTab]);
+
+  const handleEditSavedAudienceFromList = (savedAudienceId: string) => {
+    setEditSavedAudienceRequest({ id: savedAudienceId, nonce: Date.now() });
+    setActiveTab('targeting');
+  };
+
+  const handleDeleteSavedAudience = async (sa: SavedAudience) => {
+    if (deletingSavedAudienceId) return;
+    const confirmed = window.confirm(
+      `Excluir o público salvo "${sa.name}"?\n\nIsso é definitivo: ele é apagado da conta na Meta e não pode ser recuperado. Campanhas que já usam esse público continuam usando a versão que já foi veiculada, mas não dá mais pra editar nem reutilizar em campanhas novas.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingSavedAudienceId(sa.id);
+    try {
+      await metaCreationService.deleteSavedAudience(sa.id);
+      toast.success(`Público salvo "${sa.name}" excluído.`);
+      if (account) loadSavedAudiencesForTab(account.id);
+    } catch {
+      toast.error('Não foi possível excluir o público salvo. A Meta pode ter recusado.');
+    } finally {
+      setDeletingSavedAudienceId(null);
+    }
+  };
 
   // Exclusão do público: definitiva e sem volta na Graph API (o público some
   // da conta e os conjuntos que apontam pra ele perdem a fonte), então o nome
@@ -473,14 +518,54 @@ export default function MetaCreationPage() {
                 </div>
               </div>
 
-              {loadingAudiences ? (
+              {loadingAudiences && loadingSavedAudiences ? (
                 <div className="text-center text-sm text-muted-foreground py-10">Carregando...</div>
-              ) : !audiences || audiences.length === 0 ? (
+              ) : (!audiences || audiences.length === 0) && (!savedAudiences || savedAudiences.length === 0) ? (
                 <div className="text-center text-sm text-muted-foreground py-10 border border-dashed rounded-md">
                   Nenhum público criado ainda nesta conta.
                 </div>
               ) : (
                 <div className="space-y-5">
+                  {savedAudiences && savedAudiences.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Públicos salvos ({savedAudiences.length})
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {savedAudiences.map((sa) => (
+                          <div key={sa.id} className="rounded-lg border border-border bg-card p-4 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="text-sm font-semibold break-words min-w-0" title={sa.name}>
+                                {sa.name}
+                              </h4>
+                              <Badge variant="outline" className="shrink-0">
+                                Público salvo
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">ID: {sa.id}</p>
+                            {sa.approximate_count != null && (
+                              <p className="text-xs font-medium">{sa.approximate_count.toLocaleString('pt-BR')} pessoas</p>
+                            )}
+                            <div className="pt-1 flex items-center gap-2">
+                              <Button size="sm" variant="outline" onClick={() => handleEditSavedAudienceFromList(sa.id)}>
+                                <Pencil className="w-3.5 h-3.5 mr-1" /> Editar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-destructive hover:text-destructive"
+                                disabled={deletingSavedAudienceId === sa.id}
+                                onClick={() => handleDeleteSavedAudience(sa)}
+                              >
+                                <Trash2 className="w-3.5 h-3.5 mr-1" /> Excluir
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {(Object.keys(AUDIENCE_GROUP_LABEL) as AudienceGroupKey[]).map((groupKey) => {
                     const items = groupedAudiences[groupKey];
                     if (items.length === 0) return null;
@@ -581,7 +666,7 @@ export default function MetaCreationPage() {
         </TabsContent>
 
         <TabsContent value="targeting">
-          <TargetingBuilder initialDraft={targetingAiDraft} />
+          <TargetingBuilder initialDraft={targetingAiDraft} editSavedAudienceRequest={editSavedAudienceRequest} />
         </TabsContent>
 
         <TabsContent value="location-groups">

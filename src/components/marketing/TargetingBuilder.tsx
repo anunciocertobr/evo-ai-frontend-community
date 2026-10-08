@@ -39,11 +39,14 @@ import { suggestCopyName } from '@/components/marketing/audienceNaming';
 import { LocationMapPicker, type LocationEntry } from '@/components/marketing/LocationMapPicker';
 import { pinsFromOrigin } from '@/utils/marketing/geoResolve';
 
-const CATEGORY_LABEL: Record<TargetingCategory, string> = {
+const CATEGORY_LABEL: Record<TargetingCategory | 'all', string> = {
+  all: 'Todos',
   interests: 'Interesses',
   behaviors: 'Comportamentos',
   demographics: 'Dados demográficos',
 };
+
+const SEARCHABLE_CATEGORIES: TargetingCategory[] = ['interests', 'behaviors', 'demographics'];
 
 type Bucket = 'include' | 'narrow' | 'exclude';
 
@@ -89,17 +92,29 @@ interface TargetingBuilderProps {
     ageMax?: number;
     genders?: Array<'male' | 'female'>;
   } | null;
+  // Pedido de edição vindo de fora (botão "Editar" na aba Públicos) — o
+  // `nonce` muda a cada clique mesmo pro mesmo público, pra garantir que o
+  // efeito dispare de novo (clicar "Editar" duas vezes seguidas no mesmo
+  // público deveria recarregar os dados, não ser ignorado por já ter rodado
+  // uma vez com o mesmo id).
+  editSavedAudienceRequest?: { id: string; nonce: number } | null;
 }
 
-export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps = {}) {
+export function TargetingBuilder({ initialDraft = null, editSavedAudienceRequest = null }: TargetingBuilderProps = {}) {
   // Conta e BM vêm da página (compartilhadas com Públicos e Grupos de Locais),
   // então trocar de aba não obriga a escolher a BM de novo.
   const { account, setAccount, bm: selectedBm, setBm: setSelectedBm, pickerKey: pickerResetKey, resetPicker } = useMetaAdAccountScope();
 
-  const [category, setCategory] = useState<TargetingCategory>('interests');
+  // 'all' busca nas 3 categorias ao mesmo tempo — não existe como categoria
+  // real da Graph API (cada busca ainda é feita separada por categoria, ver
+  // o efeito de busca abaixo), é só um modo de exibição.
+  const [category, setCategory] = useState<TargetingCategory | 'all'>('interests');
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 400);
-  const [results, setResults] = useState<TargetingItem[]>([]);
+  // Cada resultado já guarda a categoria real de onde veio — necessário pra
+  // distinguir no modo "Todos", onde a mesma lista mistura interesses/
+  // comportamentos/dados demográficos.
+  const [results, setResults] = useState<ChosenTargetingItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [activeBucket, setActiveBucket] = useState<Bucket>('include');
 
@@ -279,16 +294,24 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
     });
   };
 
-  // Busca ao digitar (categoria atual)
+  // Busca ao digitar — "Todos" dispara as 3 categorias em paralelo e junta
+  // tudo numa lista só, cada item já marcado com a categoria real de onde
+  // veio (precisa pra agrupar em include/narrow/exclude certo ao adicionar).
   useEffect(() => {
     if (!debouncedQuery.trim()) {
       setResults([]);
       return;
     }
+    const categoriesToSearch = category === 'all' ? SEARCHABLE_CATEGORIES : [category];
     setSearching(true);
-    metaCreationService
-      .searchTargeting(category, debouncedQuery.trim())
-      .then(setResults)
+    Promise.all(
+      categoriesToSearch.map((cat) =>
+        metaCreationService
+          .searchTargeting(cat, debouncedQuery.trim())
+          .then((items): ChosenTargetingItem[] => items.map((item) => ({ ...item, category: cat }))),
+      ),
+    )
+      .then((lists) => setResults(lists.flat()))
       .catch(() => toast.error('Erro ao buscar direcionamento'))
       .finally(() => setSearching(false));
   }, [category, debouncedQuery]);
@@ -433,19 +456,30 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
   );
   const visibleResults = results.filter((item) => !chosenIds.has(item.id));
 
-  const addItem = (item: TargetingItem) => {
-    const chosen: ChosenTargetingItem = { ...item, category };
-    const list = bucketState[activeBucket];
-    if (list.some((i) => i.id === chosen.id)) return;
-    bucketSetters[activeBucket]((prev) => [...prev, chosen]);
-
-    if (activeBucket === 'include' && category === 'interests') {
-      const names = [...include.filter((i) => i.category === 'interests').map((i) => i.name), item.name];
-      metaCreationService
-        .getTargetingSuggestions(names)
-        .then(setSuggestions)
-        .catch(() => setSuggestions([]));
+  // Sugestões reagem à lista "Incluir" inteira (qualquer categoria — a
+  // Graph API só devolve sugestão de interesse, mas aceita qualquer nome
+  // como semente, então manda tudo: interesses, comportamentos, cargos...),
+  // não só ao último item adicionado — soma, remove ou troca algo em
+  // Incluir e a lista de sugestões já atualiza sozinha.
+  useEffect(() => {
+    if (include.length === 0) {
+      setSuggestions([]);
+      return;
     }
+    metaCreationService
+      .getTargetingSuggestions(include.map((i) => i.name))
+      .then(setSuggestions)
+      .catch(() => setSuggestions([]));
+  }, [include]);
+
+  // Cada resultado já vem com a categoria certa anexada (ver efeito de
+  // busca acima), então não depende mais do valor atual do seletor —
+  // adicionar não quebra se o usuário trocar a categoria/buscar de novo
+  // antes de clicar num resultado antigo.
+  const addItem = (item: ChosenTargetingItem) => {
+    const list = bucketState[activeBucket];
+    if (list.some((i) => i.id === item.id)) return;
+    bucketSetters[activeBucket]((prev) => [...prev, item]);
   };
 
   const removeItem = (bucket: Bucket, id: string) => {
@@ -540,11 +574,11 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
   // Carrega um público salvo já existente no formulário inteiro pra editar
   // — localização, idade, gênero, interesses e públicos incluídos ficam
   // exatamente como estão salvos na Meta, prontos pra ajustar e sobrescrever.
-  const handleEditSavedAudience = async (audience: SavedAudience) => {
+  const handleEditSavedAudience = async (savedAudienceId: string) => {
     if (loadingSavedAudienceDetail) return;
     setLoadingSavedAudienceDetail(true);
     try {
-      const detail = await metaCreationService.getSavedAudienceDetail(audience.id);
+      const detail = await metaCreationService.getSavedAudienceDetail(savedAudienceId);
       const t = detail.targeting;
       setAgeMin(t.age_min ?? 18);
       setAgeMax(t.age_max ?? 65);
@@ -579,7 +613,7 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
       }
 
       setAudienceName(detail.name);
-      setEditingSavedAudienceId(audience.id);
+      setEditingSavedAudienceId(savedAudienceId);
     } catch {
       toast.error('Erro ao carregar o público salvo pra edição');
     } finally {
@@ -591,6 +625,15 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
     setEditingSavedAudienceId(null);
     setAudienceName('');
   };
+
+  // Pedido de edição vindo da aba Públicos (botão "Editar" num público
+  // salvo lá) — troca de aba já deixa a conta certa selecionada (contexto
+  // compartilhado via useMetaAdAccountScope), só falta carregar o público.
+  useEffect(() => {
+    if (!editSavedAudienceRequest) return;
+    handleEditSavedAudience(editSavedAudienceRequest.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editSavedAudienceRequest]);
 
   const openDuplicateSaved = (audience: SavedAudience) => {
     setDuplicateSource(audience);
@@ -841,11 +884,12 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
             <section className="rounded-lg border border-border bg-card p-4 space-y-3">
               <h4 className="text-sm font-semibold">Buscar direcionamento</h4>
               <div className="flex gap-2">
-                <Select value={category} onValueChange={(v) => setCategory(v as TargetingCategory)}>
+                <Select value={category} onValueChange={(v) => setCategory(v as TargetingCategory | 'all')}>
                   <SelectTrigger className="w-44 shrink-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
                     <SelectItem value="interests">Interesses</SelectItem>
                     <SelectItem value="behaviors">Comportamentos</SelectItem>
                     <SelectItem value="demographics">Dados demográficos</SelectItem>
@@ -856,7 +900,7 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
                   <Input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder={`Buscar ${CATEGORY_LABEL[category].toLowerCase()}...`}
+                    placeholder={category === 'all' ? 'Buscar em interesses, comportamentos e dados demográficos...' : `Buscar ${CATEGORY_LABEL[category].toLowerCase()}...`}
                     className="pl-8"
                   />
                 </div>
@@ -898,6 +942,11 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
+                        {category === 'all' && (
+                          <span className="text-[0.65rem] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                            {CATEGORY_LABEL[item.category]}
+                          </span>
+                        )}
                         {formatSize(item) && (
                           <span className="text-[0.65rem] text-muted-foreground">{formatSize(item)}</span>
                         )}
@@ -1210,7 +1259,7 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleEditSavedAudience(sa)}
+                          onClick={() => handleEditSavedAudience(sa.id)}
                           disabled={loadingSavedAudienceDetail}
                         >
                           <Pencil className="w-3.5 h-3.5 mr-1" /> Editar
