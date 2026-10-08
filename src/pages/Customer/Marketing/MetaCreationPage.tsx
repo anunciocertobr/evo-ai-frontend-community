@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ComponentProps } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { toast } from 'sonner';
 import {
   Button,
@@ -44,6 +44,19 @@ const SUBTYPE_LABEL: Record<string, string> = {
   MULTI_DATA: 'Público combinado',
 };
 
+// Agrupa a lista de públicos por "família" em vez de misturar tudo — era o
+// problema relatado: personalizado e semelhante apareciam juntos sem
+// distinção clara (a Badge por card já mostrava o subtipo, mas não dava
+// pra escanear a lista de relance).
+const AUDIENCE_GROUP_LABEL = { custom: 'Personalizados', lookalike: 'Semelhantes', saved: 'Públicos salvos' } as const;
+type AudienceGroupKey = keyof typeof AUDIENCE_GROUP_LABEL;
+
+function groupKeyForSubtype(subtype: string): AudienceGroupKey {
+  if (subtype === 'LOOKALIKE') return 'lookalike';
+  if (subtype === 'SAVED_AUDIENCE') return 'saved';
+  return 'custom';
+}
+
 function formatSize(a: CustomAudience): string {
   if (a.approximate_count_lower_bound == null) return 'Calculando...';
   const lo = a.approximate_count_lower_bound.toLocaleString('pt-BR');
@@ -80,6 +93,12 @@ export default function MetaCreationPage() {
   const [audiences, setAudiences] = useState<CustomAudience[] | null>(null);
   const [loadingAudiences, setLoadingAudiences] = useState(false);
   const [audienceDialogOpen, setAudienceDialogOpen] = useState(false);
+
+  const groupedAudiences = useMemo(() => {
+    const groups: Record<AudienceGroupKey, CustomAudience[]> = { custom: [], lookalike: [], saved: [] };
+    (audiences || []).forEach((a) => groups[groupKeyForSubtype(a.subtype)].push(a));
+    return groups;
+  }, [audiences]);
   const [pendingCustomerList, setPendingCustomerList] = useState<CustomAudience | null>(null);
   const [duplicateAudienceFrom, setDuplicateAudienceFrom] = useState<CustomAudience | null>(null);
   // Aba controlada: o público salvo (direcionamento completo) é criado em outra
@@ -461,37 +480,50 @@ export default function MetaCreationPage() {
                   Nenhum público criado ainda nesta conta.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {audiences.map((a) => (
-                    <div key={a.id} className="rounded-lg border border-border bg-card p-4 space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <h4 className="text-sm font-semibold break-words min-w-0" title={a.name}>
-                          {a.name}
+                <div className="space-y-5">
+                  {(Object.keys(AUDIENCE_GROUP_LABEL) as AudienceGroupKey[]).map((groupKey) => {
+                    const items = groupedAudiences[groupKey];
+                    if (items.length === 0) return null;
+                    return (
+                      <div key={groupKey} className="space-y-2">
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {AUDIENCE_GROUP_LABEL[groupKey]} ({items.length})
                         </h4>
-                        <Badge variant="outline" className="shrink-0">
-                          {SUBTYPE_LABEL[a.subtype] || a.subtype}
-                        </Badge>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {items.map((a) => (
+                            <div key={a.id} className="rounded-lg border border-border bg-card p-4 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <h4 className="text-sm font-semibold break-words min-w-0" title={a.name}>
+                                  {a.name}
+                                </h4>
+                                <Badge variant="outline" className="shrink-0">
+                                  {SUBTYPE_LABEL[a.subtype] || a.subtype}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">ID: {a.id}</p>
+                              <p className="text-xs font-medium">{formatSize(a)}</p>
+                              {a.delivery_status?.description && (
+                                <p className="text-[0.65rem] text-muted-foreground">{a.delivery_status.description}</p>
+                              )}
+                              <div className="pt-1 flex items-center gap-2">
+                                <Button size="sm" variant="outline" onClick={() => setDuplicateAudienceFrom(a)}>
+                                  <Copy className="w-3.5 h-3.5 mr-1" /> Duplicar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteAudience(a)}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Excluir
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">ID: {a.id}</p>
-                      <p className="text-xs font-medium">{formatSize(a)}</p>
-                      {a.delivery_status?.description && (
-                        <p className="text-[0.65rem] text-muted-foreground">{a.delivery_status.description}</p>
-                      )}
-                      <div className="pt-1 flex items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={() => setDuplicateAudienceFrom(a)}>
-                          <Copy className="w-3.5 h-3.5 mr-1" /> Duplicar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteAudience(a)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5 mr-1" /> Excluir
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

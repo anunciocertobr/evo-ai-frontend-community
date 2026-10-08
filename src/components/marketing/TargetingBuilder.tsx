@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@evoapi/design-system';
-import { Plus, X, Search, Users2, Sparkles, ListPlus, Trash2, ChevronLeft, Copy } from 'lucide-react';
+import { Plus, X, Search, Users2, Sparkles, ListPlus, Trash2, ChevronLeft, Copy, Pencil, MapPin, XCircle } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { useMetaAdAccountScope } from '@/components/marketing/metaAdAccountScope';
@@ -32,8 +32,11 @@ import {
   type TargetingSpec,
   type TargetingList,
   type SavedAudience,
+  type LocationGroup,
 } from '@/services/marketing/metaCreationService';
 import { suggestCopyName } from '@/components/marketing/audienceNaming';
+import { LocationMapPicker, type LocationEntry } from '@/components/marketing/LocationMapPicker';
+import { pinsFromOrigin } from '@/utils/marketing/geoResolve';
 
 const CATEGORY_LABEL: Record<TargetingCategory, string> = {
   interests: 'Interesses',
@@ -107,6 +110,25 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
   const [country, setCountry] = useState('BR');
   const [ageMin, setAgeMin] = useState(18);
   const [ageMax, setAgeMax] = useState(65);
+
+  // Localização específica — alternativa ao país simples. Pode vir de
+  // Grupos de Localização já salvos (aba "Grupos de Localização") e/ou de
+  // pontos adicionados aqui mesmo no mapa. Tendo pelo menos um local
+  // escolhido, o targeting usa custom_locations em vez de country.
+  const [locationGroups, setLocationGroups] = useState<LocationGroup[] | null>(null);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [manualLocations, setManualLocations] = useState<LocationEntry[]>([]);
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
+
+  // Edição de uma lista de direcionamento já salva (reaproveita o mesmo
+  // mini-formulário de "criar lista nova" — ver handleSaveList).
+  const [editingListId, setEditingListId] = useState<string | null>(null);
+
+  // Edição de um público salvo já existente — ao abrir, o formulário
+  // inteiro (idade/gênero/localização/interesses) é recarregado com o que
+  // já está salvo na Meta, e "Salvar" passa a atualizar em vez de criar.
+  const [editingSavedAudienceId, setEditingSavedAudienceId] = useState<string | null>(null);
+  const [loadingSavedAudienceDetail, setLoadingSavedAudienceDetail] = useState(false);
   const [gender, setGender] = useState<'all' | 'male' | 'female'>('all');
 
   const [reach, setReach] = useState<{ lower?: number; upper?: number } | null>(null);
@@ -196,23 +218,47 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
     }
     setSavingList(true);
     try {
-      await metaCreationService.createTargetingList(newListName.trim(), newListItems);
-      toast.success('Lista salva!');
+      if (editingListId) {
+        await metaCreationService.updateTargetingList(editingListId, { name: newListName.trim(), items: newListItems });
+        toast.success('Lista atualizada!');
+        setEditingListId(null);
+      } else {
+        await metaCreationService.createTargetingList(newListName.trim(), newListItems);
+        toast.success('Lista salva!');
+      }
       setNewListName('');
       setNewListItems([]);
       setNewListQuery('');
       loadLists();
     } catch {
-      toast.error('Erro ao salvar a lista');
+      toast.error(editingListId ? 'Erro ao atualizar a lista' : 'Erro ao salvar a lista');
     } finally {
       setSavingList(false);
     }
+  };
+
+  // Reaproveita o mesmo mini-formulário de "criar lista nova" pra editar
+  // uma já salva — handleSaveList detecta editingListId e chama update em
+  // vez de create.
+  const handleEditList = (list: TargetingList) => {
+    setEditingListId(list.id);
+    setNewListName(list.name);
+    setNewListItems(list.items);
+    setNewListQuery('');
+  };
+
+  const cancelEditList = () => {
+    setEditingListId(null);
+    setNewListName('');
+    setNewListItems([]);
+    setNewListQuery('');
   };
 
   const handleDeleteList = async (id: string) => {
     try {
       await metaCreationService.deleteTargetingList(id);
       setSavedLists((prev) => (prev || []).filter((l) => l.id !== id));
+      if (editingListId === id) cancelEditList();
     } catch {
       toast.error('Erro ao excluir a lista');
     }
@@ -254,9 +300,55 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
     if (initialDraft.name) setAudienceName(initialDraft.name);
   }, [initialDraft]);
 
+  // Grupos de localização da conta (aba "Grupos de Localização") — pra
+  // marcar aqui e reaproveitar os mesmos pins em vez de digitar de novo.
+  useEffect(() => {
+    if (!account) {
+      setLocationGroups(null);
+      setSelectedGroupIds(new Set());
+      return;
+    }
+    metaCreationService
+      .listLocationGroups(account.id)
+      .then(setLocationGroups)
+      .catch(() => setLocationGroups([]));
+  }, [account]);
+
+  // Junta os pins dos grupos marcados com os adicionados manualmente no
+  // mapa, sem duplicar o mesmo ponto (mesma coordenada+raio).
+  const pickedLocations = useMemo(() => {
+    const fromGroups: LocationEntry[] = (locationGroups || [])
+      .filter((g) => selectedGroupIds.has(g.id))
+      .flatMap((g) =>
+        g.pins
+          .filter((p) => !p.exclude)
+          .map((p) => ({ id: `grupo-${g.id}-${p.name}`, name: p.name, lat: p.lat, lng: p.lng, radius: p.radius })),
+      );
+    const chave = (l: LocationEntry) => `${l.lat.toFixed(4)}|${l.lng.toFixed(4)}|${l.radius}`;
+    const vistos = new Set<string>();
+    const resultado: LocationEntry[] = [];
+    [...fromGroups, ...manualLocations].forEach((l) => {
+      const k = chave(l);
+      if (vistos.has(k)) return;
+      vistos.add(k);
+      resultado.push(l);
+    });
+    return resultado;
+  }, [locationGroups, selectedGroupIds, manualLocations]);
+
   const buildSpec = useMemo((): TargetingSpec => {
     const spec: TargetingSpec = {
-      geo_locations: { countries: [country.trim() || 'BR'] },
+      geo_locations:
+        pickedLocations.length > 0
+          ? {
+              custom_locations: pickedLocations.map((l) => ({
+                latitude: l.lat,
+                longitude: l.lng,
+                radius: l.radius,
+                distance_unit: 'kilometer',
+              })),
+            }
+          : { countries: [country.trim() || 'BR'] },
       age_min: ageMin,
       age_max: ageMax,
     };
@@ -277,7 +369,7 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
     if (includedCustom.length > 0) spec.custom_audiences = includedCustom.map((a) => ({ id: a.id }));
 
     return spec;
-  }, [country, ageMin, ageMax, gender, include, narrow, exclude, includedCustom]);
+  }, [country, pickedLocations, ageMin, ageMax, gender, include, narrow, exclude, includedCustom]);
 
   const debouncedSpec = useDebounce(buildSpec, 600);
 
@@ -402,15 +494,90 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
     }
     setSavingAudience(true);
     try {
-      await metaCreationService.createSavedAudience(account.id, audienceName.trim(), buildSpec);
-      toast.success('Público salvo na Meta! Já pode ser usado em novas campanhas.');
-      setAudienceName('');
+      if (editingSavedAudienceId) {
+        await metaCreationService.updateSavedAudience(editingSavedAudienceId, audienceName.trim(), buildSpec);
+        toast.success('Público salvo atualizado na Meta!');
+        setEditingSavedAudienceId(null);
+      } else {
+        await metaCreationService.createSavedAudience(account.id, audienceName.trim(), buildSpec);
+        toast.success('Público salvo na Meta! Já pode ser usado em novas campanhas.');
+        setAudienceName('');
+      }
       loadSavedAudiences(account.id);
     } catch {
-      toast.error('Erro ao salvar o público na Meta');
+      toast.error(editingSavedAudienceId ? 'Erro ao atualizar o público na Meta' : 'Erro ao salvar o público na Meta');
     } finally {
       setSavingAudience(false);
     }
+  };
+
+  // Extrai os itens de um flexible_spec (Incluir/Restringir) — a Graph API
+  // devolve um array com 1 ou 2 grupos; por convenção (mesma ordem que
+  // buildSpec monta) o primeiro é sempre "incluir" e o segundo, se existir,
+  // é "restringir ainda mais".
+  const itemsFromGroup = (
+    group: Partial<Record<TargetingCategory, Array<{ id: string; name: string }>>> | undefined,
+  ): ChosenTargetingItem[] => {
+    if (!group) return [];
+    const out: ChosenTargetingItem[] = [];
+    (Object.keys(group) as TargetingCategory[]).forEach((cat) => {
+      (group[cat] || []).forEach((item) => out.push({ id: item.id, name: item.name, category: cat }));
+    });
+    return out;
+  };
+
+  // Carrega um público salvo já existente no formulário inteiro pra editar
+  // — localização, idade, gênero, interesses e públicos incluídos ficam
+  // exatamente como estão salvos na Meta, prontos pra ajustar e sobrescrever.
+  const handleEditSavedAudience = async (audience: SavedAudience) => {
+    if (loadingSavedAudienceDetail) return;
+    setLoadingSavedAudienceDetail(true);
+    try {
+      const detail = await metaCreationService.getSavedAudienceDetail(audience.id);
+      const t = detail.targeting;
+      setAgeMin(t.age_min ?? 18);
+      setAgeMax(t.age_max ?? 65);
+      setGender(t.genders?.[0] === 1 ? 'male' : t.genders?.[0] === 2 ? 'female' : 'all');
+      setCountry(t.geo_locations?.countries?.[0] || 'BR');
+
+      const flexible = t.flexible_spec || [];
+      setInclude(itemsFromGroup(flexible[0]));
+      setNarrow(itemsFromGroup(flexible[1]));
+      setExclude(itemsFromGroup(t.exclusions));
+
+      const customIds = new Set((t.custom_audiences || []).map((a) => a.id));
+      setIncludedCustom((accountAudiences || []).filter((a) => customIds.has(a.id)));
+
+      // Localização específica (cidades/lugares sem coordenada + pins com
+      // coordenada) — vira tudo "manual" aqui: não dá pra saber se veio de
+      // um Grupo de Localização, então reaproveita pinsFromOrigin (mesma
+      // lógica já usada em "Importar de públicos salvos" nos Grupos).
+      const geo = t.geo_locations || {};
+      const unresolved: string[] = [];
+      const origins = [
+        ...(geo.cities || []),
+        ...(geo.places || []),
+        ...(geo.custom_locations || []).map((c) => ({ lat: c.latitude, lng: c.longitude, radius: c.radius })),
+      ];
+      const resolved = await pinsFromOrigin(origins, unresolved);
+      setSelectedGroupIds(new Set());
+      setManualLocations(resolved);
+      if (unresolved.length) {
+        toast.warning(`${unresolved.length} localização(ões) salva(s) não foi(ram) encontrada(s) — confira antes de salvar.`);
+      }
+
+      setAudienceName(detail.name);
+      setEditingSavedAudienceId(audience.id);
+    } catch {
+      toast.error('Erro ao carregar o público salvo pra edição');
+    } finally {
+      setLoadingSavedAudienceDetail(false);
+    }
+  };
+
+  const cancelEditSavedAudience = () => {
+    setEditingSavedAudienceId(null);
+    setAudienceName('');
   };
 
   const openDuplicateSaved = (audience: SavedAudience) => {
@@ -544,11 +711,81 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
           <div className="space-y-4">
             <section className="rounded-lg border border-border bg-card p-4 space-y-3">
               <h4 className="text-sm font-semibold">Localização, idade e gênero</h4>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="space-y-1.5">
-                  <Label>País</Label>
-                  <Input value={country} onChange={(e) => setCountry(e.target.value.toUpperCase())} maxLength={2} />
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Localização</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setMapPickerOpen(true)}>
+                    <MapPin className="w-3.5 h-3.5 mr-1" /> Adicionar no mapa
+                  </Button>
                 </div>
+
+                {pickedLocations.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {pickedLocations.map((l) => {
+                      const isManual = manualLocations.some((m) => m.id === l.id);
+                      return (
+                        <Badge key={l.id} variant="outline" className="gap-1">
+                          {l.name} ({l.radius}km)
+                          {isManual && (
+                            <button
+                              type="button"
+                              onClick={() => setManualLocations((prev) => prev.filter((m) => m.id !== l.id))}
+                              title="Remover"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="max-w-[140px]">
+                    <Input
+                      value={country}
+                      onChange={(e) => setCountry(e.target.value.toUpperCase())}
+                      maxLength={2}
+                      placeholder="País (ex: BR)"
+                    />
+                  </div>
+                )}
+
+                {locationGroups && locationGroups.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    <Label className="text-xs text-muted-foreground">Ou escolha um grupo de localização já salvo:</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {locationGroups.map((g) => (
+                        <label
+                          key={g.id}
+                          className="flex items-center gap-1 text-xs px-1.5 py-1 rounded border cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={selectedGroupIds.has(g.id)}
+                            onCheckedChange={() =>
+                              setSelectedGroupIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(g.id)) next.delete(g.id);
+                                else next.add(g.id);
+                                return next;
+                              })
+                            }
+                          />
+                          {g.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {pickedLocations.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Usando localização específica — o campo País acima fica sem efeito enquanto houver pelo menos um
+                    local escolhido.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1.5">
                   <Label>Idade mín.</Label>
                   <Input type="number" min={13} max={65} value={ageMin} onChange={(e) => setAgeMin(Number(e.target.value))} />
@@ -737,9 +974,16 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
                   )}
                 </div>
 
-                <Button size="sm" onClick={handleSaveList} disabled={savingList}>
-                  {savingList ? 'Salvando...' : 'Salvar lista'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" onClick={handleSaveList} disabled={savingList}>
+                    {savingList ? 'Salvando...' : editingListId ? 'Salvar alterações' : 'Salvar lista'}
+                  </Button>
+                  {editingListId && (
+                    <Button size="sm" variant="ghost" onClick={cancelEditList}>
+                      Cancelar edição
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {loadingLists ? (
@@ -752,9 +996,14 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
                       <div key={list.id} className="rounded-md border p-2 space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
                           <h5 className="text-sm font-medium truncate">{list.name}</h5>
-                          <button type="button" onClick={() => handleDeleteList(list.id)} title="Excluir lista">
-                            <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
-                          </button>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button type="button" onClick={() => handleEditList(list)} title="Editar lista">
+                              <Pencil className="w-3.5 h-3.5 text-muted-foreground hover:text-primary" />
+                            </button>
+                            <button type="button" onClick={() => handleDeleteList(list.id)} title="Excluir lista">
+                              <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
+                            </button>
+                          </div>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {list.items.map((item) => (
@@ -878,7 +1127,15 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
             </section>
 
             <section className="rounded-lg border border-border bg-card p-4 space-y-2">
-              <h4 className="text-sm font-semibold">Salvar como público reutilizável</h4>
+              <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                {editingSavedAudienceId ? (
+                  <>
+                    <Pencil className="w-4 h-4" /> Editando público salvo
+                  </>
+                ) : (
+                  'Salvar como público reutilizável'
+                )}
+              </h4>
               <div className="flex gap-2">
                 <Input
                   value={audienceName}
@@ -886,11 +1143,18 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
                   placeholder="Nome do público"
                 />
                 <Button onClick={handleSaveAudience} disabled={savingAudience}>
-                  {savingAudience ? 'Salvando...' : 'Salvar'}
+                  {savingAudience ? 'Salvando...' : editingSavedAudienceId ? 'Salvar alterações' : 'Salvar'}
                 </Button>
+                {editingSavedAudienceId && (
+                  <Button variant="ghost" onClick={cancelEditSavedAudience}>
+                    <XCircle className="w-3.5 h-3.5 mr-1" /> Cancelar
+                  </Button>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Fica disponível pra usar em qualquer campanha nova, direto no Gerenciador de Anúncios da Meta.
+                {editingSavedAudienceId
+                  ? 'Sobrescreve o direcionamento deste público na Meta — conjuntos de anúncios que já usam ele passam a usar a versão nova.'
+                  : 'Fica disponível pra usar em qualquer campanha nova, direto no Gerenciador de Anúncios da Meta.'}
               </p>
             </section>
 
@@ -914,9 +1178,19 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
                           </p>
                         )}
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => openDuplicateSaved(sa)} className="shrink-0">
-                        <Copy className="w-3.5 h-3.5 mr-1" /> Duplicar
-                      </Button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditSavedAudience(sa)}
+                          disabled={loadingSavedAudienceDetail}
+                        >
+                          <Pencil className="w-3.5 h-3.5 mr-1" /> Editar
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => openDuplicateSaved(sa)}>
+                          <Copy className="w-3.5 h-3.5 mr-1" /> Duplicar
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -925,6 +1199,19 @@ export function TargetingBuilder({ initialDraft = null }: TargetingBuilderProps 
           </div>
         </div>
       )}
+
+      <Dialog open={mapPickerOpen} onOpenChange={setMapPickerOpen}>
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Adicionar localização no mapa</DialogTitle>
+            <DialogDescription>Marque um ponto e ajuste o raio — soma aos locais já escolhidos.</DialogDescription>
+          </DialogHeader>
+          <LocationMapPicker locations={manualLocations} onChange={setManualLocations} singleListMode />
+          <DialogFooter>
+            <Button onClick={() => setMapPickerOpen(false)}>Concluído</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={Boolean(duplicateSource)}

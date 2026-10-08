@@ -13,7 +13,9 @@ import {
   Label,
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@evoapi/design-system';
@@ -848,13 +850,8 @@ export function AudienceCreateDialog({
             )}
 
             {note && (
-              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 space-y-1">
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
                 <p>{note}</p>
-                {kind === 'salvo' && onGoToSavedAudience && (
-                  <Button variant="link" size="sm" className="h-auto p-0" onClick={onGoToSavedAudience}>
-                    Abrir a aba Direcionamento <ExternalLink className="w-3.5 h-3.5 ml-1" />
-                  </Button>
-                )}
               </div>
             )}
 
@@ -869,13 +866,23 @@ export function AudienceCreateDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="site">Site (Pixel)</SelectItem>
-                  <SelectItem value="engagement">Facebook Page (engajamento)</SelectItem>
-                  <SelectItem value="instagram">Instagram (perfil profissional)</SelectItem>
-                  <SelectItem value="video">Vídeo</SelectItem>
-                  <SelectItem value="app">Atividade no app</SelectItem>
-                  <SelectItem value="clientes">Lista de clientes</SelectItem>
-                  <SelectItem value="lookalike">Semelhante (Lookalike)</SelectItem>
+                  <SelectGroup>
+                    <SelectLabel>Público personalizado</SelectLabel>
+                    <SelectItem value="site">Site (Pixel)</SelectItem>
+                    <SelectItem value="engagement">Facebook Page (engajamento)</SelectItem>
+                    <SelectItem value="instagram">Instagram (perfil profissional)</SelectItem>
+                    <SelectItem value="video">Vídeo</SelectItem>
+                    <SelectItem value="app">Atividade no app</SelectItem>
+                    <SelectItem value="clientes">Lista de clientes</SelectItem>
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>Semelhante</SelectLabel>
+                    <SelectItem value="lookalike">Semelhante (Lookalike)</SelectItem>
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>Direcionamento detalhado</SelectLabel>
+                    <SelectItem value="salvo">Público normal (interesses, idade, localização...)</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               {isDuplicate && (

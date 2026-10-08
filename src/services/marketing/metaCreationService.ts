@@ -237,14 +237,15 @@ export interface ChosenTargetingItem extends TargetingItem {
 }
 
 export interface TargetingSpec {
-  // A Graph API devolve `countries` sempre, mas um público salvo com
-  // segmentação geográfica de verdade também traz `cities`/`places` (cidade
-  // real, sem coordenada) e/ou `custom_locations` (pin+raio, com
-  // latitude/longitude) — mesmo formato de AdSetTargeting em
-  // trafficMetrics.ts. Usado pra "Importar de públicos salvos" nos Grupos
-  // de Localização.
+  // A Graph API devolve `countries` quando o público usa país simples, mas
+  // um público salvo com segmentação geográfica de verdade também traz
+  // `cities`/`places` (cidade real, sem coordenada) e/ou `custom_locations`
+  // (pin+raio, com latitude/longitude) — mesmo formato de AdSetTargeting em
+  // trafficMetrics.ts. `countries` é opcional porque o TargetingBuilder
+  // manda só `custom_locations` (sem país) quando o usuário escolhe
+  // localização específica em vez de país.
   geo_locations: {
-    countries: string[];
+    countries?: string[];
     cities?: Array<{ name?: string; region?: string; country?: string; radius?: number; distance_unit?: string; lat?: number; lng?: number }>;
     places?: Array<{ name?: string; region?: string; country?: string; radius?: number; distance_unit?: string; lat?: number; lng?: number }>;
     custom_locations?: Array<{ latitude?: number; longitude?: number; radius?: number; distance_unit?: string }>;
@@ -749,6 +750,29 @@ class MetaCreationService {
         name: params.overrides?.name,
         targeting: params.overrides?.targeting ? JSON.stringify(params.overrides.targeting) : undefined,
       },
+    });
+    return response.data;
+  }
+
+  // Sobrescreve nome/targeting de um público salvo que já existe na Meta —
+  // diferente de duplicar, aqui o id continua o mesmo (os conjuntos de
+  // anúncios que já usam esse público passam a usar a versão nova).
+  async updateSavedAudience(savedAudienceId: string, name: string, targeting: TargetingSpec): Promise<{ id: string }> {
+    const response = await api.post<{ id: string }>(ENDPOINT, {
+      acao: 'atualizar_publico_salvo',
+      id_publico_salvo: savedAudienceId,
+      name,
+      targeting: JSON.stringify(targeting),
+    });
+    return response.data;
+  }
+
+  // Targeting completo de um público salvo específico — usado pra abrir o
+  // formulário de edição já preenchido.
+  async getSavedAudienceDetail(savedAudienceId: string): Promise<SavedAudience> {
+    const response = await api.post<SavedAudience>(ENDPOINT, {
+      acao: 'detalhe_publico_salvo',
+      id_publico_salvo: savedAudienceId,
     });
     return response.data;
   }
