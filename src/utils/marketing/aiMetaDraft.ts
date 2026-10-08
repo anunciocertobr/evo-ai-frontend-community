@@ -98,3 +98,38 @@ export async function geocodePlace(
     return null;
   }
 }
+
+// Forma mínima de LocationEntry que este arquivo precisa — evita importar o
+// componente LocationMapPicker.tsx só pelo tipo (import type não cria
+// dependência em runtime, mas mantém este util livre de um import cruzado
+// com a camada de componentes).
+export interface GeocodedLocationEntry {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  radius: number;
+}
+
+// Geocodifica todos os lugares de um rascunho de grupo de localização de
+// uma vez, descartando os que não foram encontrados — usado tanto pela
+// página (abre um grupo novo) quanto pelo editor de grupo já aberto
+// (soma aos locais que o usuário já tinha escolhido).
+export async function resolveLocationDraftPlaces(
+  places: Array<{ query: string; radiusKm?: number }>,
+): Promise<GeocodedLocationEntry[]> {
+  const resolved = await Promise.all(
+    places.map(async (place): Promise<GeocodedLocationEntry | null> => {
+      const geo = await geocodePlace(place.query);
+      if (!geo) return null;
+      return {
+        id: `ai-${Math.random().toString(36).slice(2)}`,
+        name: geo.displayName.split(',')[0]?.trim() || place.query,
+        lat: geo.lat,
+        lng: geo.lng,
+        radius: place.radiusKm ?? 10,
+      };
+    }),
+  );
+  return resolved.filter((entry): entry is GeocodedLocationEntry => entry !== null);
+}

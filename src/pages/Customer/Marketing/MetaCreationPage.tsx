@@ -22,8 +22,7 @@ import { LocationGroupsTab } from '@/components/marketing/LocationGroupsTab';
 import { MediaLibraryBrowser } from '@/components/marketing/MediaLibraryBrowser';
 import { CriativoRequestsTab } from '@/components/marketing/CriativoRequestsTab';
 import { MetaCreationAiButton } from '@/components/marketing/MetaCreationAiButton';
-import { geocodePlace, type AiMetaDraft } from '@/utils/marketing/aiMetaDraft';
-import type { LocationEntry } from '@/components/marketing/LocationMapPicker';
+import { resolveLocationDraftPlaces, type AiMetaDraft } from '@/utils/marketing/aiMetaDraft';
 import {
   metaCreationService,
   type LeadForm,
@@ -206,20 +205,7 @@ export default function MetaCreationPage() {
     }
     if (draft.kind === 'location_group') {
       const places = draft.data.places || [];
-      const resolved = await Promise.all(
-        places.map(async (place): Promise<LocationEntry | null> => {
-          const geo = await geocodePlace(place.query);
-          if (!geo) return null;
-          return {
-            id: `ai-${Math.random().toString(36).slice(2)}`,
-            name: geo.displayName.split(',')[0]?.trim() || place.query,
-            lat: geo.lat,
-            lng: geo.lng,
-            radius: place.radiusKm ?? 10,
-          };
-        }),
-      );
-      const locations = resolved.filter((entry): entry is LocationEntry => entry !== null);
+      const locations = await resolveLocationDraftPlaces(places);
       if (!locations.length) {
         toast.error('Não consegui encontrar nenhum dos lugares que a IA sugeriu.');
         return;

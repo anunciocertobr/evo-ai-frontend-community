@@ -17,6 +17,8 @@ import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityP
 import { useMetaAdAccountScope } from '@/components/marketing/metaAdAccountScope';
 import { LocationMapPicker, type LocationEntry } from '@/components/marketing/LocationMapPicker';
 import { LocationImportDialog } from '@/components/marketing/LocationImportDialog';
+import { MetaCreationAiButton } from '@/components/marketing/MetaCreationAiButton';
+import { resolveLocationDraftPlaces, type AiMetaDraft } from '@/utils/marketing/aiMetaDraft';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import { metaCreationService, type LocationGroup, type LocationGroupPin } from '@/services/marketing/metaCreationService';
 import { pinsFromOrigin } from '@/utils/marketing/geoResolve';
@@ -560,6 +562,29 @@ function LocationGroupEditorDialog({
     setExcludedLocations(group ? pinsToLocations(group.pins, true) : []);
   }, [open, group, initialDraft]);
 
+  // Assistente de IA DENTRO do editor (diferente do botão da página, que só
+  // abre um grupo novo): pede os lugares em texto livre, a IA busca e
+  // confirma no chat, e o que ela devolve SOMA aos locais que já estão
+  // sendo editados aqui — não reabre nem substitui nada.
+  const handleInlineAiDraft = async (draft: AiMetaDraft) => {
+    if (draft.kind !== 'location_group') {
+      toast.error('Esse assistente aqui só entende pedidos de localização.');
+      return;
+    }
+    const places = draft.data.places || [];
+    const found = await resolveLocationDraftPlaces(places);
+    if (!found.length) {
+      toast.error('Não consegui encontrar nenhum dos lugares que a IA sugeriu.');
+      return;
+    }
+    if (found.length < places.length) {
+      toast.warning(`${places.length - found.length} lugar(es) sugerido(s) não foi(ram) encontrado(s).`);
+    }
+    setLocations((prev) => mergeLocations(prev, found));
+    if (!name.trim() && draft.data.name) setName(draft.data.name);
+    toast.success(`${found.length} localização${found.length > 1 ? 'ões' : ''} adicionada${found.length > 1 ? 's' : ''} pela IA.`);
+  };
+
   const handleSave = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -607,14 +632,17 @@ function LocationGroupEditorDialog({
           <div className="flex-1 min-h-0 flex flex-col">
             <div className="flex items-center justify-between gap-2 mb-2">
               <Label className="text-xs text-slate-400">Regiões e raio</Label>
-              {allGroups.length > 0 && (
-                <Button type="button" variant="outline" size="sm" onClick={() => setBankOpen(true)}>
-                  <ListChecks className="w-3.5 h-3.5 mr-1" /> Escolher de locais já usados
+              <div className="flex items-center gap-2">
+                <MetaCreationAiButton onDraft={handleInlineAiDraft} />
+                {allGroups.length > 0 && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setBankOpen(true)}>
+                    <ListChecks className="w-3.5 h-3.5 mr-1" /> Escolher de locais já usados
+                  </Button>
+                )}
+                <Button type="button" variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                  <Import className="w-3.5 h-3.5 mr-1" /> Importar de…
                 </Button>
-              )}
-              <Button type="button" variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-                <Import className="w-3.5 h-3.5 mr-1" /> Importar de…
-              </Button>
+              </div>
             </div>
             <LocationImportDialog
               open={importOpen}
