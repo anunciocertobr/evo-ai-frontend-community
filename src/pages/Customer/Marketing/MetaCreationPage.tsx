@@ -8,12 +8,14 @@ import {
   TabsList,
   TabsTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks, Pencil, ImagePlus } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks, Pencil, ImagePlus, Bell } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import { LeadFormCreateDialog } from '@/components/marketing/LeadFormCreateDialog';
 import LeadFormLeadsDialog from '@/components/marketing/LeadFormLeadsDialog';
+import { LeadFormNotifySettingsDialog } from '@/components/marketing/LeadFormNotifySettingsDialog';
+import { MetaLeadsNotifyDefaultDialog } from '@/components/marketing/MetaLeadsNotifyDefaultDialog';
 import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialog';
 import { AudienceContactsPickerDialog } from '@/components/marketing/AudienceContactsPickerDialog';
 import { TargetingBuilder } from '@/components/marketing/TargetingBuilder';
@@ -88,6 +90,8 @@ export default function MetaCreationPage() {
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [loadingFormAction, setLoadingFormAction] = useState<string | null>(null);
   const [leadsForm, setLeadsForm] = useState<LeadForm | null>(null);
+  const [notifyForm, setNotifyForm] = useState<LeadForm | null>(null);
+  const [notifyDefaultOpen, setNotifyDefaultOpen] = useState(false);
 
   // Públicos
   const [account, setAccount] = useState<{ id: string; name: string } | null>(null);
@@ -371,9 +375,14 @@ export default function MetaCreationPage() {
                     {page.name}
                   </button>
                 </div>
-                <Button onClick={() => setFormDialogOpen(true)}>
-                  <Plus className="w-4 h-4 mr-1.5" /> Novo formulário
-                </Button>
+                <div className="flex gap-1.5">
+                  <Button variant="outline" onClick={() => setNotifyDefaultOpen(true)}>
+                    <Bell className="w-4 h-4 mr-1.5" /> Notificações de Leads
+                  </Button>
+                  <Button onClick={() => setFormDialogOpen(true)}>
+                    <Plus className="w-4 h-4 mr-1.5" /> Novo formulário
+                  </Button>
+                </div>
               </div>
 
               {loadingForms ? (
@@ -424,6 +433,9 @@ export default function MetaCreationPage() {
                         <Button size="sm" variant="outline" onClick={() => setLeadsForm(form)}>
                           <ListChecks className="w-3.5 h-3.5 mr-1" /> Ver leads
                         </Button>
+                        <Button size="sm" variant="outline" onClick={() => setNotifyForm(form)}>
+                          <Bell className="w-3.5 h-3.5 mr-1" /> Notificar
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -462,6 +474,18 @@ export default function MetaCreationPage() {
                   formName={leadsForm.name}
                 />
               )}
+
+              {notifyForm && (
+                <LeadFormNotifySettingsDialog
+                  open={Boolean(notifyForm)}
+                  onOpenChange={(open) => !open && setNotifyForm(null)}
+                  pageId={page.id}
+                  formId={notifyForm.id}
+                  formName={notifyForm.name}
+                />
+              )}
+
+              <MetaLeadsNotifyDefaultDialog open={notifyDefaultOpen} onOpenChange={setNotifyDefaultOpen} />
             </>
           )}
         </TabsContent>
