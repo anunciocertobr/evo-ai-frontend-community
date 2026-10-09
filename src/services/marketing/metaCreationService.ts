@@ -25,6 +25,10 @@ export interface LeadFormLead {
   adset_name?: string;
   campaign_id?: string;
   campaign_name?: string;
+  criativo_nome?: string;
+  criativo_imagem?: string;
+  criativo_video?: string;
+  criativo_link?: string;
 }
 
 export interface LeadQuestionOption {
