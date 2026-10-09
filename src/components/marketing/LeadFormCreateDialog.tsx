@@ -245,6 +245,14 @@ export function LeadFormCreateDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {isDuplicate && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+            A Meta não permite copiar lógica condicional (pular/encerrar pergunta por resposta) via API — se o
+            formulário original usa isso, configure de novo manualmente no Gerenciador de Anúncios depois de
+            duplicar.
+          </div>
+        )}
+
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <MetaPagePicker onSelect={setTargetPage} />
