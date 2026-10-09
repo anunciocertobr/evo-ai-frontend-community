@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Button, Input } from '@evoapi/design-system';
-import { Building2, Film, Image as ImageIcon, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from '@evoapi/design-system';
+import { Building2, Film, Image as ImageIcon, Play, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { useMetaAdAccountScope } from '@/components/marketing/metaAdAccountScope';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -23,6 +23,7 @@ export function CreativeLibraryTab() {
   const [uploadUrl, setUploadUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [playingVideo, setPlayingVideo] = useState<AdCreativeVideo | null>(null);
 
   const load = useCallback((accountId: string) => {
     setLoading(true);
@@ -201,13 +202,24 @@ export function CreativeLibraryTab() {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {videos.map((video) => (
                   <div key={video.id} className="rounded-lg border border-border bg-card overflow-hidden">
-                    <div className="aspect-square bg-muted flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setPlayingVideo(video)}
+                      disabled={!video.source}
+                      className="group relative aspect-square bg-muted flex items-center justify-center w-full disabled:cursor-not-allowed"
+                      title={video.source ? 'Reproduzir' : 'Vídeo ainda processando na Meta, sem fonte pra tocar'}
+                    >
                       {video.picture ? (
                         <img src={video.picture} alt={video.title || video.id} className="w-full h-full object-cover" />
                       ) : (
                         <Film className="w-8 h-8 text-muted-foreground" />
                       )}
-                    </div>
+                      {video.source && (
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                          <Play className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+                        </span>
+                      )}
+                    </button>
                     <div className="p-2 space-y-1.5">
                       <p className="text-xs truncate" title={video.title || video.id}>
                         {video.title || video.id}
@@ -229,6 +241,17 @@ export function CreativeLibraryTab() {
           </section>
         </>
       )}
+
+      <Dialog open={Boolean(playingVideo)} onOpenChange={(open) => !open && setPlayingVideo(null)}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="truncate">{playingVideo?.title || playingVideo?.id}</DialogTitle>
+          </DialogHeader>
+          {playingVideo?.source && (
+            <video controls autoPlay src={playingVideo.source} className="w-full rounded-md bg-black" />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
