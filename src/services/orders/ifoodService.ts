@@ -142,12 +142,44 @@ class IfoodService {
     await api.post(`${this.baseUrl}/orders/${orderId}/cancel_request_driver`);
   }
 
+  // Logistics — entrega com entregador PRÓPRIO da loja (diferente de
+  // requestDriver, que usa entregador parceiro do iFood).
+  async assignDriver(
+    orderId: string,
+    workerName: string,
+    workerPhone: string,
+    workerVehicleType?: string,
+  ): Promise<void> {
+    await api.post(`${this.baseUrl}/orders/${orderId}/assign_driver`, {
+      worker_name: workerName,
+      worker_phone: workerPhone,
+      worker_vehicle_type: workerVehicleType,
+    });
+  }
+
   async acceptDispute(disputeId: string, reason: string, detailReason?: string): Promise<void> {
     await api.post(`${this.baseUrl}/disputes/${disputeId}/accept`, { reason, detail_reason: detailReason });
   }
 
   async rejectDispute(disputeId: string, reason: string, detailReason?: string): Promise<void> {
     await api.post(`${this.baseUrl}/disputes/${disputeId}/reject`, { reason, detail_reason: detailReason });
+  }
+
+  // Handshake Platform — propor alternativa (ex.: reembolso parcial) a uma
+  // disputa, em vez de aceitar/recusar direto. alternativeId vem do payload
+  // do evento HANDSHAKE_DISPUTE.
+  async proposeDisputeAlternative(
+    disputeId: string,
+    alternativeId: string,
+    type: string,
+    amountValue: number,
+    currency = 'BRL',
+  ): Promise<void> {
+    await api.post(`${this.baseUrl}/disputes/${disputeId}/alternatives/${alternativeId}`, {
+      type,
+      amount_value: amountValue,
+      currency,
+    });
   }
 
   async getProducts(): Promise<IfoodProduct[]> {
