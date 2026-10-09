@@ -5,6 +5,7 @@ import type {
   NinetyNinePartnerStatus,
   NinetyNineStoreDetails,
   NinetyNineMenuItem,
+  NinetyNineCategory,
   NinetyNineBillEntry,
   NinetyNineSettlement,
   NinetyNineBoundStore,
@@ -53,6 +54,11 @@ class NinetyNineService {
     return extractData<NinetyNineMenuItem[]>(response);
   }
 
+  async getValidCategories(): Promise<NinetyNineCategory[]> {
+    const response = await api.get(`${this.baseUrl}/partner/menu/valid_categories`);
+    return extractData<NinetyNineCategory[]>(response);
+  }
+
   async updateItemStatus(itemId: string, status: string): Promise<unknown> {
     const response = await api.post(`${this.baseUrl}/partner/menu/item_status`, { item_id: itemId, status });
     return extractData<unknown>(response);
@@ -75,6 +81,14 @@ class NinetyNineService {
 
   async deliveredOrder(orderId: string): Promise<unknown> {
     const response = await api.post(`${this.baseUrl}/partner/orders/${orderId}/delivered`);
+    return extractData<unknown>(response);
+  }
+
+  async dispatchSelfDelivery(
+    orderId: string,
+    payload: { courier_info: { name: string; phone: string }; limit_time: number; vehicle?: string; delivery_fee?: number },
+  ): Promise<unknown> {
+    const response = await api.post(`${this.baseUrl}/partner/orders/${orderId}/self_delivery`, payload);
     return extractData<unknown>(response);
   }
 

@@ -30,6 +30,11 @@ export interface NinetyNineMenuItem {
   category_name?: string;
 }
 
+export interface NinetyNineCategory {
+  category_id: string;
+  category_name: string;
+}
+
 export interface NinetyNineBillEntry {
   orderId: string;
   orderType: number;
