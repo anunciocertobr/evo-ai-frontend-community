@@ -21,6 +21,7 @@ import type {
   IfoodAnalytics,
   IfoodOpeningHours,
   IfoodShift,
+  IfoodOptionGroup,
 } from '@/types/orders/ifoodOrder';
 
 class IfoodService {
@@ -157,6 +158,26 @@ class IfoodService {
     });
   }
 
+  async goingToOrigin(orderId: string): Promise<void> {
+    await api.post(`${this.baseUrl}/orders/${orderId}/going_to_origin`);
+  }
+
+  async arrivedAtOrigin(orderId: string): Promise<void> {
+    await api.post(`${this.baseUrl}/orders/${orderId}/arrived_at_origin`);
+  }
+
+  async logisticsDispatch(orderId: string): Promise<void> {
+    await api.post(`${this.baseUrl}/orders/${orderId}/logistics_dispatch`);
+  }
+
+  async arrivedAtDestination(orderId: string): Promise<void> {
+    await api.post(`${this.baseUrl}/orders/${orderId}/arrived_at_destination`);
+  }
+
+  async verifyDeliveryCode(orderId: string, code: string): Promise<void> {
+    await api.post(`${this.baseUrl}/orders/${orderId}/verify_delivery_code`, { code });
+  }
+
   async acceptDispute(disputeId: string, reason: string, detailReason?: string): Promise<void> {
     await api.post(`${this.baseUrl}/disputes/${disputeId}/accept`, { reason, detail_reason: detailReason });
   }
@@ -187,8 +208,8 @@ class IfoodService {
     return extractData<IfoodProduct[]>(response);
   }
 
-  async createProduct(name: string, description?: string): Promise<IfoodProduct> {
-    const response = await api.post(`${this.baseUrl}/products`, { name, description });
+  async createProduct(name: string, description?: string, image?: string): Promise<IfoodProduct> {
+    const response = await api.post(`${this.baseUrl}/products`, { name, description, image });
     return extractData<IfoodProduct>(response);
   }
 
@@ -216,6 +237,7 @@ class IfoodService {
       priceValue?: number;
       currentPrice?: number;
       status?: string;
+      image?: string;
     },
   ): Promise<void> {
     await api.patch(`${this.baseUrl}/menu_items/${itemId}`, {
@@ -226,6 +248,7 @@ class IfoodService {
       price_value: payload.priceValue,
       current_price: payload.currentPrice,
       status: payload.status,
+      image: payload.image,
     });
   }
 
@@ -311,6 +334,40 @@ class IfoodService {
       })),
     });
     return extractData<IfoodOpeningHours>(response);
+  }
+
+  async getOptionGroups(): Promise<IfoodOptionGroup[]> {
+    const response = await api.get(`${this.baseUrl}/option_groups`);
+    return extractData<IfoodOptionGroup[]>(response);
+  }
+
+  async createOptionGroup(name: string): Promise<IfoodOptionGroup> {
+    const response = await api.post(`${this.baseUrl}/option_groups`, { name });
+    return extractData<IfoodOptionGroup>(response);
+  }
+
+  async deleteOptionGroup(id: string): Promise<void> {
+    await api.delete(`${this.baseUrl}/option_groups/${id}`);
+  }
+
+  async createOption(optionGroupId: string, name: string, priceValue: number, image?: string): Promise<void> {
+    await api.post(`${this.baseUrl}/option_groups/${optionGroupId}/options`, {
+      name,
+      price_value: priceValue,
+      image,
+    });
+  }
+
+  async deleteOption(optionGroupId: string, optionId: string): Promise<void> {
+    await api.delete(`${this.baseUrl}/option_groups/${optionGroupId}/options/${optionId}`);
+  }
+
+  async updateOptionPrice(optionId: string, priceValue: number): Promise<void> {
+    await api.patch(`${this.baseUrl}/options/${optionId}/price`, { price_value: priceValue });
+  }
+
+  async updateOptionStatus(optionId: string, status: string): Promise<void> {
+    await api.patch(`${this.baseUrl}/options/${optionId}/status`, { status });
   }
 }
 

@@ -18,6 +18,8 @@ import {
   Clock,
   Eye,
   EyeOff,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -57,10 +59,12 @@ import type {
   IfoodFinancialEvent,
   IfoodDeliveryQuote,
   IfoodMenuItem,
+  IfoodMerchant,
   IfoodMerchantDetails,
   IfoodAnalytics,
   IfoodShift,
   IfoodDayOfWeek,
+  IfoodOptionGroup,
 } from '@/types/orders/ifoodOrder';
 
 type Tab = 'pedidos' | 'status' | 'cardapio' | 'entrega' | 'disputas' | 'financeiro' | 'analytics' | 'avaliacoes';
@@ -129,6 +133,7 @@ interface ProductFormState {
   price: string;
   status: string;
   currentPrice: number | null;
+  image: string | null;
 }
 
 const EMPTY_PRODUCT_FORM: ProductFormState = {
@@ -139,6 +144,7 @@ const EMPTY_PRODUCT_FORM: ProductFormState = {
   price: '',
   status: 'AVAILABLE',
   currentPrice: null,
+  image: null,
 };
 
 export default function IfoodOrdersPage() {
@@ -184,6 +190,18 @@ export default function IfoodOrdersPage() {
   const [driverOrderId, setDriverOrderId] = useState('');
   const [callingDriver, setCallingDriver] = useState(false);
 
+  // Entrega com entregador próprio (Logistics: assignDriver + fluxo de
+  // deslocamento/despacho)
+  const [ownDeliveryOrderId, setOwnDeliveryOrderId] = useState('');
+  const [ownDriverName, setOwnDriverName] = useState('');
+  const [ownDriverPhone, setOwnDriverPhone] = useState('');
+  const [assigningOwnDriver, setAssigningOwnDriver] = useState(false);
+  const [ownDriverAssigned, setOwnDriverAssigned] = useState(false);
+  const [logisticsStep, setLogisticsStep] = useState<'origin' | 'arrived_origin' | 'dispatched' | 'arrived_destination' | null>(null);
+  const [logisticsActionLoading, setLogisticsActionLoading] = useState(false);
+  const [deliveryCode, setDeliveryCode] = useState('');
+  const [verifyingCode, setVerifyingCode] = useState(false);
+
   const [disputeId, setDisputeId] = useState('');
   const [disputeReason, setDisputeReason] = useState('CUSTOMER_SATISFACTION');
   const [respondingDispute, setRespondingDispute] = useState(false);
@@ -200,6 +218,21 @@ export default function IfoodOrdersPage() {
   const [confirmDeleteItem, setConfirmDeleteItem] = useState<IfoodMenuItem | null>(null);
   const [openingShifts, setOpeningShifts] = useState<EditableShift[]>([]);
   const [savingHours, setSavingHours] = useState(false);
+
+  // Grupos de complemento (cardápio)
+  const [optionGroups, setOptionGroups] = useState<IfoodOptionGroup[]>([]);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [savingGroup, setSavingGroup] = useState(false);
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState<IfoodOptionGroup | null>(null);
+  const [optionDialogGroupId, setOptionDialogGroupId] = useState<string | null>(null);
+  const [optionForm, setOptionForm] = useState<{ name: string; price: string; image: string | null }>({
+    name: '',
+    price: '',
+    image: null,
+  });
+  const [savingOption, setSavingOption] = useState(false);
+  const [confirmDeleteOption, setConfirmDeleteOption] = useState<{ groupId: string; optionId: string; name: string } | null>(null);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -255,6 +288,14 @@ export default function IfoodOrdersPage() {
       setMenuItems(await ifoodService.getMenuItems());
     } catch {
       toast.error('Erro ao carregar produtos do cardápio');
+    }
+  }, []);
+
+  const loadOptionGroups = useCallback(async () => {
+    try {
+      setOptionGroups(await ifoodService.getOptionGroups());
+    } catch {
+      toast.error('Erro ao carregar grupos de complemento');
     }
   }, []);
 
@@ -345,6 +386,7 @@ export default function IfoodOrdersPage() {
       loadMerchants(),
       loadCategories(),
       loadMenuItems(),
+      loadOptionGroups(),
       loadSettlements(),
       loadReconciliation(),
       loadAnticipations(),
@@ -362,6 +404,7 @@ export default function IfoodOrdersPage() {
     loadMerchants,
     loadCategories,
     loadMenuItems,
+    loadOptionGroups,
     loadSettlements,
     loadReconciliation,
     loadAnticipations,
@@ -630,6 +673,58 @@ export default function IfoodOrdersPage() {
     }
   };
 
+  const handleAssignOwnDriver = async () => {
+    if (!ownDeliveryOrderId || !ownDriverName.trim() || !ownDriverPhone.trim()) {
+      toast.error('Escolha o pedido e informe nome/telefone do entregador');
+      return;
+    }
+    setAssigningOwnDriver(true);
+    try {
+      await ifoodService.assignDriver(ownDeliveryOrderId, ownDriverName.trim(), ownDriverPhone.trim());
+      toast.success('Entregador atribuído ao pedido');
+      setOwnDriverAssigned(true);
+      setLogisticsStep(null);
+    } catch {
+      toast.error('Erro ao atribuir entregador');
+    } finally {
+      setAssigningOwnDriver(false);
+    }
+  };
+
+  const handleLogisticsStep = async (step: 'origin' | 'arrived_origin' | 'dispatched' | 'arrived_destination') => {
+    if (!ownDeliveryOrderId) return;
+    setLogisticsActionLoading(true);
+    try {
+      if (step === 'origin') await ifoodService.goingToOrigin(ownDeliveryOrderId);
+      if (step === 'arrived_origin') await ifoodService.arrivedAtOrigin(ownDeliveryOrderId);
+      if (step === 'dispatched') await ifoodService.logisticsDispatch(ownDeliveryOrderId);
+      if (step === 'arrived_destination') await ifoodService.arrivedAtDestination(ownDeliveryOrderId);
+      setLogisticsStep(step);
+      toast.success('Status de entrega atualizado');
+    } catch {
+      toast.error('Erro ao atualizar status de entrega');
+    } finally {
+      setLogisticsActionLoading(false);
+    }
+  };
+
+  const handleVerifyDeliveryCode = async () => {
+    if (!ownDeliveryOrderId || !deliveryCode.trim()) {
+      toast.error('Informe o código de entrega');
+      return;
+    }
+    setVerifyingCode(true);
+    try {
+      await ifoodService.verifyDeliveryCode(ownDeliveryOrderId, deliveryCode.trim());
+      toast.success('Código validado — entrega confirmada');
+      setDeliveryCode('');
+    } catch {
+      toast.error('Código inválido ou erro ao validar');
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
   const handleRespondDispute = async (action: 'accept' | 'reject') => {
     if (!disputeId.trim()) {
       toast.error('Informe o ID da disputa');
@@ -721,8 +816,15 @@ export default function IfoodOrdersPage() {
       price: item.price != null ? String(item.price) : '',
       status: item.status,
       currentPrice: item.price,
+      image: item.image ?? null,
     });
     setProductDialogOpen(true);
+  };
+
+  const readProductImage = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => setProductForm((f) => ({ ...f, image: String(reader.result) }));
+    reader.readAsDataURL(file);
   };
 
   const handleSaveProduct = async () => {
@@ -735,6 +837,10 @@ export default function IfoodOrdersPage() {
       toast.error('Informe um preço válido');
       return;
     }
+    // A API só aceita Data URI (data:image/...;base64,...) na troca de foto —
+    // uma URL já publicada (https://static-images.ifood.com.br/...) não deve
+    // ser reenviada, senão o PATCH tenta recodificar a URL como base64 e falha.
+    const imageToSend = productForm.image?.startsWith('data:') ? productForm.image : undefined;
     setSavingProduct(true);
     try {
       if (productForm.itemId) {
@@ -748,10 +854,11 @@ export default function IfoodOrdersPage() {
           priceValue,
           currentPrice: current.price ?? undefined,
           status: productForm.status,
+          image: imageToSend,
         });
         toast.success('Produto atualizado');
       } else {
-        const product = await ifoodService.createProduct(productForm.name.trim(), productForm.description.trim() || undefined);
+        const product = await ifoodService.createProduct(productForm.name.trim(), productForm.description.trim() || undefined, imageToSend);
         await ifoodService.createItem(product.id, productForm.categoryId, priceValue);
         toast.success('Produto adicionado ao cardápio');
       }
@@ -773,6 +880,87 @@ export default function IfoodOrdersPage() {
       loadMenuItems();
     } catch {
       toast.error('Erro ao excluir produto');
+    }
+  };
+
+  const handleSaveGroup = async () => {
+    if (!groupName.trim()) {
+      toast.error('Informe o nome do grupo');
+      return;
+    }
+    setSavingGroup(true);
+    try {
+      await ifoodService.createOptionGroup(groupName.trim());
+      toast.success('Grupo de complemento criado');
+      setGroupDialogOpen(false);
+      setGroupName('');
+      loadOptionGroups();
+    } catch {
+      toast.error('Erro ao criar grupo de complemento');
+    } finally {
+      setSavingGroup(false);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!confirmDeleteGroup) return;
+    try {
+      await ifoodService.deleteOptionGroup(confirmDeleteGroup.id);
+      toast.success('Grupo de complemento removido');
+      setConfirmDeleteGroup(null);
+      loadOptionGroups();
+    } catch {
+      toast.error('Erro ao excluir grupo de complemento');
+    }
+  };
+
+  const readOptionImage = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => setOptionForm((f) => ({ ...f, image: String(reader.result) }));
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveOption = async () => {
+    if (!optionDialogGroupId) return;
+    const priceValue = parseFloat(optionForm.price.replace(',', '.'));
+    if (!optionForm.name.trim() || Number.isNaN(priceValue)) {
+      toast.error('Preencha nome e preço do complemento');
+      return;
+    }
+    setSavingOption(true);
+    try {
+      await ifoodService.createOption(optionDialogGroupId, optionForm.name.trim(), priceValue, optionForm.image ?? undefined);
+      toast.success('Complemento adicionado');
+      setOptionDialogGroupId(null);
+      setOptionForm({ name: '', price: '', image: null });
+      loadOptionGroups();
+    } catch {
+      toast.error('Erro ao criar complemento');
+    } finally {
+      setSavingOption(false);
+    }
+  };
+
+  const handleDeleteOption = async () => {
+    if (!confirmDeleteOption) return;
+    try {
+      await ifoodService.deleteOption(confirmDeleteOption.groupId, confirmDeleteOption.optionId);
+      toast.success('Complemento removido');
+      setConfirmDeleteOption(null);
+      loadOptionGroups();
+    } catch {
+      toast.error('Erro ao excluir complemento');
+    }
+  };
+
+  const handleToggleOptionStatus = async (optionId: string, currentStatus: string) => {
+    const next = currentStatus === 'AVAILABLE' ? 'UNAVAILABLE' : 'AVAILABLE';
+    try {
+      await ifoodService.updateOptionStatus(optionId, next);
+      toast.success(next === 'AVAILABLE' ? 'Complemento ativado' : 'Complemento pausado');
+      loadOptionGroups();
+    } catch {
+      toast.error('Erro ao alterar status do complemento');
     }
   };
 
@@ -1292,10 +1480,21 @@ export default function IfoodOrdersPage() {
                   {filteredMenuItems.map((item) => (
                     <tr key={item.item_id} className="border-t hover:bg-muted/30">
                       <td className="px-3 py-2 font-medium">
-                        {item.name}
-                        {item.description && (
-                          <p className="text-xs text-muted-foreground font-normal">{item.description}</p>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {item.image ? (
+                            <img src={item.image} alt={item.name ?? ''} className="h-9 w-9 rounded-md object-cover border border-border shrink-0" />
+                          ) : (
+                            <div className="h-9 w-9 rounded-md border border-dashed border-border flex items-center justify-center shrink-0">
+                              <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div>
+                            {item.name}
+                            {item.description && (
+                              <p className="text-xs text-muted-foreground font-normal">{item.description}</p>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">{item.category_name}</td>
                       <td className="px-3 py-2 font-mono text-xs">
@@ -1324,6 +1523,88 @@ export default function IfoodOrdersPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-4">
+            <h3 className="text-sm font-semibold">Grupos de complemento</h3>
+            <Button variant="outline" size="sm" onClick={() => setGroupDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" /> Adicionar grupo
+            </Button>
+          </div>
+
+          {optionGroups.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-8 border border-dashed rounded-md">
+              Nenhum grupo de complemento ainda.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {optionGroups.map((group) => (
+                <Card key={group.id}>
+                  <CardHeader className="flex flex-row items-center justify-between py-3">
+                    <CardTitle className="text-sm">{group.name}</CardTitle>
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="sm" onClick={() => setOptionDialogGroupId(group.id)}>
+                        <Plus className="w-3.5 h-3.5 mr-1.5" /> Complemento
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setConfirmDeleteGroup(group)}
+                        title="Excluir grupo"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {!group.options || group.options.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Nenhum complemento ainda.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {group.options.map((opt) => (
+                          <div key={opt.id} className="flex items-center gap-3 border-t pt-2 first:border-t-0 first:pt-0">
+                            {opt.image ? (
+                              <img src={opt.image} alt={opt.productName ?? ''} className="h-9 w-9 rounded-md object-cover border border-border shrink-0" />
+                            ) : (
+                              <div className="h-9 w-9 rounded-md border border-dashed border-border flex items-center justify-center shrink-0">
+                                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{opt.productName}</p>
+                              <p className="text-xs text-muted-foreground font-mono">
+                                {opt.price ? formatCurrency(opt.price.value) : '—'}
+                              </p>
+                            </div>
+                            <Badge variant={opt.status === 'AVAILABLE' ? 'default' : 'secondary'}>
+                              {opt.status === 'AVAILABLE' ? 'Disponível' : 'Indisponível'}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleToggleOptionStatus(opt.id, opt.status)}
+                              title={opt.status === 'AVAILABLE' ? 'Pausar' : 'Ativar'}
+                            >
+                              {opt.status === 'AVAILABLE' ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setConfirmDeleteOption({ groupId: group.id, optionId: opt.id, name: opt.productName ?? '' })}
+                              title="Excluir"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
         </div>
@@ -1436,6 +1717,100 @@ export default function IfoodOrdersPage() {
               </CardContent>
             </Card>
           )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Bike className="w-4 h-4" /> Entrega com entregador próprio
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <select
+                value={ownDeliveryOrderId}
+                onChange={(e) => {
+                  setOwnDeliveryOrderId(e.target.value);
+                  setOwnDriverAssigned(false);
+                  setLogisticsStep(null);
+                }}
+                className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm"
+              >
+                <option value="">Selecione o pedido...</option>
+                {orders.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    #{o.display_id || o.ifood_order_id.slice(0, 8)} — {o.customer_name || 'Cliente'}
+                  </option>
+                ))}
+              </select>
+
+              {!ownDriverAssigned ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    placeholder="Nome do entregador"
+                    value={ownDriverName}
+                    onChange={(e) => setOwnDriverName(e.target.value)}
+                    className="w-48"
+                  />
+                  <Input
+                    placeholder="Telefone"
+                    value={ownDriverPhone}
+                    onChange={(e) => setOwnDriverPhone(e.target.value)}
+                    className="w-40"
+                  />
+                  <Button size="sm" onClick={handleAssignOwnDriver} disabled={assigningOwnDriver || !ownDeliveryOrderId}>
+                    {assigningOwnDriver ? 'Atribuindo...' : 'Atribuir entregador'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant={logisticsStep === 'origin' ? 'default' : 'outline'}
+                      onClick={() => handleLogisticsStep('origin')}
+                      disabled={logisticsActionLoading}
+                    >
+                      A caminho da loja
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={logisticsStep === 'arrived_origin' ? 'default' : 'outline'}
+                      onClick={() => handleLogisticsStep('arrived_origin')}
+                      disabled={logisticsActionLoading}
+                    >
+                      Chegou na loja
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={logisticsStep === 'dispatched' ? 'default' : 'outline'}
+                      onClick={() => handleLogisticsStep('dispatched')}
+                      disabled={logisticsActionLoading}
+                    >
+                      Despachar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={logisticsStep === 'arrived_destination' ? 'default' : 'outline'}
+                      onClick={() => handleLogisticsStep('arrived_destination')}
+                      disabled={logisticsActionLoading}
+                    >
+                      Chegou no destino
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2 pt-2 border-t border-border">
+                    <Input
+                      placeholder="Código de entrega (4 dígitos)"
+                      value={deliveryCode}
+                      onChange={(e) => setDeliveryCode(e.target.value)}
+                      className="w-56"
+                    />
+                    <Button size="sm" onClick={handleVerifyDeliveryCode} disabled={verifyingCode}>
+                      {verifyingCode ? 'Validando...' : 'Validar código e confirmar entrega'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -1752,6 +2127,37 @@ export default function IfoodOrdersPage() {
               />
             </div>
             <div className="space-y-1.5">
+              <Label>Foto</Label>
+              <div className="flex items-center gap-3">
+                {productForm.image ? (
+                  <div className="relative group">
+                    <img src={productForm.image} alt="Foto do produto" className="h-16 w-16 rounded-lg border border-border object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setProductForm((f) => ({ ...f, image: null }))}
+                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-white flex items-center justify-center shadow"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="h-16 w-16 rounded-lg border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:border-primary transition-colors">
+                    <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) readProductImage(f);
+                      }}
+                    />
+                  </label>
+                )}
+                <p className="text-xs text-muted-foreground">JPG ou PNG.</p>
+              </div>
+            </div>
+            <div className="space-y-1.5">
               <Label>Categoria</Label>
               <Select
                 value={productForm.categoryId}
@@ -1818,6 +2224,135 @@ export default function IfoodOrdersPage() {
               Cancelar
             </Button>
             <Button variant="destructive" onClick={handleDeleteMenuItem}>
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Criar grupo de complemento */}
+      <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo grupo de complemento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="group-name">Nome</Label>
+            <Input id="group-name" placeholder="Adicionais" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGroupDialogOpen(false)} disabled={savingGroup}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveGroup} disabled={savingGroup}>
+              {savingGroup ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Excluir grupo de complemento */}
+      <Dialog open={Boolean(confirmDeleteGroup)} onOpenChange={(open) => !open && setConfirmDeleteGroup(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir grupo</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Excluir o grupo "{confirmDeleteGroup?.name}" e todos os complementos dele?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteGroup(null)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteGroup}>
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Criar complemento */}
+      <Dialog open={Boolean(optionDialogGroupId)} onOpenChange={(open) => !open && setOptionDialogGroupId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo complemento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="opt-name">Nome</Label>
+              <Input
+                id="opt-name"
+                placeholder="Queijo extra"
+                value={optionForm.name}
+                onChange={(e) => setOptionForm((f) => ({ ...f, name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Foto</Label>
+              <div className="flex items-center gap-3">
+                {optionForm.image ? (
+                  <div className="relative group">
+                    <img src={optionForm.image} alt="Foto do complemento" className="h-16 w-16 rounded-lg border border-border object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setOptionForm((f) => ({ ...f, image: null }))}
+                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-white flex items-center justify-center shadow"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="h-16 w-16 rounded-lg border-2 border-dashed border-border flex items-center justify-center cursor-pointer hover:border-primary transition-colors">
+                    <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) readOptionImage(f);
+                      }}
+                    />
+                  </label>
+                )}
+                <p className="text-xs text-muted-foreground">JPG ou PNG.</p>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="opt-price">Preço</Label>
+              <Input
+                id="opt-price"
+                placeholder="5.00"
+                value={optionForm.price}
+                onChange={(e) => setOptionForm((f) => ({ ...f, price: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOptionDialogGroupId(null)} disabled={savingOption}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveOption} disabled={savingOption}>
+              {savingOption ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Excluir complemento */}
+      <Dialog open={Boolean(confirmDeleteOption)} onOpenChange={(open) => !open && setConfirmDeleteOption(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir complemento</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Excluir o complemento "{confirmDeleteOption?.name}"?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteOption(null)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteOption}>
               Excluir
             </Button>
           </DialogFooter>

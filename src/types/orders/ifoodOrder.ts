@@ -118,8 +118,24 @@ export interface IfoodMenuItem {
   category_name: string;
   name: string | null;
   description: string | null;
+  image: string | null;
   price: number | null;
   status: string;
+}
+
+export interface IfoodOptionGroupOption {
+  id: string;
+  productId: string;
+  productName?: string;
+  image?: string | null;
+  status: string;
+  price?: { value: number };
+}
+
+export interface IfoodOptionGroup {
+  id: string;
+  name: string;
+  options?: IfoodOptionGroupOption[];
 }
 
 export interface IfoodMerchant {
