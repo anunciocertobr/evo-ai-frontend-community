@@ -1259,7 +1259,17 @@ function DuplicateModal({
         setTargetAdSetId(item?.adSetId && accountId === adAccountId ? item.adSetId : fetchedAdSets[0]?.id || '');
       }
     } catch {
-      if (requestId === campaignsRequestIdRef.current) toast.error('Não foi possível carregar as campanhas dessa conta.');
+      // Mesmo motivo do catch de loadAccountsForBm: não deixar campanhas/
+      // conjuntos da conta anterior parecendo válidos sob a conta nova.
+      if (requestId === campaignsRequestIdRef.current) {
+        toast.error('Não foi possível carregar as campanhas dessa conta. Tente novamente em instantes.');
+        setTargetCampaigns([]);
+        setTargetCampaignId('');
+        if (level === 'ads') {
+          setTargetAdSets([]);
+          setTargetAdSetId('');
+        }
+      }
     } finally {
       if (requestId === campaignsRequestIdRef.current) setLoadingTargets(false);
     }
@@ -1281,7 +1291,15 @@ function DuplicateModal({
         await loadCampaignsForAccount(selectedAccountId, selectedAccountId === adAccountId ? item?.campaignId : undefined);
       }
     } catch {
-      if (requestId === accountsRequestIdRef.current) toast.error('Não foi possível carregar as contas dessa Business Manager.');
+      // Sem isso, uma falha (ex.: rate limit transitório da Meta) deixava a
+      // lista da BM anterior visível sob o nome da BM nova recém-escolhida —
+      // visualmente indistinguível de "carregou certo", com risco real de
+      // duplicar pra conta errada. Limpa pra deixar claro que não carregou.
+      if (requestId === accountsRequestIdRef.current) {
+        toast.error('Não foi possível carregar as contas dessa Business Manager. Tente novamente em instantes.');
+        setTargetAccounts([]);
+        setTargetAccountId('');
+      }
     } finally {
       if (requestId === accountsRequestIdRef.current) setLoadingTargets(false);
     }
