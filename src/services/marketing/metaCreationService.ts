@@ -15,6 +15,19 @@ export interface LeadForm {
   created_time?: string;
 }
 
+// Público-alvo CONFIGURADO no conjunto de anúncios que gerou o lead (não é
+// dado do indivíduo — a Meta não expõe idade/gênero/dispositivo de quem
+// converteu, só o que o anúncio mirava). Ver comentário em
+// Meta::AdsManagerService#adset_targeting_summary (backend).
+export interface LeadTargetingContext {
+  idade_min?: number;
+  idade_max?: number;
+  generos?: string;
+  plataformas?: string[];
+  dispositivos?: string[];
+  localizacoes?: string[];
+}
+
 export interface LeadFormLead {
   id: string;
   created_time: string;
@@ -29,6 +42,9 @@ export interface LeadFormLead {
   criativo_imagem?: string;
   criativo_video?: string;
   criativo_link?: string;
+  platform?: string;
+  is_organic?: boolean;
+  publico_alvo?: LeadTargetingContext;
 }
 
 // Mesmo shape de LeadFormLead, com form_id/form_name a mais (resultado de

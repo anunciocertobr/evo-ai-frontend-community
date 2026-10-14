@@ -14,6 +14,30 @@ interface Props {
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+const PLATFORM_LABEL: Record<string, string> = {
+  ig: 'Instagram',
+  fb: 'Facebook',
+  msn: 'Messenger',
+  wa: 'WhatsApp',
+};
+
+// Resumo do público-alvo CONFIGURADO no anúncio que trouxe o lead — não é
+// dado do indivíduo (ver comentário em LeadTargetingContext no service).
+const formatPublicoAlvo = (lead: LeadSearchResult) => {
+  const alvo = lead.publico_alvo;
+  if (!alvo) return null;
+  const idade = alvo.idade_min || alvo.idade_max ? `${alvo.idade_min ?? '—'}-${alvo.idade_max ?? '—'} anos` : null;
+  const resumo = [idade, alvo.generos].filter(Boolean).join(' · ');
+  const detalhe = [
+    alvo.plataformas?.length ? `Plataformas: ${alvo.plataformas.join(', ')}` : null,
+    alvo.dispositivos?.length ? `Dispositivos: ${alvo.dispositivos.join(', ')}` : null,
+    alvo.localizacoes?.length ? `Locais: ${alvo.localizacoes.join(', ')}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return { resumo: resumo || '-', detalhe };
+};
+
 // Busca por telefone/nome/email sem saber de antemão qual formulário —
 // vai direto na Graph API (não existe banco local completo pra buscar, ver
 // comentário no service), varrendo todos os formulários da página. Por ser
@@ -118,6 +142,8 @@ export default function LeadSearchDialog({ open, onOpenChange, pageId, pageName 
                     ))}
                     <th className="text-left p-2 font-medium whitespace-nowrap">Campanha</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Criativo</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Origem</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Público-alvo do anúncio</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -154,6 +180,17 @@ export default function LeadSearchDialog({ open, onOpenChange, pageId, pageName 
                         ) : (
                           <span className="text-muted-foreground">{lead.criativo_nome || '-'}</span>
                         )}
+                      </td>
+                      <td className="p-2 whitespace-nowrap">
+                        {lead.platform ? PLATFORM_LABEL[lead.platform] || lead.platform : '-'}
+                        {lead.is_organic !== undefined && (
+                          <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded ${lead.is_organic ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                            {lead.is_organic ? 'Orgânico' : 'Pago'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2 whitespace-nowrap" title={formatPublicoAlvo(lead)?.detalhe}>
+                        {formatPublicoAlvo(lead)?.resumo || '-'}
                       </td>
                     </tr>
                   ))}

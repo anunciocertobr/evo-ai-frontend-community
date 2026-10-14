@@ -15,6 +15,30 @@ interface Props {
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+const PLATFORM_LABEL: Record<string, string> = {
+  ig: 'Instagram',
+  fb: 'Facebook',
+  msn: 'Messenger',
+  wa: 'WhatsApp',
+};
+
+// Resumo do público-alvo CONFIGURADO no anúncio que trouxe o lead — não é
+// dado do indivíduo (ver comentário em LeadTargetingContext no service).
+const formatPublicoAlvo = (lead: LeadFormLead) => {
+  const alvo = lead.publico_alvo;
+  if (!alvo) return null;
+  const idade = alvo.idade_min || alvo.idade_max ? `${alvo.idade_min ?? '—'}-${alvo.idade_max ?? '—'} anos` : null;
+  const resumo = [idade, alvo.generos].filter(Boolean).join(' · ');
+  const detalhe = [
+    alvo.plataformas?.length ? `Plataformas: ${alvo.plataformas.join(', ')}` : null,
+    alvo.dispositivos?.length ? `Dispositivos: ${alvo.dispositivos.join(', ')}` : null,
+    alvo.localizacoes?.length ? `Locais: ${alvo.localizacoes.join(', ')}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return { resumo: resumo || '-', detalhe };
+};
+
 const csvEscape = (value: string) => `"${(value || '').replace(/"/g, '""')}"`;
 
 export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId, formName }: Props) {
@@ -145,12 +169,14 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
                     <th className="text-left p-2 font-medium whitespace-nowrap">Conjunto</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Anúncio</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Criativo</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Origem</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Público-alvo do anúncio</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredLeads.length === 0 && (
                     <tr>
-                      <td colSpan={fieldNames.length + 5} className="p-4 text-center text-muted-foreground">
+                      <td colSpan={fieldNames.length + 7} className="p-4 text-center text-muted-foreground">
                         Nenhum lead encontrado pra essa busca.
                       </td>
                     </tr>
@@ -189,6 +215,17 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
                         ) : (
                           <span className="text-muted-foreground">{lead.criativo_nome || '-'}</span>
                         )}
+                      </td>
+                      <td className="p-2 whitespace-nowrap">
+                        {lead.platform ? PLATFORM_LABEL[lead.platform] || lead.platform : '-'}
+                        {lead.is_organic !== undefined && (
+                          <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded ${lead.is_organic ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                            {lead.is_organic ? 'Orgânico' : 'Pago'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2 whitespace-nowrap" title={formatPublicoAlvo(lead)?.detalhe}>
+                        {formatPublicoAlvo(lead)?.resumo || '-'}
                       </td>
                     </tr>
                   ))}
