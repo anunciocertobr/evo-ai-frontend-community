@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MenuItem } from '@/components/layout/config/menuItems';
+import { useBackablePanel } from './useBackablePanel';
 
 interface MenuState {
   activeSubmenu: MenuItem | null;
@@ -272,6 +273,10 @@ export function useMenuState(
   const resetManualFlag = useCallback(() => {
     isManualSubmenuOpenRef.current = false;
   }, []);
+
+  // Botão físico "voltar" do Android (PWA standalone) fecha o submenu em vez
+  // de minimizar o app — ver useBackablePanel.ts.
+  useBackablePanel(state.activeSubmenu !== null, () => setActiveSubmenu(null));
 
   return {
     ...state,

@@ -11,6 +11,7 @@ import {
 } from '@evoapi/design-system';
 import { toast } from 'sonner';
 import { Header, Sidebar } from './components';
+import { useBackablePanel } from '@/hooks/useBackablePanel';
 import {
   getCustomerMenuItems,
   MenuItem as MenuItemType,
@@ -65,6 +66,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
   // sanduíche no Header pra abrir de novo.
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(() => window.innerWidth < 768);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+
+  // Botão físico "voltar" do Android (PWA standalone) fecha o menu mobile em
+  // vez de minimizar o app — ver useBackablePanel.ts.
+  useBackablePanel(isMobileMenuOpen, () => setIsMobileMenuOpen(false));
 
   // Load dashboard apps for sidebar integration
   const { apps: dashboardApps } = useDashboardApps({
