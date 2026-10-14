@@ -7,8 +7,12 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks, Pencil, ImagePlus, Bell, Search } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks, Pencil, ImagePlus, Bell, Search, MoreVertical } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -452,45 +456,43 @@ export default function MetaCreationPage() {
                       <p className="text-xs">
                         <span className="font-medium">{form.leads_count ?? 0}</span> leads recebidos
                       </p>
-                      <div className="flex gap-1.5 pt-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={loadingFormAction === form.id}
-                          onClick={() => toggleFormStatus(form)}
-                        >
-                          {form.status === 'ACTIVE' ? (
-                            <>
-                              <PowerOff className="w-3.5 h-3.5 mr-1" /> Pausar
-                            </>
-                          ) : (
-                            <>
-                              <Power className="w-3.5 h-3.5 mr-1" /> Ativar
-                            </>
-                          )}
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <Button size="sm" variant="outline" className="flex-1 min-w-0" onClick={() => setLeadsForm(form)}>
+                          <ListChecks className="w-3.5 h-3.5 mr-1 shrink-0" />
+                          <span className="truncate">Ver leads</span>
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={loadingFormAction === form.id}
-                          onClick={() => openDuplicate(form)}
-                        >
-                          <Copy className="w-3.5 h-3.5 mr-1" /> Duplicar
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setLeadsForm(form)}>
-                          <ListChecks className="w-3.5 h-3.5 mr-1" /> Ver leads
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setNotifyForm(form)}
-                          className={
-                            enabledNotifyFormIds.has(form.id) ? 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400' : ''
-                          }
-                        >
-                          <Bell className={`w-3.5 h-3.5 mr-1 ${enabledNotifyFormIds.has(form.id) ? 'fill-emerald-500/30' : ''}`} />{' '}
-                          Notificar
-                        </Button>
+                        {/* Resto das ações num menu — 4 botões com texto num card de ~1/3 da
+                            largura sempre estourava (card ficava maior que o grid ou o texto
+                            cortava sem aviso). Ver leads fica fora por ser a ação mais usada. */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="outline" className="shrink-0 px-2">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem disabled={loadingFormAction === form.id} onClick={() => toggleFormStatus(form)}>
+                              {form.status === 'ACTIVE' ? (
+                                <>
+                                  <PowerOff className="w-3.5 h-3.5 mr-2" /> Pausar
+                                </>
+                              ) : (
+                                <>
+                                  <Power className="w-3.5 h-3.5 mr-2" /> Ativar
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem disabled={loadingFormAction === form.id} onClick={() => openDuplicate(form)}>
+                              <Copy className="w-3.5 h-3.5 mr-2" /> Duplicar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setNotifyForm(form)}>
+                              <Bell
+                                className={`w-3.5 h-3.5 mr-2 ${enabledNotifyFormIds.has(form.id) ? 'fill-emerald-500/30 text-emerald-600 dark:text-emerald-400' : ''}`}
+                              />
+                              Notificar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   ))}

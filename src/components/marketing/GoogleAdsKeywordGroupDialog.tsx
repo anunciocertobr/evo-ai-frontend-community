@@ -309,15 +309,17 @@ export function GoogleAdsKeywordGroupDialog({
                   ))}
                 </SelectContent>
               </Select>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <Switch checked={draftNegative} onCheckedChange={setDraftNegative} id="negative-switch" />
-                <Label htmlFor="negative-switch" className="text-xs font-normal">
-                  Negativa
-                </Label>
+              <div className="flex items-center justify-between sm:justify-start gap-1.5 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <Switch checked={draftNegative} onCheckedChange={setDraftNegative} id="negative-switch" />
+                  <Label htmlFor="negative-switch" className="text-xs font-normal">
+                    Negativa
+                  </Label>
+                </div>
+                <Button type="button" variant="outline" size="icon" onClick={addKeyword} className="shrink-0">
+                  <Plus className="w-4 h-4" />
+                </Button>
               </div>
-              <Button type="button" variant="outline" size="icon" onClick={addKeyword} className="shrink-0">
-                <Plus className="w-4 h-4" />
-              </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">Prévia: {MATCH_TYPE_HINT[draftMatch]}</p>
           </div>
@@ -335,11 +337,11 @@ export function GoogleAdsKeywordGroupDialog({
                     key={`${kw.text}-${index}`}
                     className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-1.5 text-sm"
                   >
-                    <span className={kw.negative ? 'text-rose-500' : ''}>
+                    <span className={`truncate min-w-0 ${kw.negative ? 'text-rose-500' : ''}`}>
                       {kw.negative ? '− ' : ''}
                       {MATCH_TYPE_HINT[kw.matchType].replace('palavra chave', kw.text)}
                     </span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <span className="text-xs text-muted-foreground">{MATCH_TYPE_LABEL[kw.matchType]}</span>
                       <button type="button" onClick={() => removeKeyword(index)}>
                         <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-rose-500" />

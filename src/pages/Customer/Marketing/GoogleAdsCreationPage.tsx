@@ -104,7 +104,7 @@ export default function GoogleAdsCreationPage() {
       />
 
       <Tabs defaultValue="audiences">
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 h-auto w-full flex-nowrap justify-start gap-2 overflow-x-auto">
           <TabsTrigger value="audiences">
             <Users className="w-4 h-4 mr-1.5" /> Públicos Personalizados
           </TabsTrigger>
