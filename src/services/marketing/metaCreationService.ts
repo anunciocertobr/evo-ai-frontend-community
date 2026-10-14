@@ -31,6 +31,13 @@ export interface LeadFormLead {
   criativo_link?: string;
 }
 
+// Mesmo shape de LeadFormLead, com form_id/form_name a mais (resultado de
+// buscar por telefone/nome/email sem saber de antemão qual formulário).
+export interface LeadSearchResult extends LeadFormLead {
+  form_id: string;
+  form_name: string;
+}
+
 export interface LeadQuestionOption {
   key: string;
   value: string;
@@ -438,6 +445,20 @@ class MetaCreationService {
       acao: 'leads_formulario_lead',
       id_pagina: pageId,
       id_formulario: formId,
+    });
+    return response.data || [];
+  }
+
+  // Busca por telefone/nome/email em TODOS os formulários da página de uma
+  // vez, direto na Graph API (não existe histórico completo em banco local
+  // pra buscar — mais lento que uma busca em banco, mas sempre com dado
+  // real). Pode levar alguns segundos se a página tiver muitos formulários
+  // com muitos leads.
+  async searchLeadsInPage(pageId: string, query: string): Promise<LeadSearchResult[]> {
+    const response = await api.post<LeadSearchResult[]>(ENDPOINT, {
+      acao: 'buscar_leads_pagina',
+      id_pagina: pageId,
+      busca: query,
     });
     return response.data || [];
   }

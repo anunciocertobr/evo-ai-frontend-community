@@ -8,7 +8,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks, Pencil, ImagePlus, Bell } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks, Pencil, ImagePlus, Bell, Search } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -34,6 +34,7 @@ import {
   type SavedAudience,
 } from '@/services/marketing/metaCreationService';
 import { metaLeadNotificationSettingsService } from '@/services/admin/metaLeadNotificationSettingsService';
+import LeadSearchDialog from '@/components/marketing/LeadSearchDialog';
 import { adminConfigService } from '@/services/admin/adminConfigService';
 
 const SUBTYPE_LABEL: Record<string, string> = {
@@ -94,6 +95,7 @@ export default function MetaCreationPage() {
   const [leadsForm, setLeadsForm] = useState<LeadForm | null>(null);
   const [notifyForm, setNotifyForm] = useState<LeadForm | null>(null);
   const [notifyDefaultOpen, setNotifyDefaultOpen] = useState(false);
+  const [searchLeadsOpen, setSearchLeadsOpen] = useState(false);
   // Pra destacar o sino de quem já tem notificação ligada (pedido do Marco:
   // dá pra saber "de relance" sem abrir cada formulário). Guarda só os ids
   // com enabled === true — formulário sem registro em
@@ -414,6 +416,9 @@ export default function MetaCreationPage() {
                   </button>
                 </div>
                 <div className="flex gap-1.5">
+                  <Button variant="outline" onClick={() => setSearchLeadsOpen(true)}>
+                    <Search className="w-4 h-4 mr-1.5" /> Buscar lead
+                  </Button>
                   <Button
                     variant="outline"
                     onClick={() => setNotifyDefaultOpen(true)}
@@ -547,6 +552,8 @@ export default function MetaCreationPage() {
                   if (!open) loadDefaultNotifySetting();
                 }}
               />
+
+              <LeadSearchDialog open={searchLeadsOpen} onOpenChange={setSearchLeadsOpen} pageId={page.id} pageName={page.name} />
             </>
           )}
         </TabsContent>
