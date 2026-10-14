@@ -1231,12 +1231,24 @@ function DuplicateModal({
   const [targetAdSets, setTargetAdSets] = useState<AggregatedItem[]>(allAdSets);
   const [targetAdSetId, setTargetAdSetId] = useState('');
   const [loadingTargets, setLoadingTargets] = useState(false);
+  // O modal dispara loadAccountsForBm automaticamente ao abrir (currentBmId)
+  // e de novo se o usuário troca a BM manualmente logo em seguida — sem essa
+  // trava, a resposta mais lenta (geralmente a automática, que teve menos
+  // tempo de corrida) podia chegar depois e sobrescrever a lista da BM
+  // escolhida com a da BM anterior, deixando o select de conta com as contas
+  // erradas mesmo exibindo o nome certo da BM selecionada.
+  const accountsRequestIdRef = useRef(0);
+  const campaignsRequestIdRef = useRef(0);
 
   const loadCampaignsForAccount = async (accountId: string, preselectCampaignId?: string) => {
     if (!accountId) return;
+    const requestId = ++campaignsRequestIdRef.current;
     setLoadingTargets(true);
     try {
       const { structural, insights } = await trafficPanelService.getCampaignsTree(accountId, dateStart, dateStop);
+      // Mesma trava de loadAccountsForBm: descarta se já veio uma troca de
+      // conta mais recente enquanto esta request estava no ar.
+      if (requestId !== campaignsRequestIdRef.current) return;
       const fetchedCampaigns = aggregateDataForLevel(structural, insights, 'campaign');
       setTargetCampaigns(fetchedCampaigns);
       const selectedCampaignId = preselectCampaignId || fetchedCampaigns[0]?.id || '';
@@ -1247,16 +1259,21 @@ function DuplicateModal({
         setTargetAdSetId(item?.adSetId && accountId === adAccountId ? item.adSetId : fetchedAdSets[0]?.id || '');
       }
     } catch {
-      toast.error('Não foi possível carregar as campanhas dessa conta.');
+      if (requestId === campaignsRequestIdRef.current) toast.error('Não foi possível carregar as campanhas dessa conta.');
     } finally {
-      setLoadingTargets(false);
+      if (requestId === campaignsRequestIdRef.current) setLoadingTargets(false);
     }
   };
 
   const loadAccountsForBm = async (bmId: string, preselectAccountId?: string) => {
+    const requestId = ++accountsRequestIdRef.current;
     setLoadingTargets(true);
     try {
       const fetchedAccounts = await trafficPanelService.listAccounts(bmId, dateStart, dateStop);
+      // Chegou uma troca de BM mais recente enquanto esta request estava no
+      // ar: descarta o resultado, senão ele sobrescreve a lista da BM que o
+      // usuário já escolheu depois com a da BM anterior.
+      if (requestId !== accountsRequestIdRef.current) return;
       setTargetAccounts(fetchedAccounts);
       const selectedAccountId = preselectAccountId || fetchedAccounts[0]?.id || '';
       setTargetAccountId(selectedAccountId);
@@ -1264,9 +1281,9 @@ function DuplicateModal({
         await loadCampaignsForAccount(selectedAccountId, selectedAccountId === adAccountId ? item?.campaignId : undefined);
       }
     } catch {
-      toast.error('Não foi possível carregar as contas dessa Business Manager.');
+      if (requestId === accountsRequestIdRef.current) toast.error('Não foi possível carregar as contas dessa Business Manager.');
     } finally {
-      setLoadingTargets(false);
+      if (requestId === accountsRequestIdRef.current) setLoadingTargets(false);
     }
   };
 
@@ -2755,6 +2772,12 @@ function CreateCampaignModal({
   // (md:) continua sempre visível como antes.
   const [mobileStructureNavOpen, setMobileStructureNavOpen] = useState(false);
 
+  // Destaque da seção ativa na barra "Estrutura": qual âncora (campanha,
+  // conjunto ou anúncio) está no topo da área de conteúdo agora, pra pintar
+  // o atalho correspondente como os outros já pintam no hover/clique.
+  const contentScrollRef = useRef<HTMLDivElement>(null);
+  const [activeAnchorId, setActiveAnchorId] = useState('create-campaign-anchor-campanha');
+
   const [savedAudiences, setSavedAudiences] = useState<SavedAudience[] | null>(null);
   const [loadingSavedAudiences, setLoadingSavedAudiences] = useState(false);
 
@@ -3071,6 +3094,33 @@ function CreateCampaignModal({
   // conteúdo até a seção correspondente em vez de trocar de tela.
   const scrollToAnchor = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
+  // Observa as seções (mesmos ids que scrollToAnchor usa) pra saber qual
+  // está no topo da área visível e destacar o atalho correspondente — sem
+  // isso a barra "Estrutura" nunca reage ao scroll, só ao próprio clique.
+  // rootMargin corta a área de detecção pra uma faixa fina perto do topo do
+  // container (em vez da área toda), senão duas seções grandes ficam
+  // "visíveis" ao mesmo tempo e a ativa pisca entre as duas.
+  useEffect(() => {
+    const root = contentScrollRef.current;
+    if (!root || !open) return;
+    const sections = Array.from(root.querySelectorAll<HTMLElement>('[id^="create-campaign-anchor-"]'));
+    if (sections.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((entry) => entry.isIntersecting);
+        if (visible.length === 0) return;
+        const topmost = visible.reduce((best, entry) =>
+          entry.boundingClientRect.top < best.boundingClientRect.top ? entry : best,
+        );
+        setActiveAnchorId(topmost.target.id);
+      },
+      { root, rootMargin: '0px 0px -75% 0px', threshold: 0 },
+    );
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, adSets.length, adSets.map((adSet) => adSet.ads.length).join(',')]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* sm:max-w-5xl (não max-w-5xl): o DialogContent padrão já traz
@@ -3119,7 +3169,11 @@ function CreateCampaignModal({
             <button
               type="button"
               onClick={() => { scrollToAnchor('create-campaign-anchor-campanha'); setMobileStructureNavOpen(false); }}
-              className="text-left p-2.5 rounded-md flex items-center gap-2 bg-sky-700/50 text-sky-300 hover:bg-sky-700/70 transition-colors text-sm"
+              className={`text-left p-2.5 rounded-md flex items-center gap-2 transition-colors text-sm ${
+                activeAnchorId === 'create-campaign-anchor-campanha'
+                  ? 'bg-sky-700/50 text-sky-300 hover:bg-sky-700/70'
+                  : 'hover:bg-slate-700/50 text-slate-300'
+              }`}
             >
               <Megaphone className="w-4 h-4 shrink-0" /> Campanha
             </button>
@@ -3135,7 +3189,11 @@ function CreateCampaignModal({
                     scrollToAnchor(`create-campaign-anchor-conjunto-${adSet.key}`);
                     setMobileStructureNavOpen(false);
                   }}
-                  className="w-full text-left p-2.5 rounded-md flex items-center gap-2 hover:bg-slate-700/50 text-slate-300 transition-colors text-sm"
+                  className={`w-full text-left p-2.5 rounded-md flex items-center gap-2 transition-colors text-sm ${
+                    activeAnchorId === `create-campaign-anchor-conjunto-${adSet.key}`
+                      ? 'bg-sky-700/50 text-sky-300 hover:bg-sky-700/70'
+                      : 'hover:bg-slate-700/50 text-slate-300'
+                  }`}
                   title={adSet.name || `Conjunto ${idx + 1}`}
                 >
                   <Layers className="w-4 h-4 shrink-0" />
@@ -3149,7 +3207,11 @@ function CreateCampaignModal({
                       scrollToAnchor(`create-campaign-anchor-anuncio-${ad.key}`);
                       setMobileStructureNavOpen(false);
                     }}
-                    className="w-full text-left py-1.5 pl-8 pr-2.5 rounded-md flex items-center gap-2 hover:bg-slate-700/50 text-slate-400 transition-colors text-xs"
+                    className={`w-full text-left py-1.5 pl-8 pr-2.5 rounded-md flex items-center gap-2 transition-colors text-xs ${
+                      activeAnchorId === `create-campaign-anchor-anuncio-${ad.key}`
+                        ? 'bg-sky-700/50 text-sky-300 hover:bg-sky-700/70'
+                        : 'hover:bg-slate-700/50 text-slate-400'
+                    }`}
                     title={ad.name || `Anúncio ${adIdx + 1}`}
                   >
                     <ImagePlus className="w-3.5 h-3.5 shrink-0" />
@@ -3168,7 +3230,7 @@ function CreateCampaignModal({
             />
           )}
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          <div ref={contentScrollRef} className="flex-1 overflow-y-auto p-6 space-y-8">
             <button
               type="button"
               onClick={() => setMobileStructureNavOpen(true)}
