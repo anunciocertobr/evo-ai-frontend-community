@@ -1,25 +1,11 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Button,
-  Input,
-  Label,
-  Switch,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@evoapi/design-system';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Button, Label, Switch } from '@evoapi/design-system';
 import inboxesService from '@/services/channels/inboxesService';
 import type { Inbox } from '@/types/channels/inbox';
 import { adminConfigService } from '@/services/admin/adminConfigService';
+import type { NotifyChannel } from '@/services/admin/metaLeadNotificationSettingsService';
+import { NotifyChannelsEditor } from './NotifyChannelsEditor';
 
 const CONFIG_TYPE = 'meta_leads_notify';
 
@@ -28,12 +14,32 @@ interface DefaultSettings {
   META_LEADS_NOTIFY_ENABLED: string;
   META_LEADS_NOTIFY_INBOX_ID: string;
   META_LEADS_NOTIFY_WHATSAPP_NUMBER: string;
+  META_LEADS_NOTIFY_CHANNELS: string;
 }
 
 const DEFAULTS: DefaultSettings = {
   META_LEADS_NOTIFY_ENABLED: 'false',
   META_LEADS_NOTIFY_INBOX_ID: '',
   META_LEADS_NOTIFY_WHATSAPP_NUMBER: '',
+  META_LEADS_NOTIFY_CHANNELS: '[]',
+};
+
+// Lê META_LEADS_NOTIFY_CHANNELS (formato novo); se vazio, cai pro par antigo
+// INBOX_ID/WHATSAPP_NUMBER como canal legado único — mesma lógica de
+// fallback que o backend já faz (WhatsappNotifierService#account_default_channels).
+const parseChannels = (settings: DefaultSettings): NotifyChannel[] => {
+  if (settings.META_LEADS_NOTIFY_CHANNELS) {
+    try {
+      const parsed = JSON.parse(settings.META_LEADS_NOTIFY_CHANNELS);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {
+      // ignora JSON inválido, cai pro legado abaixo
+    }
+  }
+  if (settings.META_LEADS_NOTIFY_INBOX_ID && settings.META_LEADS_NOTIFY_WHATSAPP_NUMBER) {
+    return [{ inbox_id: settings.META_LEADS_NOTIFY_INBOX_ID, whatsapp_number: settings.META_LEADS_NOTIFY_WHATSAPP_NUMBER }];
+  }
+  return [];
 };
 
 interface MetaLeadsNotifyDefaultDialogProps {
@@ -47,18 +53,20 @@ export function MetaLeadsNotifyDefaultDialog({ open, onOpenChange }: MetaLeadsNo
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [channels, setChannels] = useState<NotifyChannel[]>([]);
+
   useEffect(() => {
     if (!open) return;
     setLoading(true);
     Promise.all([inboxesService.list(), adminConfigService.getConfig(CONFIG_TYPE)])
       .then(([inboxResponse, config]) => {
         setInboxes(inboxResponse.data ?? []);
-        setSettings((prev) =>
-          ({
-            ...prev,
-            ...Object.fromEntries(Object.entries(config).filter(([, v]) => v !== null && v !== undefined)),
-          }) as DefaultSettings,
-        );
+        const merged = {
+          ...DEFAULTS,
+          ...Object.fromEntries(Object.entries(config).filter(([, v]) => v !== null && v !== undefined)),
+        } as DefaultSettings;
+        setSettings(merged);
+        setChannels(parseChannels(merged));
       })
       .catch(() => toast.error('Erro ao carregar o padrão de notificação da conta.'))
       .finally(() => setLoading(false));
@@ -70,7 +78,11 @@ export function MetaLeadsNotifyDefaultDialog({ open, onOpenChange }: MetaLeadsNo
   const handleSave = async () => {
     setSaving(true);
     try {
-      await adminConfigService.saveConfig(CONFIG_TYPE, settings);
+      const validChannels = channels.filter((c) => c.inbox_id && c.whatsapp_number);
+      await adminConfigService.saveConfig(CONFIG_TYPE, {
+        ...settings,
+        META_LEADS_NOTIFY_CHANNELS: JSON.stringify(validChannels),
+      });
       toast.success('Padrão de notificação salvo!');
       onOpenChange(false);
     } catch {
@@ -100,42 +112,7 @@ export function MetaLeadsNotifyDefaultDialog({ open, onOpenChange }: MetaLeadsNo
               <Switch checked={enabled} onCheckedChange={(c) => set('META_LEADS_NOTIFY_ENABLED', c ? 'true' : 'false')} />
             </div>
 
-            {enabled && (
-              <>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Canal (inbox) que envia</Label>
-                  <Select
-                    value={settings.META_LEADS_NOTIFY_INBOX_ID}
-                    onValueChange={(v) => set('META_LEADS_NOTIFY_INBOX_ID', v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {inboxes.length === 0 ? (
-                        <SelectItem value="none" disabled>
-                          Nenhum canal encontrado
-                        </SelectItem>
-                      ) : (
-                        inboxes.map((inbox) => (
-                          <SelectItem key={inbox.id} value={inbox.id}>
-                            {inbox.name} ({inbox.channel_type.replace('Channel::', '')})
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Número que recebe</Label>
-                  <Input
-                    value={settings.META_LEADS_NOTIFY_WHATSAPP_NUMBER}
-                    onChange={(e) => set('META_LEADS_NOTIFY_WHATSAPP_NUMBER', e.target.value)}
-                    placeholder="+55 11 99999-9999"
-                  />
-                </div>
-              </>
-            )}
+            {enabled && <NotifyChannelsEditor channels={channels} onChange={setChannels} inboxes={inboxes} />}
           </div>
         )}
 

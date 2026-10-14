@@ -1,25 +1,10 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Button,
-  Input,
-  Label,
-  Switch,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@evoapi/design-system';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Button, Label, Switch } from '@evoapi/design-system';
 import inboxesService from '@/services/channels/inboxesService';
 import type { Inbox } from '@/types/channels/inbox';
-import { metaLeadNotificationSettingsService } from '@/services/admin/metaLeadNotificationSettingsService';
+import { metaLeadNotificationSettingsService, NotifyChannel } from '@/services/admin/metaLeadNotificationSettingsService';
+import { NotifyChannelsEditor } from './NotifyChannelsEditor';
 
 interface LeadFormNotifySettingsDialogProps {
   open: boolean;
@@ -39,8 +24,7 @@ export function LeadFormNotifySettingsDialog({
   const [inboxes, setInboxes] = useState<Inbox[]>([]);
   const [useOverride, setUseOverride] = useState(false);
   const [enabled, setEnabled] = useState(true);
-  const [inboxId, setInboxId] = useState('');
-  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [channels, setChannels] = useState<NotifyChannel[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -53,8 +37,7 @@ export function LeadFormNotifySettingsDialog({
         const current = settings[0];
         setUseOverride(Boolean(current));
         setEnabled(current?.enabled ?? true);
-        setInboxId(current?.inbox_id ?? '');
-        setWhatsappNumber(current?.whatsapp_number ?? '');
+        setChannels(current?.channels ?? []);
       })
       .catch(() => toast.error('Erro ao carregar configuração de notificação.'))
       .finally(() => setLoading(false));
@@ -64,12 +47,12 @@ export function LeadFormNotifySettingsDialog({
     setSaving(true);
     try {
       if (useOverride) {
+        const validChannels = channels.filter((c) => c.inbox_id && c.whatsapp_number);
         await metaLeadNotificationSettingsService.upsert(formId, {
           page_id: pageId,
           form_name: formName,
           enabled,
-          inbox_id: inboxId || null,
-          whatsapp_number: whatsappNumber || null,
+          channels: validChannels,
         });
       } else {
         await metaLeadNotificationSettingsService.remove(formId);
@@ -113,35 +96,7 @@ export function LeadFormNotifySettingsDialog({
                   <Label className="text-sm">Notificação ativa</Label>
                   <Switch checked={enabled} onCheckedChange={setEnabled} />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Canal (inbox) que envia</Label>
-                  <Select value={inboxId} onValueChange={setInboxId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {inboxes.length === 0 ? (
-                        <SelectItem value="none" disabled>
-                          Nenhum canal encontrado
-                        </SelectItem>
-                      ) : (
-                        inboxes.map((inbox) => (
-                          <SelectItem key={inbox.id} value={inbox.id}>
-                            {inbox.name} ({inbox.channel_type.replace('Channel::', '')})
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Número que recebe</Label>
-                  <Input
-                    value={whatsappNumber}
-                    onChange={(e) => setWhatsappNumber(e.target.value)}
-                    placeholder="+55 11 99999-9999"
-                  />
-                </div>
+                <NotifyChannelsEditor channels={channels} onChange={setChannels} inboxes={inboxes} />
               </>
             )}
           </div>
