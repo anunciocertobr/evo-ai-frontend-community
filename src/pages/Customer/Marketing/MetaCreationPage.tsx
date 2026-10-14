@@ -33,6 +33,8 @@ import {
   type CustomAudience,
   type SavedAudience,
 } from '@/services/marketing/metaCreationService';
+import { metaLeadNotificationSettingsService } from '@/services/admin/metaLeadNotificationSettingsService';
+import { adminConfigService } from '@/services/admin/adminConfigService';
 
 const SUBTYPE_LABEL: Record<string, string> = {
   WEBSITE: 'Site (Pixel)',
@@ -92,6 +94,12 @@ export default function MetaCreationPage() {
   const [leadsForm, setLeadsForm] = useState<LeadForm | null>(null);
   const [notifyForm, setNotifyForm] = useState<LeadForm | null>(null);
   const [notifyDefaultOpen, setNotifyDefaultOpen] = useState(false);
+  // Pra destacar o sino de quem já tem notificação ligada (pedido do Marco:
+  // dá pra saber "de relance" sem abrir cada formulário). Guarda só os ids
+  // com enabled === true — formulário sem registro em
+  // meta_lead_notification_settings também conta como "não configurado".
+  const [enabledNotifyFormIds, setEnabledNotifyFormIds] = useState<Set<string>>(new Set());
+  const [defaultNotifyEnabled, setDefaultNotifyEnabled] = useState(false);
 
   // Públicos
   const [account, setAccount] = useState<{ id: string; name: string } | null>(null);
@@ -143,6 +151,36 @@ export default function MetaCreationPage() {
   useEffect(() => {
     if (page) loadForms(page.id);
   }, [page, loadForms]);
+
+  // Carrega 1x (não depende de página) o padrão da conta, que é o que o
+  // sino "Notificações de Leads" do topo reflete de fato (ver comentário
+  // acima de notifyDefaultOpen).
+  const loadDefaultNotifySetting = useCallback(() => {
+    adminConfigService
+      .getConfig('meta_leads_notify')
+      .then((config) => setDefaultNotifyEnabled(config?.META_LEADS_NOTIFY_ENABLED === 'true'))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadDefaultNotifySetting();
+  }, [loadDefaultNotifySetting]);
+
+  const loadNotifySettingsForForms = useCallback((formIds: string[]) => {
+    if (formIds.length === 0) {
+      setEnabledNotifyFormIds(new Set());
+      return;
+    }
+    metaLeadNotificationSettingsService
+      .list(formIds)
+      .then((settings) => setEnabledNotifyFormIds(new Set(settings.filter((s) => s.enabled).map((s) => s.form_id))))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadNotifySettingsForForms((forms || []).map((f) => f.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forms]);
 
   const toggleFormStatus = async (form: LeadForm) => {
     if (!page) return;
@@ -376,8 +414,12 @@ export default function MetaCreationPage() {
                   </button>
                 </div>
                 <div className="flex gap-1.5">
-                  <Button variant="outline" onClick={() => setNotifyDefaultOpen(true)}>
-                    <Bell className="w-4 h-4 mr-1.5" /> Notificações de Leads
+                  <Button
+                    variant="outline"
+                    onClick={() => setNotifyDefaultOpen(true)}
+                    className={defaultNotifyEnabled ? 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400' : ''}
+                  >
+                    <Bell className={`w-4 h-4 mr-1.5 ${defaultNotifyEnabled ? 'fill-emerald-500/30' : ''}`} /> Notificações de Leads
                   </Button>
                   <Button onClick={() => setFormDialogOpen(true)}>
                     <Plus className="w-4 h-4 mr-1.5" /> Novo formulário
@@ -433,8 +475,16 @@ export default function MetaCreationPage() {
                         <Button size="sm" variant="outline" onClick={() => setLeadsForm(form)}>
                           <ListChecks className="w-3.5 h-3.5 mr-1" /> Ver leads
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => setNotifyForm(form)}>
-                          <Bell className="w-3.5 h-3.5 mr-1" /> Notificar
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setNotifyForm(form)}
+                          className={
+                            enabledNotifyFormIds.has(form.id) ? 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400' : ''
+                          }
+                        >
+                          <Bell className={`w-3.5 h-3.5 mr-1 ${enabledNotifyFormIds.has(form.id) ? 'fill-emerald-500/30' : ''}`} />{' '}
+                          Notificar
                         </Button>
                       </div>
                     </div>
@@ -478,14 +528,25 @@ export default function MetaCreationPage() {
               {notifyForm && (
                 <LeadFormNotifySettingsDialog
                   open={Boolean(notifyForm)}
-                  onOpenChange={(open) => !open && setNotifyForm(null)}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      setNotifyForm(null);
+                      loadNotifySettingsForForms((forms || []).map((f) => f.id));
+                    }
+                  }}
                   pageId={page.id}
                   formId={notifyForm.id}
                   formName={notifyForm.name}
                 />
               )}
 
-              <MetaLeadsNotifyDefaultDialog open={notifyDefaultOpen} onOpenChange={setNotifyDefaultOpen} />
+              <MetaLeadsNotifyDefaultDialog
+                open={notifyDefaultOpen}
+                onOpenChange={(open) => {
+                  setNotifyDefaultOpen(open);
+                  if (!open) loadDefaultNotifySetting();
+                }}
+              />
             </>
           )}
         </TabsContent>
