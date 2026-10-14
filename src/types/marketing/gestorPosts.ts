@@ -191,6 +191,8 @@ export interface FacebookPost {
 export interface FacebookAccessiblePage {
   page_id: string;
   name: string;
+  business_id?: string | null;
+  business_name?: string | null;
   instagram?: { id: string; username?: string; profile_picture_url?: string } | null;
   connected: boolean;
 }

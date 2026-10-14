@@ -44,6 +44,7 @@ export default function MetaLeadFormsSettingsPage() {
 
   const [pages, setPages] = useState<FacebookAccessiblePage[]>([]);
   const [loadingPages, setLoadingPages] = useState(false);
+  const [selectedBmId, setSelectedBmId] = useState('');
   const [selectedPageId, setSelectedPageId] = useState('');
 
   const [forms, setForms] = useState<LeadForm[]>([]);
@@ -85,6 +86,7 @@ export default function MetaLeadFormsSettingsPage() {
 
   const openModal = async () => {
     setModalOpen(true);
+    setSelectedBmId('');
     setSelectedPageId('');
     setSelectedFormId('');
     setSelectedPipelineId('');
@@ -105,6 +107,31 @@ export default function MetaLeadFormsSettingsPage() {
     } finally {
       setLoadingPages(false);
     }
+  };
+
+  // business{id,name} já vem de graça no mesmo /me/accounts que lista as
+  // páginas (ver Facebook::AccessiblePagesService) — não precisa de chamada
+  // extra por BM, só agrupar as páginas já carregadas. Página pessoal sem BM
+  // (business_id null) fica de fora da lista de BMs, mas continua aparecendo
+  // no select de página quando nenhuma BM está selecionada.
+  const bms = useMemo(() => {
+    const seen = new Map<string, string>();
+    pages.forEach((p) => {
+      if (p.business_id && !seen.has(p.business_id)) seen.set(p.business_id, p.business_name || p.business_id as string);
+    });
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+  }, [pages]);
+
+  const pagesForSelectedBm = useMemo(
+    () => (selectedBmId ? pages.filter((p) => p.business_id === selectedBmId) : pages),
+    [pages, selectedBmId],
+  );
+
+  const handleBmChange = (bmId: string) => {
+    setSelectedBmId(bmId);
+    setSelectedPageId('');
+    setSelectedFormId('');
+    setForms([]);
   };
 
   const handlePageChange = async (pageId: string) => {
@@ -301,6 +328,24 @@ export default function MetaLeadFormsSettingsPage() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {bms.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Business Manager</Label>
+                <Select value={selectedBmId} onValueChange={handleBmChange} disabled={loadingPages}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas (opcional, só pra filtrar a lista de páginas)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bms.map((bm) => (
+                      <SelectItem key={bm.id} value={bm.id}>
+                        {bm.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label>Página do Facebook</Label>
               <Select value={selectedPageId} onValueChange={handlePageChange} disabled={loadingPages}>
@@ -308,7 +353,7 @@ export default function MetaLeadFormsSettingsPage() {
                   <SelectValue placeholder={loadingPages ? 'Carregando...' : 'Selecione a página'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {pages.map((p) => (
+                  {pagesForSelectedBm.map((p) => (
                     <SelectItem key={p.page_id} value={p.page_id}>
                       {p.name}
                     </SelectItem>
