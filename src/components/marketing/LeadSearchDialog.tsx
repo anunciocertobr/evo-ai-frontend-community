@@ -68,7 +68,7 @@ export default function LeadSearchDialog({ open, onOpenChange, pageId, pageName 
           }
         }}
       >
-        <DialogContent className="w-screen max-w-[100vw] h-screen max-h-[100vh] rounded-none flex flex-col">
+        <DialogContent className="w-screen max-w-[100vw] sm:max-w-[100vw] h-screen max-h-[100vh] rounded-none flex flex-col">
           <DialogHeader>
             <DialogTitle>Buscar lead — {pageName}</DialogTitle>
             <DialogDescription>
