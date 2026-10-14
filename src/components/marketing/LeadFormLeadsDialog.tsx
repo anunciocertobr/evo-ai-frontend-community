@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Download, Film, ExternalLink } from 'lucide-react';
-import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@evoapi/design-system';
+import { Loader2, Download, Film, ExternalLink, Search } from 'lucide-react';
+import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input } from '@evoapi/design-system';
 import { metaCreationService, LeadFormLead } from '@/services/marketing/metaCreationService';
 
 interface Props {
@@ -21,9 +21,11 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
   const [leads, setLeads] = useState<LeadFormLead[]>([]);
   const [loading, setLoading] = useState(false);
   const [playingVideo, setPlayingVideo] = useState<LeadFormLead | null>(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (!open) return;
+    setSearch('');
     setLoading(true);
     metaCreationService
       .listFormLeads(pageId, formId)
@@ -47,6 +49,23 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
   const fieldValue = (lead: LeadFormLead, name: string) =>
     lead.field_data?.find((f) => f.name === name)?.values?.[0] || '';
 
+  // Busca livre: cada formulário tem perguntas diferentes (nome/telefone/
+  // email não são campos fixos, ver fieldNames acima), então filtra por
+  // qualquer valor de resposta do lead, além de campanha/conjunto/anúncio.
+  const filteredLeads = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return leads;
+    return leads.filter((lead) => {
+      const campos = [
+        ...(lead.field_data?.flatMap((f) => f.values) || []),
+        lead.campaign_name,
+        lead.adset_name,
+        lead.ad_name,
+      ];
+      return campos.some((valor) => valor?.toLowerCase().includes(term));
+    });
+  }, [leads, search]);
+
   const openCreative = (lead: LeadFormLead) => {
     if (lead.criativo_video) {
       setPlayingVideo(lead);
@@ -57,7 +76,7 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
 
   const downloadCsv = () => {
     const header = ['Data', ...fieldNames, 'Anúncio', 'Conjunto', 'Campanha', 'Criativo'];
-    const rows = leads.map((lead) => [
+    const rows = filteredLeads.map((lead) => [
       formatDate(lead.created_time),
       ...fieldNames.map((name) => fieldValue(lead, name)),
       lead.ad_name || '',
@@ -95,8 +114,19 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
           <p className="text-sm text-muted-foreground py-10 text-center">Nenhum lead recebido ainda por esse formulário.</p>
         ) : (
           <>
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">{leads.length} lead(s)</p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="relative w-full max-w-xs">
+                <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+                  placeholder="Buscar lead..."
+                  className="pl-8"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground whitespace-nowrap">
+                {filteredLeads.length === leads.length ? `${leads.length} lead(s)` : `${filteredLeads.length} de ${leads.length} lead(s)`}
+              </p>
               <Button size="sm" onClick={downloadCsv}>
                 <Download className="w-3.5 h-3.5 mr-1.5" /> Baixar CSV
               </Button>
@@ -118,7 +148,14 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
                   </tr>
                 </thead>
                 <tbody>
-                  {leads.map((lead) => (
+                  {filteredLeads.length === 0 && (
+                    <tr>
+                      <td colSpan={fieldNames.length + 5} className="p-4 text-center text-muted-foreground">
+                        Nenhum lead encontrado pra essa busca.
+                      </td>
+                    </tr>
+                  )}
+                  {filteredLeads.map((lead) => (
                     <tr key={lead.id} className="border-t border-border">
                       <td className="p-2 whitespace-nowrap text-muted-foreground">{formatDate(lead.created_time)}</td>
                       {fieldNames.map((name) => (

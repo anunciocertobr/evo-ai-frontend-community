@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Plus, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Loader2, Plus, Trash2, AlertTriangle, RefreshCw, Search } from 'lucide-react';
 import {
   Button,
   Card,
@@ -14,6 +14,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Input,
   Label,
   Select,
   SelectContent,
@@ -32,9 +33,11 @@ import type { Pipeline, PipelineStage } from '@/types/analytics';
 export default function MetaLeadFormsSettingsPage() {
   const [mappings, setMappings] = useState<MetaLeadFormMapping[]>([]);
   const [loadingMappings, setLoadingMappings] = useState(true);
+  const [mappingSearch, setMappingSearch] = useState('');
 
   const [submissions, setSubmissions] = useState<MetaLeadSubmission[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(true);
+  const [submissionSearch, setSubmissionSearch] = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -167,6 +170,23 @@ export default function MetaLeadFormsSettingsPage() {
     }
   };
 
+  const filteredMappings = useMemo(() => {
+    const term = mappingSearch.trim().toLowerCase();
+    if (!term) return mappings;
+    return mappings.filter((m) =>
+      [m.form_name, m.form_id, m.pipeline_name, m.pipeline_stage_name].some((v) => v?.toLowerCase().includes(term)),
+    );
+  }, [mappings, mappingSearch]);
+
+  const filteredSubmissions = useMemo(() => {
+    const term = submissionSearch.trim().toLowerCase();
+    if (!term) return submissions;
+    return submissions.filter((s) => {
+      const campos = [s.form_id, s.error_message, ...(s.field_data?.flatMap((f) => f.values) || [])];
+      return campos.some((v) => v?.toLowerCase().includes(term));
+    });
+  }, [submissions, submissionSearch]);
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <BaseHeader
@@ -181,7 +201,18 @@ export default function MetaLeadFormsSettingsPage() {
             <Plus className="h-4 w-4 mr-2" /> Mapear formulário
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {mappings.length > 0 && (
+            <div className="relative max-w-xs">
+              <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={mappingSearch}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMappingSearch(e.target.value)}
+                placeholder="Buscar formulário..."
+                className="pl-8"
+              />
+            </div>
+          )}
           {loadingMappings ? (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           ) : mappings.length === 0 ? (
@@ -189,9 +220,11 @@ export default function MetaLeadFormsSettingsPage() {
               Nenhum formulário mapeado ainda. Leads que chegarem antes de mapear o formulário ficam retidos (veja
               abaixo) até você mapear.
             </p>
+          ) : filteredMappings.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum formulário mapeado encontrado pra essa busca.</p>
           ) : (
             <div className="space-y-2">
-              {mappings.map((m) => (
+              {filteredMappings.map((m) => (
                 <div key={m.id} className="flex items-center justify-between border rounded-lg px-3 py-2">
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{m.form_name || m.form_id}</p>
@@ -219,14 +252,27 @@ export default function MetaLeadFormsSettingsPage() {
             <RefreshCw className="h-4 w-4" />
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {submissions.length > 0 && (
+            <div className="relative max-w-xs">
+              <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={submissionSearch}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSubmissionSearch(e.target.value)}
+                placeholder="Buscar lead retido..."
+                className="pl-8"
+              />
+            </div>
+          )}
           {loadingSubmissions ? (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           ) : submissions.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum lead retido — tudo processado.</p>
+          ) : filteredSubmissions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum lead retido encontrado pra essa busca.</p>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-              {submissions.map((s) => (
+              {filteredSubmissions.map((s) => (
                 <div key={s.id} className="border rounded-lg px-3 py-2">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <Badge variant={s.status === 'error' ? 'destructive' : 'secondary'}>
