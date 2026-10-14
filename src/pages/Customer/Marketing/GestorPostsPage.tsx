@@ -2052,7 +2052,7 @@ export default function GestorPostsPage() {
 
   if (loadingChannels) {
     return (
-      <div className="flex flex-col min-h-full bg-background p-6 items-center justify-center">
+      <div className="flex flex-col min-h-full bg-background p-4 sm:p-6 items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
@@ -2060,7 +2060,7 @@ export default function GestorPostsPage() {
 
   if (channels.length === 0) {
     return (
-      <div className="flex flex-col min-h-full bg-background p-6 space-y-6">
+      <div className="flex flex-col min-h-full bg-background p-4 sm:p-6 space-y-6">
         <BaseHeader title="Gestor de Posts" subtitle="Galeria de criativos e métricas do Instagram." />
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
@@ -2073,10 +2073,10 @@ export default function GestorPostsPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-full bg-background p-6 space-y-6">
-      <div className="flex items-center justify-between gap-4 relative">
+    <div className="flex flex-col min-h-full bg-background p-4 sm:p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative">
         <BaseHeader title="Gestor de Posts" subtitle="Galeria de criativos, métricas e comentários do Instagram." />
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" onClick={openScheduledModal}>
             <Calendar className="w-4 h-4 mr-1.5" /> Posts Agendados
           </Button>
@@ -2098,7 +2098,7 @@ export default function GestorPostsPage() {
             {showSettingsMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowSettingsMenu(false)} />
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-2xl p-4 space-y-4 z-50 max-h-[75vh] overflow-y-auto text-sm">
+                <div className="absolute right-0 top-full mt-2 w-[min(20rem,calc(100vw-2rem))] bg-white border border-gray-200 rounded-lg shadow-2xl p-4 space-y-4 z-50 max-h-[75vh] overflow-y-auto text-sm">
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold text-gray-800">Opções</h3>
                     <button
@@ -2218,7 +2218,7 @@ export default function GestorPostsPage() {
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {(
           [
             { id: 'instagram' as const, label: 'Instagram', icon: Instagram },
@@ -3365,7 +3365,7 @@ export default function GestorPostsPage() {
                       Imagem/Vídeo só o primeiro arquivo é publicado; em modo
                       Carrossel, todos (até 10). */}
                   {uploadedFiles.length > 0 ? (
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                       {uploadedPreviewUrls.map((url, index) => {
                         const file = uploadedFiles[index];
                         const isVideo = file?.type.startsWith('video/');
@@ -3415,7 +3415,7 @@ export default function GestorPostsPage() {
               {/* Plataforma(s) */}
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Plataforma(s)</p>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {(
                     [
                       { id: 'instagram' as const, label: 'Instagram', icon: Instagram },
@@ -3554,7 +3554,7 @@ export default function GestorPostsPage() {
               {/* Tipo de Mídia */}
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tipo de Mídia</p>
-                <div className={`grid gap-2 ${whatsappOnlySelected ? 'grid-cols-5' : 'grid-cols-3'}`}>
+                <div className={`grid grid-cols-2 gap-2 ${whatsappOnlySelected ? 'sm:grid-cols-5' : 'sm:grid-cols-3'}`}>
                   {(
                     [
                       { id: 'image' as const, label: 'Imagem' },
