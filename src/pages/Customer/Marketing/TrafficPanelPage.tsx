@@ -95,7 +95,7 @@ import {
   type WhatsappNumberOption,
 } from '@/services/marketing/metaAdsManagerService';
 import { apiErrorMessage } from '@/utils/apiHelpers';
-import { metaCreationService, type SavedAudience, type TargetingItem } from '@/services/marketing/metaCreationService';
+import { metaCreationService, type SavedAudience, type TargetingItem, type CustomAudience } from '@/services/marketing/metaCreationService';
 import { MediaLibraryPickerDialog } from '@/components/marketing/MediaLibraryPickerDialog';
 import {
   aggregateDataForLevel,
@@ -2237,6 +2237,15 @@ interface AdSetFormState {
   // Localizações de exclusão (`excluded_geo_locations`): a Meta não anuncia
   // para quem mora ou esteve nestes lugares.
   excludedLocations: LocationEntry[];
+  // País(es) inteiro(s), código de 2 letras (ex: "BR") — alternativa aos
+  // pins do mapa. Só entra no payload quando `locations` estiver vazio: a
+  // Graph API não combina `countries` com `custom_locations` no mesmo
+  // `geo_locations` (um ou outro).
+  countries: string[];
+  // Públicos personalizados/semelhantes (Custom/Lookalike Audience) da
+  // conta, somados ao direcionamento — diferente de `savedAudience` (um
+  // preset de público SALVO inteiro, que substitui tudo abaixo dele).
+  customAudiences: CustomAudience[];
   // Texto livre que identifica o conjunto no Gerenciador de Anúncios.
   description: string;
   // Diário ou vitalício. Vitalício exige `endDate` — a Meta recusa sem data de
@@ -2357,6 +2366,13 @@ async function buildPrefillFromSource({
         audienceNetworkPositions: targeting.audience_network_positions || [],
         locations: pins.length > 0 ? pins : base.locations,
         excludedLocations: excludedPins,
+        countries: geo.countries || [],
+        // A Graph API já devolve nome junto do id em `custom_audiences` —
+        // subtype fica "CUSTOM" por padrão (só afeta o texto exibido entre
+        // parênteses no seletor, não o que é reenviado, que é só o id).
+        customAudiences: (targeting.custom_audiences || [])
+          .filter((a): a is { id: string; name?: string } => Boolean(a.id))
+          .map((a) => ({ id: a.id, name: a.name || a.id, subtype: 'CUSTOM' as const })),
         // Interesses/comportamentos: a Graph API devolve `flexible_spec`
         // estruturado (grupos "E", nomes dentro de cada grupo são "OU"), mas
         // o campo do formulário é texto livre (igual ao direcionamento
@@ -2371,6 +2387,11 @@ async function buildPrefillFromSource({
           // do criativo do próprio anúncio.
           pageId: promovido.page_id || creativesByAdId[adsOrigem[0]?.id]?.object_story_spec?.page_id || '',
           whatsappPhone: promovido.whatsapp_phone_number || '',
+          // Formulário Instantâneo já usado por este conjunto — presente no
+          // call_to_action do criativo, não no promoted_object (ver comentário
+          // em AdCreative). Preenchendo aqui, "Duplicar" já seleciona o
+          // formulário real em vez de deixar a Meta criar um genérico novo.
+          leadFormId: creativesByAdId[adsOrigem[0]?.id]?.object_story_spec?.link_data?.call_to_action?.value?.lead_gen_form_id || '',
           // "Trocar formulário por conversa no WhatsApp" é o caminho mais comum
           // aqui: quando a resposta for WhatsApp, o destino tem que ser o
           // WhatsApp, senão a cópia sai como conversa no Messenger.
@@ -2465,6 +2486,8 @@ function newAdSet(): AdSetFormState {
     detailedTargeting: '',
     locations: [{ id: nextUid(), name: 'São Paulo', lat: -23.5505, lng: -46.6333, radius: 15 }],
     excludedLocations: [],
+    countries: [],
+    customAudiences: [],
     description: '',
     budgetMode: 'DIARIO',
     endDate: '',
@@ -2624,6 +2647,8 @@ function AdSetBlock({
   removable,
   savedAudiences,
   loadingSavedAudiences,
+  customAudiences,
+  loadingCustomAudiences,
   pages,
   loadingPages,
   objectiveKey,
@@ -2641,6 +2666,8 @@ function AdSetBlock({
   removable: boolean;
   savedAudiences: SavedAudience[] | null;
   loadingSavedAudiences: boolean;
+  customAudiences: CustomAudience[] | null;
+  loadingCustomAudiences: boolean;
   pages: AdAccountPageOption[];
   loadingPages: boolean;
   objectiveKey: ObjectiveKey;
@@ -2758,6 +2785,52 @@ function AdSetBlock({
             </p>
           )}
         </div>
+        {!adSet.savedAudience && (
+          <div>
+            <Label className="text-xs text-slate-400 block mb-1">Públicos personalizados/semelhantes (opcional)</Label>
+            <Select
+              value="__add__"
+              onValueChange={(v: string) => {
+                const escolhido = customAudiences?.find((a) => a.id === v);
+                if (escolhido && !adSet.customAudiences.some((a) => a.id === escolhido.id)) {
+                  onChange({ customAudiences: [...adSet.customAudiences, escolhido] });
+                }
+              }}
+            >
+              <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+                <SelectValue placeholder={loadingCustomAudiences ? 'Carregando públicos da conta...' : 'Adicionar público personalizado/semelhante'} />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                <SelectItem value="__add__" disabled>
+                  Escolha um público pra adicionar
+                </SelectItem>
+                {customAudiences
+                  ?.filter((a) => !adSet.customAudiences.some((chosen) => chosen.id === a.id))
+                  .map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name} ({a.subtype})
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            {adSet.customAudiences.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {adSet.customAudiences.map((a) => (
+                  <span key={a.id} className="inline-flex items-center gap-1 bg-slate-700 border border-slate-600 rounded-full px-2.5 py-1 text-xs text-slate-200">
+                    {a.name}
+                    <button
+                      type="button"
+                      onClick={() => onChange({ customAudiences: adSet.customAudiences.filter((c) => c.id !== a.id) })}
+                      className="text-slate-400 hover:text-rose-400"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <DetailedTargetingField
           value={adSet.detailedTargeting}
           onChange={(detailedTargeting) => onChange({ detailedTargeting })}
@@ -2775,6 +2848,27 @@ function AdSetBlock({
             excludedLocations={adSet.excludedLocations}
             onExcludedChange={(excludedLocations) => onChange({ excludedLocations })}
           />
+          <div className="mt-2">
+            <Label className="text-xs text-slate-400">País(es) inteiro(s) (opcional)</Label>
+            <Input
+              value={adSet.countries.join(', ')}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                onChange({
+                  countries: e.target.value
+                    .split(',')
+                    .map((c) => c.trim().toUpperCase())
+                    .filter((c) => c.length === 2),
+                })
+              }
+              placeholder="Ex: BR, PT, US (código de 2 letras, separado por vírgula)"
+              className="bg-slate-700 border-slate-600 text-slate-200"
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              {adSet.locations.length > 0
+                ? 'Com pontos marcados no mapa acima, a Meta ignora o país — apague os pontos pra usar país inteiro.'
+                : 'Alcança o país inteiro, sem precisar marcar cidade/bairro no mapa.'}
+            </p>
+          </div>
         </div>
         <AdSetPlatformPositionsFields
           platforms={adSet.platforms}
@@ -2945,6 +3039,22 @@ function CreateCampaignModal({
       .finally(() => setLoadingSavedAudiences(false));
   }, [open, adAccountId]);
 
+  // Públicos personalizados/semelhantes (Custom/Lookalike Audience) desta
+  // conta — pra somar ao direcionamento de cada conjunto (diferente dos
+  // públicos SALVOS acima, que são um preset inteiro).
+  const [customAudiences, setCustomAudiences] = useState<CustomAudience[] | null>(null);
+  const [loadingCustomAudiences, setLoadingCustomAudiences] = useState(false);
+  useEffect(() => {
+    if (!open || !adAccountId) return;
+    setCustomAudiences(null);
+    setLoadingCustomAudiences(true);
+    metaCreationService
+      .listAudiences(adAccountId)
+      .then(setCustomAudiences)
+      .catch(() => toast.error('Erro ao carregar públicos personalizados da Meta'))
+      .finally(() => setLoadingCustomAudiences(false));
+  }, [open, adAccountId]);
+
   // Páginas que podem veicular nesta conta de anúncios. A Meta resolve as
   // páginas pela BM dona da conta, não pela conta — por isso a lista muda
   // junto com a conta selecionada, e não com a campanha.
@@ -3079,6 +3189,7 @@ function CreateCampaignModal({
           const optimizationGoal = optimizationGoalFor(objectiveKey, adSet.meta);
           const metaEhConversa = optimizationGoal === 'CONVERSATIONS';
           const metaEhPixel = optimizationGoal === 'OFFSITE_CONVERSIONS';
+          const metaEhFormulario = optimizationGoal === 'LEAD_GENERATION';
           const orcamentoVitalicio = adSet.budgetMode === 'VITALICIO' && !cboAtivo && budgetValue > 0;
 
           return {
@@ -3103,6 +3214,12 @@ function CreateCampaignModal({
             whatsapp_phone_number: metaEhConversa && adSet.meta.mensagemDestino === 'WHATSAPP' ? adSet.meta.whatsappPhone.trim() || undefined : undefined,
             conversion_location: metaEhPixel ? adSet.meta.conversionLocation.trim() || undefined : undefined,
             conversion_event: metaEhPixel ? adSet.meta.conversionEvent : undefined,
+            // Formulário já existente na Página — vazio = Meta cria um novo
+            // (comportamento antigo). Ver AdSetMetaFields (seletor).
+            lead_form_id: metaEhFormulario ? adSet.meta.leadFormId.trim() || undefined : undefined,
+            // Mensagem pronta sugerida a quem abre a conversa — só faz
+            // sentido quando o destino é mesmo conversa (WhatsApp/Messenger).
+            message_template: metaEhConversa ? adSet.meta.messageTemplate.trim() || undefined : undefined,
             targeting: {
               age_min: parseInt(adSet.ageMin, 10),
               age_max: parseInt(adSet.ageMax, 10),
@@ -3117,6 +3234,9 @@ function CreateCampaignModal({
               audience_network_positions: adSet.audienceNetworkPositions.length > 0 ? adSet.audienceNetworkPositions : undefined,
               saved_audience_name: adSet.savedAudience?.name ?? undefined,
               detailed_targeting_manual: detailedTargetingManual.length > 0 ? detailedTargetingManual : undefined,
+              // Só entra quando NÃO tem pin marcado no mapa — a Graph API não
+              // combina `countries` com `custom_locations` no mesmo
+              // geo_locations (ver aviso no campo de país, AdSetBlock).
               geo_locations: {
                 // `cities` aqui carrega os pins do mapa (key=custom_location_pin) —
                 // o backend (Meta::AdsManagerService#normalize_geo) converte pra
@@ -3124,6 +3244,7 @@ function CreateCampaignModal({
                 // `location_types` NÃO vai: a Graph API atual recusa o array com
                 // o subcode 1870199.
                 cities: geoCities,
+                countries: adSet.locations.length === 0 && adSet.countries.length > 0 ? adSet.countries : undefined,
                 // Exclusão: o backend converte estes pins para
                 // `excluded_custom_locations`, que é o campo de "não anunciar
                 // aqui" da Graph API. Testado na conta real: exclusão dentro
@@ -3132,6 +3253,11 @@ function CreateCampaignModal({
                 // a Meta só aceita a exclusão na raiz do targeting.
                 excluded_cities: geoExcluidas.length > 0 ? geoExcluidas : undefined,
               },
+              // Público personalizado/semelhante somado ao direcionamento —
+              // o backend passa isso direto pra Graph API sem mexer (ver
+              // Meta::AdsManagerService#resolve_targeting).
+              custom_audiences:
+                adSet.customAudiences.length > 0 ? adSet.customAudiences.map((a) => ({ id: a.id })) : undefined,
             },
             ads: adsPayload,
           };
@@ -3452,6 +3578,8 @@ function CreateCampaignModal({
               removable={adSets.length > 1}
               savedAudiences={savedAudiences}
               loadingSavedAudiences={loadingSavedAudiences}
+              customAudiences={customAudiences}
+              loadingCustomAudiences={loadingCustomAudiences}
               pages={pages}
               loadingPages={loadingPages}
               objectiveKey={objectiveKey}

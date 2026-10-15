@@ -104,6 +104,10 @@ export interface AdSetTargeting {
     education_statuses?: Array<number>;
     relationship_statuses?: Array<number>;
   }>;
+  // Público personalizado/semelhante já anexado ao direcionamento — "Duplicar"
+  // só precisa do id pra pré-selecionar de novo (nome/subtipo vêm da listagem
+  // da conta, ver CustomAudience em metaCreationService.ts).
+  custom_audiences?: Array<{ id?: string; name?: string }>;
 }
 
 export interface PromotedObject {

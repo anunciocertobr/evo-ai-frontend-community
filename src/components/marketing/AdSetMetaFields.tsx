@@ -8,6 +8,7 @@ import {
   ObjectiveKey,
   WhatsappNumberOption,
 } from '@/services/marketing/metaAdsManagerService';
+import { metaCreationService, type LeadForm } from '@/services/marketing/metaCreationService';
 import {
   AdAccountPageOption,
   AdSetMetaValues,
@@ -58,6 +59,23 @@ export function AdSetMetaFields({
 }) {
   const [digitandoNumero, setDigitandoNumero] = useState(false);
   const selectedPage = pages.find((p) => p.id === values.pageId);
+
+  // Formulários Instantâneos já existentes NESTA página — recarrega sempre
+  // que a página muda, porque formulário pertence à página, não à conta.
+  const [leadForms, setLeadForms] = useState<LeadForm[]>([]);
+  const [loadingLeadForms, setLoadingLeadForms] = useState(false);
+  useEffect(() => {
+    if (values.conversaoTipo !== 'FORMULARIO' || !values.pageId) {
+      setLeadForms([]);
+      return;
+    }
+    setLoadingLeadForms(true);
+    metaCreationService
+      .listLeadForms(values.pageId)
+      .then(setLeadForms)
+      .catch(() => setLeadForms([]))
+      .finally(() => setLoadingLeadForms(false));
+  }, [values.conversaoTipo, values.pageId]);
   const tiposConversao = conversaoTiposFor(objectiveKey);
   // Existe alguma meta de conversão liberada pro objetivo (formulário, conversa
   // ou site) além de "Nenhuma" — se não, o bloco inteiro nem aparece.
@@ -188,6 +206,21 @@ export function AdSetMetaFields({
                   )}
                 </div>
               )}
+
+              <div>
+                <Label className="text-xs text-slate-400">Modelo de mensagem (opcional)</Label>
+                <Textarea
+                  value={values.messageTemplate}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange({ messageTemplate: e.target.value })}
+                  rows={2}
+                  placeholder="Ex: Olá! Vi seu anúncio e quero saber mais sobre..."
+                  className={inputClass}
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Mensagem pronta que a Meta sugere pra quem abre a conversa a partir do anúncio — a pessoa só precisa
+                  tocar em enviar. Sem isso, ela digita a mensagem do zero.
+                </p>
+              </div>
             </div>
           )}
 
@@ -227,10 +260,37 @@ export function AdSetMetaFields({
           )}
 
           {values.conversaoTipo === 'FORMULARIO' && (
-            <p className="text-xs text-slate-500">
-              O formulário é criado pelo próprio Meta e abre dentro do anúncio, sem destino extra. A Página precisa ter os
-              Termos de Serviço de Geração de Cadastros aceitos — sem isso a Meta recusa o conjunto.
-            </p>
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500">
+                O formulário abre dentro do anúncio, sem destino extra. A Página precisa ter os Termos de Serviço de
+                Geração de Cadastros aceitos — sem isso a Meta recusa o conjunto.
+              </p>
+              <div>
+                <Label className="text-xs text-slate-400">Formulário</Label>
+                <Select
+                  value={values.leadFormId || '__new__'}
+                  onValueChange={(v: string) => onChange({ leadFormId: v === '__new__' ? '' : v })}
+                  disabled={!values.pageId}
+                >
+                  <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+                    <SelectValue placeholder={!values.pageId ? 'Escolha a página primeiro' : loadingLeadForms ? 'Carregando formulários...' : undefined} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                    <SelectItem value="__new__">Criar formulário novo</SelectItem>
+                    {leadForms.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.name} {f.status !== 'ACTIVE' ? `(${f.status})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-500 mt-1">
+                  {values.leadFormId
+                    ? 'Reaproveita este formulário já existente na Página — as perguntas e a tela de agradecimento são as dele.'
+                    : 'Sem formulário escolhido, a Meta cria um novo (nome padrão, perguntas Nome + E-mail) ao publicar.'}
+                </p>
+              </div>
+            </div>
           )}
         </div>
       )}
