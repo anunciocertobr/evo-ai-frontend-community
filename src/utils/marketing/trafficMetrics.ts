@@ -89,6 +89,21 @@ export interface AdSetTargeting {
   // (conversa / conversão / formulário). Sem ele no tipo, o painel não
   // consegue mostrar o destino certo no modal de duplicação.
   optimization_goal?: string;
+  // Direcionamento detalhado real (interesses/comportamentos) — a Graph API
+  // devolve em grupos "E" (cada item do array é uma condição AND, os nomes
+  // dentro de cada grupo são "OU"). O "Duplicar" só precisa dos nomes pra
+  // preencher o campo de texto livre do formulário (ver detailedTargeting em
+  // AdSetFormState) — o id de cada interesse/comportamento não é reenviado.
+  flexible_spec?: Array<{
+    interests?: Array<{ id?: string; name?: string }>;
+    behaviors?: Array<{ id?: string; name?: string }>;
+    life_events?: Array<{ id?: string; name?: string }>;
+    industries?: Array<{ id?: string; name?: string }>;
+    income?: Array<{ id?: string; name?: string }>;
+    family_statuses?: Array<{ id?: string; name?: string }>;
+    education_statuses?: Array<number>;
+    relationship_statuses?: Array<number>;
+  }>;
 }
 
 export interface PromotedObject {

@@ -109,6 +109,7 @@ import {
   type SortKey,
   type SortDirection,
   type AdCreative,
+  type AdSetTargeting,
 } from '@/utils/marketing/trafficMetrics';
 import {
   METRIC_ORDER,
@@ -1874,7 +1875,18 @@ function DeleteConfirmDialog({
 // em preview real, vídeo como thumbnail + link externo (a Graph API não dá
 // um player embutido de graça sem token assinado), e carrossel como grid de
 // cartões. Nenhum dos três formatos existia na versão React antes disso.
-function CreativeViewerModal({ item, open, onOpenChange }: { item: AggregatedItem | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+function CreativeViewerModal({
+  item,
+  open,
+  onOpenChange,
+}: {
+  // Só usa id/name — aceita tanto um AggregatedItem completo (uso normal,
+  // "Ver Criativo" no painel) quanto um objeto mínimo (uso no formulário de
+  // duplicação, que só tem o id do anúncio de origem, ver AdBlock).
+  item: Pick<AggregatedItem, 'id' | 'name'> | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [details, setDetails] = useState<CreativeDetails | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -2252,6 +2264,29 @@ export interface CampaignPrefill {
 // formulário de criação preenchido. A escolha de "onde acontecem as
 // conversões" feita na tela de duplicar tem prioridade: é ela que troca o
 // destino do anúncio.
+// Achata os grupos "E" de `targeting.flexible_spec` (interesses/
+// comportamentos/etc, cada grupo do array é uma condição AND, os nomes
+// dentro de cada grupo são OR) numa lista de nomes separada por vírgula —
+// mesmo formato que o campo de texto livre "Direcionamento Detalhado" já
+// aceita na criação manual (ver detailedTargetingManual). Usado só pra
+// pré-preencher o "Duplicar"; perde a estrutura AND/OR original.
+function detailedTargetingFromFlexibleSpec(flexibleSpec: AdSetTargeting['flexible_spec']): string {
+  if (!flexibleSpec || flexibleSpec.length === 0) return '';
+  const names = flexibleSpec.flatMap((group) =>
+    [
+      ...(group.interests || []),
+      ...(group.behaviors || []),
+      ...(group.life_events || []),
+      ...(group.industries || []),
+      ...(group.income || []),
+      ...(group.family_statuses || []),
+    ]
+      .map((entry) => entry.name)
+      .filter((name): name is string => Boolean(name)),
+  );
+  return Array.from(new Set(names)).join(', ');
+}
+
 async function buildPrefillFromSource({
   item,
   level,
@@ -2322,6 +2357,13 @@ async function buildPrefillFromSource({
         audienceNetworkPositions: targeting.audience_network_positions || [],
         locations: pins.length > 0 ? pins : base.locations,
         excludedLocations: excludedPins,
+        // Interesses/comportamentos: a Graph API devolve `flexible_spec`
+        // estruturado (grupos "E", nomes dentro de cada grupo são "OU"), mas
+        // o campo do formulário é texto livre (igual ao direcionamento
+        // manual, que o backend resolve por nome) — achata todo mundo numa
+        // lista só, separada por vírgula. Perde a estrutura AND/OR original,
+        // mas é o mesmo formato que a criação manual já manda hoje.
+        detailedTargeting: detailedTargetingFromFlexibleSpec(targeting.flexible_spec),
         meta: {
           ...base.meta,
           // Reserva pra página: anúncio de Formulário às vezes não repete o
@@ -2453,6 +2495,7 @@ function AdBlock({
   anchorId?: string;
 }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   return (
     <div id={anchorId} className="space-y-3 p-3 border border-slate-700/70 rounded-lg bg-slate-900/30">
       <div className="flex items-center justify-between">
@@ -2528,12 +2571,15 @@ function AdBlock({
             ) : ad.mediaPreviewUrl ? (
               <img src={ad.mediaPreviewUrl} alt="Criativo de origem" className="w-24 h-24 object-cover rounded-md border border-slate-600" />
             ) : ad.mediaPreviewIsVideo ? (
-              <div
-                className="w-24 h-24 rounded-md border border-slate-600 flex items-center justify-center bg-slate-800 bg-cover bg-center"
+              <button
+                type="button"
+                onClick={() => setViewerOpen(true)}
+                title="Ver vídeo do criativo de origem"
+                className="w-24 h-24 rounded-md border border-slate-600 flex items-center justify-center bg-slate-800 bg-cover bg-center hover:brightness-110 transition-[filter]"
                 style={ad.mediaPreviewVideoThumbnail ? { backgroundImage: `url(${ad.mediaPreviewVideoThumbnail})` } : undefined}
               >
                 <PlayCircle className="w-8 h-8 text-white/90 drop-shadow" />
-              </div>
+              </button>
             ) : (
               <p className="text-xs text-amber-400/80">Não encontrei a mídia do anúncio de origem — confira antes de publicar.</p>
             )}
@@ -2554,6 +2600,13 @@ function AdBlock({
           </button>
         </div>
         <MediaLibraryPickerDialog open={libraryOpen} onOpenChange={setLibraryOpen} onPick={(file) => onChange({ mediaFile: file })} />
+        {ad.mediaFromAdId && (
+          <CreativeViewerModal
+            item={{ id: ad.mediaFromAdId, name: ad.name || 'Criativo de origem' }}
+            open={viewerOpen}
+            onOpenChange={setViewerOpen}
+          />
+        )}
       </div>
     </div>
   );
@@ -3127,9 +3180,17 @@ function CreateCampaignModal({
       (entries) => {
         const visible = entries.filter((entry) => entry.isIntersecting);
         if (visible.length === 0) return;
-        const topmost = visible.reduce((best, entry) =>
-          entry.boundingClientRect.top < best.boundingClientRect.top ? entry : best,
-        );
+        // "Anúncio" fica aninhado dentro de "Conjunto" no DOM — com as duas
+        // seções intersectando ao mesmo tempo, a regra ingênua de "menor top
+        // vence" sempre escolhia a seção-mãe (maior, começa mais acima).
+        // Preferir sempre o descendente mais específico quando uma seção
+        // visível contém a outra; só cai no critério de "topo" entre seções
+        // irmãs que não têm relação de aninhamento.
+        const topmost = visible.reduce((best, entry) => {
+          if (entry.target !== best.target && entry.target.contains(best.target)) return best;
+          if (entry.target !== best.target && best.target.contains(entry.target)) return entry;
+          return entry.boundingClientRect.top < best.boundingClientRect.top ? entry : best;
+        });
         setActiveAnchorId(topmost.target.id);
       },
       { root, rootMargin: '0px 0px -75% 0px', threshold: 0 },
