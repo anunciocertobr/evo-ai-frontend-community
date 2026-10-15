@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger } from '@evoapi/design-system';
-import { Plus, Users, KeyRound, Type, Pencil, Trash2, Link2, MessageSquareQuote, List, Phone, ClipboardList, Tag, Image as ImageIcon } from 'lucide-react';
+import { Plus, Users, KeyRound, Type, Pencil, Trash2, Link2, MessageSquareQuote, List, Phone, ClipboardList, Tag, Image as ImageIcon, Rocket, CheckCircle2 } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
+import { GoogleAdsPublishDialog } from '@/components/marketing/GoogleAdsPublishDialog';
 import { GoogleAdsAudienceDialog } from '@/components/marketing/GoogleAdsAudienceDialog';
 import { GoogleAdsKeywordGroupDialog } from '@/components/marketing/GoogleAdsKeywordGroupDialog';
 import { GoogleAdsHeadlineSetDialog } from '@/components/marketing/GoogleAdsHeadlineSetDialog';
@@ -34,16 +35,58 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
-function AssetActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+function AssetActions({
+  onEdit,
+  onDelete,
+  publishSlot,
+}: {
+  onEdit: () => void;
+  onDelete: () => void;
+  publishSlot?: ReactNode;
+}) {
   return (
-    <div className="flex gap-1.5 pt-1">
+    <div className="flex flex-wrap gap-1.5 pt-1">
       <Button size="sm" variant="outline" onClick={onEdit}>
         <Pencil className="w-3.5 h-3.5 mr-1" /> Editar
       </Button>
       <Button size="sm" variant="outline" onClick={onDelete}>
         <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-500" /> Excluir
       </Button>
+      {publishSlot}
     </div>
+  );
+}
+
+// Publicação real na Google Ads API — só pros 7 tipos que a API aceita como
+// Asset (sitelink/callout/structured_snippet/call/lead_form/price/image_asset).
+// Audiência/palavra-chave/título não têm equivalente de "Asset" standalone.
+function PublishControl({
+  connected,
+  publishedAt,
+  onPublish,
+}: {
+  connected: boolean;
+  publishedAt?: string | null;
+  onPublish: () => void;
+}) {
+  if (!connected) {
+    return (
+      <Button size="sm" variant="outline" disabled title="Conecte uma conta Google Ads em Integrações pra publicar.">
+        <Rocket className="w-3.5 h-3.5 mr-1" /> Publicar
+      </Button>
+    );
+  }
+  if (publishedAt) {
+    return (
+      <Button size="sm" variant="outline" onClick={onPublish} title={`Publicado em ${new Date(publishedAt).toLocaleString('pt-BR')}`}>
+        <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-500" /> Publicado
+      </Button>
+    );
+  }
+  return (
+    <Button size="sm" onClick={onPublish}>
+      <Rocket className="w-3.5 h-3.5 mr-1" /> Publicar
+    </Button>
   );
 }
 
@@ -107,6 +150,17 @@ export default function GoogleAdsCreationPage() {
   const [loadingImageSets, setLoadingImageSets] = useState(false);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [editingImageSet, setEditingImageSet] = useState<GoogleAdsAsset<ImageAssetPayload> | null>(null);
+
+  // Publicação real na Google Ads API
+  const [googleAdsConnected, setGoogleAdsConnected] = useState(false);
+  const [publishTarget, setPublishTarget] = useState<{ id: string; name: string; reload: () => void } | null>(null);
+
+  useEffect(() => {
+    googleAdsCreationService
+      .getConnectionStatus()
+      .then((status) => setGoogleAdsConnected(status.connected))
+      .catch(() => setGoogleAdsConnected(false));
+  }, []);
 
   const loadAudiences = useCallback(() => {
     setLoadingAudiences(true);
@@ -237,7 +291,11 @@ export default function GoogleAdsCreationPage() {
     <div className="space-y-4 pb-8">
       <BaseHeader
         title="Criação Google Ads"
-        subtitle="Monte públicos, palavras-chave e títulos/descrições — sem conta do Google Ads conectada ainda, fica salvo aqui pra publicar assim que a integração estiver pronta."
+        subtitle={
+          googleAdsConnected
+            ? 'Conta Google Ads conectada — sitelinks, frases de destaque, snippets, chamada, formulário de lead, preço e imagens podem ser publicados direto na sua conta.'
+            : 'Monte públicos, palavras-chave, títulos/descrições e extensões — sem conta do Google Ads conectada ainda, fica salvo aqui pra publicar assim que a integração estiver pronta.'
+        }
       />
 
       <Tabs defaultValue="audiences">
@@ -474,6 +532,13 @@ export default function GoogleAdsCreationPage() {
                       setSitelinkDialogOpen(true);
                     }}
                     onDelete={() => deleteAsset(s.id, loadSitelinkSets, s.name)}
+                    publishSlot={
+                      <PublishControl
+                        connected={googleAdsConnected}
+                        publishedAt={s.published_at}
+                        onPublish={() => setPublishTarget({ id: s.id, name: s.name, reload: loadSitelinkSets })}
+                      />
+                    }
                   />
                 </div>
               ))}
@@ -530,6 +595,13 @@ export default function GoogleAdsCreationPage() {
                       setCalloutDialogOpen(true);
                     }}
                     onDelete={() => deleteAsset(c.id, loadCalloutSets, c.name)}
+                    publishSlot={
+                      <PublishControl
+                        connected={googleAdsConnected}
+                        publishedAt={c.published_at}
+                        onPublish={() => setPublishTarget({ id: c.id, name: c.name, reload: loadCalloutSets })}
+                      />
+                    }
                   />
                 </div>
               ))}
@@ -578,6 +650,13 @@ export default function GoogleAdsCreationPage() {
                       setSnippetDialogOpen(true);
                     }}
                     onDelete={() => deleteAsset(s.id, loadSnippetSets, s.name)}
+                    publishSlot={
+                      <PublishControl
+                        connected={googleAdsConnected}
+                        publishedAt={s.published_at}
+                        onPublish={() => setPublishTarget({ id: s.id, name: s.name, reload: loadSnippetSets })}
+                      />
+                    }
                   />
                 </div>
               ))}
@@ -625,6 +704,13 @@ export default function GoogleAdsCreationPage() {
                       setCallDialogOpen(true);
                     }}
                     onDelete={() => deleteAsset(c.id, loadCallSets, c.name)}
+                    publishSlot={
+                      <PublishControl
+                        connected={googleAdsConnected}
+                        publishedAt={c.published_at}
+                        onPublish={() => setPublishTarget({ id: c.id, name: c.name, reload: loadCallSets })}
+                      />
+                    }
                   />
                 </div>
               ))}
@@ -673,6 +759,13 @@ export default function GoogleAdsCreationPage() {
                       setLeadFormDialogOpen(true);
                     }}
                     onDelete={() => deleteAsset(lf.id, loadLeadFormSets, lf.name)}
+                    publishSlot={
+                      <PublishControl
+                        connected={googleAdsConnected}
+                        publishedAt={lf.published_at}
+                        onPublish={() => setPublishTarget({ id: lf.id, name: lf.name, reload: loadLeadFormSets })}
+                      />
+                    }
                   />
                 </div>
               ))}
@@ -720,6 +813,13 @@ export default function GoogleAdsCreationPage() {
                       setPriceDialogOpen(true);
                     }}
                     onDelete={() => deleteAsset(p.id, loadPriceSets, p.name)}
+                    publishSlot={
+                      <PublishControl
+                        connected={googleAdsConnected}
+                        publishedAt={p.published_at}
+                        onPublish={() => setPublishTarget({ id: p.id, name: p.name, reload: loadPriceSets })}
+                      />
+                    }
                   />
                 </div>
               ))}
@@ -772,6 +872,13 @@ export default function GoogleAdsCreationPage() {
                       setImageDialogOpen(true);
                     }}
                     onDelete={() => deleteAsset(img.id, loadImageSets, img.name)}
+                    publishSlot={
+                      <PublishControl
+                        connected={googleAdsConnected}
+                        publishedAt={img.published_at}
+                        onPublish={() => setPublishTarget({ id: img.id, name: img.name, reload: loadImageSets })}
+                      />
+                    }
                   />
                 </div>
               ))}
@@ -786,6 +893,16 @@ export default function GoogleAdsCreationPage() {
           />
         </TabsContent>
       </Tabs>
+
+      {publishTarget && (
+        <GoogleAdsPublishDialog
+          open={Boolean(publishTarget)}
+          onOpenChange={(open) => !open && setPublishTarget(null)}
+          assetId={publishTarget.id}
+          assetName={publishTarget.name}
+          onPublished={() => publishTarget.reload()}
+        />
+      )}
     </div>
   );
 }

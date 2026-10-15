@@ -1,4 +1,5 @@
 import api from '@/services/core/api';
+import { integrationsService } from '@/services/integrations/integrationsService';
 
 export type GoogleAdsAssetKind =
   | 'audience'
@@ -165,8 +166,21 @@ export interface GoogleAdsAsset<P = GoogleAdsAssetPayload> {
   kind: GoogleAdsAssetKind;
   name: string;
   payload: P;
+  published_at?: string | null;
+  google_resource_names?: string[];
   created_at: string;
   updated_at: string;
+}
+
+export interface GoogleAdsCampaignOption {
+  id: string;
+  name: string;
+  status: string;
+}
+
+export interface GoogleAdsConnectionStatus {
+  connected: boolean;
+  customerId: string | null;
 }
 
 interface ApiEnvelope<T> {
@@ -220,6 +234,29 @@ class GoogleAdsCreationService {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data.data.file_url;
+  }
+
+  // "Conectado" = canal Google Ads autorizado E com uma conta (customer_id)
+  // escolhida — sem isso, a publicação não tem pra onde ir.
+  async getConnectionStatus(): Promise<GoogleAdsConnectionStatus> {
+    const hook = await integrationsService.getIntegrationHook('google_ads');
+    const customerId = (hook?.settings?.customer_id as string | undefined)?.trim() || null;
+    return { connected: Boolean(hook && customerId), customerId };
+  }
+
+  async listCampaigns(): Promise<GoogleAdsCampaignOption[]> {
+    const response = await api.get<ApiEnvelope<{ id: string; name: string; status: string }[]>>(
+      `${this.baseUrl}/campaigns`,
+    );
+    return response.data.data.map((c) => ({ id: c.id, name: c.name, status: c.status }));
+  }
+
+  // `campaignId` opcional — sem ele, a Google liga o asset na conta inteira.
+  async publish<P = GoogleAdsAssetPayload>(id: string, campaignId?: string): Promise<GoogleAdsAsset<P>> {
+    const response = await api.post<ApiEnvelope<GoogleAdsAsset<P>>>(`${this.baseUrl}/${id}/publish`, {
+      campaign_id: campaignId,
+    });
+    return response.data.data;
   }
 }
 
