@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Code2,
   Save,
+  Search,
   Trash2,
   Users,
 } from 'lucide-react';
@@ -51,6 +52,7 @@ import { BaseHeader } from '@/components/base';
 import { fiscalEstablishmentsService } from '@/services/finances/fiscalEstablishmentsService';
 import { serviceInvoicesService } from '@/services/finances/serviceInvoicesService';
 import { fiscalTomadoresService } from '@/services/finances/fiscalTomadoresService';
+import { isValidCnpj, lookupCnpj, onlyDigits, type CnpjLookupResult } from '@/services/finances/cnpjService';
 import { apiErrorMessage } from '@/utils/apiHelpers';
 import {
   FiscalEstablishment,
@@ -108,6 +110,9 @@ export default function NotaFiscalServicoPage() {
   const [savingTomador, setSavingTomador] = useState(false);
   const [manageTomadoresOpen, setManageTomadoresOpen] = useState(false);
   const [deletingTomadorId, setDeletingTomadorId] = useState<string | null>(null);
+  // Consulta de CNPJ do tomador (BrasilAPI) — preenche os campos sozinho.
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+  const [lastCnpjLookup, setLastCnpjLookup] = useState('');
 
   const activeEstablishments = useMemo(() => establishments.filter((e) => e.active), [establishments]);
 
@@ -199,6 +204,42 @@ export default function NotaFiscalServicoPage() {
       toast.error(apiErrorMessage(error) || 'Erro ao remover tomador.');
     } finally {
       setDeletingTomadorId(null);
+    }
+  };
+
+  // Preenche nome/e-mail/endereço do tomador só com o que a consulta trouxe —
+  // o que a pessoa já digitou e a BrasilAPI não devolveu fica intacto.
+  const applyCnpjData = (data: CnpjLookupResult) => {
+    setForm((prev) => ({
+      ...prev,
+      tomador_nome: data.razaoSocial || data.nomeFantasia || prev.tomador_nome,
+      tomador_email: data.email || prev.tomador_email,
+      tomador_endereco: {
+        ...prev.tomador_endereco,
+        logradouro: data.endereco.logradouro || prev.tomador_endereco.logradouro,
+        numero: data.endereco.numero || prev.tomador_endereco.numero,
+        bairro: data.endereco.bairro || prev.tomador_endereco.bairro,
+        cep: data.endereco.cep || prev.tomador_endereco.cep,
+        codigo_municipio: data.endereco.codigoMunicipio || prev.tomador_endereco.codigo_municipio,
+        uf: data.endereco.uf || prev.tomador_endereco.uf,
+      },
+    }));
+  };
+
+  const handleLookupCnpj = async (rawCnpj: string) => {
+    const digits = onlyDigits(rawCnpj);
+    if (!isValidCnpj(digits)) return;
+    setCnpjLoading(true);
+    setLastCnpjLookup(digits);
+    try {
+      const data = await lookupCnpj(digits);
+      applyCnpjData(data);
+      toast.success('Dados do tomador preenchidos pelo CNPJ.');
+    } catch (error) {
+      setLastCnpjLookup('');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível consultar o CNPJ.');
+    } finally {
+      setCnpjLoading(false);
     }
   };
 
@@ -426,12 +467,32 @@ export default function NotaFiscalServicoPage() {
               </div>
               <div>
                 <Label className="text-xs">CPF/CNPJ do tomador</Label>
-                <Input
-                  value={form.tomador_cpf_cnpj}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setForm((prev) => ({ ...prev, tomador_cpf_cnpj: e.target.value }))
-                  }
-                />
+                <div className="flex gap-1">
+                  <Input
+                    value={form.tomador_cpf_cnpj}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      const value = e.target.value;
+                      setForm((prev) => ({ ...prev, tomador_cpf_cnpj: value }));
+                      const digits = onlyDigits(value);
+                      if (digits.length === 14 && digits !== lastCnpjLookup && isValidCnpj(digits)) {
+                        handleLookupCnpj(digits);
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Buscar dados pelo CNPJ"
+                    onClick={() => handleLookupCnpj(form.tomador_cpf_cnpj)}
+                    disabled={cnpjLoading || !isValidCnpj(form.tomador_cpf_cnpj)}
+                  >
+                    {cnpjLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  CNPJ (cliente PJ) preenche razão social, e-mail e endereço automaticamente.
+                </p>
               </div>
               <div className="sm:col-span-2">
                 <Label className="text-xs">E-mail do tomador (opcional)</Label>

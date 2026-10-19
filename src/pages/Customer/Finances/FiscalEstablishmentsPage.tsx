@@ -9,6 +9,7 @@ import {
   UploadCloud,
   FileCheck2,
   Building2,
+  Pencil,
 } from 'lucide-react';
 import {
   Button,
@@ -81,6 +82,7 @@ export default function FiscalEstablishmentsPage() {
   const [loading, setLoading] = useState(true);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FiscalEstablishmentFormData>(emptyForm);
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
   const [certificatePassword, setCertificatePassword] = useState('');
@@ -107,7 +109,29 @@ export default function FiscalEstablishmentsPage() {
   }, [loadEstablishments]);
 
   const openCreateDialog = () => {
+    setEditingId(null);
     setForm(emptyForm);
+    setCertificateFile(null);
+    setCertificatePassword('');
+    setDialogOpen(true);
+  };
+
+  // Editar reaproveita o mesmo diálogo; o certificado atual fica mantido a
+  // menos que um novo arquivo seja enviado (o backend só troca se vier file).
+  const openEditDialog = (establishment: FiscalEstablishment) => {
+    setEditingId(establishment.id);
+    setForm({
+      municipio_ibge_code: establishment.municipio_ibge_code,
+      municipio_nome: establishment.municipio_nome,
+      uf: establishment.uf,
+      inscricao_municipal: establishment.inscricao_municipal,
+      cnae_override: establishment.cnae_override ?? undefined,
+      aliquota_iss_pct: parseFloat(establishment.aliquota_iss_pct) || 0,
+      ambiente: establishment.ambiente,
+      provider_key: establishment.provider_key,
+      rps_serie: establishment.rps_serie,
+      active: establishment.active,
+    });
     setCertificateFile(null);
     setCertificatePassword('');
     setDialogOpen(true);
@@ -136,12 +160,22 @@ export default function FiscalEstablishmentsPage() {
     }
     setSaving(true);
     try {
-      await fiscalEstablishmentsService.create(
-        form,
-        certificateFile || undefined,
-        certificatePassword || undefined,
-      );
-      toast.success('Estabelecimento fiscal cadastrado com sucesso!');
+      if (editingId) {
+        await fiscalEstablishmentsService.update(
+          editingId,
+          form,
+          certificateFile || undefined,
+          certificatePassword || undefined,
+        );
+        toast.success('Estabelecimento fiscal atualizado.');
+      } else {
+        await fiscalEstablishmentsService.create(
+          form,
+          certificateFile || undefined,
+          certificatePassword || undefined,
+        );
+        toast.success('Estabelecimento fiscal cadastrado com sucesso!');
+      }
       setDialogOpen(false);
       loadEstablishments();
     } catch (error) {
@@ -235,7 +269,20 @@ export default function FiscalEstablishmentsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(establishment)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Editar"
+                          onClick={() => openEditDialog(establishment)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Remover"
+                          onClick={() => setDeleteTarget(establishment)}
+                        >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </TableCell>
@@ -259,9 +306,11 @@ export default function FiscalEstablishmentsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Novo estabelecimento fiscal</DialogTitle>
+            <DialogTitle>{editingId ? 'Editar estabelecimento fiscal' : 'Novo estabelecimento fiscal'}</DialogTitle>
             <DialogDescription>
-              O certificado digital A1 (.pfx/.p12) é obrigatório pra autenticar no webservice da prefeitura.
+              {editingId
+                ? 'Altere os dados e salve. O certificado atual é mantido — envie um novo arquivo só se quiser substituí-lo.'
+                : 'O certificado digital A1 (.pfx/.p12) é obrigatório pra autenticar no webservice da prefeitura.'}
             </DialogDescription>
           </DialogHeader>
 
