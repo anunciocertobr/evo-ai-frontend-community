@@ -17,6 +17,9 @@ export interface MetaLeadNotificationSetting {
   // acima) quando a lista nunca foi salva no formato novo — ver
   // MetaLeadNotificationSetting#effective_channels no backend.
   channels: NotifyChannel[];
+  // Seções que vão na mensagem (ver notifyContentSections.ts). null = nunca
+  // configurado e o backend envia todas.
+  content_sections: string[] | null;
 }
 
 export interface MetaLeadNotificationSettingPayload {
@@ -24,6 +27,7 @@ export interface MetaLeadNotificationSettingPayload {
   form_name?: string;
   enabled: boolean;
   channels: NotifyChannel[];
+  content_sections: string[];
 }
 
 export const metaLeadNotificationSettingsService = {

@@ -5,7 +5,9 @@ import inboxesService from '@/services/channels/inboxesService';
 import type { Inbox } from '@/types/channels/inbox';
 import { adminConfigService } from '@/services/admin/adminConfigService';
 import type { NotifyChannel } from '@/services/admin/metaLeadNotificationSettingsService';
+import { ALL_NOTIFY_CONTENT_SECTIONS } from './notifyContentSections';
 import { NotifyChannelsEditor } from './NotifyChannelsEditor';
+import { NotifyContentEditor } from './NotifyContentEditor';
 
 const CONFIG_TYPE = 'meta_leads_notify';
 
@@ -15,6 +17,7 @@ interface DefaultSettings {
   META_LEADS_NOTIFY_INBOX_ID: string;
   META_LEADS_NOTIFY_WHATSAPP_NUMBER: string;
   META_LEADS_NOTIFY_CHANNELS: string;
+  META_LEADS_NOTIFY_CONTENT: string;
 }
 
 const DEFAULTS: DefaultSettings = {
@@ -22,6 +25,7 @@ const DEFAULTS: DefaultSettings = {
   META_LEADS_NOTIFY_INBOX_ID: '',
   META_LEADS_NOTIFY_WHATSAPP_NUMBER: '',
   META_LEADS_NOTIFY_CHANNELS: '[]',
+  META_LEADS_NOTIFY_CONTENT: '',
 };
 
 // Lê META_LEADS_NOTIFY_CHANNELS (formato novo); se vazio, cai pro par antigo
@@ -42,6 +46,20 @@ const parseChannels = (settings: DefaultSettings): NotifyChannel[] => {
   return [];
 };
 
+// Vazio/ausente ou JSON inválido = todas as seções (mesma leitura do backend
+// em WhatsappNotifierService#account_default_content_sections).
+const parseContentSections = (settings: DefaultSettings): string[] => {
+  if (settings.META_LEADS_NOTIFY_CONTENT) {
+    try {
+      const parsed = JSON.parse(settings.META_LEADS_NOTIFY_CONTENT);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // ignora JSON inválido, cai pro "todas" abaixo
+    }
+  }
+  return ALL_NOTIFY_CONTENT_SECTIONS;
+};
+
 interface MetaLeadsNotifyDefaultDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -54,6 +72,7 @@ export function MetaLeadsNotifyDefaultDialog({ open, onOpenChange }: MetaLeadsNo
   const [saving, setSaving] = useState(false);
 
   const [channels, setChannels] = useState<NotifyChannel[]>([]);
+  const [contentSections, setContentSections] = useState<string[]>(ALL_NOTIFY_CONTENT_SECTIONS);
 
   useEffect(() => {
     if (!open) return;
@@ -67,6 +86,7 @@ export function MetaLeadsNotifyDefaultDialog({ open, onOpenChange }: MetaLeadsNo
         } as DefaultSettings;
         setSettings(merged);
         setChannels(parseChannels(merged));
+        setContentSections(parseContentSections(merged));
       })
       .catch(() => toast.error('Erro ao carregar o padrão de notificação da conta.'))
       .finally(() => setLoading(false));
@@ -82,6 +102,7 @@ export function MetaLeadsNotifyDefaultDialog({ open, onOpenChange }: MetaLeadsNo
       await adminConfigService.saveConfig(CONFIG_TYPE, {
         ...settings,
         META_LEADS_NOTIFY_CHANNELS: JSON.stringify(validChannels),
+        META_LEADS_NOTIFY_CONTENT: JSON.stringify(contentSections),
       });
       toast.success('Padrão de notificação salvo!');
       onOpenChange(false);
@@ -112,7 +133,12 @@ export function MetaLeadsNotifyDefaultDialog({ open, onOpenChange }: MetaLeadsNo
               <Switch checked={enabled} onCheckedChange={(c) => set('META_LEADS_NOTIFY_ENABLED', c ? 'true' : 'false')} />
             </div>
 
-            {enabled && <NotifyChannelsEditor channels={channels} onChange={setChannels} inboxes={inboxes} />}
+            {enabled && (
+              <>
+                <NotifyChannelsEditor channels={channels} onChange={setChannels} inboxes={inboxes} />
+                <NotifyContentEditor value={contentSections} onChange={setContentSections} />
+              </>
+            )}
           </div>
         )}
 

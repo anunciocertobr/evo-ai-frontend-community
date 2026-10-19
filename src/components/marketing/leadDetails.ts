@@ -126,6 +126,7 @@ export const LEAD_CSV_EXTRA_COLUMNS = [
   'Público personalizado',
   'Público semelhante',
   'Posicionamento',
+  'Plataformas',
   'Dispositivos',
 ];
 
@@ -148,6 +149,7 @@ export const leadCsvExtraValues = (lead: LeadFormLead): string[] => {
     (alvo?.publicos_personalizados || []).join('; '),
     (alvo?.publicos_semelhantes || []).join('; '),
     (alvo?.posicionamento || []).join('; '),
+    (alvo?.plataformas || []).map((p) => PLACEMENT_PLATFORM_LABEL[p] || p).join('; '),
     (alvo?.dispositivos || []).join('; '),
   ];
 };
