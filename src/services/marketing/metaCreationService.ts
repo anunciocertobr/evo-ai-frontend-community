@@ -26,6 +26,17 @@ export interface LeadTargetingContext {
   plataformas?: string[];
   dispositivos?: string[];
   localizacoes?: string[];
+  // Campos novos do resumo do conjunto (mesmos nomes do backend):
+  // posicionamento = plataforma + espaços de cada uma (feed, stories,
+  // reels...), direcionamento = interesses/comportamentos/etc do
+  // flexible_spec, públicos = nome resolvido de salvo/personalizado/
+  // semelhante e orcamento já formatado ("R$ 30,00/dia").
+  posicionamento?: string[];
+  direcionamento?: string[];
+  orcamento?: string;
+  publicos_salvos?: string[];
+  publicos_personalizados?: string[];
+  publicos_semelhantes?: string[];
 }
 
 export interface LeadFormLead {
@@ -42,6 +53,9 @@ export interface LeadFormLead {
   criativo_imagem?: string;
   criativo_video?: string;
   criativo_link?: string;
+  criativo_texto_principal?: string;
+  criativo_titulo?: string;
+  criativo_descricao?: string;
   platform?: string;
   is_organic?: boolean;
   publico_alvo?: LeadTargetingContext;

@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Search, Film, ExternalLink } from 'lucide-react';
+import { Loader2, Search, Film, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input } from '@evoapi/design-system';
 import { metaCreationService, LeadSearchResult } from '@/services/marketing/metaCreationService';
+import LeadDetailsCell from '@/components/marketing/LeadDetailsCell';
+import { formatPublicoAlvo } from '@/components/marketing/leadDetails';
 
 interface Props {
   open: boolean;
@@ -21,23 +23,6 @@ const PLATFORM_LABEL: Record<string, string> = {
   wa: 'WhatsApp',
 };
 
-// Resumo do público-alvo CONFIGURADO no anúncio que trouxe o lead — não é
-// dado do indivíduo (ver comentário em LeadTargetingContext no service).
-const formatPublicoAlvo = (lead: LeadSearchResult) => {
-  const alvo = lead.publico_alvo;
-  if (!alvo) return null;
-  const idade = alvo.idade_min || alvo.idade_max ? `${alvo.idade_min ?? '—'}-${alvo.idade_max ?? '—'} anos` : null;
-  const resumo = [idade, alvo.generos].filter(Boolean).join(' · ');
-  const detalhe = [
-    alvo.plataformas?.length ? `Plataformas: ${alvo.plataformas.join(', ')}` : null,
-    alvo.dispositivos?.length ? `Dispositivos: ${alvo.dispositivos.join(', ')}` : null,
-    alvo.localizacoes?.length ? `Locais: ${alvo.localizacoes.join(', ')}` : null,
-  ]
-    .filter(Boolean)
-    .join('\n');
-  return { resumo: resumo || '-', detalhe };
-};
-
 // Busca por telefone/nome/email sem saber de antemão qual formulário —
 // vai direto na Graph API (não existe banco local completo pra buscar, ver
 // comentário no service), varrendo todos os formulários da página. Por ser
@@ -48,6 +33,8 @@ export default function LeadSearchDialog({ open, onOpenChange, pageId, pageName 
   const [results, setResults] = useState<LeadSearchResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [playingVideo, setPlayingVideo] = useState<LeadSearchResult | null>(null);
+  // Linha expandida: IDs, criativo completo e direcionamento do anúncio.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fieldNames = useMemo(() => {
     const names: string[] = [];
@@ -133,6 +120,7 @@ export default function LeadSearchDialog({ open, onOpenChange, pageId, pageName 
               <table className="w-full text-xs">
                 <thead className="bg-muted sticky top-0">
                   <tr>
+                    <th className="p-2 w-6" />
                     <th className="text-left p-2 font-medium whitespace-nowrap">Formulário</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Data</th>
                     {fieldNames.map((name) => (
@@ -148,7 +136,18 @@ export default function LeadSearchDialog({ open, onOpenChange, pageId, pageName 
                 </thead>
                 <tbody>
                   {results.map((lead) => (
-                    <tr key={lead.id} className="border-t border-border">
+                    <Fragment key={lead.id}>
+                    <tr className="border-t border-border">
+                      <td className="p-2 align-top">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedId((atual) => (atual === lead.id ? null : lead.id))}
+                          className="text-muted-foreground hover:text-foreground"
+                          title="Ver IDs, criativo e direcionamento"
+                        >
+                          {expandedId === lead.id ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                        </button>
+                      </td>
                       <td className="p-2 whitespace-nowrap font-medium">{lead.form_name}</td>
                       <td className="p-2 whitespace-nowrap text-muted-foreground">{formatDate(lead.created_time)}</td>
                       {fieldNames.map((name) => (
@@ -156,7 +155,12 @@ export default function LeadSearchDialog({ open, onOpenChange, pageId, pageName 
                           {fieldValue(lead, name)}
                         </td>
                       ))}
-                      <td className="p-2 whitespace-nowrap">{lead.campaign_name || '-'}</td>
+                      <td className="p-2 whitespace-nowrap">
+                        <span>{lead.campaign_name || '-'}</span>
+                        {lead.campaign_id && (
+                          <span className="block text-[10px] font-mono text-muted-foreground">{lead.campaign_id}</span>
+                        )}
+                      </td>
                       <td className="p-2 whitespace-nowrap">
                         {lead.criativo_imagem ? (
                           <button
@@ -189,10 +193,18 @@ export default function LeadSearchDialog({ open, onOpenChange, pageId, pageName 
                           </span>
                         )}
                       </td>
-                      <td className="p-2 whitespace-nowrap" title={formatPublicoAlvo(lead)?.detalhe}>
-                        {formatPublicoAlvo(lead)?.resumo || '-'}
+                      <td className="p-2 whitespace-nowrap" title={formatPublicoAlvo(lead.publico_alvo)?.detalhe}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedId((atual) => (atual === lead.id ? null : lead.id))}
+                          className="text-left hover:underline decoration-dotted"
+                        >
+                          {formatPublicoAlvo(lead.publico_alvo)?.resumo || '-'}
+                        </button>
                       </td>
                     </tr>
+                    {expandedId === lead.id && <LeadDetailsCell lead={lead} colSpan={fieldNames.length + 6} />}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

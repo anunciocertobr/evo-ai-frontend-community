@@ -399,6 +399,7 @@ export class MetaAdsManagerService {
         carrossel: [],
         titulo: null,
         texto_principal: null,
+        descricao: null,
         criativo_nome: null,
       }
     );
@@ -418,6 +419,7 @@ export interface CreativeDetails {
   carrossel: CreativeCarouselCard[];
   titulo: string | null;
   texto_principal: string | null;
+  descricao: string | null;
   criativo_nome: string | null;
 }
 
