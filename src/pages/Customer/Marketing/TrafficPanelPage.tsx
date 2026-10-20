@@ -2419,7 +2419,19 @@ async function buildPrefillFromSource({
           // Reserva: se o chamador não escolheu nada (conversaoTipo ===
           // 'NENHUMA'), usa o que ESTE conjunto de origem já tinha, em vez de
           // sempre cair no "Nenhuma" do formulário em branco.
-          conversaoTipo: conversaoTipo === 'NENHUMA' ? conversaoTipoFromOptimizationGoal(origem.optimization_goal) : conversaoTipo,
+          // `conversaoTipoFromOptimizationGoal` olha só o optimization_goal,
+          // e "Geração de Leads otimizado para WhatsApp" é uma combinação
+          // real da Meta (optimization_goal=LEAD_GENERATION +
+          // destination_type=WHATSAPP, confirmado ao vivo numa campanha real
+          // de cliente) — sem essa checagem primeiro, caía em "Formulário" e
+          // escondia o bloco de WhatsApp (número/modelo de mensagem) mesmo o
+          // conjunto já tendo um número de WhatsApp configurado.
+          conversaoTipo:
+            conversaoTipo === 'NENHUMA'
+              ? promovido.whatsapp_phone_number
+                ? 'WHATSAPP'
+                : conversaoTipoFromOptimizationGoal(origem.optimization_goal)
+              : conversaoTipo,
         },
         ads:
           adsOrigem.length > 0
@@ -3427,14 +3439,26 @@ function CreateCampaignModal({
     };
 
     updateActiveAnchor();
-    root.addEventListener('scroll', updateActiveAnchor, { passive: true });
+    // Captura no `document` (fase de captura, `capture: true`) em vez de só
+    // no `root`: o evento `scroll` nativo NÃO faz bubbling, então um
+    // listener preso no elemento "errado" (ex: se algum wrapper do Radix
+    // Dialog acabar sendo o que de fato rola, não `contentScrollRef`) nunca
+    // dispara. A fase de captura, ao contrário, passa por TODOS os
+    // ancestrais antes de chegar no alvo, então pega o scroll de qualquer
+    // elemento rolável dentro do modal — reportado ao vivo (20/10) que
+    // clicar nos atalhos pulava certo (prova que os ids/seções estão
+    // corretos) mas rolar com o mouse nunca atualizava o destaque.
+    document.addEventListener('scroll', updateActiveAnchor, { capture: true, passive: true });
     // Conteúdo mudando de altura (ex: adicionar pergunta rápida, trocar pra
     // "Vitalício" que soma um campo de data) também pode mudar qual seção
-    // está na faixa, mesmo sem o usuário rolar.
+    // está na faixa, mesmo sem o usuário rolar. Observa cada seção (não só
+    // `root`, que tem altura fixa e nunca muda de tamanho por conta do
+    // conteúdo interno crescer).
     const resizeObserver = new ResizeObserver(updateActiveAnchor);
     resizeObserver.observe(root);
+    root.querySelectorAll<HTMLElement>('[id^="create-campaign-anchor-"]').forEach((section) => resizeObserver.observe(section));
     return () => {
-      root.removeEventListener('scroll', updateActiveAnchor);
+      document.removeEventListener('scroll', updateActiveAnchor, { capture: true });
       resizeObserver.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
