@@ -3392,38 +3392,51 @@ function CreateCampaignModal({
   // conteúdo até a seção correspondente em vez de trocar de tela.
   const scrollToAnchor = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  // Observa as seções (mesmos ids que scrollToAnchor usa) pra saber qual
-  // está no topo da área visível e destacar o atalho correspondente — sem
-  // isso a barra "Estrutura" nunca reage ao scroll, só ao próprio clique.
-  // rootMargin corta a área de detecção pra uma faixa fina perto do topo do
-  // container (em vez da área toda), senão duas seções grandes ficam
-  // "visíveis" ao mesmo tempo e a ativa pisca entre as duas.
+  // Observa o scroll (não IntersectionObserver) pra saber qual seção está
+  // na faixa de referência (25% do topo do container) e destacar o atalho
+  // correspondente — sem isso a barra "Estrutura" nunca reage ao scroll, só
+  // ao próprio clique. Trocado de IntersectionObserver pra cálculo direto
+  // de posição (2026-10-20): com os campos novos do Anúncio (Formulário/
+  // Modelo de mensagem, perguntas rápidas) as seções ficaram bem mais altas,
+  // e o `rootMargin` estreito do IntersectionObserver passava a ter
+  // momentos de scroll em que NENHUMA seção intersectava a faixa (entre o
+  // fim de uma seção alta e o começo da próxima) — o callback recebia
+  // `entries` vazio e só retornava sem atualizar nada, então a barra
+  // congelava no destaque antigo até a próxima seção entrar na faixa (às
+  // vezes nunca, se a seção fosse mais alta que o container inteiro). O
+  // cálculo direto sempre produz um resultado, mesmo nesses vãos.
   useEffect(() => {
     const root = contentScrollRef.current;
     if (!root || !open) return;
-    const sections = Array.from(root.querySelectorAll<HTMLElement>('[id^="create-campaign-anchor-"]'));
-    if (sections.length === 0) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((entry) => entry.isIntersecting);
-        if (visible.length === 0) return;
-        // "Anúncio" fica aninhado dentro de "Conjunto" no DOM — com as duas
-        // seções intersectando ao mesmo tempo, a regra ingênua de "menor top
-        // vence" sempre escolhia a seção-mãe (maior, começa mais acima).
-        // Preferir sempre o descendente mais específico quando uma seção
-        // visível contém a outra; só cai no critério de "topo" entre seções
-        // irmãs que não têm relação de aninhamento.
-        const topmost = visible.reduce((best, entry) => {
-          if (entry.target !== best.target && entry.target.contains(best.target)) return best;
-          if (entry.target !== best.target && best.target.contains(entry.target)) return entry;
-          return entry.boundingClientRect.top < best.boundingClientRect.top ? entry : best;
-        });
-        setActiveAnchorId(topmost.target.id);
-      },
-      { root, rootMargin: '0px 0px -75% 0px', threshold: 0 },
-    );
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
+
+    const updateActiveAnchor = () => {
+      const sections = Array.from(root.querySelectorAll<HTMLElement>('[id^="create-campaign-anchor-"]'));
+      if (sections.length === 0) return;
+      const rootTop = root.getBoundingClientRect().top;
+      const threshold = rootTop + root.clientHeight * 0.25;
+      // `querySelectorAll` devolve em ordem de documento (pré-ordem) — "Anúncio"
+      // é descendente de "Conjunto" no DOM, então ele sempre aparece DEPOIS do
+      // pai na lista. Sobrescrever `best` a cada seção cujo topo já passou da
+      // faixa de referência faz o último (= mais profundo, quando aninhado)
+      // vencer naturalmente, sem precisar checar relação de parentesco à mão.
+      let best = sections[0];
+      for (const section of sections) {
+        if (section.getBoundingClientRect().top <= threshold) best = section;
+      }
+      setActiveAnchorId(best.id);
+    };
+
+    updateActiveAnchor();
+    root.addEventListener('scroll', updateActiveAnchor, { passive: true });
+    // Conteúdo mudando de altura (ex: adicionar pergunta rápida, trocar pra
+    // "Vitalício" que soma um campo de data) também pode mudar qual seção
+    // está na faixa, mesmo sem o usuário rolar.
+    const resizeObserver = new ResizeObserver(updateActiveAnchor);
+    resizeObserver.observe(root);
+    return () => {
+      root.removeEventListener('scroll', updateActiveAnchor);
+      resizeObserver.disconnect();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, adSets.length, adSets.map((adSet) => adSet.ads.length).join(',')]);
 
