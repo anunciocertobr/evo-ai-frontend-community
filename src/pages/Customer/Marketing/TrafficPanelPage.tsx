@@ -1696,6 +1696,7 @@ function DuplicateModal({
                   endDate={endDate}
                   onEndDateChange={setEndDate}
                   hint="Vazio = mesmo orçamento da origem."
+                  groupName="budget-mode-duplicar-rapido"
                 />
               )}
               <AdSetMetaFields
@@ -2600,15 +2601,6 @@ function AdBlock({
         placeholder="Ex: Ad 01 - Criativo Oferta"
         className="bg-slate-700 border-slate-600 text-slate-200"
       />
-      <AdLeadFormAndMessageFields
-        conversaoTipo={conversaoTipo}
-        pageId={pageId}
-        leadFormId={ad.leadFormId}
-        messageTemplate={ad.messageTemplate}
-        autofillMessage={ad.autofillMessage}
-        iceBreakers={ad.iceBreakers}
-        onChange={onChange}
-      />
       <div>
         <Label className="text-xs text-slate-400">Texto Principal</Label>
         <Textarea
@@ -2705,6 +2697,19 @@ function AdBlock({
           />
         )}
       </div>
+      {/* Formulário/modelo de mensagem por último — pedido do usuário: só faz
+          sentido escolher isso depois de já ter o criativo (texto/título/
+          descrição/mídia) definido, igual à ordem real do Gerenciador de
+          Anúncios da Meta. */}
+      <AdLeadFormAndMessageFields
+        conversaoTipo={conversaoTipo}
+        pageId={pageId}
+        leadFormId={ad.leadFormId}
+        messageTemplate={ad.messageTemplate}
+        autofillMessage={ad.autofillMessage}
+        iceBreakers={ad.iceBreakers}
+        onChange={onChange}
+      />
     </div>
   );
 }
@@ -2803,6 +2808,11 @@ function AdSetBlock({
           onValueChange={(budget) => onChange({ budget })}
           endDate={adSet.endDate}
           onEndDateChange={(endDate) => onChange({ endDate })}
+          // Único por conjunto — com 2+ conjuntos no mesmo formulário, todos
+          // os radios Diário/Vitalício compartilhavam o mesmo `name` nativo
+          // e o navegador os tratava como um grupo só (a bolinha pintada de
+          // um conjunto "roubava" a do outro). Ver nota no componente.
+          groupName={`budget-mode-${adSet.key}`}
           disabled={cboAtivo}
           hint={cboAtivo ? 'Com CBO o valor vem da campanha, então o campo do conjunto fica desligado.' : undefined}
         />

@@ -538,6 +538,16 @@ export function AdSetBudgetFields({
   onEndDateChange,
   disabled = false,
   hint,
+  // Precisa ser ÚNICO por conjunto: o atributo `name` do radio nativo agrupa
+  // TODOS os radios da PÁGINA INTEIRA com o mesmo valor, não só os desta
+  // instância do componente — com 2+ conjuntos no mesmo formulário (comum),
+  // o navegador tratava os pares Diário/Vitalício de conjuntos diferentes
+  // como um único grupo, e a "bolinha" pintada de um conjunto brigava com a
+  // do outro (ficava sem nenhuma pintada, ou pintando a errada). Sem esse
+  // prop, cai num valor fixo só pra não quebrar quem ainda não passa (mas
+  // CADA CHAMADOR com mais de um conjunto deve passar algo único, tipo a
+  // key do conjunto).
+  groupName = 'budget-mode',
 }: {
   mode: BudgetMode;
   onModeChange: (mode: BudgetMode) => void;
@@ -547,6 +557,7 @@ export function AdSetBudgetFields({
   onEndDateChange: (value: string) => void;
   disabled?: boolean;
   hint?: string;
+  groupName?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -556,7 +567,7 @@ export function AdSetBudgetFields({
           <label key={m} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
             <input
               type="radio"
-              name="budget-mode"
+              name={groupName}
               checked={mode === m}
               disabled={disabled}
               onChange={() => onModeChange(m)}
