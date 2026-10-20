@@ -50,8 +50,26 @@ export interface AdCreative {
       name?: string;
       message?: string;
       call_to_action?: { type?: string; value?: { lead_gen_form_id?: string } };
+      // Modelo de mensagem RICO (saudação + preenchimento automático OU até
+      // 3 perguntas rápidas — "ice breakers" reais da Meta) — só existe
+      // DENTRO de link_data, nunca como irmão dela (oposto de
+      // message_send_param; ver nota em Meta::AdsManagerService#build_creative).
+      page_welcome_message?: {
+        text_format?: {
+          customer_action_type?: 'autofill_message' | 'ice_breakers' | 'whatsapp_flow';
+          message?: {
+            text?: string;
+            autofill_message?: { content?: string };
+            ice_breakers?: Array<{ title?: string }>;
+          };
+        };
+      };
     };
     video_data?: { title?: string; message?: string };
+    // Modelo de mensagem SIMPLES (só texto, sem perguntas rápidas) — IRMÃO
+    // de link_data/video_data, nunca aninhado dentro deles (ver nota em
+    // Meta::AdsManagerService#build_creative).
+    message_send_param?: { message?: { text?: string } };
   };
   // Normalizados pelo backend (Meta::AdsManagerService#campaign_ads_creatives)
   // pra cobrir os mesmos 3 formatos que o "Ver Criativo" já mostra — só pra
@@ -135,6 +153,9 @@ export interface StructuralAdSet {
   description?: string;
   daily_budget?: string;
   lifetime_budget?: string;
+  // Teto de lance (CBO exige, LOWEST_COST_WITH_BID_CAP) — em centavos, como
+  // os outros campos de orçamento da Graph API.
+  bid_amount?: string;
   targeting?: AdSetTargeting;
   promoted_object?: PromotedObject;
   optimization_goal?: string;
@@ -150,6 +171,11 @@ export interface StructuralCampaign {
   status: string;
   objective?: string;
   description?: string;
+  // Só vêm preenchidos quando o orçamento está NA CAMPANHA (CBO) — com
+  // orçamento por conjunto, estes dois campos vêm ausentes e quem carrega o
+  // valor é cada `StructuralAdSet.daily_budget`/`lifetime_budget`.
+  daily_budget?: string;
+  lifetime_budget?: string;
   adsets?: { data: StructuralAdSet[] };
 }
 

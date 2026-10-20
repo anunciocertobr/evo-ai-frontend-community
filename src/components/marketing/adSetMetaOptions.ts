@@ -24,15 +24,6 @@ export interface AdSetMetaValues {
   conversaoTipo: ConversaoTipo;
   conversionLocation: string;
   conversionEvent: ConversionEvent;
-  // Formulário Instantâneo já existente na Página — vazio = cria um
-  // formulário novo (comportamento antigo, único que existia antes).
-  // Preenchido automaticamente ao duplicar um anúncio que já usava um
-  // formulário real (ver TrafficPanelPage.tsx#adFromSource).
-  leadFormId: string;
-  // "Modelo de mensagem" (ice breaker) — primeira mensagem automática que a
-  // Meta sugere pra quem abre a conversa no WhatsApp/Messenger a partir do
-  // anúncio. Vazio = Meta não sugere nenhuma (comportamento antigo).
-  messageTemplate: string;
 }
 
 export const emptyAdSetMeta = (): AdSetMetaValues => ({
@@ -42,8 +33,6 @@ export const emptyAdSetMeta = (): AdSetMetaValues => ({
   conversaoTipo: 'NENHUMA',
   conversionLocation: '',
   conversionEvent: 'PURCHASE',
-  leadFormId: '',
-  messageTemplate: '',
 });
 
 // Texto que explica a seção "onde a conversa acontece" — o usuário perguntou

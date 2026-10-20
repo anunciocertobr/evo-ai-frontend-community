@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  AdLeadFormAndMessageFields,
   AdSetBudgetFields,
   AdSetDescriptionField,
   AdSetMetaFields,
@@ -2216,6 +2217,20 @@ interface AdFormState {
   mediaPreviewIsVideo?: boolean;
   mediaPreviewVideoThumbnail?: string;
   mediaPreviewCarousel?: AdCreative['carrossel'];
+  // Formulário Instantâneo e modelo de mensagem — campos do CRIATIVO do
+  // anúncio na Meta, por isso moram aqui (por anúncio), não no conjunto.
+  // Ver AdLeadFormAndMessageFields. Vazio = Meta cria formulário novo
+  // genérico / não sugere nenhuma mensagem pronta (comportamento antigo).
+  leadFormId: string;
+  // Texto de saudação (sempre pode ter, sozinho ou junto de autofill/ice
+  // breakers — ver Meta::AdsManagerService#build_creative).
+  messageTemplate: string;
+  // Mensagem de preenchimento automático — mutuamente exclusiva com
+  // iceBreakers (a Meta só aceita UM customer_action_type por anúncio).
+  autofillMessage: string;
+  // Perguntas rápidas ("ice breakers" reais da Meta) — até 3, mutuamente
+  // exclusivas com autofillMessage.
+  iceBreakers: string[];
 }
 
 interface AdSetFormState {
@@ -2267,6 +2282,13 @@ export interface CampaignPrefill {
   objectiveKey: ObjectiveKey;
   status: 'ACTIVE' | 'PAUSED';
   adSets: AdSetFormState[];
+  // CBO (orçamento na campanha) na origem — sem isso, duplicar uma campanha
+  // CBO sempre resetava pro orçamento por conjunto (campo "Diário" vazio e
+  // sem nenhum vitalício/CBO selecionado, porque a árvore estrutural nem
+  // pedia daily_budget/lifetime_budget no nível da campanha pra saber).
+  budgetLevel: 'CONJUNTO' | 'CAMPANHA';
+  campaignBudget: string;
+  bidCap: string;
 }
 
 // Lê a campanha (ou um conjunto/anúncio dela) da árvore estrutural e monta o
@@ -2387,11 +2409,6 @@ async function buildPrefillFromSource({
           // do criativo do próprio anúncio.
           pageId: promovido.page_id || creativesByAdId[adsOrigem[0]?.id]?.object_story_spec?.page_id || '',
           whatsappPhone: promovido.whatsapp_phone_number || '',
-          // Formulário Instantâneo já usado por este conjunto — presente no
-          // call_to_action do criativo, não no promoted_object (ver comentário
-          // em AdCreative). Preenchendo aqui, "Duplicar" já seleciona o
-          // formulário real em vez de deixar a Meta criar um genérico novo.
-          leadFormId: creativesByAdId[adsOrigem[0]?.id]?.object_story_spec?.link_data?.call_to_action?.value?.lead_gen_form_id || '',
           // "Trocar formulário por conversa no WhatsApp" é o caminho mais comum
           // aqui: quando a resposta for WhatsApp, o destino tem que ser o
           // WhatsApp, senão a cópia sai como conversa no Messenger.
@@ -2411,12 +2428,25 @@ async function buildPrefillFromSource({
     }),
   );
 
+  // CBO: o orçamento vem no nível da CAMPANHA (daily_budget/lifetime_budget
+  // só existem ali quando o orçamento não está em cada conjunto). O teto de
+  // lance é por conjunto, mas com CBO todo conjunto usa o mesmo valor — pega
+  // do primeiro que tiver, só pra preencher o campo único da tela.
+  const campanhaCboAtiva = Boolean(
+    (campanha.daily_budget && parseFloat(campanha.daily_budget) > 0) ||
+      (campanha.lifetime_budget && parseFloat(campanha.lifetime_budget) > 0),
+  );
+  const bidCapOrigem = conjuntosOrigem.find((c) => c.bid_amount && parseFloat(c.bid_amount) > 0)?.bid_amount;
+
   return {
     prefill: {
       name: `${item.name} - Cópia`,
       objectiveKey: objetivo,
       status: campanha.status === 'ACTIVE' ? 'ACTIVE' : 'PAUSED',
       adSets,
+      budgetLevel: campanhaCboAtiva ? 'CAMPANHA' : 'CONJUNTO',
+      campaignBudget: campanhaCboAtiva && campanha.daily_budget ? (parseFloat(campanha.daily_budget) / 100).toFixed(2) : '',
+      bidCap: campanhaCboAtiva && bidCapOrigem ? (parseFloat(bidCapOrigem) / 100).toFixed(2) : '',
     },
     unresolvedLocations,
   };
@@ -2450,6 +2480,23 @@ function adFromSource(origem: StructuralAd, modelo: AdFormState): AdFormState {
     mediaPreviewUrl: criativo.imagem || undefined,
     mediaPreviewIsVideo: !criativo.imagem && !criativo.carrossel?.length && Boolean(criativo.video_id),
     mediaPreviewVideoThumbnail: criativo.thumbnail_url || undefined,
+    // Formulário Instantâneo e modelo de mensagem já usados por ESTE
+    // anúncio — campos do criativo dele, não do conjunto (ver AdFormState).
+    // "Duplicar" assim já seleciona o formulário/mensagem reais em vez de
+    // deixar tudo em branco (formulário genérico novo, sem mensagem pronta).
+    leadFormId: link?.call_to_action?.value?.lead_gen_form_id || '',
+    // O texto de saudação pode estar em QUALQUER um dos dois campos da Meta
+    // (`message_send_param`, modelo simples, OU `page_welcome_message`,
+    // modelo rico) dependendo de qual o anúncio original usa — nunca os
+    // dois ao mesmo tempo.
+    messageTemplate:
+      criativo.object_story_spec?.message_send_param?.message?.text ||
+      link?.page_welcome_message?.text_format?.message?.text ||
+      '',
+    autofillMessage: link?.page_welcome_message?.text_format?.message?.autofill_message?.content || '',
+    iceBreakers: (link?.page_welcome_message?.text_format?.message?.ice_breakers || [])
+      .map((b) => b.title || '')
+      .filter((t) => t.length > 0),
   };
 }
 
@@ -2465,7 +2512,18 @@ function plataformasComPosicoes(adSet: AdSetFormState): string[] {
 }
 
 function newAd(): AdFormState {
-  return { key: nextUid(), name: '', title: '', body: '', description: '', mediaFile: null };
+  return {
+    key: nextUid(),
+    name: '',
+    title: '',
+    body: '',
+    description: '',
+    mediaFile: null,
+    leadFormId: '',
+    messageTemplate: '',
+    autofillMessage: '',
+    iceBreakers: [],
+  };
 }
 
 function newAdSet(): AdSetFormState {
@@ -2506,6 +2564,8 @@ function AdBlock({
   onRemove,
   removable,
   anchorId,
+  conversaoTipo,
+  pageId,
 }: {
   ad: AdFormState;
   onChange: (patch: Partial<AdFormState>) => void;
@@ -2516,6 +2576,11 @@ function AdBlock({
   // (em volta de todos os anúncios dele), então com mais de um anúncio o
   // atalho sempre caía no primeiro.
   anchorId?: string;
+  // Do conjunto-pai (AdSetBlock): decide se mostra o seletor de Formulário
+  // ou o campo de Modelo de mensagem abaixo — nenhum dos dois faz sentido
+  // fora de "Formulário"/"Conversa" (ver AdSetMetaFields.conversaoTipo).
+  conversaoTipo: AdSetMetaValues['conversaoTipo'];
+  pageId: string;
 }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -2534,6 +2599,15 @@ function AdBlock({
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ name: e.target.value })}
         placeholder="Ex: Ad 01 - Criativo Oferta"
         className="bg-slate-700 border-slate-600 text-slate-200"
+      />
+      <AdLeadFormAndMessageFields
+        conversaoTipo={conversaoTipo}
+        pageId={pageId}
+        leadFormId={ad.leadFormId}
+        messageTemplate={ad.messageTemplate}
+        autofillMessage={ad.autofillMessage}
+        iceBreakers={ad.iceBreakers}
+        onChange={onChange}
       />
       <div>
         <Label className="text-xs text-slate-400">Texto Principal</Label>
@@ -2898,6 +2972,8 @@ function AdSetBlock({
             onRemove={() => removeAd(ad.key)}
             removable={adSet.ads.length > 1}
             anchorId={`create-campaign-anchor-anuncio-${ad.key}`}
+            conversaoTipo={adSet.meta.conversaoTipo}
+            pageId={adSet.meta.pageId}
           />
         ))}
         <Button type="button" variant="outline" size="sm" onClick={addAd} className="border-slate-600 text-teal-400 hover:bg-slate-700">
@@ -3010,9 +3086,12 @@ function CreateCampaignModal({
       setStatus(prefill.status);
       setObjectiveKey(prefill.objectiveKey);
       setLink('');
-      setBudgetLevel('CONJUNTO');
-      setCampaignBudget('');
-      setBidCap('');
+      // CBO da campanha de origem (ver buildPrefillFromSource) — sem isso
+      // "Duplicar" numa campanha com orçamento na campanha sempre resetava
+      // pro orçamento por conjunto, perdendo o CBO e o teto de lance.
+      setBudgetLevel(prefill.budgetLevel);
+      setCampaignBudget(prefill.campaignBudget);
+      setBidCap(prefill.bidCap);
       setAdSets(prefill.adSets);
       return;
     }
@@ -3161,6 +3240,15 @@ function CreateCampaignModal({
           const geoCities = adSet.locations.map(pin);
           const geoExcluidas = adSet.excludedLocations.map(pin);
 
+          // A meta de desempenho do conjunto vem do objetivo DA CAMPANHA mais a
+          // escolha de conversa/conversão feita no bloco do conjunto — é a
+          // única combinação que a Meta aceita (uma meta por conjunto).
+          const optimizationGoal = optimizationGoalFor(objectiveKey, adSet.meta);
+          const metaEhConversa = optimizationGoal === 'CONVERSATIONS';
+          const metaEhPixel = optimizationGoal === 'OFFSITE_CONVERSIONS';
+          const metaEhFormulario = optimizationGoal === 'LEAD_GENERATION';
+          const orcamentoVitalicio = adSet.budgetMode === 'VITALICIO' && !cboAtivo && budgetValue > 0;
+
           const adsPayload = await Promise.all(
             adSet.ads.map(async (ad) => {
               const base = {
@@ -3171,6 +3259,24 @@ function CreateCampaignModal({
                 title: ad.title.trim() || undefined,
                 body: ad.body.trim() || undefined,
                 description: ad.description.trim() || undefined,
+                // Formulário já existente na Página — vazio = Meta cria um novo
+                // (comportamento antigo). Campo do CRIATIVO deste anúncio, não
+                // do conjunto — ver AdLeadFormAndMessageFields.
+                lead_form_id: metaEhFormulario ? ad.leadFormId.trim() || undefined : undefined,
+                // Mensagem pronta sugerida a quem abre a conversa a partir
+                // DESTE anúncio — só faz sentido quando o destino é conversa.
+                // Saudação (texto simples, sempre pode ir) + preenchimento
+                // automático OU perguntas rápidas (mutuamente exclusivos — o
+                // backend decide qual campo real da Meta usar, ver
+                // Meta::AdsManagerService#build_creative).
+                message_template: metaEhConversa ? ad.messageTemplate.trim() || undefined : undefined,
+                autofill_message: metaEhConversa && ad.iceBreakers.filter((t) => t.trim()).length === 0
+                  ? ad.autofillMessage.trim() || undefined
+                  : undefined,
+                ice_breakers: (() => {
+                  const limpos = metaEhConversa ? ad.iceBreakers.map((t) => t.trim()).filter((t) => t.length > 0).slice(0, 3) : [];
+                  return limpos.length > 0 ? limpos : undefined;
+                })(),
               };
               // "Duplicar": sem arquivo no navegador, o backend puxa a mídia
               // do anúncio de origem (imagem ou vídeo).
@@ -3182,15 +3288,6 @@ function CreateCampaignModal({
               };
             }),
           );
-
-          // A meta de desempenho do conjunto vem do objetivo DA CAMPANHA mais a
-          // escolha de conversa/conversão feita no bloco do conjunto — é a
-          // única combinação que a Meta aceita (uma meta por conjunto).
-          const optimizationGoal = optimizationGoalFor(objectiveKey, adSet.meta);
-          const metaEhConversa = optimizationGoal === 'CONVERSATIONS';
-          const metaEhPixel = optimizationGoal === 'OFFSITE_CONVERSIONS';
-          const metaEhFormulario = optimizationGoal === 'LEAD_GENERATION';
-          const orcamentoVitalicio = adSet.budgetMode === 'VITALICIO' && !cboAtivo && budgetValue > 0;
 
           return {
             adset_name: adSet.name.trim(),
@@ -3214,12 +3311,6 @@ function CreateCampaignModal({
             whatsapp_phone_number: metaEhConversa && adSet.meta.mensagemDestino === 'WHATSAPP' ? adSet.meta.whatsappPhone.trim() || undefined : undefined,
             conversion_location: metaEhPixel ? adSet.meta.conversionLocation.trim() || undefined : undefined,
             conversion_event: metaEhPixel ? adSet.meta.conversionEvent : undefined,
-            // Formulário já existente na Página — vazio = Meta cria um novo
-            // (comportamento antigo). Ver AdSetMetaFields (seletor).
-            lead_form_id: metaEhFormulario ? adSet.meta.leadFormId.trim() || undefined : undefined,
-            // Mensagem pronta sugerida a quem abre a conversa — só faz
-            // sentido quando o destino é mesmo conversa (WhatsApp/Messenger).
-            message_template: metaEhConversa ? adSet.meta.messageTemplate.trim() || undefined : undefined,
             targeting: {
               age_min: parseInt(adSet.ageMin, 10),
               age_max: parseInt(adSet.ageMax, 10),

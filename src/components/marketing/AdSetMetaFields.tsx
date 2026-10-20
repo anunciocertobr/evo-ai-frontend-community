@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Button, Checkbox, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@evoapi/design-system';
 import {
   CONVERSION_EVENTS,
@@ -59,23 +60,6 @@ export function AdSetMetaFields({
 }) {
   const [digitandoNumero, setDigitandoNumero] = useState(false);
   const selectedPage = pages.find((p) => p.id === values.pageId);
-
-  // Formulários Instantâneos já existentes NESTA página — recarrega sempre
-  // que a página muda, porque formulário pertence à página, não à conta.
-  const [leadForms, setLeadForms] = useState<LeadForm[]>([]);
-  const [loadingLeadForms, setLoadingLeadForms] = useState(false);
-  useEffect(() => {
-    if (values.conversaoTipo !== 'FORMULARIO' || !values.pageId) {
-      setLeadForms([]);
-      return;
-    }
-    setLoadingLeadForms(true);
-    metaCreationService
-      .listLeadForms(values.pageId)
-      .then(setLeadForms)
-      .catch(() => setLeadForms([]))
-      .finally(() => setLoadingLeadForms(false));
-  }, [values.conversaoTipo, values.pageId]);
   const tiposConversao = conversaoTiposFor(objectiveKey);
   // Existe alguma meta de conversão liberada pro objetivo (formulário, conversa
   // ou site) além de "Nenhuma" — se não, o bloco inteiro nem aparece.
@@ -206,21 +190,9 @@ export function AdSetMetaFields({
                   )}
                 </div>
               )}
-
-              <div>
-                <Label className="text-xs text-slate-400">Modelo de mensagem (opcional)</Label>
-                <Textarea
-                  value={values.messageTemplate}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange({ messageTemplate: e.target.value })}
-                  rows={2}
-                  placeholder="Ex: Olá! Vi seu anúncio e quero saber mais sobre..."
-                  className={inputClass}
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  Mensagem pronta que a Meta sugere pra quem abre a conversa a partir do anúncio — a pessoa só precisa
-                  tocar em enviar. Sem isso, ela digita a mensagem do zero.
-                </p>
-              </div>
+              <p className="text-xs text-slate-500">
+                O modelo de mensagem agora é escolhido por anúncio — veja o bloco de cada Anúncio abaixo.
+              </p>
             </div>
           )}
 
@@ -260,37 +232,11 @@ export function AdSetMetaFields({
           )}
 
           {values.conversaoTipo === 'FORMULARIO' && (
-            <div className="space-y-2">
-              <p className="text-xs text-slate-500">
-                O formulário abre dentro do anúncio, sem destino extra. A Página precisa ter os Termos de Serviço de
-                Geração de Cadastros aceitos — sem isso a Meta recusa o conjunto.
-              </p>
-              <div>
-                <Label className="text-xs text-slate-400">Formulário</Label>
-                <Select
-                  value={values.leadFormId || '__new__'}
-                  onValueChange={(v: string) => onChange({ leadFormId: v === '__new__' ? '' : v })}
-                  disabled={!values.pageId}
-                >
-                  <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
-                    <SelectValue placeholder={!values.pageId ? 'Escolha a página primeiro' : loadingLeadForms ? 'Carregando formulários...' : undefined} />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
-                    <SelectItem value="__new__">Criar formulário novo</SelectItem>
-                    {leadForms.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.name} {f.status !== 'ACTIVE' ? `(${f.status})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-slate-500 mt-1">
-                  {values.leadFormId
-                    ? 'Reaproveita este formulário já existente na Página — as perguntas e a tela de agradecimento são as dele.'
-                    : 'Sem formulário escolhido, a Meta cria um novo (nome padrão, perguntas Nome + E-mail) ao publicar.'}
-                </p>
-              </div>
-            </div>
+            <p className="text-xs text-slate-500">
+              O formulário abre dentro do anúncio, sem destino extra. A Página precisa ter os Termos de Serviço de
+              Geração de Cadastros aceitos — sem isso a Meta recusa o conjunto. Qual formulário usar é escolhido por
+              anúncio — veja o bloco de cada Anúncio abaixo.
+            </p>
           )}
         </div>
       )}
@@ -367,6 +313,195 @@ export function AdSetMetaFields({
       )}
     </div>
   );
+}
+
+// Blocos do NÍVEL DO ANÚNCIO: Formulário Instantâneo (quando a meta do
+// conjunto é "Formulário") e Modelo de mensagem/ice breaker (quando é
+// "Conversa"). Na Meta de verdade os dois vivem no CRIATIVO do anúncio
+// (object_story_spec.link_data.call_to_action.value.lead_gen_form_id e
+// object_story_spec.message_send_param, irmão de link_data — ver
+// Meta::AdsManagerService#build_creative), não no conjunto; por isso moraram
+// errado dentro de AdSetMetaFields antes (pedido do usuário pra corrigir).
+export function AdLeadFormAndMessageFields({
+  conversaoTipo,
+  pageId,
+  leadFormId,
+  messageTemplate,
+  autofillMessage,
+  iceBreakers,
+  onChange,
+}: {
+  conversaoTipo: AdSetMetaValues['conversaoTipo'];
+  pageId: string;
+  leadFormId: string;
+  messageTemplate: string;
+  autofillMessage: string;
+  iceBreakers: string[];
+  onChange: (patch: {
+    leadFormId?: string;
+    messageTemplate?: string;
+    autofillMessage?: string;
+    iceBreakers?: string[];
+  }) => void;
+}) {
+  // Formulários Instantâneos já existentes NESTA página — recarrega sempre
+  // que a página muda, porque formulário pertence à página, não à conta.
+  const [leadForms, setLeadForms] = useState<LeadForm[]>([]);
+  const [loadingLeadForms, setLoadingLeadForms] = useState(false);
+  useEffect(() => {
+    if (conversaoTipo !== 'FORMULARIO' || !pageId) {
+      setLeadForms([]);
+      return;
+    }
+    setLoadingLeadForms(true);
+    metaCreationService
+      .listLeadForms(pageId)
+      .then(setLeadForms)
+      .catch(() => setLeadForms([]))
+      .finally(() => setLoadingLeadForms(false));
+  }, [conversaoTipo, pageId]);
+
+  if (conversaoTipo === 'FORMULARIO') {
+    return (
+      <div>
+        <Label className="text-xs text-slate-400">Formulário</Label>
+        <Select
+          value={leadFormId || '__new__'}
+          onValueChange={(v: string) => onChange({ leadFormId: v === '__new__' ? '' : v })}
+          disabled={!pageId}
+        >
+          <SelectTrigger className="bg-slate-700 border-slate-600 text-slate-200">
+            <SelectValue placeholder={!pageId ? 'Escolha a página do conjunto primeiro' : loadingLeadForms ? 'Carregando formulários...' : undefined} />
+          </SelectTrigger>
+          <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+            <SelectItem value="__new__">Criar formulário novo</SelectItem>
+            {leadForms.map((f) => (
+              <SelectItem key={f.id} value={f.id}>
+                {f.name} {f.status !== 'ACTIVE' ? `(${f.status})` : ''}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-slate-500 mt-1">
+          {leadFormId
+            ? 'Reaproveita este formulário já existente na Página — as perguntas e a tela de agradecimento são as dele.'
+            : 'Sem formulário escolhido, a Meta cria um novo (nome padrão, perguntas Nome + E-mail) ao publicar.'}
+        </p>
+      </div>
+    );
+  }
+
+  if (conversaoTipo === 'WHATSAPP') {
+    // A Meta só aceita UM "customer_action_type" por anúncio: preenchimento
+    // automático OU perguntas rápidas, nunca os dois (ver
+    // Meta::AdsManagerService#build_creative) — por isso os dois campos
+    // abaixo da saudação são mutuamente exclusivos, numa aba só.
+    const modo: 'nenhum' | 'autofill' | 'ice_breakers' =
+      iceBreakers.some((t) => t.trim()) ? 'ice_breakers' : autofillMessage.trim() ? 'autofill' : 'nenhum';
+
+    return (
+      <div className="space-y-3">
+        <div>
+          <Label className="text-xs text-slate-400">Mensagem de saudação (opcional)</Label>
+          <Textarea
+            value={messageTemplate}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange({ messageTemplate: e.target.value })}
+            rows={2}
+            placeholder="Ex: Olá! Vi seu anúncio e quero saber mais sobre..."
+            className={inputClass}
+          />
+          <p className="text-xs text-slate-500 mt-1">
+            Mensagem pronta que a Meta sugere pra quem abre a conversa a partir deste anúncio — a pessoa só precisa
+            tocar em enviar. Sem isso, ela digita a mensagem do zero.
+          </p>
+        </div>
+
+        <div>
+          <Label className="text-xs text-slate-400 block mb-1">Depois da saudação (opcional, escolha um)</Label>
+          <div className="flex gap-3 mb-2">
+            {([
+              { v: 'nenhum', label: 'Nenhum' },
+              { v: 'autofill', label: 'Preenchimento automático' },
+              { v: 'ice_breakers', label: 'Perguntas rápidas' },
+            ] as const).map((opt) => (
+              <label key={opt.v} className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
+                <input
+                  type="radio"
+                  name="whatsapp-extra-mode"
+                  checked={modo === opt.v}
+                  onChange={() => {
+                    if (opt.v === 'nenhum') onChange({ autofillMessage: '', iceBreakers: [] });
+                    if (opt.v === 'autofill') onChange({ iceBreakers: [] });
+                    if (opt.v === 'ice_breakers') onChange({ autofillMessage: '', iceBreakers: iceBreakers.length > 0 ? iceBreakers : [''] });
+                  }}
+                  className="accent-sky-500"
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+
+          {modo === 'autofill' && (
+            <div>
+              <Input
+                value={autofillMessage}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ autofillMessage: e.target.value })}
+                placeholder="Ex: Olá, quero saber mais sobre [produto]"
+                className={inputClass}
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                A pessoa vê esse texto já digitado no campo de mensagem do WhatsApp — pode editar antes de enviar.
+              </p>
+            </div>
+          )}
+
+          {modo === 'ice_breakers' && (
+            <div className="space-y-2">
+              {iceBreakers.map((texto, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Input
+                    value={texto}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      const novas = [...iceBreakers];
+                      novas[i] = e.target.value;
+                      onChange({ iceBreakers: novas });
+                    }}
+                    placeholder={`Pergunta rápida ${i + 1}`}
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onChange({ iceBreakers: iceBreakers.filter((_, idx) => idx !== i) })}
+                    className="text-red-400 hover:text-red-300 shrink-0"
+                    title="Remover"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+              {iceBreakers.length < 3 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onChange({ iceBreakers: [...iceBreakers, ''] })}
+                  className="border-slate-600 text-teal-400 hover:bg-slate-700"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar pergunta
+                </Button>
+              )}
+              <p className="text-xs text-slate-500 mt-1">
+                Até 3 sugestões que aparecem como botões pra pessoa tocar, em vez de digitar — a Meta chama isso de
+                "perguntas rápidas" (ice breakers).
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 // Descrição do conjunto é campo do próprio conjunto na Meta (aparece na coluna
