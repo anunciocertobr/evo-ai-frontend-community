@@ -29,6 +29,11 @@ class ServiceInvoicesService {
     const response = await api.post(`${this.baseUrl}/${id}/cancel`);
     return extractData<ServiceInvoice>(response);
   }
+
+  async getPdf(id: string): Promise<Blob> {
+    const response = await api.get(`${this.baseUrl}/${id}/pdf`, { responseType: 'blob' });
+    return response.data as Blob;
+  }
 }
 
 export const serviceInvoicesService = new ServiceInvoicesService();

@@ -12,6 +12,7 @@ import {
   Search,
   Trash2,
   Users,
+  Download,
 } from 'lucide-react';
 import {
   Button,
@@ -102,6 +103,7 @@ export default function NotaFiscalServicoPage() {
   const [xmlTarget, setXmlTarget] = useState<ServiceInvoice | null>(null);
   const [cancelTarget, setCancelTarget] = useState<ServiceInvoice | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
 
   // Tomadores (clientes) salvos — pedido do usuário pra não redigitar nome/
   // CPF-CNPJ/endereço toda vez que emite nota pra um cliente recorrente.
@@ -299,6 +301,23 @@ export default function NotaFiscalServicoPage() {
     }
   };
 
+  // Abre o DANFSe numa nova aba (não força download) — a pessoa decide ali
+  // se quer salvar/imprimir. O blob-url fica só com o navegador, nunca
+  // trafega pra lugar nenhum além do fetch autenticado original.
+  const openPdf = async (invoice: ServiceInvoice) => {
+    setPdfLoadingId(invoice.id);
+    try {
+      const blob = await serviceInvoicesService.getPdf(invoice.id);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      toast.error(apiErrorMessage(error) || 'Erro ao gerar o PDF da NFS-e.');
+    } finally {
+      setPdfLoadingId(null);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-full bg-background p-6 space-y-6">
       <BaseHeader
@@ -368,6 +387,21 @@ export default function NotaFiscalServicoPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right space-x-1">
+                        {invoice.status === 'authorized' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openPdf(invoice)}
+                            disabled={pdfLoadingId === invoice.id}
+                            title="Baixar PDF (DANFSe)"
+                          >
+                            {pdfLoadingId === invoice.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Download className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" onClick={() => openXml(invoice)} title="Ver XML">
                           <Code2 className="w-4 h-4" />
                         </Button>
