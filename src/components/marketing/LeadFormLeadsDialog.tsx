@@ -1,10 +1,43 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Download, Film, ExternalLink, Search, ChevronDown, ChevronRight } from 'lucide-react';
-import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input } from '@evoapi/design-system';
+import { Loader2, Download, Film, ExternalLink, Search, ChevronDown, ChevronRight, X } from 'lucide-react';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@evoapi/design-system';
 import { metaCreationService, LeadFormLead } from '@/services/marketing/metaCreationService';
 import LeadDetailsCell from '@/components/marketing/LeadDetailsCell';
 import { formatPublicoAlvo, LEAD_CSV_EXTRA_COLUMNS, leadCsvExtraValues } from '@/components/marketing/leadDetails';
+
+const ALL = '__all__';
+
+// Extrai pares {id,nome} únicos de um campo do lead, na ordem em que
+// aparecem — usado pros três seletores em cascata abaixo (Campanha >
+// Conjunto > Anúncio, cada um só com as opções que de fato existem dentro
+// do nível acima já escolhido).
+function uniqueOptions(leads: LeadFormLead[], idKey: 'campaign_id' | 'adset_id' | 'ad_id', nameKey: 'campaign_name' | 'adset_name' | 'ad_name') {
+  const seen = new Map<string, string>();
+  leads.forEach((lead) => {
+    const id = lead[idKey];
+    if (!id || seen.has(id)) return;
+    seen.set(id, lead[nameKey] || id);
+  });
+  return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+}
 
 interface Props {
   open: boolean;
@@ -29,15 +62,29 @@ const csvEscape = (value: string) => `"${(value || '').replace(/"/g, '""')}"`;
 export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId, formName }: Props) {
   const [leads, setLeads] = useState<LeadFormLead[]>([]);
   const [loading, setLoading] = useState(false);
-  const [playingVideo, setPlayingVideo] = useState<LeadFormLead | null>(null);
   const [search, setSearch] = useState('');
   // Linha expandida: mostra IDs, criativo completo e direcionamento do
   // anúncio (o que não cabe nas colunas da tabela).
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // Filtros: data vem de `created_time` de cada lead; campanha/conjunto/
+  // anúncio são IDs reais (não nome, pra não misturar duas campanhas com o
+  // mesmo nome) e ficam em cascata — trocar a campanha reseta conjunto/
+  // anúncio se a seleção atual não existir mais dentro da nova campanha.
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [campaignFilter, setCampaignFilter] = useState(ALL);
+  const [adsetFilter, setAdsetFilter] = useState(ALL);
+  const [adFilter, setAdFilter] = useState(ALL);
+
   useEffect(() => {
     if (!open) return;
     setSearch('');
+    setDateFrom('');
+    setDateTo('');
+    setCampaignFilter(ALL);
+    setAdsetFilter(ALL);
+    setAdFilter(ALL);
     setLoading(true);
     metaCreationService
       .listFormLeads(pageId, formId)
@@ -45,6 +92,38 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
       .catch(() => toast.error('Falha ao buscar os leads desse formulário.'))
       .finally(() => setLoading(false));
   }, [open, pageId, formId]);
+
+  const leadsInCampaign = useMemo(
+    () => (campaignFilter === ALL ? leads : leads.filter((l) => l.campaign_id === campaignFilter)),
+    [leads, campaignFilter],
+  );
+  const leadsInAdset = useMemo(
+    () => (adsetFilter === ALL ? leadsInCampaign : leadsInCampaign.filter((l) => l.adset_id === adsetFilter)),
+    [leadsInCampaign, adsetFilter],
+  );
+
+  const campaignOptions = useMemo(() => uniqueOptions(leads, 'campaign_id', 'campaign_name'), [leads]);
+  const adsetOptions = useMemo(() => uniqueOptions(leadsInCampaign, 'adset_id', 'adset_name'), [leadsInCampaign]);
+  const adOptions = useMemo(() => uniqueOptions(leadsInAdset, 'ad_id', 'ad_name'), [leadsInAdset]);
+
+  // Se trocar a campanha e o conjunto/anúncio selecionado não pertencer mais
+  // a ela, volta pra "Todos" em vez de ficar com um filtro que não bate com
+  // nenhum lead (telona vazia sem explicação).
+  useEffect(() => {
+    if (adsetFilter !== ALL && !adsetOptions.some((o) => o.id === adsetFilter)) setAdsetFilter(ALL);
+  }, [adsetOptions, adsetFilter]);
+  useEffect(() => {
+    if (adFilter !== ALL && !adOptions.some((o) => o.id === adFilter)) setAdFilter(ALL);
+  }, [adOptions, adFilter]);
+
+  const hasActiveFilters = dateFrom || dateTo || campaignFilter !== ALL || adsetFilter !== ALL || adFilter !== ALL;
+  const clearFilters = () => {
+    setDateFrom('');
+    setDateTo('');
+    setCampaignFilter(ALL);
+    setAdsetFilter(ALL);
+    setAdFilter(ALL);
+  };
 
   // Cada formulário tem suas próprias perguntas — as colunas são os nomes de
   // campo que de fato aparecem nos leads recebidos, na ordem em que surgem.
@@ -63,11 +142,23 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
 
   // Busca livre: cada formulário tem perguntas diferentes (nome/telefone/
   // email não são campos fixos, ver fieldNames acima), então filtra por
-  // qualquer valor de resposta do lead, além de campanha/conjunto/anúncio.
+  // qualquer valor de resposta do lead, além de campanha/conjunto/anúncio —
+  // combinada (E lógico) com data/campanha/conjunto/anúncio selecionados.
   const filteredLeads = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return leads;
+    const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+    const to = dateTo ? new Date(`${dateTo}T23:59:59`) : null;
+
     return leads.filter((lead) => {
+      if (campaignFilter !== ALL && lead.campaign_id !== campaignFilter) return false;
+      if (adsetFilter !== ALL && lead.adset_id !== adsetFilter) return false;
+      if (adFilter !== ALL && lead.ad_id !== adFilter) return false;
+
+      const createdAt = new Date(lead.created_time);
+      if (from && createdAt < from) return false;
+      if (to && createdAt > to) return false;
+
+      if (!term) return true;
       const campos = [
         ...(lead.field_data?.flatMap((f) => f.values) || []),
         lead.campaign_name,
@@ -76,14 +167,13 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
       ];
       return campos.some((valor) => valor?.toLowerCase().includes(term));
     });
-  }, [leads, search]);
+  }, [leads, search, dateFrom, dateTo, campaignFilter, adsetFilter, adFilter]);
 
+  // Clique sempre leva pro post real na Meta — passar o mouse já mostra o
+  // criativo grande (HoverCard abaixo), então o clique não precisa mais
+  // abrir um player de vídeo embutido aqui dentro.
   const openCreative = (lead: LeadFormLead) => {
-    if (lead.criativo_video) {
-      setPlayingVideo(lead);
-    } else if (lead.criativo_link) {
-      window.open(lead.criativo_link, '_blank', 'noopener,noreferrer');
-    }
+    if (lead.criativo_link) window.open(lead.criativo_link, '_blank', 'noopener,noreferrer');
   };
 
   const downloadCsv = () => {
@@ -109,8 +199,7 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
   };
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-screen max-w-[100vw] sm:max-w-[100vw] h-screen max-h-[100vh] rounded-none flex flex-col">
         <DialogHeader>
           <DialogTitle>Leads — {formName}</DialogTitle>
@@ -127,6 +216,69 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
           <p className="text-sm text-muted-foreground py-10 text-center">Nenhum lead recebido ainda por esse formulário.</p>
         ) : (
           <>
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <Label className="text-xs">De</Label>
+                <Input type="date" value={dateFrom} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDateFrom(e.target.value)} className="w-[150px]" />
+              </div>
+              <div>
+                <Label className="text-xs">Até</Label>
+                <Input type="date" value={dateTo} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDateTo(e.target.value)} className="w-[150px]" />
+              </div>
+              <div>
+                <Label className="text-xs">Campanha</Label>
+                <Select value={campaignFilter} onValueChange={setCampaignFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>Todas as campanhas</SelectItem>
+                    {campaignOptions.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Conjunto</Label>
+                <Select value={adsetFilter} onValueChange={setAdsetFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>Todos os conjuntos</SelectItem>
+                    {adsetOptions.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Anúncio</Label>
+                <Select value={adFilter} onValueChange={setAdFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>Todos os anúncios</SelectItem>
+                    {adOptions.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  <X className="w-3.5 h-3.5 mr-1" /> Limpar filtros
+                </Button>
+              )}
+            </div>
             <div className="flex items-center justify-between gap-3">
               <div className="relative w-full max-w-xs">
                 <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -167,7 +319,7 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
                   {filteredLeads.length === 0 && (
                     <tr>
                       <td colSpan={fieldNames.length + 8} className="p-4 text-center text-muted-foreground">
-                        Nenhum lead encontrado pra essa busca.
+                        Nenhum lead encontrado pra essa busca/filtro.
                       </td>
                     </tr>
                   )}
@@ -208,24 +360,46 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
                         </td>
                         <td className="p-2 whitespace-nowrap">
                           {lead.criativo_imagem ? (
-                            <button
-                              type="button"
-                              onClick={() => openCreative(lead)}
-                              disabled={!lead.criativo_video && !lead.criativo_link}
-                              className="relative inline-block w-10 h-10 rounded overflow-hidden border border-border group disabled:cursor-default"
-                              title={lead.criativo_nome || 'Ver criativo'}
-                            >
-                              <img src={lead.criativo_imagem} alt={lead.criativo_nome || ''} className="w-full h-full object-cover" />
-                              {(lead.criativo_video || lead.criativo_link) && (
-                                <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors">
-                                  {lead.criativo_video ? (
-                                    <Film className="w-4 h-4 text-white opacity-0 group-hover:opacity-100" />
-                                  ) : (
-                                    <ExternalLink className="w-4 h-4 text-white opacity-0 group-hover:opacity-100" />
+                            <HoverCard openDelay={150} closeDelay={0}>
+                              <HoverCardTrigger asChild>
+                                <button
+                                  type="button"
+                                  onClick={() => openCreative(lead)}
+                                  disabled={!lead.criativo_link}
+                                  className="relative inline-block w-10 h-10 rounded overflow-hidden border border-border group disabled:cursor-default"
+                                  title={lead.criativo_link ? 'Ver o post na Meta' : lead.criativo_nome || 'Criativo'}
+                                >
+                                  <img src={lead.criativo_imagem} alt={lead.criativo_nome || ''} className="w-full h-full object-cover" />
+                                  {lead.criativo_link && (
+                                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors">
+                                      <ExternalLink className="w-4 h-4 text-white opacity-0 group-hover:opacity-100" />
+                                    </span>
                                   )}
-                                </span>
-                              )}
-                            </button>
+                                </button>
+                              </HoverCardTrigger>
+                              <HoverCardContent className="w-auto p-2" side="right">
+                                <div className="relative">
+                                  <img
+                                    src={lead.criativo_imagem}
+                                    alt={lead.criativo_nome || ''}
+                                    className="max-w-[320px] max-h-[320px] rounded object-contain"
+                                  />
+                                  {lead.criativo_video && (
+                                    <span className="absolute top-1.5 right-1.5 flex items-center gap-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
+                                      <Film className="w-3 h-3" /> Vídeo
+                                    </span>
+                                  )}
+                                </div>
+                                {(lead.criativo_titulo || lead.criativo_texto_principal) && (
+                                  <p className="text-xs mt-1.5 max-w-[320px] line-clamp-3 text-muted-foreground">
+                                    {lead.criativo_titulo || lead.criativo_texto_principal}
+                                  </p>
+                                )}
+                                {lead.criativo_link && (
+                                  <p className="text-[11px] mt-1 text-primary">Clique na miniatura pra abrir o post ↗</p>
+                                )}
+                              </HoverCardContent>
+                            </HoverCard>
                           ) : (
                             <span className="text-muted-foreground">{lead.criativo_nome || '-'}</span>
                           )}
@@ -257,18 +431,6 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
           </>
         )}
       </DialogContent>
-      </Dialog>
-
-      <Dialog open={Boolean(playingVideo)} onOpenChange={(o) => !o && setPlayingVideo(null)}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="truncate">{playingVideo?.criativo_nome || 'Criativo'}</DialogTitle>
-          </DialogHeader>
-          {playingVideo?.criativo_video && (
-            <video controls autoPlay src={playingVideo.criativo_video} className="w-full rounded-md bg-black" />
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
+    </Dialog>
   );
 }
