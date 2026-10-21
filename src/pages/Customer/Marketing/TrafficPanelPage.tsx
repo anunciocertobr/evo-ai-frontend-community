@@ -3418,10 +3418,29 @@ function CreateCampaignModal({
   // vezes nunca, se a seção fosse mais alta que o container inteiro). O
   // cálculo direto sempre produz um resultado, mesmo nesses vãos.
   useEffect(() => {
-    const root = contentScrollRef.current;
-    if (!root || !open) return;
+    if (!open) return;
 
+    // `contentScrollRef.current` NÃO é capturado aqui fora — é lido de novo
+    // TODA VEZ que a função roda (dentro dela), nunca guardado numa
+    // constante do escopo do efeito. Causa raiz real encontrada ao vivo
+    // (20/10, inspecionando o Fiber do React direto no navegador): nesta
+    // tela, o efeito roda pela primeira vez logo que o modal abre (1
+    // conjunto/1 anúncio, estado inicial em branco) e roda de NOVO assim
+    // que "Duplicar" preenche os dados reais (ex: 1 conjunto/7 anúncios,
+    // que muda as deps abaixo) — mas inspecionando o hook desse SEGUNDO
+    // disparo, `inst.destroy` vinha `undefined`: a função do efeito retornou
+    // cedo nesse instante (provavelmente `contentScrollRef.current` ainda
+    // `null`, no meio da re-renderização que troca vários estados de uma vez
+    // ao aplicar os dados da duplicação) — então o `document.addEventListener`
+    // nunca chegava a rodar, e nenhum scroll depois disso reativava o
+    // efeito (as deps não mudam mais: a pessoa só rola a tela, não adiciona
+    // conjunto/anúncio). Buscar `root` de novo a cada chamada em vez de uma
+    // vez só no setup faz o registro do listener não depender de o conteúdo
+    // já estar montado nesse instante exato — só precisa estar montado na
+    // primeira vez que um scroll/resize realmente dispara a função.
     const updateActiveAnchor = () => {
+      const root = contentScrollRef.current;
+      if (!root) return;
       const sections = Array.from(root.querySelectorAll<HTMLElement>('[id^="create-campaign-anchor-"]'));
       if (sections.length === 0) return;
       const rootTop = root.getBoundingClientRect().top;
@@ -3440,23 +3459,24 @@ function CreateCampaignModal({
 
     updateActiveAnchor();
     // Captura no `document` (fase de captura, `capture: true`) em vez de só
-    // no `root`: o evento `scroll` nativo NÃO faz bubbling, então um
-    // listener preso no elemento "errado" (ex: se algum wrapper do Radix
-    // Dialog acabar sendo o que de fato rola, não `contentScrollRef`) nunca
-    // dispara. A fase de captura, ao contrário, passa por TODOS os
-    // ancestrais antes de chegar no alvo, então pega o scroll de qualquer
-    // elemento rolável dentro do modal — reportado ao vivo (20/10) que
-    // clicar nos atalhos pulava certo (prova que os ids/seções estão
-    // corretos) mas rolar com o mouse nunca atualizava o destaque.
+    // no elemento que rola: o evento `scroll` nativo NÃO faz bubbling, então
+    // um listener preso no elemento "errado" nunca dispara — a fase de
+    // captura passa por TODOS os ancestrais antes de chegar no alvo, então
+    // pega o scroll de qualquer elemento rolável dentro do modal.
     document.addEventListener('scroll', updateActiveAnchor, { capture: true, passive: true });
     // Conteúdo mudando de altura (ex: adicionar pergunta rápida, trocar pra
     // "Vitalício" que soma um campo de data) também pode mudar qual seção
-    // está na faixa, mesmo sem o usuário rolar. Observa cada seção (não só
-    // `root`, que tem altura fixa e nunca muda de tamanho por conta do
-    // conteúdo interno crescer).
+    // está na faixa, mesmo sem o usuário rolar. `ResizeObserver` não aceita
+    // reobservar um elemento que ainda não existe — por isso só tenta
+    // observar se `contentScrollRef.current` já estiver disponível NESTE
+    // instante; se não estiver, o próprio `updateActiveAnchor()` já chamado
+    // acima (ou o próximo scroll) resolve assim que o DOM assentar.
     const resizeObserver = new ResizeObserver(updateActiveAnchor);
-    resizeObserver.observe(root);
-    root.querySelectorAll<HTMLElement>('[id^="create-campaign-anchor-"]').forEach((section) => resizeObserver.observe(section));
+    const rootNow = contentScrollRef.current;
+    if (rootNow) {
+      resizeObserver.observe(rootNow);
+      rootNow.querySelectorAll<HTMLElement>('[id^="create-campaign-anchor-"]').forEach((section) => resizeObserver.observe(section));
+    }
     return () => {
       document.removeEventListener('scroll', updateActiveAnchor, { capture: true });
       resizeObserver.disconnect();
