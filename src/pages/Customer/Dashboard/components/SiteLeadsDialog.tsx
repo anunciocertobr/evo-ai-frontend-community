@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Download, Search, ChevronDown, ChevronRight, X } from 'lucide-react';
 import {
@@ -19,6 +19,7 @@ import {
 import { sitesService, type Site, type SiteLeadSubmission } from '@/services/sites/sitesService';
 
 const ALL = '__all__';
+const COLUMN_COUNT = 13;
 
 interface Props {
   open: boolean;
@@ -37,7 +38,9 @@ const csvEscape = (value: string) => `"${(value || '').replace(/"/g, '""')}"`;
 // e conhecidas (o payload do GTM é JSON livre, não um array {name,values}
 // fixo como no Meta) — a linha expansível mostra o raw_payload inteiro em
 // JSON pra garantir que nenhum campo extra que o cliente mandar fique
-// invisível.
+// invisível. Colunas espelham os parâmetros que a tag "Planilha Google" já
+// manda pra esse tipo de cliente (categoria/pagamento/utms/fbp/fbc/etc —
+// ver Sites::WebhookPayloadParser).
 export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
   const [leads, setLeads] = useState<SiteLeadSubmission[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,6 +49,38 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
   const [dateTo, setDateTo] = useState('');
   const [eventFilter, setEventFilter] = useState(ALL);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Barra de rolagem horizontal "fantasma" fixada no topo da tabela,
+  // sincronizada com o scroll de verdade do container abaixo — sem isso,
+  // com muitas colunas a barra nativa só fica visível depois de rolar a
+  // tela toda pra baixo até o fim da tabela (achado pedindo pro usuário
+  // testar ao vivo).
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const [scrollWidth, setScrollWidth] = useState(0);
+  const syncingRef = useRef<'top' | 'table' | null>(null);
+
+  useEffect(() => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+    setScrollWidth(el.scrollWidth);
+    // As colunas são sempre as mesmas 13 fixas — a largura real só muda
+    // quando os dados terminam de carregar (tabela passa a existir no DOM).
+  }, [loading]);
+
+  const handleTopScroll = () => {
+    if (syncingRef.current === 'table') { syncingRef.current = null; return; }
+    if (!topScrollRef.current || !tableScrollRef.current) return;
+    syncingRef.current = 'top';
+    tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+  };
+
+  const handleTableScroll = () => {
+    if (syncingRef.current === 'top') { syncingRef.current = null; return; }
+    if (!topScrollRef.current || !tableScrollRef.current) return;
+    syncingRef.current = 'table';
+    topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+  };
 
   useEffect(() => {
     if (!open || !site) return;
@@ -80,7 +115,7 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
       if (to && createdAt > to) return false;
 
       if (!term) return true;
-      const campos = [lead.name, lead.email, lead.phone, lead.utm_source, lead.utm_campaign, lead.page_url];
+      const campos = [lead.name, lead.email, lead.phone, lead.utm_source, lead.utm_campaign, lead.page_url, lead.payment_method];
       return campos.some((valor) => valor?.toLowerCase().includes(term));
     });
   }, [leads, search, dateFrom, dateTo, eventFilter]);
@@ -93,7 +128,10 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
   };
 
   const downloadCsv = () => {
-    const header = ['Data', 'Evento', 'Nome', 'Email', 'Telefone', 'Valor', 'Moeda', 'Produtos', 'Página de origem', 'UTM Source', 'UTM Campaign'];
+    const header = [
+      'Data', 'Evento', 'Nome', 'Email', 'Telefone', 'Valor', 'Moeda', 'Produtos', 'Categorias',
+      'Pagamento', 'Página de origem', 'UTM Source', 'UTM Campaign', 'Cidade', 'Estado', 'Gênero',
+    ];
     const rows = filteredLeads.map((lead) => [
       formatDate(lead.created_at),
       lead.event_name || '',
@@ -103,9 +141,14 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
       lead.value || '',
       lead.currency || '',
       (lead.product_ids || []).join('; '),
+      (lead.content_category || []).join('; '),
+      lead.payment_method || '',
       lead.page_url || '',
       lead.utm_source || '',
       lead.utm_campaign || '',
+      lead.address_city || '',
+      lead.address_state || '',
+      lead.gender || '',
     ]);
     const csv = [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
     const blob = new Blob([`${String.fromCharCode(0xfeff)}${csv}`], { type: 'text/csv;charset=utf-8;' });
@@ -183,7 +226,10 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
                 <Download className="w-3.5 h-3.5 mr-1.5" /> Baixar CSV
               </Button>
             </div>
-            <div className="overflow-auto flex-1 border rounded-md">
+            <div ref={topScrollRef} onScroll={handleTopScroll} className="overflow-x-auto overflow-y-hidden" style={{ height: 14 }}>
+              <div style={{ width: scrollWidth, height: 1 }} />
+            </div>
+            <div ref={tableScrollRef} onScroll={handleTableScroll} className="overflow-auto flex-1 border rounded-md">
               <table className="w-full text-xs">
                 <thead className="bg-muted sticky top-0">
                   <tr>
@@ -195,6 +241,8 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
                     <th className="text-left p-2 font-medium whitespace-nowrap">Telefone</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Valor</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Produtos</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Categorias</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Pagamento</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Página de origem</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">UTM Source</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">UTM Campaign</th>
@@ -203,7 +251,7 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
                 <tbody>
                   {filteredLeads.length === 0 && (
                     <tr>
-                      <td colSpan={11} className="p-4 text-center text-muted-foreground">
+                      <td colSpan={COLUMN_COUNT} className="p-4 text-center text-muted-foreground">
                         Nenhum lead encontrado pra essa busca/filtro.
                       </td>
                     </tr>
@@ -230,6 +278,8 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
                           {lead.value ? `${lead.currency || ''} ${lead.value}`.trim() : '-'}
                         </td>
                         <td className="p-2 whitespace-nowrap">{(lead.product_ids || []).join(', ') || '-'}</td>
+                        <td className="p-2 whitespace-nowrap">{(lead.content_category || []).join(', ') || '-'}</td>
+                        <td className="p-2 whitespace-nowrap">{lead.payment_method || '-'}</td>
                         <td className="p-2 whitespace-nowrap max-w-[220px] truncate" title={lead.page_url || ''}>
                           {lead.page_url || '-'}
                         </td>
@@ -238,7 +288,7 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
                       </tr>
                       {expandedId === lead.id && (
                         <tr className="border-t border-border bg-muted/40">
-                          <td colSpan={11} className="p-3">
+                          <td colSpan={COLUMN_COUNT} className="p-3">
                             <p className="text-[11px] text-muted-foreground mb-1">Payload bruto recebido no webhook:</p>
                             <pre className="text-[11px] bg-background rounded-md p-3 overflow-x-auto max-h-[300px] whitespace-pre-wrap">
                               {JSON.stringify(lead.raw_payload, null, 2)}

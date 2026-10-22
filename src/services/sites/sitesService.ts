@@ -22,6 +22,15 @@ export interface SiteLeadSubmission {
   currency: string | null;
   transaction_id: string | null;
   product_ids: string[];
+  content_category: string[];
+  payment_method: string | null;
+  action_source: string | null;
+  gender: string | null;
+  birth_date: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  address_zip: string | null;
+  address_country: string | null;
   page_url: string | null;
   utm_source: string | null;
   utm_medium: string | null;

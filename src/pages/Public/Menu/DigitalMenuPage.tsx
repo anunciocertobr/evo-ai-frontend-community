@@ -283,6 +283,19 @@ const DigitalMenuPage = () => {
     [menu],
   );
 
+  // Nome da categoria por id de produto — pro item_category do evento
+  // generate_lead (dataLayer), já que PublicMenuProduct não carrega isso
+  // sozinho (só fica disponível agrupado em PublicMenuCategory).
+  const productCategoryNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    (menu?.categories ?? []).forEach((c) => {
+      c.products.forEach((p) => {
+        map[p.id] = c.name;
+      });
+    });
+    return map;
+  }, [menu]);
+
   const visibleCategories = useMemo(
     () => (menu?.categories ?? []).filter((c) => c.products.length > 0),
     [menu],
@@ -555,17 +568,40 @@ const DigitalMenuPage = () => {
       pushToDataLayer(
         {
           event: 'generate_lead',
+          action_source: 'website',
           user_data: {
             name: checkoutForm.fullName,
             phone: checkoutForm.phone,
             email: checkoutForm.email || undefined,
+            gender: checkoutForm.gender || undefined,
+            birth_date: checkoutForm.birthDate || undefined,
+            address_city: checkoutForm.city || undefined,
+            address_state: checkoutForm.state || undefined,
+            address_zip: checkoutForm.zip || undefined,
+            address_country: 'BR',
           },
           ecommerce: {
             value: cartTotal,
             currency: 'BRL',
             transaction_id: orderToken,
-            items: cart.map((line) => ({ item_id: line.product.id, item_name: line.product.name, price: line.product.price, quantity: line.quantity })),
+            content_type: 'product',
+            payment_method: checkoutForm.paymentMethod,
+            items: cart.map((line) => ({
+              item_id: line.product.id,
+              item_name: line.product.name,
+              item_category: productCategoryNameById[line.product.id],
+              price: line.product.price,
+              quantity: line.quantity,
+            })),
           },
+          // fbp/fbc são os cookies que o próprio Pixel do Meta (carregado
+          // pelo GTM) já seta no navegador quando presente — não vêm do
+          // checkout, servem pra atribuição/match de conversão no Facebook
+          // Ads (mesma convenção x-fb-ck-fbp/x-fb-ck-fbc usada no resto do
+          // container GTM deste cliente, ver tag "Google Sheet relatorio
+          // de compra").
+          fbp: getCookie('_fbp') || undefined,
+          fbc: getCookie('_fbc') || undefined,
         },
         trackingProfileRef.current,
       );
