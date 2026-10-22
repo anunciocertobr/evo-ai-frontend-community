@@ -555,8 +555,15 @@ const DigitalMenuPage = () => {
       pushToDataLayer(
         {
           event: 'generate_lead',
+          user_data: {
+            name: checkoutForm.fullName,
+            phone: checkoutForm.phone,
+            email: checkoutForm.email || undefined,
+          },
           ecommerce: {
             value: cartTotal,
+            currency: 'BRL',
+            transaction_id: orderToken,
             items: cart.map((line) => ({ item_id: line.product.id, item_name: line.product.name, price: line.product.price, quantity: line.quantity })),
           },
         },
