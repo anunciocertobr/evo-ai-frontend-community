@@ -80,7 +80,16 @@ export function SitesTab() {
 
       <SiteCreateDialog open={createOpen} onOpenChange={setCreateOpen} onSaved={loadSites} site={editingSite} />
       <SiteWebhookDialog open={Boolean(webhookSite)} onOpenChange={(o) => !o && setWebhookSite(null)} site={webhookSite} />
-      <SiteLeadsDialog open={Boolean(leadsSite)} onOpenChange={(o) => !o && setLeadsSite(null)} site={leadsSite} />
+      <SiteLeadsDialog
+        open={Boolean(leadsSite)}
+        onOpenChange={(o) => {
+          if (!o) {
+            setLeadsSite(null);
+            loadSites();
+          }
+        }}
+        site={leadsSite}
+      />
     </div>
   );
 }
