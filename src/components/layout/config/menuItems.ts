@@ -55,6 +55,7 @@ import {
   Sparkles,
   Brain,
   Search,
+  Globe,
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -115,6 +116,11 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         name: 'Atendimentos',
         href: '/dashboard',
         icon: PieChart,
+      },
+      {
+        name: 'Sites',
+        href: '/dashboard/sites',
+        icon: Globe,
       },
     ],
   },  {

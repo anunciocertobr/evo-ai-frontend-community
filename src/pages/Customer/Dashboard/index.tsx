@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, LayoutDashboard, Globe } from 'lucide-react';
-import { Badge, Card, CardContent, Tabs, TabsContent, TabsList, TabsTrigger } from '@evoapi/design-system';
+import { AlertTriangle } from 'lucide-react';
+import { Badge, Card, CardContent } from '@evoapi/design-system';
 import { BaseHeader } from '@/components/base';
 import type { HeaderFilter } from '@/components/base';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -14,7 +14,6 @@ import DashboardFiltersDialog from './components/DashboardFiltersDialog';
 import DashboardMetricsSection from './components/DashboardMetricsSection';
 import DashboardTrendsSection from './components/DashboardTrendsSection';
 import DashboardPerformanceSection from './components/DashboardPerformanceSection';
-import { SitesTab } from './components/SitesTab';
 import type { DashboardFilterState, DashboardOption } from './components/types';
 import { DashboardTour } from '@/tours';
 
@@ -98,7 +97,6 @@ const CustomerDashboardPage = () => {
   const [teams, setTeams] = useState<DashboardOption[]>([]);
   const [inboxes, setInboxes] = useState<DashboardOption[]>([]);
   const [users, setUsers] = useState<DashboardOption[]>([]);
-  const [activeTab, setActiveTab] = useState('overview');
 
   const loadDashboard = useCallback(async (filters: DashboardFilterState) => {
     setLoading(true);
@@ -252,6 +250,25 @@ const CustomerDashboardPage = () => {
     }));
   }, [data]);
 
+  if (loading) {
+    return <div className="p-4">{t('dashboard.loading') || 'Carregando dashboard...'}</div>;
+  }
+
+  if (error || !data) {
+    return (
+      <div className="p-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-red-600 font-medium">
+              <AlertTriangle className="h-4 w-4" />
+              {error || (t('dashboard.error') || 'Falha ao carregar dashboard')}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col p-4 gap-6">
       <DashboardTour />
@@ -259,62 +276,28 @@ const CustomerDashboardPage = () => {
         <BaseHeader
           title={t('dashboard.title')}
           subtitle={t('dashboard.subtitle')}
-          filters={activeTab === 'overview' ? appliedHeaderFilters : []}
+          filters={appliedHeaderFilters}
           onFilterClick={handleOpenFilter}
-          showFilters={activeTab === 'overview'}
+          showFilters
           filterButtonDataTour="dashboard-filter-button"
         />
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-        <TabsList className="mb-2">
-          <TabsTrigger value="overview">
-            <LayoutDashboard className="w-4 h-4 mr-1.5" /> Visão Geral
-          </TabsTrigger>
-          <TabsTrigger value="sites">
-            <Globe className="w-4 h-4 mr-1.5" /> Sites
-          </TabsTrigger>
-        </TabsList>
+      <div className="-mt-3 flex justify-end" data-tour="dashboard-period-badge">
+        <Badge variant="secondary">
+          {currentPeriodLabel} ({data.period.days} dias)
+        </Badge>
+      </div>
 
-        <TabsContent value="overview" className="space-y-6">
-          {loading ? (
-            <div className="p-4">{t('dashboard.loading') || 'Carregando dashboard...'}</div>
-          ) : error || !data ? (
-            <div className="p-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-2 text-red-600 font-medium">
-                    <AlertTriangle className="h-4 w-4" />
-                    {error || (t('dashboard.error') || 'Falha ao carregar dashboard')}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            <>
-              <div className="-mt-3 flex justify-end" data-tour="dashboard-period-badge">
-                <Badge variant="secondary">
-                  {currentPeriodLabel} ({data.period.days} dias)
-                </Badge>
-              </div>
-
-              <div data-tour="dashboard-metrics">
-                <DashboardMetricsSection data={data} t={t} />
-              </div>
-              <div data-tour="dashboard-trends">
-                <DashboardTrendsSection data={data} t={t} channelShareData={channelShareData} />
-              </div>
-              <div data-tour="dashboard-performance">
-                <DashboardPerformanceSection data={data} t={t} />
-              </div>
-            </>
-          )}
-        </TabsContent>
-
-        <TabsContent value="sites">
-          <SitesTab />
-        </TabsContent>
-      </Tabs>
+      <div data-tour="dashboard-metrics">
+        <DashboardMetricsSection data={data} t={t} />
+      </div>
+      <div data-tour="dashboard-trends">
+        <DashboardTrendsSection data={data} t={t} channelShareData={channelShareData} />
+      </div>
+      <div data-tour="dashboard-performance">
+        <DashboardPerformanceSection data={data} t={t} />
+      </div>
 
       <DashboardFiltersDialog
         open={filterModalOpen}

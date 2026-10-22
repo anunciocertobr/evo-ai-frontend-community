@@ -102,6 +102,7 @@ import SiteContentPage from '@/pages/Customer/Sites/SiteContentPage';
 import EditorPage from '@/pages/Customer/Editor/EditorPage';
 import ContentViewPage from '@/pages/Customer/Editor/ContentViewPage';
 import DashboardContentPage from '@/pages/Customer/Dashboard/DashboardContentPage';
+import DashboardSitesPage from '@/pages/Customer/Dashboard/SitesPage';
 import OrganizationDataPage from '@/pages/Customer/Organization/OrganizationDataPage';
 import DigitalMenuSettingsPage from '@/pages/Customer/Organization/DigitalMenuSettingsPage';
 import RealEstateSettingsPage from '@/pages/Customer/Organization/RealEstateSettingsPage';
@@ -2099,6 +2100,19 @@ const AppRouter = () => {
                         for everyone. Dashboard is the landing page Ã¢â‚¬â€ always visible
                         to authenticated users (EVO-2071 AC7). */}
                     <Dashboard />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/dashboard/sites"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <DashboardSitesPage />
                   </MainLayout>
                 </CustomerRoute>
               </PrivateRoute>
