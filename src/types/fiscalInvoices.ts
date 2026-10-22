@@ -74,6 +74,12 @@ export interface ServiceInvoice {
   tomador_endereco: ServiceInvoiceEndereco;
   discriminacao: string;
   codigo_servico_municipal: string;
+  /** Código NBS (Nomenclatura Brasileira de Serviços) — exigido pelo manual
+   * técnico de Guarulhos pós Reforma Tributária (LC 214/2025), até 9 dígitos. */
+  codigo_nbs: string;
+  /** Override opcional do código de tributação municipal — em branco, o
+   * backend usa a tabela padrão por item de serviço (Guarulhos::Client). */
+  codigo_tributacao_municipio?: string | null;
   /** Campos decimal — serializados como string pelo Rails (BigDecimal#as_json). */
   valor_servicos: string;
   aliquota_iss_pct: string;
@@ -112,6 +118,8 @@ export interface ServiceInvoiceFormData {
   tomador_endereco: ServiceInvoiceEndereco;
   discriminacao: string;
   codigo_servico_municipal: string;
+  codigo_nbs: string;
+  codigo_tributacao_municipio?: string;
   valor_servicos: number;
   valor_deducoes?: number;
   aliquota_iss_pct?: number;

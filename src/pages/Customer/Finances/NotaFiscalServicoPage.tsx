@@ -87,6 +87,8 @@ const emptyForm: ServiceInvoiceFormData = {
   tomador_endereco: emptyEndereco,
   discriminacao: '',
   codigo_servico_municipal: '',
+  codigo_nbs: '',
+  codigo_tributacao_municipio: '',
   valor_servicos: 0,
   valor_deducoes: 0,
 };
@@ -256,6 +258,10 @@ export default function NotaFiscalServicoPage() {
     }
     if (!form.discriminacao.trim() || !form.codigo_servico_municipal.trim()) {
       toast.error('Informe a discriminação e o código de serviço municipal.');
+      return;
+    }
+    if (!form.codigo_nbs.trim()) {
+      toast.error('Informe o código NBS do serviço — exigido pelo manual técnico atual da prefeitura.');
       return;
     }
     if (!form.valor_servicos || form.valor_servicos <= 0) {
@@ -635,6 +641,28 @@ export default function NotaFiscalServicoPage() {
                     onSelect={(s) => setForm((prev) => ({ ...prev, codigo_servico_municipal: s.codigo }))}
                   />
                 </div>
+              </div>
+              <div>
+                <Label className="text-xs">Código NBS</Label>
+                <Input
+                  value={form.codigo_nbs}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setForm((prev) => ({ ...prev, codigo_nbs: e.target.value.replace(/\D/g, '') }))
+                  }
+                  placeholder="Ex: 115011000"
+                  maxLength={9}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Cód. tributação municipal (opcional)</Label>
+                <Input
+                  value={form.codigo_tributacao_municipio ?? ''}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setForm((prev) => ({ ...prev, codigo_tributacao_municipio: e.target.value }))
+                  }
+                  placeholder="Deixe em branco para usar o padrão do item"
+                  maxLength={20}
+                />
               </div>
               <div>
                 <Label className="text-xs">Valor do serviço (R$)</Label>
