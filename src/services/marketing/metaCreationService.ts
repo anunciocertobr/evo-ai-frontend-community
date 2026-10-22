@@ -1,4 +1,5 @@
 import api from '@/services/core/api';
+import type { PipelineStatusForLead } from '@/services/admin/metaLeadFormsService';
 
 const ENDPOINT = '/reports/meta_ads_manager';
 
@@ -491,6 +492,20 @@ class MetaCreationService {
       busca: query,
     });
     return response.data || [];
+  }
+
+  // Liga leads vindos da Graph API (`LeadFormLead.id`) ao card do Kanban
+  // correspondente, em lote — mesmo id que MetaLeadSubmission#leadgen_id no
+  // backend. Leads sem submission correspondente (histórico anterior à
+  // feature, ou formulário nunca processado) simplesmente não aparecem na
+  // resposta, não é erro.
+  async getPipelineStatusForLeads(leadgenIds: string[]): Promise<Record<string, PipelineStatusForLead>> {
+    if (leadgenIds.length === 0) return {};
+    const response = await api.post<Record<string, PipelineStatusForLead>>(ENDPOINT, {
+      acao: 'status_pipeline_dos_leads',
+      leadgen_ids: leadgenIds,
+    });
+    return response.data || {};
   }
 
   private toLeadFormParams(payload: LeadFormCreatePayload) {

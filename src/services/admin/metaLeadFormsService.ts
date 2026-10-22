@@ -28,6 +28,9 @@ export interface MetaLeadSubmission {
   leadgen_id: string;
   page_id: string;
   form_id: string;
+  ad_id: string | null;
+  adset_id: string | null;
+  campaign_id: string | null;
   ad_name: string | null;
   adset_name: string | null;
   campaign_name: string | null;
@@ -36,6 +39,37 @@ export interface MetaLeadSubmission {
   field_data: Array<{ name: string; values: string[] }>;
   lead_created_time: string | null;
   created_at: string;
+  notified_whatsapp_at: string | null;
+  contact_id: string | null;
+  pipeline_item_id: string | null;
+  pipeline_id: string | null;
+  pipeline_name: string | null;
+  pipeline_stage_id: string | null;
+  pipeline_stage_name: string | null;
+}
+
+// Colunas extras só vêm no `show` (não no `index`, que é usado na lista
+// "retidos" — mais leve de propósito) — pedidas pelo botão de editar da
+// tela "Ver Leads" (LeadFormLeadsDialog).
+export interface MetaLeadSubmissionDetail extends MetaLeadSubmission {
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  lead_quality: string | null;
+  lead_score: number | null;
+  lead_objection: string | null;
+  lead_observation: string | null;
+  available_stages: Array<{ id: string; name: string }> | null;
+}
+
+export interface PipelineStatusForLead {
+  status: MetaLeadSubmission['status'];
+  contact_id: string | null;
+  pipeline_item_id: string | null;
+  pipeline_id: string | null;
+  pipeline_name: string | null;
+  pipeline_stage_id: string | null;
+  pipeline_stage_name: string | null;
 }
 
 export const metaLeadFormsService = {
@@ -61,5 +95,18 @@ export const metaLeadFormsService = {
   async listSubmissions(status?: string): Promise<MetaLeadSubmission[]> {
     const response = await api.get('/admin/meta_lead_submissions', { params: status ? { status } : undefined });
     return extractData<MetaLeadSubmission[]>(response);
+  },
+
+  // `leadgenId` é o id do lead na Graph API — é também o identificador na
+  // rota (ver comentário em Api::V1::Admin::MetaLeadSubmissionsController),
+  // não o UUID interno do registro.
+  async getSubmission(leadgenId: string): Promise<MetaLeadSubmissionDetail> {
+    const response = await api.get(`/admin/meta_lead_submissions/${leadgenId}`);
+    return extractData<MetaLeadSubmissionDetail>(response);
+  },
+
+  async updateSubmission(leadgenId: string, payload: { status?: string; pipeline_stage_id?: string }): Promise<MetaLeadSubmissionDetail> {
+    const response = await api.patch(`/admin/meta_lead_submissions/${leadgenId}`, payload);
+    return extractData<MetaLeadSubmissionDetail>(response);
   },
 };

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Download, Film, ExternalLink, Search, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { Loader2, Download, Film, ExternalLink, Search, ChevronDown, ChevronRight, X, Pencil } from 'lucide-react';
 import {
   Button,
   Dialog,
@@ -20,8 +20,10 @@ import {
   HoverCardTrigger,
 } from '@evoapi/design-system';
 import { metaCreationService, LeadFormLead } from '@/services/marketing/metaCreationService';
+import type { PipelineStatusForLead } from '@/services/admin/metaLeadFormsService';
 import LeadDetailsCell from '@/components/marketing/LeadDetailsCell';
 import { formatPublicoAlvo, LEAD_CSV_EXTRA_COLUMNS, leadCsvExtraValues } from '@/components/marketing/leadDetails';
+import MetaLeadSubmissionDetailDialog from '@/components/marketing/MetaLeadSubmissionDetailDialog';
 
 const ALL = '__all__';
 
@@ -77,6 +79,22 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
   const [adsetFilter, setAdsetFilter] = useState(ALL);
   const [adFilter, setAdFilter] = useState(ALL);
 
+  // Status/fase do card ligado no Kanban, por leadgen_id — buscado em lote
+  // depois da lista carregar (não vem junto da Graph API, é consulta
+  // separada no nosso banco). Lead sem entrada aqui = nunca passou pelo
+  // CRM (histórico anterior à integração, ou formulário sem mapeamento).
+  const [pipelineStatus, setPipelineStatus] = useState<Record<string, PipelineStatusForLead>>({});
+  const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
+
+  const loadPipelineStatus = (leadIds: string[]) => {
+    metaCreationService
+      .getPipelineStatusForLeads(leadIds)
+      .then(setPipelineStatus)
+      .catch(() => {
+        /* não trava a tela por isso — a coluna "Fase" só fica vazia */
+      });
+  };
+
   useEffect(() => {
     if (!open) return;
     setSearch('');
@@ -85,10 +103,14 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
     setCampaignFilter(ALL);
     setAdsetFilter(ALL);
     setAdFilter(ALL);
+    setPipelineStatus({});
     setLoading(true);
     metaCreationService
       .listFormLeads(pageId, formId)
-      .then(setLeads)
+      .then((data) => {
+        setLeads(data);
+        loadPipelineStatus(data.map((l) => l.id));
+      })
       .catch(() => toast.error('Falha ao buscar os leads desse formulário.'))
       .finally(() => setLoading(false));
   }, [open, pageId, formId]);
@@ -313,12 +335,14 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
                     <th className="text-left p-2 font-medium whitespace-nowrap">Criativo</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Origem</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Público-alvo do anúncio</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Fase</th>
+                    <th className="p-2 w-8" />
                   </tr>
                 </thead>
                 <tbody>
                   {filteredLeads.length === 0 && (
                     <tr>
-                      <td colSpan={fieldNames.length + 8} className="p-4 text-center text-muted-foreground">
+                      <td colSpan={fieldNames.length + 10} className="p-4 text-center text-muted-foreground">
                         Nenhum lead encontrado pra essa busca/filtro.
                       </td>
                     </tr>
@@ -421,8 +445,30 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
                             {formatPublicoAlvo(lead.publico_alvo)?.resumo || '-'}
                           </button>
                         </td>
+                        <td className="p-2 whitespace-nowrap">
+                          {pipelineStatus[lead.id]?.pipeline_stage_name ? (
+                            <>
+                              <span>{pipelineStatus[lead.id].pipeline_stage_name}</span>
+                              <span className="block text-[10px] text-muted-foreground">{pipelineStatus[lead.id].pipeline_name}</span>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">
+                              {pipelineStatus[lead.id]?.status === 'unmapped_form' ? 'Sem formulário mapeado' : '—'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => setEditingLeadId(lead.id)}
+                            className="text-muted-foreground hover:text-foreground"
+                            title="Ver/editar colunas adicionais"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
                       </tr>
-                      {expandedId === lead.id && <LeadDetailsCell lead={lead} colSpan={fieldNames.length + 8} />}
+                      {expandedId === lead.id && <LeadDetailsCell lead={lead} colSpan={fieldNames.length + 10} />}
                     </Fragment>
                   ))}
                 </tbody>
@@ -431,6 +477,13 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
           </>
         )}
       </DialogContent>
+
+      <MetaLeadSubmissionDetailDialog
+        open={Boolean(editingLeadId)}
+        onOpenChange={(o) => !o && setEditingLeadId(null)}
+        leadgenId={editingLeadId}
+        onUpdated={() => loadPipelineStatus(leads.map((l) => l.id))}
+      />
     </Dialog>
   );
 }

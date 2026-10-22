@@ -20,6 +20,7 @@ import { LeadFormCreateDialog } from '@/components/marketing/LeadFormCreateDialo
 import LeadFormLeadsDialog from '@/components/marketing/LeadFormLeadsDialog';
 import { LeadFormNotifySettingsDialog } from '@/components/marketing/LeadFormNotifySettingsDialog';
 import { MetaLeadsNotifyDefaultDialog } from '@/components/marketing/MetaLeadsNotifyDefaultDialog';
+import { MetaLeadsPipelineDefaultDialog } from '@/components/marketing/MetaLeadsPipelineDefaultDialog';
 import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialog';
 import { AudienceContactsPickerDialog } from '@/components/marketing/AudienceContactsPickerDialog';
 import { TargetingBuilder } from '@/components/marketing/TargetingBuilder';
@@ -106,6 +107,8 @@ export default function MetaCreationPage() {
   // meta_lead_notification_settings também conta como "não configurado".
   const [enabledNotifyFormIds, setEnabledNotifyFormIds] = useState<Set<string>>(new Set());
   const [defaultNotifyEnabled, setDefaultNotifyEnabled] = useState(false);
+  const [pipelineDefaultOpen, setPipelineDefaultOpen] = useState(false);
+  const [pipelineDefaultEnabled, setPipelineDefaultEnabled] = useState(false);
 
   // Públicos
   const [account, setAccount] = useState<{ id: string; name: string } | null>(null);
@@ -168,9 +171,19 @@ export default function MetaCreationPage() {
       .catch(() => {});
   }, []);
 
+  // Mesma ideia do sino de notificação, pro pipeline padrão (leads de
+  // formulário sem mapeamento próprio) — ver MetaLeadsPipelineDefaultDialog.
+  const loadDefaultPipelineSetting = useCallback(() => {
+    adminConfigService
+      .getConfig('meta_leads_pipeline_default')
+      .then((config) => setPipelineDefaultEnabled(Boolean(config?.META_LEADS_PIPELINE_ID && config?.META_LEADS_STAGE_ID)))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     loadDefaultNotifySetting();
-  }, [loadDefaultNotifySetting]);
+    loadDefaultPipelineSetting();
+  }, [loadDefaultNotifySetting, loadDefaultPipelineSetting]);
 
   const loadNotifySettingsForForms = useCallback((formIds: string[]) => {
     if (formIds.length === 0) {
@@ -430,6 +443,13 @@ export default function MetaCreationPage() {
                   >
                     <Bell className={`w-4 h-4 mr-1.5 ${defaultNotifyEnabled ? 'fill-emerald-500/30' : ''}`} /> Notificações de Leads
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setPipelineDefaultOpen(true)}
+                    className={pipelineDefaultEnabled ? 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400' : ''}
+                  >
+                    <Crosshair className={`w-4 h-4 mr-1.5 ${pipelineDefaultEnabled ? 'fill-emerald-500/30' : ''}`} /> Pipeline padrão
+                  </Button>
                   <Button onClick={() => setFormDialogOpen(true)}>
                     <Plus className="w-4 h-4 mr-1.5" /> Novo formulário
                   </Button>
@@ -552,6 +572,14 @@ export default function MetaCreationPage() {
                 onOpenChange={(open) => {
                   setNotifyDefaultOpen(open);
                   if (!open) loadDefaultNotifySetting();
+                }}
+              />
+
+              <MetaLeadsPipelineDefaultDialog
+                open={pipelineDefaultOpen}
+                onOpenChange={(open) => {
+                  setPipelineDefaultOpen(open);
+                  if (!open) loadDefaultPipelineSetting();
                 }}
               />
 
