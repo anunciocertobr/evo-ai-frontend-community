@@ -19,7 +19,7 @@ import {
 import { sitesService, type Site, type SiteLeadSubmission } from '@/services/sites/sitesService';
 
 const ALL = '__all__';
-const COLUMN_COUNT = 13;
+const COLUMN_COUNT = 15;
 
 interface Props {
   open: boolean;
@@ -129,26 +129,40 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
 
   const downloadCsv = () => {
     const header = [
-      'Data', 'Evento', 'Nome', 'Email', 'Telefone', 'Valor', 'Moeda', 'Produtos', 'Categorias',
-      'Pagamento', 'Página de origem', 'UTM Source', 'UTM Campaign', 'Cidade', 'Estado', 'Gênero',
+      'Data', 'Evento', 'Nome', 'Primeiro Nome', 'Sobrenome', 'Email', 'Telefone', 'Valor', 'Moeda',
+      'Qtd Itens', 'Produtos', 'IDs Produtos', 'Categorias', 'Tipo Conteúdo', 'Pagamento', 'Cupom',
+      'Página de origem', 'UTM Source', 'UTM Campaign', 'Cidade', 'Estado', 'CEP', 'País', 'Gênero',
+      'Data Nascimento', 'Qtd Compras Cliente', 'Valor Total Cliente', 'External ID',
     ];
     const rows = filteredLeads.map((lead) => [
       formatDate(lead.created_at),
       lead.event_name || '',
       lead.name || '',
+      lead.first_name || '',
+      lead.last_name || '',
       lead.email || '',
       lead.phone || '',
       lead.value || '',
       lead.currency || '',
+      lead.num_items != null ? String(lead.num_items) : '',
+      (lead.content_name || []).join('; '),
       (lead.product_ids || []).join('; '),
       (lead.content_category || []).join('; '),
+      lead.content_type || '',
       lead.payment_method || '',
+      lead.coupon || '',
       lead.page_url || '',
       lead.utm_source || '',
       lead.utm_campaign || '',
       lead.address_city || '',
       lead.address_state || '',
+      lead.address_zip || '',
+      lead.address_country || '',
       lead.gender || '',
+      lead.birth_date || '',
+      lead.customer_total_orders != null ? String(lead.customer_total_orders) : '',
+      lead.customer_total_order_value || '',
+      lead.external_id || '',
     ]);
     const csv = [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
     const blob = new Blob([`${String.fromCharCode(0xfeff)}${csv}`], { type: 'text/csv;charset=utf-8;' });
@@ -240,9 +254,11 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
                     <th className="text-left p-2 font-medium whitespace-nowrap">Email</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Telefone</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Valor</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Qtd</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Produtos</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Categorias</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Pagamento</th>
+                    <th className="text-left p-2 font-medium whitespace-nowrap">Histórico cliente</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">Página de origem</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">UTM Source</th>
                     <th className="text-left p-2 font-medium whitespace-nowrap">UTM Campaign</th>
@@ -277,9 +293,15 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
                         <td className="p-2 whitespace-nowrap">
                           {lead.value ? `${lead.currency || ''} ${lead.value}`.trim() : '-'}
                         </td>
-                        <td className="p-2 whitespace-nowrap">{(lead.product_ids || []).join(', ') || '-'}</td>
+                        <td className="p-2 whitespace-nowrap">{lead.num_items ?? '-'}</td>
+                        <td className="p-2 whitespace-nowrap" title={(lead.product_ids || []).join(', ')}>
+                          {(lead.content_name || []).join(', ') || (lead.product_ids || []).join(', ') || '-'}
+                        </td>
                         <td className="p-2 whitespace-nowrap">{(lead.content_category || []).join(', ') || '-'}</td>
                         <td className="p-2 whitespace-nowrap">{lead.payment_method || '-'}</td>
+                        <td className="p-2 whitespace-nowrap">
+                          {lead.customer_total_orders ? `${lead.customer_total_orders}x · R$ ${lead.customer_total_order_value}` : '-'}
+                        </td>
                         <td className="p-2 whitespace-nowrap max-w-[220px] truncate" title={lead.page_url || ''}>
                           {lead.page_url || '-'}
                         </td>

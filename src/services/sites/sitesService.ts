@@ -23,6 +23,16 @@ export interface SiteLeadSubmission {
   transaction_id: string | null;
   product_ids: string[];
   content_category: string[];
+  content_name: string[];
+  content_type: string | null;
+  num_items: number | null;
+  coupon: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  external_id: string | null;
+  first_party_collection: string | null;
+  customer_total_orders: number | null;
+  customer_total_order_value: string | null;
   payment_method: string | null;
   action_source: string | null;
   gender: string | null;
