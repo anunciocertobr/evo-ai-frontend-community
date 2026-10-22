@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import api from '@/services/core/api';
 import { extractData, extractResponse } from '@/utils/apiHelpers';
 import type { StandardResponse } from '@/types/core';
@@ -22,6 +23,16 @@ import type {
   StageAutomationRule,
 } from '@/types/analytics';
 import { Contact } from '@/types';
+
+// Backend manda esse aviso só quando o card é de um lead de formulário Meta
+// E o "Conversion Leads" (envio de status pra Meta via leadgen_id) não está
+// configurado (dataset/partner_agent/toggle) — ver
+// Api::V1::PipelineItemsController#meta_crm_setup_warning. Toast em vez de
+// bloquear a ação: qualificar/mover o card sempre funciona, isso só avisa
+// que aquele sinal específico não foi pra Meta.
+function warnMetaCrmSetupIfNeeded(warning?: string | null) {
+  if (warning) toast.warning(warning, { duration: 8000 });
+}
 
 class PipelinesService {
   // List all pipelines
@@ -173,7 +184,9 @@ class PipelinesService {
         notes: '',
       },
     );
-    return extractData<{ success: boolean; message: string }>(response);
+    const payload = extractData<{ success: boolean; message: string; meta_crm_warning?: string | null }>(response);
+    warnMetaCrmSetupIfNeeded(payload.meta_crm_warning);
+    return payload;
   }
 
   // Botão "Qualificar Lead" do card do Kanban
@@ -183,7 +196,8 @@ class PipelinesService {
     data: { lead_quality: string | null; lead_score: number | null; lead_objection: string | null; lead_observation: string | null },
   ): Promise<PipelineItem> {
     const response = await api.patch(`/pipelines/${pipelineId}/pipeline_items/${itemId}/qualify`, data);
-    const payload = extractData<{ pipeline_item: PipelineItem }>(response);
+    const payload = extractData<{ pipeline_item: PipelineItem; meta_crm_warning?: string | null }>(response);
+    warnMetaCrmSetupIfNeeded(payload.meta_crm_warning);
     return payload.pipeline_item;
   }
 

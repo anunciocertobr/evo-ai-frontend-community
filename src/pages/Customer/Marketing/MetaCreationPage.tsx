@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks, Pencil, ImagePlus, Bell, Search, MoreVertical } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks, Pencil, ImagePlus, Bell, Search, MoreVertical, Send } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -21,6 +21,7 @@ import LeadFormLeadsDialog from '@/components/marketing/LeadFormLeadsDialog';
 import { LeadFormNotifySettingsDialog } from '@/components/marketing/LeadFormNotifySettingsDialog';
 import { MetaLeadsNotifyDefaultDialog } from '@/components/marketing/MetaLeadsNotifyDefaultDialog';
 import { MetaLeadsPipelineDefaultDialog } from '@/components/marketing/MetaLeadsPipelineDefaultDialog';
+import { MetaConversionLeadsSettingsDialog } from '@/components/marketing/MetaConversionLeadsSettingsDialog';
 import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialog';
 import { AudienceContactsPickerDialog } from '@/components/marketing/AudienceContactsPickerDialog';
 import { TargetingBuilder } from '@/components/marketing/TargetingBuilder';
@@ -109,6 +110,8 @@ export default function MetaCreationPage() {
   const [defaultNotifyEnabled, setDefaultNotifyEnabled] = useState(false);
   const [pipelineDefaultOpen, setPipelineDefaultOpen] = useState(false);
   const [pipelineDefaultEnabled, setPipelineDefaultEnabled] = useState(false);
+  const [crmLeadsSettingsOpen, setCrmLeadsSettingsOpen] = useState(false);
+  const [crmLeadsEnabled, setCrmLeadsEnabled] = useState(false);
 
   // Públicos
   const [account, setAccount] = useState<{ id: string; name: string } | null>(null);
@@ -180,10 +183,20 @@ export default function MetaCreationPage() {
       .catch(() => {});
   }, []);
 
+  // Mesma ideia, pro "Conversion Leads" (envio de qualidade/fase do lead
+  // pra Meta via leadgen_id — ver MetaConversionLeadsSettingsDialog).
+  const loadCrmLeadsSetting = useCallback(() => {
+    adminConfigService
+      .getConfig('meta_conversion_leads')
+      .then((config) => setCrmLeadsEnabled(config?.META_CRM_ENABLED === 'true'))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     loadDefaultNotifySetting();
     loadDefaultPipelineSetting();
-  }, [loadDefaultNotifySetting, loadDefaultPipelineSetting]);
+    loadCrmLeadsSetting();
+  }, [loadDefaultNotifySetting, loadDefaultPipelineSetting, loadCrmLeadsSetting]);
 
   const loadNotifySettingsForForms = useCallback((formIds: string[]) => {
     if (formIds.length === 0) {
@@ -450,6 +463,13 @@ export default function MetaCreationPage() {
                   >
                     <Crosshair className={`w-4 h-4 mr-1.5 ${pipelineDefaultEnabled ? 'fill-emerald-500/30' : ''}`} /> Pipeline padrão
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setCrmLeadsSettingsOpen(true)}
+                    className={crmLeadsEnabled ? 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400' : ''}
+                  >
+                    <Send className={`w-4 h-4 mr-1.5 ${crmLeadsEnabled ? 'fill-emerald-500/30' : ''}`} /> Conversion Leads
+                  </Button>
                   <Button onClick={() => setFormDialogOpen(true)}>
                     <Plus className="w-4 h-4 mr-1.5" /> Novo formulário
                   </Button>
@@ -580,6 +600,14 @@ export default function MetaCreationPage() {
                 onOpenChange={(open) => {
                   setPipelineDefaultOpen(open);
                   if (!open) loadDefaultPipelineSetting();
+                }}
+              />
+
+              <MetaConversionLeadsSettingsDialog
+                open={crmLeadsSettingsOpen}
+                onOpenChange={(open) => {
+                  setCrmLeadsSettingsOpen(open);
+                  if (!open) loadCrmLeadsSetting();
                 }}
               />
 
