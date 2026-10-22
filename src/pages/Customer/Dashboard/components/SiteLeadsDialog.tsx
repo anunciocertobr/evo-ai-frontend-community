@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Download, Search, ChevronDown, ChevronRight, X } from 'lucide-react';
 import {
@@ -19,7 +19,6 @@ import {
 import { sitesService, type Site, type SiteLeadSubmission } from '@/services/sites/sitesService';
 
 const ALL = '__all__';
-const COLUMN_COUNT = 15;
 
 interface Props {
   open: boolean;
@@ -30,17 +29,84 @@ interface Props {
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+const ageFromBirthDate = (birthDate: string | null): number | null => {
+  if (!birthDate) return null;
+  const parsed = new Date(birthDate);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - parsed.getFullYear();
+  const beforeBirthday = now.getMonth() < parsed.getMonth() || (now.getMonth() === parsed.getMonth() && now.getDate() < parsed.getDate());
+  if (beforeBirthday) age -= 1;
+  return age >= 0 && age < 130 ? age : null;
+};
+
 const csvEscape = (value: string) => `"${(value || '').replace(/"/g, '""')}"`;
+const join = (values: string[] | null | undefined) => (values && values.length > 0 ? values.join(', ') : '');
+const dash = (value: string | number | null | undefined) => (value === null || value === undefined || value === '' ? '-' : value);
+
+// Uma coluna = {label, csv, cell}. A ordem segue a mesma ordem dos
+// parâmetros da URL da tag "Google Sheet relatorio de compra" do GTM
+// (ver Sites::WebhookPayloadParser) — pedido explícito do usuário: TODA
+// coluna que a planilha tem precisa aparecer na tabela, não só no CSV/no
+// payload expandido. Config-driven (array + map) em vez de JSX repetido
+// pra cabeçalho/corpo/CSV nunca ficarem fora de sincronia.
+const COLUMNS: Array<{
+  label: string;
+  csv: (lead: SiteLeadSubmission) => string;
+  cell: (lead: SiteLeadSubmission) => ReactNode;
+}> = [
+  { label: 'Data', csv: (l) => formatDate(l.created_at), cell: (l) => <span className="text-muted-foreground">{formatDate(l.created_at)}</span> },
+  { label: 'Evento', csv: (l) => l.event_name || '', cell: (l) => dash(l.event_name) },
+  { label: 'Order ID', csv: (l) => l.transaction_id || '', cell: (l) => dash(l.transaction_id) },
+  { label: 'First Name', csv: (l) => l.first_name || '', cell: (l) => dash(l.first_name) },
+  { label: 'Last Name', csv: (l) => l.last_name || '', cell: (l) => dash(l.last_name) },
+  { label: 'Email', csv: (l) => l.email || '', cell: (l) => dash(l.email) },
+  { label: 'Phone', csv: (l) => l.phone || '', cell: (l) => dash(l.phone) },
+  { label: 'Value', csv: (l) => l.value || '', cell: (l) => dash(l.value) },
+  { label: 'Content Name', csv: (l) => join(l.content_name), cell: (l) => dash(join(l.content_name)) },
+  { label: 'Gender', csv: (l) => l.gender || '', cell: (l) => dash(l.gender) },
+  { label: 'Age', csv: (l) => (ageFromBirthDate(l.birth_date) ?? '').toString(), cell: (l) => dash(ageFromBirthDate(l.birth_date)) },
+  { label: 'DB', csv: (l) => l.birth_date || '', cell: (l) => dash(l.birth_date) },
+  { label: 'Country', csv: (l) => l.address_country || '', cell: (l) => dash(l.address_country) },
+  { label: 'State', csv: (l) => l.address_state || '', cell: (l) => dash(l.address_state) },
+  { label: 'Zip', csv: (l) => l.address_zip || '', cell: (l) => dash(l.address_zip) },
+  { label: 'City', csv: (l) => l.address_city || '', cell: (l) => dash(l.address_city) },
+  { label: 'External ID', csv: (l) => l.external_id || '', cell: (l) => dash(l.external_id) },
+  { label: 'Content Type', csv: (l) => l.content_type || '', cell: (l) => dash(l.content_type) },
+  { label: 'Content IDs', csv: (l) => join(l.product_ids), cell: (l) => dash(join(l.product_ids)) },
+  { label: 'Currency', csv: (l) => l.currency || '', cell: (l) => dash(l.currency) },
+  { label: 'x-fb-ck-fbp', csv: (l) => l.fbp || '', cell: (l) => dash(l.fbp) },
+  { label: 'x-fb-ck-fbc', csv: (l) => l.fbc || '', cell: (l) => dash(l.fbc) },
+  { label: 'First Party Collection', csv: (l) => l.first_party_collection || '', cell: (l) => dash(l.first_party_collection) },
+  { label: 'Event Time', csv: (l) => formatDate(l.created_at), cell: (l) => <span className="text-muted-foreground">{formatDate(l.created_at)}</span> },
+  { label: 'Action Source', csv: (l) => l.action_source || '', cell: (l) => dash(l.action_source) },
+  { label: 'Content Category', csv: (l) => join(l.content_category), cell: (l) => dash(join(l.content_category)) },
+  { label: 'Num Items', csv: (l) => (l.num_items ?? '').toString(), cell: (l) => dash(l.num_items) },
+  { label: 'Campaign ID', csv: (l) => l.utm_id || '', cell: (l) => dash(l.utm_id) },
+  { label: 'Campaign Source', csv: (l) => l.utm_source || '', cell: (l) => dash(l.utm_source) },
+  { label: 'Campaign Medium', csv: (l) => l.utm_medium || '', cell: (l) => dash(l.utm_medium) },
+  { label: 'Campaign Campaign', csv: (l) => l.utm_campaign || '', cell: (l) => dash(l.utm_campaign) },
+  { label: 'Campaign Term', csv: (l) => l.utm_term || '', cell: (l) => dash(l.utm_term) },
+  { label: 'Campaign Content', csv: (l) => l.utm_content || '', cell: (l) => dash(l.utm_content) },
+  { label: 'gclid', csv: (l) => l.gclid || '', cell: (l) => dash(l.gclid) },
+  { label: 'Pagamento', csv: (l) => l.payment_method || '', cell: (l) => dash(l.payment_method) },
+  { label: 'Cupom', csv: (l) => l.coupon || '', cell: (l) => dash(l.coupon) },
+  {
+    label: 'Histórico cliente',
+    csv: (l) => (l.customer_total_orders ? `${l.customer_total_orders}x / R$ ${l.customer_total_order_value}` : ''),
+    cell: (l) => (l.customer_total_orders ? `${l.customer_total_orders}x · R$ ${l.customer_total_order_value}` : '-'),
+  },
+  { label: 'Página de origem', csv: (l) => l.page_url || '', cell: (l) => <span className="max-w-[220px] inline-block truncate align-bottom" title={l.page_url || ''}>{dash(l.page_url)}</span> },
+];
+
+const COLUMN_COUNT = COLUMNS.length + 1; // +1 pelo botão de expandir
 
 // "Ver leads" de um Site — mesmo padrão visual/estrutural de
 // LeadFormLeadsDialog.tsx (dialog full-screen, busca livre, filtro de
-// data, exportar CSV com BOM, linha expansível), mas as colunas são FIXAS
-// e conhecidas (o payload do GTM é JSON livre, não um array {name,values}
-// fixo como no Meta) — a linha expansível mostra o raw_payload inteiro em
-// JSON pra garantir que nenhum campo extra que o cliente mandar fique
-// invisível. Colunas espelham os parâmetros que a tag "Planilha Google" já
-// manda pra esse tipo de cliente (categoria/pagamento/utms/fbp/fbc/etc —
-// ver Sites::WebhookPayloadParser).
+// data, exportar CSV com BOM, linha expansível). Colunas FIXAS e
+// completas: toda coluna que a tag "Google Sheet relatorio de compra" do
+// GTM manda aparece aqui também, na mesma ordem (ver COLUMNS acima) —
+// pedido explícito do usuário, não só disponível no CSV/payload expandido.
 export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
   const [leads, setLeads] = useState<SiteLeadSubmission[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,7 +130,7 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
     const el = tableScrollRef.current;
     if (!el) return;
     setScrollWidth(el.scrollWidth);
-    // As colunas são sempre as mesmas 13 fixas — a largura real só muda
+    // As colunas são sempre as mesmas fixas — a largura real só muda
     // quando os dados terminam de carregar (tabela passa a existir no DOM).
   }, [loading]);
 
@@ -128,42 +194,8 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
   };
 
   const downloadCsv = () => {
-    const header = [
-      'Data', 'Evento', 'Nome', 'Primeiro Nome', 'Sobrenome', 'Email', 'Telefone', 'Valor', 'Moeda',
-      'Qtd Itens', 'Produtos', 'IDs Produtos', 'Categorias', 'Tipo Conteúdo', 'Pagamento', 'Cupom',
-      'Página de origem', 'UTM Source', 'UTM Campaign', 'Cidade', 'Estado', 'CEP', 'País', 'Gênero',
-      'Data Nascimento', 'Qtd Compras Cliente', 'Valor Total Cliente', 'External ID',
-    ];
-    const rows = filteredLeads.map((lead) => [
-      formatDate(lead.created_at),
-      lead.event_name || '',
-      lead.name || '',
-      lead.first_name || '',
-      lead.last_name || '',
-      lead.email || '',
-      lead.phone || '',
-      lead.value || '',
-      lead.currency || '',
-      lead.num_items != null ? String(lead.num_items) : '',
-      (lead.content_name || []).join('; '),
-      (lead.product_ids || []).join('; '),
-      (lead.content_category || []).join('; '),
-      lead.content_type || '',
-      lead.payment_method || '',
-      lead.coupon || '',
-      lead.page_url || '',
-      lead.utm_source || '',
-      lead.utm_campaign || '',
-      lead.address_city || '',
-      lead.address_state || '',
-      lead.address_zip || '',
-      lead.address_country || '',
-      lead.gender || '',
-      lead.birth_date || '',
-      lead.customer_total_orders != null ? String(lead.customer_total_orders) : '',
-      lead.customer_total_order_value || '',
-      lead.external_id || '',
-    ]);
+    const header = COLUMNS.map((c) => c.label);
+    const rows = filteredLeads.map((lead) => COLUMNS.map((c) => c.csv(lead)));
     const csv = [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
     const blob = new Blob([`${String.fromCharCode(0xfeff)}${csv}`], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -235,6 +267,10 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
               </div>
               <p className="text-sm text-muted-foreground whitespace-nowrap">
                 {filteredLeads.length === leads.length ? `${leads.length} lead(s)` : `${filteredLeads.length} de ${leads.length} lead(s)`}
+                {' · '}
+                <span title="Role a tabela pra ver todas as colunas, ou use o botão à esquerda de cada linha pra ver o payload bruto completo.">
+                  {COLUMNS.length} colunas
+                </span>
               </p>
               <Button size="sm" onClick={downloadCsv}>
                 <Download className="w-3.5 h-3.5 mr-1.5" /> Baixar CSV
@@ -248,20 +284,11 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
                 <thead className="bg-muted sticky top-0">
                   <tr>
                     <th className="p-2 w-6" />
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Data</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Evento</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Nome</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Email</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Telefone</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Valor</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Qtd</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Produtos</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Categorias</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Pagamento</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Histórico cliente</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">Página de origem</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">UTM Source</th>
-                    <th className="text-left p-2 font-medium whitespace-nowrap">UTM Campaign</th>
+                    {COLUMNS.map((c) => (
+                      <th key={c.label} className="text-left p-2 font-medium whitespace-nowrap">
+                        {c.label}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -285,28 +312,11 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
                             {expandedId === lead.id ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                           </button>
                         </td>
-                        <td className="p-2 whitespace-nowrap text-muted-foreground">{formatDate(lead.created_at)}</td>
-                        <td className="p-2 whitespace-nowrap">{lead.event_name || '-'}</td>
-                        <td className="p-2 whitespace-nowrap">{lead.name || '-'}</td>
-                        <td className="p-2 whitespace-nowrap">{lead.email || '-'}</td>
-                        <td className="p-2 whitespace-nowrap">{lead.phone || '-'}</td>
-                        <td className="p-2 whitespace-nowrap">
-                          {lead.value ? `${lead.currency || ''} ${lead.value}`.trim() : '-'}
-                        </td>
-                        <td className="p-2 whitespace-nowrap">{lead.num_items ?? '-'}</td>
-                        <td className="p-2 whitespace-nowrap" title={(lead.product_ids || []).join(', ')}>
-                          {(lead.content_name || []).join(', ') || (lead.product_ids || []).join(', ') || '-'}
-                        </td>
-                        <td className="p-2 whitespace-nowrap">{(lead.content_category || []).join(', ') || '-'}</td>
-                        <td className="p-2 whitespace-nowrap">{lead.payment_method || '-'}</td>
-                        <td className="p-2 whitespace-nowrap">
-                          {lead.customer_total_orders ? `${lead.customer_total_orders}x · R$ ${lead.customer_total_order_value}` : '-'}
-                        </td>
-                        <td className="p-2 whitespace-nowrap max-w-[220px] truncate" title={lead.page_url || ''}>
-                          {lead.page_url || '-'}
-                        </td>
-                        <td className="p-2 whitespace-nowrap">{lead.utm_source || '-'}</td>
-                        <td className="p-2 whitespace-nowrap">{lead.utm_campaign || '-'}</td>
+                        {COLUMNS.map((c) => (
+                          <td key={c.label} className="p-2 whitespace-nowrap">
+                            {c.cell(lead)}
+                          </td>
+                        ))}
                       </tr>
                       {expandedId === lead.id && (
                         <tr className="border-t border-border bg-muted/40">
