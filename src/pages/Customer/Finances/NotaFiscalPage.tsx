@@ -87,6 +87,7 @@ export default function NotaFiscalPage() {
   const [naturezaOperacao, setNaturezaOperacao] = useState('Venda de mercadoria');
   const [destinatarioNome, setDestinatarioNome] = useState('');
   const [destinatarioCpfCnpj, setDestinatarioCpfCnpj] = useState('');
+  const [formaPagamento, setFormaPagamento] = useState('01');
   const [itens, setItens] = useState<GoodsInvoiceItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [productResults, setProductResults] = useState<Product[]>([]);
@@ -125,6 +126,18 @@ export default function NotaFiscalPage() {
       toast.error('Informe CNPJ, razão social e inscrição estadual.');
       return;
     }
+    if (
+      profileForm.provider_key &&
+      (!profileForm.logradouro?.trim() ||
+        !profileForm.numero_endereco?.trim() ||
+        !profileForm.bairro?.trim() ||
+        !profileForm.codigo_municipio?.trim() ||
+        !profileForm.nome_municipio?.trim() ||
+        !profileForm.cep?.trim())
+    ) {
+      toast.error('Emissão real exige o endereço completo do emitente.');
+      return;
+    }
     setSavingProfile(true);
     try {
       await goodsFiscalProfilesService.create(profileForm);
@@ -144,6 +157,7 @@ export default function NotaFiscalPage() {
     setNaturezaOperacao('Venda de mercadoria');
     setDestinatarioNome('');
     setDestinatarioCpfCnpj('');
+    setFormaPagamento('01');
     setItens([]);
     setProductSearch('');
     setProductResults([]);
@@ -228,6 +242,7 @@ export default function NotaFiscalPage() {
         natureza_operacao: naturezaOperacao,
         destinatario_nome: destinatarioNome || undefined,
         destinatario_cpf_cnpj: destinatarioCpfCnpj || undefined,
+        forma_pagamento: formaPagamento,
         itens,
       });
       if (invoice.erro_mensagem) {
@@ -334,7 +349,7 @@ export default function NotaFiscalPage() {
 
       {/* Perfil Fiscal */}
       <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Novo Perfil Fiscal (NF-e/NFC-e)</DialogTitle>
             <DialogDescription>Dados do emitente perante a SEFAZ do estado — independente do cadastro de NFS-e.</DialogDescription>
@@ -368,7 +383,7 @@ export default function NotaFiscalPage() {
               </div>
               <div>
                 <Label className="text-xs">Regime (CRT)</Label>
-                <Select value={profileForm.crt} onValueChange={(v) => setProfileForm((p) => ({ ...p, crt: v as '1' | '2' | '3' }))}>
+                <Select value={profileForm.crt} onValueChange={(v) => setProfileForm((p) => ({ ...p, crt: v as '1' | '2' | '3' | '4' }))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -395,6 +410,80 @@ export default function NotaFiscalPage() {
                 </Select>
               </div>
             </div>
+
+            <div>
+              <Label className="text-xs">Emissão</Label>
+              <Select
+                value={profileForm.provider_key || '__none__'}
+                onValueChange={(v) => setProfileForm((p) => ({ ...p, provider_key: v === '__none__' ? undefined : v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nenhuma (só registra os dados, não transmite)</SelectItem>
+                  <SelectItem value="sefaz_sp">Direto na SEFAZ-SP (sem provedor terceiro)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {profileForm.provider_key && (
+              <div className="rounded-lg border border-border p-3 space-y-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Endereço do emitente (obrigatório pra emissão de verdade — exigido pelo schema da NF-e/NFC-e)
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <Label className="text-xs">Logradouro</Label>
+                    <Input value={profileForm.logradouro || ''} onChange={(e) => setProfileForm((p) => ({ ...p, logradouro: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Número</Label>
+                    <Input
+                      value={profileForm.numero_endereco || ''}
+                      onChange={(e) => setProfileForm((p) => ({ ...p, numero_endereco: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Bairro</Label>
+                    <Input value={profileForm.bairro || ''} onChange={(e) => setProfileForm((p) => ({ ...p, bairro: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Complemento</Label>
+                    <Input
+                      value={profileForm.complemento || ''}
+                      onChange={(e) => setProfileForm((p) => ({ ...p, complemento: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs">Cód. Município (IBGE)</Label>
+                    <Input
+                      value={profileForm.codigo_municipio || ''}
+                      onChange={(e) => setProfileForm((p) => ({ ...p, codigo_municipio: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Município</Label>
+                    <Input
+                      value={profileForm.nome_municipio || ''}
+                      onChange={(e) => setProfileForm((p) => ({ ...p, nome_municipio: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">CEP</Label>
+                    <Input value={profileForm.cep || ''} onChange={(e) => setProfileForm((p) => ({ ...p, cep: e.target.value }))} />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs">Telefone (opcional)</Label>
+                  <Input value={profileForm.telefone || ''} onChange={(e) => setProfileForm((p) => ({ ...p, telefone: e.target.value }))} />
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setProfileDialogOpen(false)}>
@@ -465,6 +554,22 @@ export default function NotaFiscalPage() {
                 <Label className="text-xs">CPF/CNPJ</Label>
                 <Input value={destinatarioCpfCnpj} onChange={(e) => setDestinatarioCpfCnpj(e.target.value)} />
               </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Forma de pagamento</Label>
+              <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="01">Dinheiro</SelectItem>
+                  <SelectItem value="03">Cartão de Crédito</SelectItem>
+                  <SelectItem value="04">Cartão de Débito</SelectItem>
+                  <SelectItem value="17">PIX</SelectItem>
+                  <SelectItem value="99">Outros</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

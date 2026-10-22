@@ -3,7 +3,7 @@
 // pedido explícito do usuário de manter as duas frentes separadas.
 
 export type GoodsFiscalAmbiente = 'homologacao' | 'producao';
-export type GoodsFiscalCrt = '1' | '2' | '3'; // Simples | Simples excesso | Normal
+export type GoodsFiscalCrt = '1' | '2' | '3' | '4'; // Simples | Simples excesso | Normal | MEI
 export type GoodsInvoiceModelo = '55' | '65'; // NF-e | NFC-e
 export type GoodsInvoiceStatus = 'pending' | 'processing' | 'authorized' | 'error' | 'cancelled';
 
@@ -21,6 +21,16 @@ export interface GoodsFiscalProfile {
   numero_nfe_atual: number;
   serie_nfce: string;
   numero_nfce_atual: number;
+  /** Endereço do emitente (<enderEmit>) — exigido só quando provider_key
+   * aponta pra emissão real (ex.: 'sefaz_sp'). */
+  logradouro?: string | null;
+  numero_endereco?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  codigo_municipio?: string | null;
+  nome_municipio?: string | null;
+  cep?: string | null;
+  telefone?: string | null;
   active: boolean;
   configured: boolean;
   csc_configured: boolean;
@@ -37,8 +47,17 @@ export interface GoodsFiscalProfileFormData {
   inscricao_estadual: string;
   crt: GoodsFiscalCrt;
   ambiente: GoodsFiscalAmbiente;
+  provider_key?: string;
   serie_nfe?: string;
   serie_nfce?: string;
+  logradouro?: string;
+  numero_endereco?: string;
+  complemento?: string;
+  bairro?: string;
+  codigo_municipio?: string;
+  nome_municipio?: string;
+  cep?: string;
+  telefone?: string;
   active?: boolean;
 }
 
@@ -101,6 +120,7 @@ export interface GoodsInvoice {
   destinatario_nome?: string | null;
   destinatario_cpf_cnpj?: string | null;
   destinatario_endereco?: GoodsInvoiceEndereco;
+  forma_pagamento: string;
   itens: GoodsInvoiceItem[];
   /** Campos decimal — serializados como string pelo Rails (BigDecimal#as_json). */
   valor_produtos: string;
@@ -135,6 +155,7 @@ export interface GoodsInvoiceFormData {
   destinatario_nome?: string;
   destinatario_cpf_cnpj?: string;
   destinatario_endereco?: GoodsInvoiceEndereco;
+  forma_pagamento?: string;
   itens: GoodsInvoiceItem[];
   valor_desconto?: number;
   valor_frete?: number;
