@@ -69,26 +69,47 @@ encerrar a sessão — nunca deixe o hotfix pendurado só na branch.
    não é bug de código.
 4. Verificação mínima antes de commitar o merge, sempre nos arquivos
    tocados pelo merge (não é preciso rodar no repo inteiro toda vez, mas
-   rode pelo menos `tsc -b --force` completo pra não perder erro em cadeia
-   entre arquivos):
-   - `npx tsc -b --force` — este projeto tem um baseline de erros
-     pré-existentes espalhados por arquivos não relacionados a nenhum
-     trabalho atual (ex.: `FinancesPage.tsx`, `GtmPage.tsx`,
-     `InventoryPage.tsx`, `HoleritePage.tsx`, `ga4Utils.ts`). Antes de
-     "corrigir" um erro que aparece depois de um merge, confira se ele já
-     existia ANTES do merge em ambos os lados
-     (`git show <commit>:<arquivo> | grep ...`) — se sim, é dívida técnica
-     pré-existente, não uma regressão sua, e não faz parte do escopo do
-     merge corrigi-lo. Só corrija erros que o PRÓPRIO merge introduziu
-     (import não usado num arquivo novo, tipo que só existe de um lado,
-     etc.).
-   - `npx eslint <arquivos tocados>`
-   - `npx vite build` (build de produção de verdade, não só o dev server) —
-     **rodar `tsc -b --force`/`vite build` direto com saída redirecionada
+   rode pelo menos `tsc -b` completo pra não perder erro em cadeia entre
+   arquivos). **Prefira `~/scripts/vps/local_build_check.sh
+   arquivo1.tsx ...`** (skill `vps-crm-ops`) em vez de rodar os comandos
+   na mão — ele já decide sozinho entre `tsc -b` incremental e `--force`
+   (ver nota de cache abaixo), roda eslint/tsc/vite em background com
+   `nohup` e espera os dois de uma vez.
+   - `./node_modules/.bin/tsc -b --force` (ou `tsc -b` puro — ver nota de
+     cache abaixo) — **não use `npx tsc`/`npx vite`**: já aconteceu de
+     `npx vite build` resolver uma versão baixada na hora pelo cache do
+     npx (vite 8.x) em vez da versão fixada no `package.json` (`^6.3.1`),
+     e essa versão errada falhava com "Cannot resolve entry module
+     index.html" mesmo rodando do diretório certo —
+     este projeto tem um baseline de erros pré-existentes espalhados por
+     arquivos não relacionados a nenhum trabalho atual (ex.:
+     `FinancesPage.tsx`, `GtmPage.tsx`, `InventoryPage.tsx`,
+     `HoleritePage.tsx`, `ga4Utils.ts`). Antes de "corrigir" um erro que
+     aparece depois de um merge, confira se ele já existia ANTES do merge
+     em ambos os lados (`git show <commit>:<arquivo> | grep ...`) — se
+     sim, é dívida técnica pré-existente, não uma regressão sua, e não faz
+     parte do escopo do merge corrigi-lo. Só corrija erros que o PRÓPRIO
+     merge introduziu (import não usado num arquivo novo, tipo que só
+     existe de um lado, etc.).
+   - **Cache incremental do `tsc`**: `tsconfig.app.json` tem
+     `tsBuildInfoFile` apontando pra
+     `node_modules/.tmp/tsconfig.app.tsbuildinfo`. Depois da primeira
+     rodada completa (`--force`) nesta máquina, esse arquivo existe e uma
+     rodada seguinte **sem** `--force` reaproveita o cache — só reconfere
+     o que mudou, leva segundos em vez de 5-9min. Só usar `--force` de
+     novo se o cache não existir ainda, depois de um merge grande, ou se
+     desconfiar que ele está escondendo um erro (o cache é por-máquina,
+     não é versionado no git).
+   - `./node_modules/.bin/eslint <arquivos tocados>`
+   - `./node_modules/.bin/vite build` (build de produção de verdade, não só o dev server) —
+     **rodar `tsc -b`/`vite build` direto com saída redirecionada
      (`> arquivo` ou `| tail`) na mesma chamada trava com o buffer vazio
      nesta máquina; usar `nohup ... > /tmp/log &` e consultar o log depois,
-     ver `~/CLAUDE.md` ("Builds longos LOCAIS")** — os dois comandos levam
-     vários minutos neste projeto (~10 mil módulos), não é travamento.
+     ver `~/CLAUDE.md` ("Builds longos LOCAIS")** — sem o cache incremental
+     (`--force`) os dois comandos levam vários minutos neste projeto
+     (~10 mil módulos), não é travamento; com cache, o `tsc` é rápido mas
+     o `vite build` continua levando os mesmos 3-5min (não tem cache
+     incremental).
 5. Commit detalhado explicando cada conflito resolvido e por quê. `git push
    origin main`. Só depois, `bin/deploy_vps.sh <nota>` — **a partir de uma
    sessão Claude Code, ver `~/CLAUDE.md` ("Rodando bin/deploy_vps.sh a partir

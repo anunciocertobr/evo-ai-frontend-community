@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@evoapi/design-system';
-import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks, Pencil, ImagePlus, Bell, Search, MoreVertical, Send } from 'lucide-react';
+import { Plus, FileText, Users, Building2, Crosshair, Copy, Power, PowerOff, Images, Link2, MapPin, Trash2, ListChecks, Pencil, ImagePlus, Bell, Search, MoreVertical, Send, Wallet } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
@@ -29,6 +29,7 @@ import { MetaAdAccountScopeProvider } from '@/components/marketing/MetaAdAccount
 import { LocationGroupsTab } from '@/components/marketing/LocationGroupsTab';
 import { MediaLibraryBrowser } from '@/components/marketing/MediaLibraryBrowser';
 import { CriativoRequestsTab } from '@/components/marketing/CriativoRequestsTab';
+import { PaymentsTab } from '@/components/marketing/PaymentsTab';
 import { CreativeLibraryTab } from '@/components/marketing/CreativeLibraryTab';
 import { MetaCreationAiButton } from '@/components/marketing/MetaCreationAiButton';
 import { resolveLocationDraftPlaces, type AiMetaDraft } from '@/utils/marketing/aiMetaDraft';
@@ -375,7 +376,7 @@ export default function MetaCreationPage() {
         }}
       >
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 h-auto w-full flex-nowrap justify-start gap-2 overflow-x-auto">
           <TabsTrigger value="forms">
             <FileText className="w-4 h-4 mr-1.5" /> Formulários
           </TabsTrigger>
@@ -396,6 +397,9 @@ export default function MetaCreationPage() {
           </TabsTrigger>
           <TabsTrigger value="solicitar-criativo">
             <Link2 className="w-4 h-4 mr-1.5" /> Solicitar Criativo
+          </TabsTrigger>
+          <TabsTrigger value="pagamentos">
+            <Wallet className="w-4 h-4 mr-1.5" /> Pagamentos
           </TabsTrigger>
         </TabsList>
 
@@ -839,6 +843,11 @@ export default function MetaCreationPage() {
         {/* --- Solicitar Criativo --- */}
         <TabsContent value="solicitar-criativo">
           <CriativoRequestsTab />
+        </TabsContent>
+
+        {/* --- Pagamentos (recarga de saldo pré-pago via PIX/boleto) --- */}
+        <TabsContent value="pagamentos">
+          <PaymentsTab />
         </TabsContent>
       </Tabs>
       </MetaAdAccountScopeProvider>
