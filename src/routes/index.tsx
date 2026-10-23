@@ -123,6 +123,10 @@ import GoogleWorkspaceCallback from '../pages/Customer/Settings/Integrations/Goo
 import GoogleWorkspacePage from '../pages/Customer/Settings/Integrations/GoogleWorkspacePage';
 import DropboxCallback from '../pages/Customer/Settings/Integrations/DropboxCallback';
 import DropboxPage from '../pages/Customer/Settings/Integrations/DropboxPage';
+import MercadoLivreCallback from '../pages/Customer/Settings/Integrations/MercadoLivreCallback';
+import MercadoLivrePage from '../pages/Customer/Settings/Integrations/MercadoLivrePage';
+import ShopeeCallback from '../pages/Customer/Settings/Integrations/ShopeeCallback';
+import ShopeePage from '../pages/Customer/Settings/Integrations/ShopeePage';
 import GoogleDrivePage from '../pages/Customer/Drive/GoogleDrivePage';
 import DropboxFilesPage from '../pages/Customer/Dropbox/DropboxFilesPage';
 import BMSPage from '../pages/Customer/Settings/Integrations/BMSPage';
@@ -297,6 +301,26 @@ const AppRouter = () => {
             }
           />
 
+          {/* Mercado Livre OAuth Callback — own app */}
+          <Route
+            path="/settings/integrations/mercado_livre/callback"
+            element={
+              <PublicRoute>
+                <MercadoLivreCallback />
+              </PublicRoute>
+            }
+          />
+
+          {/* Shopee OAuth Callback — own app, returns code + shop_id + state in the query */}
+          <Route
+            path="/settings/integrations/shopee/callback"
+            element={
+              <PublicRoute>
+                <ShopeeCallback />
+              </PublicRoute>
+            }
+          />
+
           {/* Google Workspace settings (Client ID/Secret + connect/disconnect) Ã¢â‚¬â€ matched before the generic
               /settings/integrations/:integrationId placeholder route */}
           <Route
@@ -323,6 +347,38 @@ const AppRouter = () => {
                   <MainLayout>
                     <PermissionRoute resource="integrations" action="read">
                       <DropboxPage />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* Mercado Livre settings (Client ID/Secret + connect/disconnect) — same reasoning as Dropbox above */}
+          <Route
+            path="/settings/integrations/mercado_livre"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="integrations" action="read">
+                      <MercadoLivrePage />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* Shopee settings (Partner ID/Key + connect/disconnect) — same reasoning as Dropbox above */}
+          <Route
+            path="/settings/integrations/shopee"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="integrations" action="read">
+                      <ShopeePage />
                     </PermissionRoute>
                   </MainLayout>
                 </CustomerRoute>

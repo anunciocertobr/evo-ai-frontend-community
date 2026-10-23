@@ -350,6 +350,26 @@ class IntegrationsService {
     return extractData<{ email: string | null }>(response);
   }
 
+  // Mercado Livre — same top-level-path reasoning as handleGoogleWorkspaceCallback above.
+  async handleMercadoLivreCallback(
+    code: string,
+    state: string,
+  ): Promise<{ user_id: string | null; nickname: string | null }> {
+    const response = await api.post('/mercado_livre/callback', { code, state });
+    return extractData<{ user_id: string | null; nickname: string | null }>(response);
+  }
+
+  // Shopee — devolve code + shop_id + state na query do redirect (não só
+  // code), ver Api::V1::Integrations::ShopeeAuthorizationsController.
+  async handleShopeeCallback(
+    code: string,
+    shopId: string,
+    state: string,
+  ): Promise<{ shop_id: string | null; shop_name: string | null }> {
+    const response = await api.post('/shopee/callback', { code, shop_id: shopId, state });
+    return extractData<{ shop_id: string | null; shop_name: string | null }>(response);
+  }
+
   // OpenAI Hook methods (using generic methods)
   async getOpenAIHook(): Promise<OpenAIHook | null> {
     const hook = await this.getIntegrationHook('openai');
