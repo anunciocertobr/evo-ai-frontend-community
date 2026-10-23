@@ -64,6 +64,7 @@ import {
 } from '@/types/fiscalInvoices';
 import { MunicipioSearchButton } from '@/components/finances/MunicipioAutocomplete';
 import { ServicoLC116SearchButton } from '@/components/finances/ServicoLC116Autocomplete';
+import ServiceInvoiceSchedulesSection from './components/ServiceInvoiceSchedulesSection';
 
 const STATUS_META: Record<ServiceInvoiceStatus, { label: string; variant: 'default' | 'destructive' | 'secondary' | 'outline' }> = {
   pending: { label: 'Pendente', variant: 'secondary' },
@@ -806,6 +807,8 @@ export default function NotaFiscalServicoPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ServiceInvoiceSchedulesSection establishments={establishments} />
     </div>
   );
 }
