@@ -17,6 +17,7 @@ import { BaseHeader } from '@/components/base';
 import { MetaScopedEntityPicker } from '@/components/marketing/MetaScopedEntityPicker';
 import { clientGoalsService } from '@/services/marketing/clientGoalsService';
 import { LeadFormCreateDialog } from '@/components/marketing/LeadFormCreateDialog';
+import { LeadgenSubscriptionButton } from '@/components/marketing/LeadgenSubscriptionButton';
 import LeadFormLeadsDialog from '@/components/marketing/LeadFormLeadsDialog';
 import { LeadFormNotifySettingsDialog } from '@/components/marketing/LeadFormNotifySettingsDialog';
 import { MetaLeadsNotifyDefaultDialog } from '@/components/marketing/MetaLeadsNotifyDefaultDialog';
@@ -474,6 +475,7 @@ export default function MetaCreationPage() {
                   >
                     <Send className={`w-4 h-4 mr-1.5 ${crmLeadsEnabled ? 'fill-emerald-500/30' : ''}`} /> Conversion Leads
                   </Button>
+                  <LeadgenSubscriptionButton pageId={page.id} pageName={page.name} />
                   <Button onClick={() => setFormDialogOpen(true)}>
                     <Plus className="w-4 h-4 mr-1.5" /> Novo formulário
                   </Button>

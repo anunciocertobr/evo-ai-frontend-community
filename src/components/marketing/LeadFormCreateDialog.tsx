@@ -28,6 +28,7 @@ import {
   THANK_YOU_BUTTON_TYPES,
   type LeadQuestion,
   type LeadFormDetail,
+  type LeadgenSubscription,
 } from '@/services/marketing/metaCreationService';
 
 interface CustomQuestionDraft {
@@ -212,17 +213,27 @@ export function LeadFormCreateDialog({
 
     setSaving(true);
     try {
+      let subscription: LeadgenSubscription | undefined;
       if (duplicateFrom) {
-        await metaCreationService.duplicateLeadForm({
+        const result = await metaCreationService.duplicateLeadForm({
           sourcePageId: duplicateFrom.sourcePageId,
           formId: duplicateFrom.formId,
           targetPageId: targetPage.id,
           overrides: payload,
         });
+        subscription = result.leadgen_subscription;
         toast.success('Formulário duplicado na Meta!');
       } else {
-        await metaCreationService.createLeadForm({ pageId: targetPage.id, ...payload });
+        const result = await metaCreationService.createLeadForm({ pageId: targetPage.id, ...payload });
+        subscription = result.leadgen_subscription;
         toast.success('Formulário criado na Meta!');
+      }
+      if (subscription && (subscription.success === false || subscription.subscribed === false)) {
+        toast.warning(
+          subscription.error
+            ? `Formulário salvo, mas o Lead Ads não foi assinado: ${subscription.error}`
+            : 'Formulário salvo, mas o Lead Ads desta Página não está assinado. Use o botão "Assinar Lead Ads".'
+        );
       }
       onOpenChange(false);
       onSaved();

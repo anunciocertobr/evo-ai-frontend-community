@@ -16,6 +16,20 @@ export interface LeadForm {
   created_time?: string;
 }
 
+// Assinatura do webhook `leadgen` da Página para o app deste CRM. `all_apps`
+// inclui outros apps instalados na mesma Página (ex.: o n8n da Ellie), por
+// isso o backend filtra pelo FB_APP_ID em `subscribed`.
+export interface LeadgenSubscription {
+  success?: boolean;
+  subscribed?: boolean;
+  verified?: boolean;
+  app_id?: string;
+  app_name?: string;
+  subscribed_fields?: string[];
+  all_apps?: Array<{ id: string; name?: string; subscribed_fields?: string[] }>;
+  error?: string;
+}
+
 // Público-alvo CONFIGURADO no conjunto de anúncios que gerou o lead (não é
 // dado do indivíduo — a Meta não expõe idade/gênero/dispositivo de quem
 // converteu, só o que o anúncio mirava). Ver comentário em
@@ -526,8 +540,11 @@ class MetaCreationService {
     };
   }
 
-  async createLeadForm(payload: LeadFormCreatePayload): Promise<{ id: string }> {
-    const response = await api.post<{ id: string }>(ENDPOINT, {
+  async createLeadForm(payload: LeadFormCreatePayload): Promise<{
+    id: string;
+    leadgen_subscription?: LeadgenSubscription;
+  }> {
+    const response = await api.post<{ id: string; leadgen_subscription?: LeadgenSubscription }>(ENDPOINT, {
       acao: 'criar_formulario_lead',
       ...this.toLeadFormParams(payload),
     });
@@ -539,15 +556,34 @@ class MetaCreationService {
     formId: string;
     targetPageId: string;
     overrides: Partial<LeadFormCreatePayload>;
-  }): Promise<{ id: string }> {
+  }): Promise<{ id: string; leadgen_subscription?: LeadgenSubscription }> {
     const overrideParams = this.toLeadFormParams(params.overrides as LeadFormCreatePayload);
     delete (overrideParams as { id_pagina?: string }).id_pagina;
-    const response = await api.post<{ id: string }>(ENDPOINT, {
+    const response = await api.post<{ id: string; leadgen_subscription?: LeadgenSubscription }>(ENDPOINT, {
       acao: 'duplicar_formulario_lead',
       id_pagina_origem: params.sourcePageId,
       id_formulario: params.formId,
       id_pagina_destino: params.targetPageId,
       overrides: overrideParams,
+    });
+    return response.data;
+  }
+
+  async getLeadgenSubscription(pageId: string): Promise<LeadgenSubscription> {
+    const response = await api.post<LeadgenSubscription>(ENDPOINT, {
+      acao: 'status_leadgen_pagina',
+      id_pagina: pageId,
+    });
+    return response.data;
+  }
+
+  // Idempotente no backend: a Meta só mantém a assinatura `leadgen` da
+  // Página para o app do CRM. Usado pelo botão "Assinar Lead Ads" e também
+  // automaticamente ao criar/duplicar formulário.
+  async subscribeLeadgen(pageId: string): Promise<LeadgenSubscription> {
+    const response = await api.post<LeadgenSubscription>(ENDPOINT, {
+      acao: 'assinar_leadgen_pagina',
+      id_pagina: pageId,
     });
     return response.data;
   }
