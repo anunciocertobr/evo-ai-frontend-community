@@ -78,6 +78,9 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
     const isCanvaCallback = location.pathname === '/canva/callback';
     const isSupabaseCallback = location.pathname === '/supabase/callback';
     const isMicrosoftCallback = location.pathname === '/microsoft/callback';
+    const isDropboxCallback = location.pathname === '/settings/integrations/dropbox/callback';
+    const isMercadoLivreCallback = location.pathname === '/settings/integrations/mercado_livre/callback';
+    const isShopeeCallback = location.pathname === '/settings/integrations/shopee/callback';
 
     // Allow access if there are OAuth params or specific OAuth routes
     const shouldAllowAccess =
@@ -101,7 +104,10 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
       isPayPalCallback ||
       isCanvaCallback ||
       isSupabaseCallback ||
-      isMicrosoftCallback;
+      isMicrosoftCallback ||
+      isDropboxCallback ||
+      isMercadoLivreCallback ||
+      isShopeeCallback;
 
     if (!shouldAllowAccess) {
       return <Navigate to="/" replace />;
