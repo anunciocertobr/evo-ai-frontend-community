@@ -17,6 +17,7 @@ import {
 } from '@evoapi/design-system';
 import { Loader2, Rocket } from 'lucide-react';
 import { googleAdsCreationService, type GoogleAdsCampaignOption } from '@/services/marketing/googleAdsCreationService';
+import { GoogleAdsAccountSelector, type GoogleAdsSelection } from '@/components/marketing/GoogleAdsAccountSelector';
 
 const ACCOUNT_LEVEL = '__account__';
 
@@ -25,10 +26,23 @@ interface GoogleAdsPublishDialogProps {
   onOpenChange: (open: boolean) => void;
   assetId: string;
   assetName: string;
+  // Pré-preenchido com a seleção já feita na página (Criação Google Ads),
+  // mas sempre sobrescrevível aqui — publicar um item específico numa
+  // conta diferente da que está selecionada na tela não deveria exigir
+  // trocar a seleção global só pra isso.
+  defaultSelection: GoogleAdsSelection;
   onPublished: () => void;
 }
 
-export function GoogleAdsPublishDialog({ open, onOpenChange, assetId, assetName, onPublished }: GoogleAdsPublishDialogProps) {
+export function GoogleAdsPublishDialog({
+  open,
+  onOpenChange,
+  assetId,
+  assetName,
+  defaultSelection,
+  onPublished,
+}: GoogleAdsPublishDialogProps) {
+  const [selection, setSelection] = useState<GoogleAdsSelection | null>(defaultSelection);
   const [campaigns, setCampaigns] = useState<GoogleAdsCampaignOption[] | null>(null);
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState(ACCOUNT_LEVEL);
@@ -36,19 +50,34 @@ export function GoogleAdsPublishDialog({ open, onOpenChange, assetId, assetName,
 
   useEffect(() => {
     if (!open) return;
+    setSelection(defaultSelection);
     setSelectedCampaign(ACCOUNT_LEVEL);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const loginCustomerId = selection?.loginCustomerId;
+  const customerId = selection?.customerId;
+
+  useEffect(() => {
+    if (!open || !loginCustomerId || !customerId) return;
+    setCampaigns(null);
     setLoadingCampaigns(true);
     googleAdsCreationService
-      .listCampaigns()
+      .listCampaigns(loginCustomerId, customerId)
       .then(setCampaigns)
       .catch(() => toast.error('Não foi possível carregar as campanhas — você ainda pode publicar na conta inteira.'))
       .finally(() => setLoadingCampaigns(false));
-  }, [open]);
+  }, [open, loginCustomerId, customerId]);
 
   const handlePublish = async () => {
+    if (!selection) return;
     setPublishing(true);
     try {
-      await googleAdsCreationService.publish(assetId, selectedCampaign === ACCOUNT_LEVEL ? undefined : selectedCampaign);
+      await googleAdsCreationService.publish(assetId, {
+        loginCustomerId: selection.loginCustomerId,
+        customerId: selection.customerId,
+        campaignId: selectedCampaign === ACCOUNT_LEVEL ? undefined : selectedCampaign,
+      });
       toast.success('Publicado na Google Ads!');
       onPublished();
       onOpenChange(false);
@@ -72,8 +101,13 @@ export function GoogleAdsPublishDialog({ open, onOpenChange, assetId, assetName,
         </DialogHeader>
 
         <div className="space-y-1.5">
+          <Label>Conta Google Ads</Label>
+          <GoogleAdsAccountSelector value={selection} onChange={setSelection} />
+        </div>
+
+        <div className="space-y-1.5">
           <Label>Onde publicar</Label>
-          <Select value={selectedCampaign} onValueChange={setSelectedCampaign} disabled={loadingCampaigns}>
+          <Select value={selectedCampaign} onValueChange={setSelectedCampaign} disabled={loadingCampaigns || !selection}>
             <SelectTrigger>
               <SelectValue placeholder={loadingCampaigns ? 'Carregando campanhas...' : undefined} />
             </SelectTrigger>
@@ -92,7 +126,7 @@ export function GoogleAdsPublishDialog({ open, onOpenChange, assetId, assetName,
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handlePublish} disabled={publishing}>
+          <Button onClick={handlePublish} disabled={publishing || !selection}>
             {publishing ? (
               <>
                 <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Publicando...

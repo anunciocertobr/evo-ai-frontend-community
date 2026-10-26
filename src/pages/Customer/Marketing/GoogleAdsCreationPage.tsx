@@ -4,6 +4,7 @@ import { Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger } from '@evoapi
 import { Plus, Users, KeyRound, Type, Pencil, Trash2, Link2, MessageSquareQuote, List, Phone, ClipboardList, Tag, Image as ImageIcon, Rocket, CheckCircle2 } from 'lucide-react';
 import { BaseHeader } from '@/components/base';
 import { GoogleAdsPublishDialog } from '@/components/marketing/GoogleAdsPublishDialog';
+import { GoogleAdsAccountSelector, type GoogleAdsSelection } from '@/components/marketing/GoogleAdsAccountSelector';
 import { GoogleAdsAudienceDialog } from '@/components/marketing/GoogleAdsAudienceDialog';
 import { GoogleAdsKeywordGroupDialog } from '@/components/marketing/GoogleAdsKeywordGroupDialog';
 import { GoogleAdsHeadlineSetDialog } from '@/components/marketing/GoogleAdsHeadlineSetDialog';
@@ -71,7 +72,7 @@ function PublishControl({
 }) {
   if (!connected) {
     return (
-      <Button size="sm" variant="outline" disabled title="Conecte uma conta Google Ads em Integrações pra publicar.">
+      <Button size="sm" variant="outline" disabled title="Escolha um MCC e uma conta no topo da página pra publicar.">
         <Rocket className="w-3.5 h-3.5 mr-1" /> Publicar
       </Button>
     );
@@ -151,8 +152,11 @@ export default function GoogleAdsCreationPage() {
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [editingImageSet, setEditingImageSet] = useState<GoogleAdsAsset<ImageAssetPayload> | null>(null);
 
-  // Publicação real na Google Ads API
+  // Publicação real na Google Ads API — googleAdsConnected (pelo menos 1 MCC
+  // conectado) decide a mensagem do subtítulo; `selection` (MCC + conta
+  // escolhidos no seletor da página) decide se o botão Publicar funciona.
   const [googleAdsConnected, setGoogleAdsConnected] = useState(false);
+  const [selection, setSelection] = useState<GoogleAdsSelection | null>(null);
   const [publishTarget, setPublishTarget] = useState<{ id: string; name: string; reload: () => void } | null>(null);
 
   useEffect(() => {
@@ -293,10 +297,14 @@ export default function GoogleAdsCreationPage() {
         title="Criação Google Ads"
         subtitle={
           googleAdsConnected
-            ? 'Conta Google Ads conectada — sitelinks, frases de destaque, snippets, chamada, formulário de lead, preço e imagens podem ser publicados direto na sua conta.'
+            ? 'Escolha o MCC e a conta abaixo — sitelinks, frases de destaque, snippets, chamada, formulário de lead, preço e imagens podem ser publicados direto nela.'
             : 'Monte públicos, palavras-chave, títulos/descrições e extensões — sem conta do Google Ads conectada ainda, fica salvo aqui pra publicar assim que a integração estiver pronta.'
         }
       />
+
+      {googleAdsConnected && (
+        <GoogleAdsAccountSelector value={selection} onChange={setSelection} className="max-w-xl" />
+      )}
 
       <Tabs defaultValue="audiences">
         <TabsList className="mb-4 h-auto w-full flex-nowrap justify-start gap-2 overflow-x-auto">
@@ -534,7 +542,7 @@ export default function GoogleAdsCreationPage() {
                     onDelete={() => deleteAsset(s.id, loadSitelinkSets, s.name)}
                     publishSlot={
                       <PublishControl
-                        connected={googleAdsConnected}
+                        connected={Boolean(selection)}
                         publishedAt={s.published_at}
                         onPublish={() => setPublishTarget({ id: s.id, name: s.name, reload: loadSitelinkSets })}
                       />
@@ -597,7 +605,7 @@ export default function GoogleAdsCreationPage() {
                     onDelete={() => deleteAsset(c.id, loadCalloutSets, c.name)}
                     publishSlot={
                       <PublishControl
-                        connected={googleAdsConnected}
+                        connected={Boolean(selection)}
                         publishedAt={c.published_at}
                         onPublish={() => setPublishTarget({ id: c.id, name: c.name, reload: loadCalloutSets })}
                       />
@@ -652,7 +660,7 @@ export default function GoogleAdsCreationPage() {
                     onDelete={() => deleteAsset(s.id, loadSnippetSets, s.name)}
                     publishSlot={
                       <PublishControl
-                        connected={googleAdsConnected}
+                        connected={Boolean(selection)}
                         publishedAt={s.published_at}
                         onPublish={() => setPublishTarget({ id: s.id, name: s.name, reload: loadSnippetSets })}
                       />
@@ -706,7 +714,7 @@ export default function GoogleAdsCreationPage() {
                     onDelete={() => deleteAsset(c.id, loadCallSets, c.name)}
                     publishSlot={
                       <PublishControl
-                        connected={googleAdsConnected}
+                        connected={Boolean(selection)}
                         publishedAt={c.published_at}
                         onPublish={() => setPublishTarget({ id: c.id, name: c.name, reload: loadCallSets })}
                       />
@@ -761,7 +769,7 @@ export default function GoogleAdsCreationPage() {
                     onDelete={() => deleteAsset(lf.id, loadLeadFormSets, lf.name)}
                     publishSlot={
                       <PublishControl
-                        connected={googleAdsConnected}
+                        connected={Boolean(selection)}
                         publishedAt={lf.published_at}
                         onPublish={() => setPublishTarget({ id: lf.id, name: lf.name, reload: loadLeadFormSets })}
                       />
@@ -815,7 +823,7 @@ export default function GoogleAdsCreationPage() {
                     onDelete={() => deleteAsset(p.id, loadPriceSets, p.name)}
                     publishSlot={
                       <PublishControl
-                        connected={googleAdsConnected}
+                        connected={Boolean(selection)}
                         publishedAt={p.published_at}
                         onPublish={() => setPublishTarget({ id: p.id, name: p.name, reload: loadPriceSets })}
                       />
@@ -874,7 +882,7 @@ export default function GoogleAdsCreationPage() {
                     onDelete={() => deleteAsset(img.id, loadImageSets, img.name)}
                     publishSlot={
                       <PublishControl
-                        connected={googleAdsConnected}
+                        connected={Boolean(selection)}
                         publishedAt={img.published_at}
                         onPublish={() => setPublishTarget({ id: img.id, name: img.name, reload: loadImageSets })}
                       />
@@ -894,12 +902,13 @@ export default function GoogleAdsCreationPage() {
         </TabsContent>
       </Tabs>
 
-      {publishTarget && (
+      {publishTarget && selection && (
         <GoogleAdsPublishDialog
           open={Boolean(publishTarget)}
           onOpenChange={(open) => !open && setPublishTarget(null)}
           assetId={publishTarget.id}
           assetName={publishTarget.name}
+          defaultSelection={selection}
           onPublished={() => publishTarget.reload()}
         />
       )}

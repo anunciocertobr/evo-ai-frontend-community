@@ -30,6 +30,7 @@ import {
   LeadSquaredActivityResponse,
   LeadSquaredLeadResponse,
   GoogleAdsAccessibleCustomer,
+  GoogleAdsConnection,
 } from '@/types/integrations';
 
 class IntegrationsService {
@@ -328,20 +329,29 @@ class IntegrationsService {
     return extractData<{ email: string | null; app_id?: 'google_workspace' | 'google_ads' }>(response);
   }
 
-  async getGoogleAdsAccessibleCustomers(): Promise<GoogleAdsAccessibleCustomer[]> {
-    const response = await api.get('/google_ads/accessible_customers');
+  // Lista TODAS as conexões Google Ads (1 por MCC/login) com a árvore
+  // completa de contas de cada uma — endpoint único usado por Settings,
+  // Criação Google Ads, Relatórios e o diálogo de Publicar.
+  async listGoogleAdsConnections(): Promise<GoogleAdsConnection[]> {
+    const response = await api.get('/google_ads/connections');
+    return extractData<{ connections: GoogleAdsConnection[] }>(response).connections;
+  }
+
+  // Candidatos salvos pra uma conexão ainda pendente (hookId sem
+  // reference_id — o login viu mais de 1 MCC/conta direto).
+  async getGoogleAdsPendingCandidates(hookId: string): Promise<GoogleAdsAccessibleCustomer[]> {
+    const response = await api.get('/google_ads/accessible_customers', { params: { hook_id: hookId } });
     return extractData<{ customers: GoogleAdsAccessibleCustomer[] }>(response).customers;
   }
 
-  async selectGoogleAdsCustomer(
-    customerId: string,
-    loginCustomerId?: string,
-  ): Promise<{ customer_id: string; login_customer_id: string | null }> {
-    const response = await api.post('/google_ads/select_customer', {
-      customer_id: customerId,
-      login_customer_id: loginCustomerId || undefined,
-    });
-    return extractData<{ customer_id: string; login_customer_id: string | null }>(response);
+  // Finaliza uma conexão pendente, escolhendo qual candidato é o
+  // MCC/conta de verdade pra essa conexão específica.
+  async finalizeGoogleAdsConnection(
+    hookId: string,
+    referenceId: string,
+  ): Promise<{ hook_id: string; reference_id: string }> {
+    const response = await api.post('/google_ads/select_customer', { hook_id: hookId, reference_id: referenceId });
+    return extractData<{ hook_id: string; reference_id: string }>(response);
   }
 
   // Dropbox — same top-level-path reasoning as handleGoogleWorkspaceCallback above.

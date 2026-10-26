@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ExternalLink, CheckCircle, Loader2, Lock, LockOpen, RefreshCw } from 'lucide-react';
+import { Plus, CheckCircle, Loader2, Lock, LockOpen, AlertTriangle } from 'lucide-react';
 import {
   Button,
   Input,
@@ -13,92 +13,50 @@ import {
   RadioGroupItem,
 } from '@evoapi/design-system';
 import { toast } from 'sonner';
-import { useLanguage } from '@/hooks/useLanguage';
 import IntegrationBackButton from '@/components/integrations/shared/IntegrationBackButton';
 import { adminConfigService } from '@/services/admin/adminConfigService';
 import { integrationsService } from '@/services/integrations';
-import { Integration, IntegrationHook, GoogleAdsAccessibleCustomer, GoogleAdsConfig } from '@/types/integrations';
+import { useGoogleAdsConnections } from '@/hooks/integrations';
+import { Integration, GoogleAdsConnection } from '@/types/integrations';
 
 function isMasked(value: unknown): boolean {
   return typeof value === 'string' && value.includes('••••');
 }
 
 export default function GoogleAdsPage() {
-  const { t } = useLanguage('integrations');
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [savingToken, setSavingToken] = useState(false);
-  const [disconnecting, setDisconnecting] = useState(false);
+  const [integration, setIntegration] = useState<Integration | null>(null);
+  const [loadingIntegration, setLoadingIntegration] = useState(true);
 
   const [devToken, setDevToken] = useState('');
   const [devTokenModified, setDevTokenModified] = useState(false);
   const [devTokenConfigured, setDevTokenConfigured] = useState(false);
+  const [savingToken, setSavingToken] = useState(false);
 
-  const [integration, setIntegration] = useState<Integration | null>(null);
-  const [hook, setHook] = useState<IntegrationHook | null>(null);
+  const { connections, loading: connectionsLoading, loadConnections } = useGoogleAdsConnections();
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
 
-  const [customers, setCustomers] = useState<GoogleAdsAccessibleCustomer[] | null>(null);
-  const [customersLoading, setCustomersLoading] = useState(false);
-  const [customersError, setCustomersError] = useState<string | null>(null);
-  const [showPicker, setShowPicker] = useState(false);
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [loginCustomerId, setLoginCustomerId] = useState('');
-  const [savingCustomer, setSavingCustomer] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
+  const loadIntegration = useCallback(async () => {
+    setLoadingIntegration(true);
     try {
       const [config, app] = await Promise.all([
         adminConfigService.getConfig('google_ads'),
         integrationsService.getIntegration('google_ads'),
       ]);
-
       setDevTokenConfigured(isMasked(config.GOOGLE_ADS_DEVELOPER_TOKEN));
       setDevTokenModified(false);
       setDevToken('');
-
       setIntegration(app);
-      setHook(app.hooks?.find((h) => h.app_id === 'google_ads') || null);
     } catch {
-      toast.error(t('googleAds.connect.picker.error'));
+      toast.error('Erro ao carregar integração do Google Ads.');
     } finally {
-      setLoading(false);
+      setLoadingIntegration(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
-
-  const settings = hook?.settings as GoogleAdsConfig | undefined;
-
-  useEffect(() => {
-    if (hook && !settings?.customer_id) {
-      setShowPicker(true);
-    }
-  }, [hook, settings?.customer_id]);
-
-  const loadAccessibleCustomers = useCallback(async () => {
-    setCustomersLoading(true);
-    setCustomersError(null);
-    try {
-      const result = await integrationsService.getGoogleAdsAccessibleCustomers();
-      setCustomers(result);
-    } catch (err) {
-      const message =
-        (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ||
-        t('googleAds.connect.picker.error');
-      setCustomersError(message);
-    } finally {
-      setCustomersLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    if (showPicker && customers === null && !customersLoading) {
-      loadAccessibleCustomers();
-    }
-  }, [showPicker, customers, customersLoading, loadAccessibleCustomers]);
+    loadIntegration();
+  }, [loadIntegration]);
 
   const handleSaveDevToken = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,10 +65,10 @@ export default function GoogleAdsPage() {
     setSavingToken(true);
     try {
       await adminConfigService.saveConfig('google_ads', { GOOGLE_ADS_DEVELOPER_TOKEN: devToken || null });
-      toast.success(t('genericSettings.messages.updateSuccess', { name: 'Google Ads' }));
-      await load();
+      toast.success('Developer Token salvo com sucesso!');
+      await loadIntegration();
     } catch {
-      toast.error(t('genericSettings.messages.updateError', { name: 'Google Ads' }));
+      toast.error('Erro ao salvar Developer Token.');
     } finally {
       setSavingToken(false);
     }
@@ -122,38 +80,20 @@ export default function GoogleAdsPage() {
     }
   };
 
-  const handleDisconnect = async () => {
-    if (!hook) return;
-    setDisconnecting(true);
+  const handleDisconnect = async (hookId: string) => {
+    setDisconnectingId(hookId);
     try {
-      await integrationsService.deleteIntegrationHook(hook.id);
-      toast.success(t('googleAds.connect.connected.disconnect'));
-      setCustomers(null);
-      setShowPicker(false);
-      await load();
+      await integrationsService.deleteIntegrationHook(hookId);
+      toast.success('Conexão removida.');
+      await loadConnections();
     } catch {
-      toast.error(t('genericSettings.messages.deleteError', { name: 'Google Ads' }));
+      toast.error('Erro ao desconectar.');
     } finally {
-      setDisconnecting(false);
+      setDisconnectingId(null);
     }
   };
 
-  const handleSaveCustomer = async () => {
-    if (!selectedCustomerId) return;
-    setSavingCustomer(true);
-    try {
-      await integrationsService.selectGoogleAdsCustomer(selectedCustomerId, loginCustomerId);
-      toast.success(t('googleAds.connect.picker.save'));
-      setShowPicker(false);
-      await load();
-    } catch {
-      toast.error(t('googleAds.connect.picker.error'));
-    } finally {
-      setSavingCustomer(false);
-    }
-  };
-
-  if (loading) {
+  if (loadingIntegration) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -166,35 +106,20 @@ export default function GoogleAdsPage() {
       <div className="flex items-center gap-4 mb-6">
         <IntegrationBackButton onBack={() => navigate('/settings/integrations')} />
       </div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold">{t('providers.googleAds.name')}</h1>
-        <p className="text-muted-foreground text-sm">{t('googleAds.connect.description')}</p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Google Ads</h1>
+          <p className="text-muted-foreground text-sm">
+            Conecte uma ou mais contas gerenciadoras (MCC) do Google Ads para criar, publicar e acompanhar campanhas.
+            Cada MCC conectado fica disponível pra escolher na Criação Google Ads e nos Relatórios.
+          </p>
+        </div>
+        <Button onClick={handleConnect} disabled={!integration?.action} className="shrink-0">
+          <Plus className="w-4 h-4 mr-2" /> Adicionar MCC
+        </Button>
       </div>
 
       <div className="max-w-xl space-y-6">
-        {hook ? (
-          <Card>
-            <CardContent className="p-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm">
-                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                {t('googleAds.connect.connected.title', { email: settings?.email || '' })}
-              </div>
-              <Button variant="destructive" size="sm" onClick={handleDisconnect} disabled={disconnecting}>
-                {disconnecting ? '...' : t('googleAds.connect.connected.disconnect')}
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="p-4 flex items-center justify-between gap-3">
-              <span className="text-sm text-muted-foreground">{t('googleAds.connect.notConnected.title')}</span>
-              <Button onClick={handleConnect} disabled={!integration?.action}>
-                <ExternalLink className="w-4 h-4 mr-2" /> {t('googleAds.connect.notConnected.cta')}
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Developer Token</CardTitle>
@@ -229,7 +154,7 @@ export default function GoogleAdsPage() {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Único para todo o sistema (não é por conta conectada) — emitido no{' '}
+                Único para todo o sistema (não é por conexão) — emitido no{' '}
                 <a
                   href="https://ads.google.com/aw/apicenter"
                   target="_blank"
@@ -238,7 +163,7 @@ export default function GoogleAdsPage() {
                 >
                   Centro de API
                 </a>{' '}
-                da sua conta gerenciadora (MCC) do Google Ads.
+                de uma das suas contas gerenciadoras (MCC) do Google Ads.
               </p>
 
               <Button type="submit" disabled={savingToken || !devTokenModified}>
@@ -248,102 +173,163 @@ export default function GoogleAdsPage() {
           </CardContent>
         </Card>
 
-        {hook && !showPicker && (
+        {connectionsLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Carregando conexões...
+          </div>
+        ) : connections.length === 0 ? (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">{t('googleAds.connect.currentAccount.title')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-sm">
-                <span className="text-muted-foreground">{t('googleAds.connect.currentAccount.customerId')}:</span>{' '}
-                {settings?.customer_id}
-              </p>
-              {settings?.login_customer_id && (
-                <p className="text-sm">
-                  <span className="text-muted-foreground">
-                    {t('googleAds.connect.currentAccount.loginCustomerId')}:
-                  </span>{' '}
-                  {settings.login_customer_id}
-                </p>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setCustomers(null);
-                  setShowPicker(true);
-                }}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" /> {t('googleAds.connect.connected.changeAccount')}
-              </Button>
+            <CardContent className="p-4 text-sm text-muted-foreground">
+              Nenhum MCC conectado ainda. Clique em &quot;Adicionar MCC&quot; acima.
             </CardContent>
           </Card>
-        )}
-
-        {hook && showPicker && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">{t('googleAds.connect.picker.title')}</CardTitle>
-              <p className="text-sm text-muted-foreground">{t('googleAds.connect.picker.description')}</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {customersLoading && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> {t('googleAds.connect.picker.loading')}
-                </div>
-              )}
-
-              {!customersLoading && customersError && (
-                <p className="text-sm text-red-600">{customersError}</p>
-              )}
-
-              {!customersLoading && !customersError && customers?.length === 0 && (
-                <p className="text-sm text-muted-foreground">{t('googleAds.connect.picker.empty')}</p>
-              )}
-
-              {!customersLoading && !customersError && customers && customers.length > 0 && (
-                <>
-                  <RadioGroup value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                    {customers.map((customer) => (
-                      <div key={customer.id} className="flex items-start gap-2 py-1">
-                        <RadioGroupItem value={customer.id} id={`ga_customer_${customer.id}`} className="mt-1" />
-                        <Label htmlFor={`ga_customer_${customer.id}`} className="font-normal cursor-pointer">
-                          <span className="font-medium">{customer.name || customer.id}</span>{' '}
-                          <span className="text-xs text-muted-foreground">({customer.id})</span>
-                          {customer.manager && (
-                            <span className="ml-2 text-xs rounded bg-amber-100 text-amber-800 px-1.5 py-0.5">
-                              {t('googleAds.connect.picker.managerBadge')}
-                            </span>
-                          )}
-                        </Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="ga_login_customer_id">
-                      {t('googleAds.connect.picker.loginCustomerIdLabel')}
-                    </Label>
-                    <Input
-                      id="ga_login_customer_id"
-                      value={loginCustomerId}
-                      onChange={(e) => setLoginCustomerId(e.target.value)}
-                      placeholder="123-456-7890"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {t('googleAds.connect.picker.loginCustomerIdHint')}
-                    </p>
-                  </div>
-
-                  <Button onClick={handleSaveCustomer} disabled={!selectedCustomerId || savingCustomer}>
-                    {savingCustomer ? t('googleAds.connect.picker.saving') : t('googleAds.connect.picker.save')}
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
+        ) : (
+          connections.map((conn) =>
+            conn.reference_id ? (
+              <GoogleAdsConnectionCard
+                key={conn.hook_id}
+                connection={conn}
+                disconnecting={disconnectingId === conn.hook_id}
+                onDisconnect={() => handleDisconnect(conn.hook_id)}
+              />
+            ) : (
+              <GoogleAdsPendingConnectionCard
+                key={conn.hook_id}
+                connection={conn}
+                disconnecting={disconnectingId === conn.hook_id}
+                onFinalized={loadConnections}
+                onDisconnect={() => handleDisconnect(conn.hook_id)}
+              />
+            ),
+          )
         )}
       </div>
     </div>
+  );
+}
+
+function GoogleAdsConnectionCard({
+  connection,
+  disconnecting,
+  onDisconnect,
+}: {
+  connection: GoogleAdsConnection;
+  disconnecting: boolean;
+  onDisconnect: () => void;
+}) {
+  const accounts = connection.accounts.filter((a) => a.id !== connection.reference_id);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+        <div className="flex items-center gap-2 text-sm">
+          <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+          <div>
+            <p className="font-medium">{connection.mcc_name || connection.reference_id}</p>
+            <p className="text-xs text-muted-foreground">
+              {connection.email ? `${connection.email} · ` : ''}MCC {connection.reference_id}
+            </p>
+          </div>
+        </div>
+        <Button variant="destructive" size="sm" onClick={onDisconnect} disabled={disconnecting}>
+          {disconnecting ? '...' : 'Desconectar'}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {connection.error ? (
+          <p className="text-sm text-red-600 flex items-center gap-1.5">
+            <AlertTriangle className="w-4 h-4 shrink-0" /> {connection.error}
+          </p>
+        ) : accounts.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma conta encontrada sob este MCC.</p>
+        ) : (
+          <ul className="text-sm space-y-1 max-h-48 overflow-y-auto">
+            {accounts.map((a) => (
+              <li key={a.id} style={{ paddingLeft: `${(a.level || 0) * 12}px` }} className="text-muted-foreground">
+                <span className="text-foreground">{a.name || a.id}</span>{' '}
+                <span className="text-xs">({a.id})</span>
+                {a.manager && <span className="ml-1.5 text-xs rounded bg-amber-100 text-amber-800 px-1.5 py-0.5">MCC</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Caso raro: o login viu mais de 1 MCC/conta direto ao conectar. Fica
+// pendente (sem reference_id) até escolher qual dos candidatos é esta
+// conexão — pra conectar o(s) outro(s) também, use "Adicionar MCC" de novo.
+function GoogleAdsPendingConnectionCard({
+  connection,
+  disconnecting,
+  onFinalized,
+  onDisconnect,
+}: {
+  connection: GoogleAdsConnection;
+  disconnecting: boolean;
+  onFinalized: () => void;
+  onDisconnect: () => void;
+}) {
+  const [selected, setSelected] = useState('');
+  const [saving, setSaving] = useState(false);
+  const candidates = connection.pending_candidates || [];
+
+  const handleFinalize = async () => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      await integrationsService.finalizeGoogleAdsConnection(connection.hook_id, selected);
+      toast.success('Conexão finalizada!');
+      await onFinalized();
+    } catch {
+      toast.error('Erro ao finalizar a conexão.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card className="border-amber-300">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-600" /> Finalize esta conexão
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          {connection.email ? `${connection.email} enxerga` : 'Esse login enxerga'} mais de um MCC/conta diretamente.
+          Escolha qual deles é esta conexão (pra conectar os outros, use &quot;Adicionar MCC&quot; de novo, um por vez).
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {candidates.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Não há candidatos salvos — desconecte e tente de novo.</p>
+        ) : (
+          <RadioGroup value={selected} onValueChange={setSelected}>
+            {candidates.map((c) => (
+              <div key={c.id} className="flex items-start gap-2 py-1">
+                <RadioGroupItem value={c.id} id={`ga_pending_${connection.hook_id}_${c.id}`} className="mt-1" />
+                <Label htmlFor={`ga_pending_${connection.hook_id}_${c.id}`} className="font-normal cursor-pointer">
+                  <span className="font-medium">{c.name || c.id}</span>{' '}
+                  <span className="text-xs text-muted-foreground">({c.id})</span>
+                  {c.manager && (
+                    <span className="ml-2 text-xs rounded bg-amber-100 text-amber-800 px-1.5 py-0.5">MCC</span>
+                  )}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Button onClick={handleFinalize} disabled={!selected || saving}>
+            {saving ? 'Salvando...' : 'Finalizar'}
+          </Button>
+          <Button variant="outline" onClick={onDisconnect} disabled={disconnecting}>
+            {disconnecting ? '...' : 'Cancelar'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -20,6 +20,7 @@ export interface IntegrationHook {
   id: string;
   app_id: string;
   inbox_id?: string;
+  reference_id?: string | null;
   settings?: Record<string, any>;
   status?: boolean;
   created_at: string;
@@ -301,6 +302,21 @@ export interface GoogleAdsAccessibleCustomer {
   id: string;
   name: string | null;
   manager: boolean;
+  level?: number;
+}
+
+// Uma conexão = 1 MCC/login do Google Ads (reference_id do Hook). O CRM
+// suporta múltiplas ao mesmo tempo — ver GET /integrations/google_ads/connections.
+export interface GoogleAdsConnection {
+  hook_id: string;
+  reference_id: string | null;
+  email?: string | null;
+  mcc_name?: string | null;
+  accounts: GoogleAdsAccessibleCustomer[];
+  // Só presente quando reference_id ainda é null: login viu mais de 1
+  // MCC/conta direto, falta escolher qual via finalizeGoogleAdsConnection.
+  pending_candidates?: GoogleAdsAccessibleCustomer[];
+  error?: string | null;
 }
 
 // Google Translate Integration types

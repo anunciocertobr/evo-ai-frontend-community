@@ -179,8 +179,9 @@ export interface GoogleAdsCampaignOption {
 }
 
 export interface GoogleAdsConnectionStatus {
+  // Pelo menos 1 MCC/conta conectado e utilizável — NÃO significa que já
+  // existe uma conta escolhida pra essa sessão (isso é o GoogleAdsAccountSelector).
   connected: boolean;
-  customerId: string | null;
 }
 
 interface ApiEnvelope<T> {
@@ -236,25 +237,31 @@ class GoogleAdsCreationService {
     return response.data.data.file_url;
   }
 
-  // "Conectado" = canal Google Ads autorizado E com uma conta (customer_id)
-  // escolhida — sem isso, a publicação não tem pra onde ir.
+  // "Conectado" = pelo menos 1 MCC já finalizado (com reference_id) — qual
+  // conta usar é escolha de cada uso (GoogleAdsAccountSelector), não mais
+  // um estado fixo do canal.
   async getConnectionStatus(): Promise<GoogleAdsConnectionStatus> {
-    const hook = await integrationsService.getIntegrationHook('google_ads');
-    const customerId = (hook?.settings?.customer_id as string | undefined)?.trim() || null;
-    return { connected: Boolean(hook && customerId), customerId };
+    const connections = await integrationsService.listGoogleAdsConnections();
+    return { connected: connections.some((c) => Boolean(c.reference_id)) };
   }
 
-  async listCampaigns(): Promise<GoogleAdsCampaignOption[]> {
+  async listCampaigns(loginCustomerId: string, customerId: string): Promise<GoogleAdsCampaignOption[]> {
     const response = await api.get<ApiEnvelope<{ id: string; name: string; status: string }[]>>(
       `${this.baseUrl}/campaigns`,
+      { params: { login_customer_id: loginCustomerId, customer_id: customerId } },
     );
     return response.data.data.map((c) => ({ id: c.id, name: c.name, status: c.status }));
   }
 
   // `campaignId` opcional — sem ele, a Google liga o asset na conta inteira.
-  async publish<P = GoogleAdsAssetPayload>(id: string, campaignId?: string): Promise<GoogleAdsAsset<P>> {
+  async publish<P = GoogleAdsAssetPayload>(
+    id: string,
+    params: { loginCustomerId: string; customerId: string; campaignId?: string },
+  ): Promise<GoogleAdsAsset<P>> {
     const response = await api.post<ApiEnvelope<GoogleAdsAsset<P>>>(`${this.baseUrl}/${id}/publish`, {
-      campaign_id: campaignId,
+      login_customer_id: params.loginCustomerId,
+      customer_id: params.customerId,
+      campaign_id: params.campaignId,
     });
     return response.data.data;
   }
