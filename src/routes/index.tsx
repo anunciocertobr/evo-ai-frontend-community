@@ -96,6 +96,7 @@ import CreatorPagePublic from '@/pages/Customer/Courses/CreatorPagePublic';
 import CreatorCoursesPage from '@/pages/Customer/Creator/Courses';
 import OrdersPage from '@/pages/Customer/Orders/OrdersPage';
 import IfoodOrdersPage from '@/pages/Customer/Orders/IfoodOrdersPage';
+import MercadoLivreOrdersPage from '@/pages/Customer/Orders/MercadoLivreOrdersPage';
 import NinetyNineOrdersPage from '@/pages/Customer/Orders/NinetyNineOrdersPage';
 import SiteViewPage from '@/pages/Customer/Sites/SiteViewPage';
 import SiteContentPage from '@/pages/Customer/Sites/SiteContentPage';
@@ -1399,6 +1400,21 @@ const AppRouter = () => {
                   <MainLayout>
                     <PermissionRoute resource="products" action="read">
                       <IfoodOrdersPage />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/orders/mercado_livre"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="products" action="read">
+                      <MercadoLivreOrdersPage />
                     </PermissionRoute>
                   </MainLayout>
                 </CustomerRoute>
