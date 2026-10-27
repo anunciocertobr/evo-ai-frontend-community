@@ -15,6 +15,18 @@
  * caem no ambiente léxico global, compartilhado entre scripts clássicos. Se
  * algum dia o relatório virar `type="module"`, este arquivo quebra e o botão
  * simplesmente não aparece.
+ *
+ * NOME DO ARQUIVO (report-pdf.vN.js) — é servido com `Cache-Control:
+ * public, immutable, max-age=31536000` (1 ano). Editar o CONTEÚUDO deste
+ * arquivo sem trocar o nome NÃO atualiza nada pra quem já carregou o
+ * relatório antes do deploy — o navegador nunca revalida um recurso
+ * "immutable", só troca de versão se a URL mudar (incidente real,
+ * 27/10/2026: corrigi o cálculo de Leads/Custo por Lead, fiz deploy, e o
+ * PDF continuava saindo errado pra qualquer sessão de navegador já aberta
+ * antes do deploy — a causa era essa, não o código). Toda vez que a LÓGICA
+ * daqui mudar (não só comentário/formatação), renomear pra vN+1 e atualizar
+ * a tag `<script src>` injetada no HTML do relatório (ver
+ * script/update_report_pdf_asset.rb no backend).
  */
 (function () {
   'use strict';
