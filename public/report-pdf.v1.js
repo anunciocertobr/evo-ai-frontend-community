@@ -55,7 +55,18 @@
 
   // Metas que compõem o Total. As derivadas (CPM, CPC, CTR...) são sempre
   // recalculadas a partir dos totais do período, nunca tiradas da Meta.
-  var BASE_METRICS = ['spent', 'impressions', 'reach', 'clicks', 'messages'];
+  //
+  // 'leads'/'purchases' PRECISAM estar aqui — são a base de costPerLead/
+  // costPerPurchase (ver calcMetrics abaixo: costPerLead = safeDiv(spent,
+  // t.leads), e safeDiv(_, undefined) sempre devolve 0, que formatValue
+  // mostra como "—"). Um fix anterior (27c930f0, 07/10/2026) tirou os dois
+  // daqui querendo só desmarcar os checkboxes de Leads/Custo por Lead por
+  // padrão no modal — mas também quebrou o cálculo, então mesmo marcando
+  // as caixas na mão o PDF saía com Leads/Custo por Lead sempre errado,
+  // pra qualquer conta/período. Os dois ajustes eram independentes; esse
+  // aqui restaura só o cálculo, mantendo os checkboxes desmarcados por
+  // padrão (ver uncheckedByDefault mais abaixo).
+  var BASE_METRICS = ['spent', 'impressions', 'reach', 'clicks', 'messages', 'leads', 'purchases'];
 
   var MONTH_CAP = 3; // mesmo limite do handleDateFilterClick do relatório
 

@@ -146,8 +146,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
     }
 
     const dashboardItem = finalItems.find((item) => item.href === DASHBOARD_DEFAULT_HREF);
-    if (dashboardItem?.subItems?.[0]) {
-      dashboardItem.subItems = buildDashboardSubItems(dashboardItem.subItems[0]);
+    if (dashboardItem?.subItems?.length) {
+      dashboardItem.subItems = buildDashboardSubItems(dashboardItem.subItems);
     }
 
     if (dashboardApps.length > 0) {

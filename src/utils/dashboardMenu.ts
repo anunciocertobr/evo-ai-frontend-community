@@ -96,10 +96,21 @@ function itemToSubItem(item: DashboardItem): SubMenuItem {
   };
 }
 
-/** Monta a lista final de subitens do Dashboard: itens "before" + item fixo + itens "after". */
-export function buildDashboardSubItems(defaultSubItem: SubMenuItem): SubMenuItem[] {
+/**
+ * Monta a lista final de subitens do Dashboard: itens "before" + os
+ * subitens FIXOS (todos — hoje "Atendimentos" e "Sites", ver menuItems.ts)
+ * + itens "after".
+ *
+ * Recebe o array inteiro, não só o primeiro item: passar só
+ * `fixedSubItems[0]` aqui sobrescrevia os demais fixos (ex. "Sites")
+ * toda vez que o menu renderizava, porque esta função sempre devolve um
+ * array novo — "Sites" sumia do menu sem nenhum commit ter apagado nada
+ * (causa raiz de um bug real, 27/10/2026: "Sites" foi adicionado como 2º
+ * item fixo em menuItems.ts sem atualizar este util, que só conhecia 1).
+ */
+export function buildDashboardSubItems(fixedSubItems: SubMenuItem[]): SubMenuItem[] {
   const items = getDashboardItems();
   const before = items.filter((i) => i.position === 'before').map(itemToSubItem);
   const after = items.filter((i) => i.position === 'after').map(itemToSubItem);
-  return [...before, defaultSubItem, ...after];
+  return [...before, ...fixedSubItems, ...after];
 }
