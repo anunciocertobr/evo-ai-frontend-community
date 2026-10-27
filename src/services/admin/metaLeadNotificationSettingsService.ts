@@ -1,9 +1,13 @@
 import api from '../core/api';
 import { extractData } from '../../utils/apiHelpers';
 
+// Um canal é destino número (whatsapp_number) OU grupo (group_jid) — nunca
+// os dois. group_name é só pra exibir no editor sem precisar buscar de novo.
 export interface NotifyChannel {
   inbox_id: string;
-  whatsapp_number: string;
+  whatsapp_number?: string;
+  group_jid?: string;
+  group_name?: string;
 }
 
 export interface MetaLeadNotificationSetting {

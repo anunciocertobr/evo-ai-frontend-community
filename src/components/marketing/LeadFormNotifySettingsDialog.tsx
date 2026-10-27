@@ -51,7 +51,7 @@ export function LeadFormNotifySettingsDialog({
     setSaving(true);
     try {
       if (useOverride) {
-        const validChannels = channels.filter((c) => c.inbox_id && c.whatsapp_number);
+        const validChannels = channels.filter((c) => c.inbox_id && (c.whatsapp_number || c.group_jid));
         await metaLeadNotificationSettingsService.upsert(formId, {
           page_id: pageId,
           form_name: formName,

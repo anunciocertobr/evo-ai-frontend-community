@@ -1,16 +1,23 @@
 import api from '../core/api';
 import { extractData } from '../../utils/apiHelpers';
 
+export type MetaLeadFormMode = 'pipeline' | 'notify_only';
+
+export interface MetaLeadFormPipelineTarget {
+  pipeline_id: string;
+  pipeline_stage_id: string;
+  pipeline_name?: string | null;
+  pipeline_stage_name?: string | null;
+}
+
 export interface MetaLeadForm {
   id: string;
   page_id: string;
   form_id: string;
   form_name: string | null;
   active: boolean;
-  pipeline_id: string;
-  pipeline_stage_id: string;
-  pipeline_name: string | null;
-  pipeline_stage_name: string | null;
+  mode: MetaLeadFormMode;
+  pipelines: MetaLeadFormPipelineTarget[];
   created_at: string;
 }
 
@@ -18,8 +25,8 @@ export interface MetaLeadFormPayload {
   page_id: string;
   form_id: string;
   form_name?: string;
-  pipeline_id: string;
-  pipeline_stage_id: string;
+  mode: MetaLeadFormMode;
+  pipelines: Array<{ pipeline_id: string; pipeline_stage_id: string }>;
   active?: boolean;
 }
 

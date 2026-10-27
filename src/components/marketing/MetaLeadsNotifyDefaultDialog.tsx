@@ -98,7 +98,7 @@ export function MetaLeadsNotifyDefaultDialog({ open, onOpenChange }: MetaLeadsNo
   const handleSave = async () => {
     setSaving(true);
     try {
-      const validChannels = channels.filter((c) => c.inbox_id && c.whatsapp_number);
+      const validChannels = channels.filter((c) => c.inbox_id && (c.whatsapp_number || c.group_jid));
       await adminConfigService.saveConfig(CONFIG_TYPE, {
         ...settings,
         META_LEADS_NOTIFY_CHANNELS: JSON.stringify(validChannels),
