@@ -482,6 +482,7 @@ export default function LeadFormLeadsDialog({ open, onOpenChange, pageId, formId
         open={Boolean(editingLeadId)}
         onOpenChange={(o) => !o && setEditingLeadId(null)}
         leadgenId={editingLeadId}
+        pageId={pageId}
         onUpdated={() => loadPipelineStatus(leads.map((l) => l.id))}
       />
     </Dialog>

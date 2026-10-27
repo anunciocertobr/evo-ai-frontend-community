@@ -32,14 +32,15 @@ import {
   MetaLeadFormMode,
   MetaLeadSubmission,
 } from '@/services/admin/metaLeadFormsService';
+import { metaLeadPageSettingsService } from '@/services/admin/metaLeadPageSettingsService';
+import type { NotifyChannel } from '@/services/admin/metaLeadNotificationSettingsService';
 import { LeadFormNotifySettingsDialog } from '@/components/marketing/LeadFormNotifySettingsDialog';
+import { NotifyChannelsEditor } from '@/components/marketing/NotifyChannelsEditor';
+import { PipelineTargetsEditor, PipelineTargetRow } from '@/components/marketing/PipelineTargetsEditor';
+import inboxesService from '@/services/channels/inboxesService';
+import type { Inbox } from '@/types/channels/inbox';
 import type { FacebookAccessiblePage } from '@/types/marketing/gestorPosts';
-import type { Pipeline, PipelineStage } from '@/types/analytics';
-
-interface PipelineRow {
-  pipeline_id: string;
-  pipeline_stage_id: string;
-}
+import type { Pipeline } from '@/types/analytics';
 
 export default function MetaLeadFormsSettingsPage() {
   const [mappings, setMappings] = useState<MetaLeadFormMapping[]>([]);
@@ -63,12 +64,21 @@ export default function MetaLeadFormsSettingsPage() {
   const [selectedFormId, setSelectedFormId] = useState('');
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [inboxes, setInboxes] = useState<Inbox[]>([]);
   const [mode, setMode] = useState<MetaLeadFormMode>('pipeline');
-  const [pipelineRows, setPipelineRows] = useState<PipelineRow[]>([{ pipeline_id: '', pipeline_stage_id: '' }]);
-  const [stagesByPipelineId, setStagesByPipelineId] = useState<Record<string, PipelineStage[]>>({});
-  const [loadingStagesFor, setLoadingStagesFor] = useState<string | null>(null);
+  const [pipelineRows, setPipelineRows] = useState<PipelineTargetRow[]>([{ pipeline_id: '', pipeline_stage_id: '' }]);
 
   const [notifySettingsTarget, setNotifySettingsTarget] = useState<MetaLeadFormMapping | null>(null);
+
+  // Padrão por Página — pipelines/canais que valem pra TODOS os
+  // formulários daquela Página de uma vez (somam com o do formulário
+  // específico, nunca sobrescrevem — ver backend). Independente do modal
+  // de mapear formulário, por isso tem seu próprio Select de Página.
+  const [pageDefaultsPageId, setPageDefaultsPageId] = useState('');
+  const [pageDefaultsLoading, setPageDefaultsLoading] = useState(false);
+  const [pageDefaultsSaving, setPageDefaultsSaving] = useState(false);
+  const [pageRows, setPageRows] = useState<PipelineTargetRow[]>([]);
+  const [pageChannels, setPageChannels] = useState<NotifyChannel[]>([]);
 
   const loadMappings = useCallback(async () => {
     setLoadingMappings(true);
@@ -97,29 +107,28 @@ export default function MetaLeadFormsSettingsPage() {
     loadSubmissions();
   }, [loadMappings, loadSubmissions]);
 
-  const openModal = async () => {
+  // Pages/Pipelines/Inboxes carregados uma vez, de cara — o modal de mapear
+  // formulário e o card "Padrão por Página" usam as mesmas listas.
+  useEffect(() => {
+    setLoadingPages(true);
+    Promise.all([gestorPostsService.getAccessibleFacebookPages(), pipelinesService.getPipelines(), inboxesService.list()])
+      .then(([accessiblePages, pipelineList, inboxResponse]) => {
+        setPages(accessiblePages);
+        setPipelines(pipelineList.data || []);
+        setInboxes(inboxResponse.data ?? []);
+      })
+      .catch(() => toast.error('Falha ao carregar Páginas/Pipelines/Canais.'))
+      .finally(() => setLoadingPages(false));
+  }, []);
+
+  const openModal = () => {
     setModalOpen(true);
     setSelectedBmId('');
     setSelectedPageId('');
     setSelectedFormId('');
     setMode('pipeline');
     setPipelineRows([{ pipeline_id: '', pipeline_stage_id: '' }]);
-    setStagesByPipelineId({});
     setForms([]);
-
-    setLoadingPages(true);
-    try {
-      const [accessiblePages, pipelineList] = await Promise.all([
-        gestorPostsService.getAccessibleFacebookPages(),
-        pipelinesService.getPipelines(),
-      ]);
-      setPages(accessiblePages);
-      setPipelines(pipelineList.data || []);
-    } catch {
-      toast.error('Falha ao carregar Páginas/Pipelines.');
-    } finally {
-      setLoadingPages(false);
-    }
   };
 
   // business{id,name} já vem de graça no mesmo /me/accounts que lista as
@@ -161,31 +170,6 @@ export default function MetaLeadFormsSettingsPage() {
     }
   };
 
-  const loadStagesFor = async (pipelineId: string) => {
-    if (!pipelineId || stagesByPipelineId[pipelineId]) return;
-    setLoadingStagesFor(pipelineId);
-    try {
-      const pipeline = await pipelinesService.getPipeline(pipelineId);
-      setStagesByPipelineId((prev) => ({ ...prev, [pipelineId]: pipeline.stages || [] }));
-    } catch {
-      toast.error('Falha ao buscar os estágios desse Pipeline.');
-    } finally {
-      setLoadingStagesFor(null);
-    }
-  };
-
-  const updatePipelineRow = (index: number, patch: Partial<PipelineRow>) => {
-    setPipelineRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
-  };
-
-  const handleRowPipelineChange = (index: number, pipelineId: string) => {
-    updatePipelineRow(index, { pipeline_id: pipelineId, pipeline_stage_id: '' });
-    loadStagesFor(pipelineId);
-  };
-
-  const addPipelineRow = () => setPipelineRows((prev) => [...prev, { pipeline_id: '', pipeline_stage_id: '' }]);
-  const removePipelineRow = (index: number) => setPipelineRows((prev) => prev.filter((_, i) => i !== index));
-
   const pipelineRowsComplete = pipelineRows.every((r) => r.pipeline_id && r.pipeline_stage_id);
   const canSave =
     Boolean(selectedPageId && selectedFormId) && (mode === 'notify_only' || (pipelineRowsComplete && pipelineRows.length > 0));
@@ -221,6 +205,40 @@ export default function MetaLeadFormsSettingsPage() {
       toast.success('Mapeamento removido.');
     } catch {
       toast.error('Falha ao remover o mapeamento.');
+    }
+  };
+
+  const handlePageDefaultsPageChange = async (pageId: string) => {
+    setPageDefaultsPageId(pageId);
+    setPageRows([]);
+    setPageChannels([]);
+    if (!pageId) return;
+    setPageDefaultsLoading(true);
+    try {
+      const settings = await metaLeadPageSettingsService.get(pageId);
+      setPageRows(settings.pipelines.map((p) => ({ pipeline_id: p.pipeline_id, pipeline_stage_id: p.pipeline_stage_id })));
+      setPageChannels(settings.channels);
+    } catch {
+      toast.error('Falha ao carregar o padrão dessa Página.');
+    } finally {
+      setPageDefaultsLoading(false);
+    }
+  };
+
+  const handleSavePageDefaults = async () => {
+    if (!pageDefaultsPageId) return;
+    setPageDefaultsSaving(true);
+    try {
+      await metaLeadPageSettingsService.upsert(pageDefaultsPageId, {
+        pipelines: pageRows.filter((r) => r.pipeline_id && r.pipeline_stage_id),
+        channels: pageChannels.filter((c) => c.inbox_id && (c.whatsapp_number || c.group_jid)),
+        dataset_ids: [],
+      });
+      toast.success('Padrão da Página salvo!');
+    } catch {
+      toast.error('Falha ao salvar o padrão da Página.');
+    } finally {
+      setPageDefaultsSaving(false);
     }
   };
 
@@ -308,6 +326,53 @@ export default function MetaLeadFormsSettingsPage() {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Padrão por Página</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Vale pra TODOS os formulários dessa Página de uma vez — soma com a configuração do formulário específico
+            (nunca sobrescreve; só não duplica se o destino final for idêntico). Formulário marcado "Só notificar"
+            nunca cria card, mesmo com um pipeline padrão configurado aqui.
+          </p>
+          <div className="max-w-sm space-y-1.5">
+            <Label className="text-xs">Página do Facebook</Label>
+            <Select value={pageDefaultsPageId} onValueChange={handlePageDefaultsPageChange} disabled={loadingPages}>
+              <SelectTrigger>
+                <SelectValue placeholder={loadingPages ? 'Carregando...' : 'Selecione a página'} />
+              </SelectTrigger>
+              <SelectContent>
+                {pages.map((p) => (
+                  <SelectItem key={p.page_id} value={p.page_id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {pageDefaultsPageId &&
+            (pageDefaultsLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-sm">Pipeline / Estágio padrão</Label>
+                  <PipelineTargetsEditor pipelines={pipelines} value={pageRows} onChange={setPageRows} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Canais de notificação padrão</Label>
+                  <NotifyChannelsEditor channels={pageChannels} onChange={setPageChannels} inboxes={inboxes} />
+                </div>
+                <Button onClick={handleSavePageDefaults} disabled={pageDefaultsSaving}>
+                  {pageDefaultsSaving ? 'Salvando...' : 'Salvar padrão da Página'}
+                </Button>
+              </div>
+            ))}
         </CardContent>
       </Card>
 
@@ -435,58 +500,14 @@ export default function MetaLeadFormsSettingsPage() {
 
             {mode === 'pipeline' ? (
               <div className="space-y-2">
-                <Label>Pipeline / Estágio (pode mandar pra mais de um)</Label>
-                {pipelineRows.map((row, index) => (
-                  <div key={index} className="flex items-end gap-2 rounded-lg border p-2.5">
-                    <div className="flex-1 space-y-1.5">
-                      <Label className="text-xs">Pipeline</Label>
-                      <Select value={row.pipeline_id} onValueChange={(v) => handleRowPipelineChange(index, v)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {pipelines.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex-1 space-y-1.5">
-                      <Label className="text-xs">Estágio</Label>
-                      <Select
-                        value={row.pipeline_stage_id}
-                        onValueChange={(v) => updatePipelineRow(index, { pipeline_stage_id: v })}
-                        disabled={!row.pipeline_id || loadingStagesFor === row.pipeline_id}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={loadingStagesFor === row.pipeline_id ? 'Carregando...' : 'Selecione...'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(stagesByPipelineId[row.pipeline_id] || []).map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {pipelineRows.length > 1 && (
-                      <Button variant="ghost" size="sm" onClick={() => removePipelineRow(index)} className="shrink-0 text-destructive">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={addPipelineRow} className="w-full">
-                  <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar pipeline
-                </Button>
+                <Label>Pipeline / Estágio (pode mandar pra mais de um, soma com o padrão da Página)</Label>
+                <PipelineTargetsEditor pipelines={pipelines} value={pipelineRows} onChange={setPipelineRows} />
               </div>
             ) : (
               <p className="text-xs text-muted-foreground rounded-lg border border-dashed p-3">
-                Nenhum card/contato será criado no CRM pra este formulário — só a notificação de WhatsApp. Configure o
-                canal (número ou grupo) depois de salvar, pelo sininho na lista de formulários mapeados.
+                Nenhum card/contato será criado no CRM pra este formulário — só a notificação de WhatsApp, mesmo que a
+                Página tenha um pipeline padrão configurado. Configure o canal (número ou grupo) depois de salvar,
+                pelo sininho na lista de formulários mapeados.
               </p>
             )}
           </div>
