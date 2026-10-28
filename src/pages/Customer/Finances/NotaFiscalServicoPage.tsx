@@ -433,13 +433,13 @@ export default function NotaFiscalServicoPage() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="w-screen max-w-[100vw] sm:max-w-[100vw] h-screen max-h-[100vh] rounded-none flex flex-col overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Emitir NFS-e</DialogTitle>
             <DialogDescription>A nota é enviada pro webservice da prefeitura de forma assíncrona.</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 w-full max-w-5xl mx-auto">
             <div>
               <Label className="text-xs">Estabelecimento fiscal</Label>
               <Select
@@ -506,10 +506,11 @@ export default function NotaFiscalServicoPage() {
                   }
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">CPF/CNPJ do tomador</Label>
                 <div className="flex gap-1">
                   <Input
+                    className="min-w-0"
                     value={form.tomador_cpf_cnpj}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                       const value = e.target.value;
@@ -547,8 +548,8 @@ export default function NotaFiscalServicoPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="min-w-0">
                 <Label className="text-xs">Logradouro</Label>
                 <Input
                   value={form.tomador_endereco.logradouro}
@@ -557,7 +558,7 @@ export default function NotaFiscalServicoPage() {
                   }
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Número</Label>
                 <Input
                   value={form.tomador_endereco.numero}
@@ -566,7 +567,7 @@ export default function NotaFiscalServicoPage() {
                   }
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Bairro</Label>
                 <Input
                   value={form.tomador_endereco.bairro}
@@ -575,10 +576,11 @@ export default function NotaFiscalServicoPage() {
                   }
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Código IBGE do município</Label>
                 <div className="flex gap-1">
                   <Input
+                    className="min-w-0"
                     value={form.tomador_endereco.codigo_municipio}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setForm((prev) => ({ ...prev, tomador_endereco: { ...prev.tomador_endereco, codigo_municipio: e.target.value } }))
@@ -594,7 +596,7 @@ export default function NotaFiscalServicoPage() {
                   />
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">UF</Label>
                 <Input
                   maxLength={2}
@@ -604,7 +606,7 @@ export default function NotaFiscalServicoPage() {
                   }
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">CEP</Label>
                 <Input
                   value={form.tomador_endereco.cep}
@@ -627,11 +629,12 @@ export default function NotaFiscalServicoPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              <div className="min-w-0">
                 <Label className="text-xs">Cód. serviço municipal</Label>
                 <div className="flex gap-1">
                   <Input
+                    className="min-w-0"
                     value={form.codigo_servico_municipal}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setForm((prev) => ({ ...prev, codigo_servico_municipal: e.target.value }))
@@ -643,7 +646,7 @@ export default function NotaFiscalServicoPage() {
                   />
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Código NBS</Label>
                 <Input
                   value={form.codigo_nbs}
@@ -654,7 +657,7 @@ export default function NotaFiscalServicoPage() {
                   maxLength={9}
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Cód. tributação municipal (opcional)</Label>
                 <Input
                   value={form.codigo_tributacao_municipio ?? ''}
@@ -665,7 +668,7 @@ export default function NotaFiscalServicoPage() {
                   maxLength={20}
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Valor do serviço (R$)</Label>
                 <Input
                   type="number"
@@ -677,7 +680,7 @@ export default function NotaFiscalServicoPage() {
                   }
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Deduções (R$)</Label>
                 <Input
                   type="number"
@@ -689,7 +692,7 @@ export default function NotaFiscalServicoPage() {
                   }
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-xs">Alíquota ISS (%)</Label>
                 <Input
                   type="number"
