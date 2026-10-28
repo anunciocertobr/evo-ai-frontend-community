@@ -45,10 +45,12 @@ const OTHER_DATASET = '__other__';
 // Campos de "Dados do Cliente" (user_data) — texto puro aqui, o backend
 // aplica o hash SHA256 nos que a Meta exige (em/ph/fn/ln/ge/db/ct/st/zp/
 // country/external_id). Baseado no Payload Helper oficial da Conversions API.
+// Telefone/nome primeiro: é o que o lead do Meta quase sempre traz
+// preenchido; e-mail é mais raro (pedido do usuário).
 const USER_DATA_FIELDS: Array<{ key: keyof MetaCrmUserData; label: string; placeholder?: string }> = [
-  { key: 'em', label: 'E-mail' },
   { key: 'ph', label: 'Telefone' },
   { key: 'fn', label: 'Nome' },
+  { key: 'em', label: 'E-mail' },
   { key: 'ln', label: 'Sobrenome' },
   { key: 'ge', label: 'Gênero (m/f)' },
   { key: 'db', label: 'Nascimento (AAAAMMDD)', placeholder: '19900115' },
@@ -103,13 +105,16 @@ export function MetaCrmSendForm({ leadgenId, pageId, initialEmail, initialPhone 
   // mostra Input em vez de Select enquanto estiver marcado 'other' aqui.
   const [customDatasetIndexes, setCustomDatasetIndexes] = useState<Set<number>>(new Set());
   const [openCustomer, setOpenCustomer] = useState(true);
-  const [openProduct, setOpenProduct] = useState(false);
+  const [openProduct, setOpenProduct] = useState(true);
   const [sending, setSending] = useState(false);
   const [sendResults, setSendResults] = useState<SendToMetaCrmResult[] | null>(null);
 
   useEffect(() => {
-    setUserData({ em: initialEmail || undefined, ph: initialPhone || undefined });
-    setCustomData({});
+    // país quase sempre BR e moeda quase sempre BRL pra essa conta — pré-
+    // preenche os dois (valor de verdade, não só placeholder) pra economizar
+    // digitação; o usuário ainda pode apagar/trocar se for o caso.
+    setUserData({ em: initialEmail || undefined, ph: initialPhone || undefined, country: 'br' });
+    setCustomData({ currency: 'BRL' });
     setEventName('Lead');
     setActionSource('system_generated');
     setDatasetIds(['']);

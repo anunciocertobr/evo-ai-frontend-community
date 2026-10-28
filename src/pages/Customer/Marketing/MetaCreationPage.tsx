@@ -20,6 +20,7 @@ import { LeadFormCreateDialog } from '@/components/marketing/LeadFormCreateDialo
 import { LeadgenSubscriptionButton } from '@/components/marketing/LeadgenSubscriptionButton';
 import LeadFormLeadsDialog from '@/components/marketing/LeadFormLeadsDialog';
 import { LeadFormNotifySettingsDialog } from '@/components/marketing/LeadFormNotifySettingsDialog';
+import { MetaLeadFormPipelineDialog } from '@/components/marketing/MetaLeadFormPipelineDialog';
 import { MetaLeadsNotifyDefaultDialog } from '@/components/marketing/MetaLeadsNotifyDefaultDialog';
 import { MetaLeadsPipelineDefaultDialog } from '@/components/marketing/MetaLeadsPipelineDefaultDialog';
 import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialog';
@@ -101,6 +102,7 @@ export default function MetaCreationPage() {
   const [loadingFormAction, setLoadingFormAction] = useState<string | null>(null);
   const [leadsForm, setLeadsForm] = useState<LeadForm | null>(null);
   const [notifyForm, setNotifyForm] = useState<LeadForm | null>(null);
+  const [pipelineForm, setPipelineForm] = useState<LeadForm | null>(null);
   const [notifyDefaultOpen, setNotifyDefaultOpen] = useState(false);
   const [searchLeadsOpen, setSearchLeadsOpen] = useState(false);
   // Pra destacar o sino de quem já tem notificação ligada (pedido do Marco:
@@ -517,6 +519,10 @@ export default function MetaCreationPage() {
                               />
                               Notificar
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setPipelineForm(form)}>
+                              <Crosshair className="w-3.5 h-3.5 mr-2" />
+                              Kanban
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -570,6 +576,16 @@ export default function MetaCreationPage() {
                   pageId={page.id}
                   formId={notifyForm.id}
                   formName={notifyForm.name}
+                />
+              )}
+
+              {pipelineForm && (
+                <MetaLeadFormPipelineDialog
+                  open={Boolean(pipelineForm)}
+                  onOpenChange={(open) => !open && setPipelineForm(null)}
+                  pageId={page.id}
+                  formId={pipelineForm.id}
+                  formName={pipelineForm.name}
                 />
               )}
 
