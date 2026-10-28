@@ -4,9 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import inboxesService from '@/services/channels/inboxesService';
 import type { Inbox } from '@/types/channels/inbox';
 import { metaLeadNotificationSettingsService, NotifyChannel } from '@/services/admin/metaLeadNotificationSettingsService';
-import { ALL_NOTIFY_CONTENT_SECTIONS } from './notifyContentSections';
 import { NotifyChannelsEditor } from './NotifyChannelsEditor';
-import { NotifyContentEditor } from './NotifyContentEditor';
 
 interface LeadFormNotifySettingsDialogProps {
   open: boolean;
@@ -27,7 +25,6 @@ export function LeadFormNotifySettingsDialog({
   const [useOverride, setUseOverride] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const [channels, setChannels] = useState<NotifyChannel[]>([]);
-  const [contentSections, setContentSections] = useState<string[]>(ALL_NOTIFY_CONTENT_SECTIONS);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -41,7 +38,6 @@ export function LeadFormNotifySettingsDialog({
         setUseOverride(Boolean(current));
         setEnabled(current?.enabled ?? true);
         setChannels(current?.channels ?? []);
-        setContentSections(current?.content_sections ?? ALL_NOTIFY_CONTENT_SECTIONS);
       })
       .catch(() => toast.error('Erro ao carregar configuração de notificação.'))
       .finally(() => setLoading(false));
@@ -57,7 +53,6 @@ export function LeadFormNotifySettingsDialog({
           form_name: formName,
           enabled,
           channels: validChannels,
-          content_sections: contentSections,
         });
       } else {
         await metaLeadNotificationSettingsService.remove(formId);
@@ -73,7 +68,7 @@ export function LeadFormNotifySettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Notificar leads por WhatsApp</DialogTitle>
           <DialogDescription className="truncate" title={formName}>
@@ -102,7 +97,6 @@ export function LeadFormNotifySettingsDialog({
                   <Switch checked={enabled} onCheckedChange={setEnabled} />
                 </div>
                 <NotifyChannelsEditor channels={channels} onChange={setChannels} inboxes={inboxes} />
-                <NotifyContentEditor value={contentSections} onChange={setContentSections} />
               </>
             )}
           </div>

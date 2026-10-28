@@ -27,4 +27,11 @@ export const metaLeadPageSettingsService = {
     const response = await api.put(`/admin/meta_lead_page_settings/${pageId}`, payload);
     return extractData<MetaLeadPageSetting>(response);
   },
+
+  // Todos os dataset_ids já configurados em alguma Página — pré-popula o
+  // Select de dataset no envio manual do Conversion Leads.
+  async listKnownDatasetIds(): Promise<string[]> {
+    const response = await api.get('/admin/meta_lead_page_settings/known_dataset_ids');
+    return extractData<string[]>(response);
+  },
 };

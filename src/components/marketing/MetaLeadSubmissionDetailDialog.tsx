@@ -23,6 +23,14 @@ import { metaLeadFormsService, MetaLeadSubmissionDetail } from '@/services/admin
 import { metaLeadPageSettingsService } from '@/services/admin/metaLeadPageSettingsService';
 import { metaConversionLeadsService, SendToMetaCrmResult } from '@/services/admin/metaConversionLeadsService';
 
+// Mesmo catálogo de Meta::ConversionsApiService::STANDARD_EVENTS no backend
+// — a Meta não exige um conjunto fixo pro Conversion Leads, mas restringir
+// ao catálogo padrão evita erro de digitação (pedido do usuário: "coloca
+// pra selecionar os eventos padrao").
+const STANDARD_EVENTS = ['Lead', 'Purchase', 'Contact', 'Schedule', 'SubmitApplication', 'CompleteRegistration', 'Message'];
+
+const OTHER_DATASET = '__other__';
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -68,6 +76,10 @@ export default function MetaLeadSubmissionDetailDialog({ open, onOpenChange, lea
   const [phone, setPhone] = useState('');
   const [eventName, setEventName] = useState('Lead');
   const [datasetIds, setDatasetIds] = useState<string[]>(['']);
+  const [knownDatasetIds, setKnownDatasetIds] = useState<string[]>([]);
+  // Dataset(s) digitado(s) manualmente (fora da lista conhecida) — linha
+  // mostra Input em vez de Select enquanto estiver marcado 'other' aqui.
+  const [customDatasetIndexes, setCustomDatasetIndexes] = useState<Set<number>>(new Set());
   const [sending, setSending] = useState(false);
   const [sendResults, setSendResults] = useState<SendToMetaCrmResult[] | null>(null);
 
@@ -81,15 +93,25 @@ export default function MetaLeadSubmissionDetailDialog({ open, onOpenChange, lea
     setPhone('');
     setEventName('Lead');
     setDatasetIds(['']);
+    setCustomDatasetIndexes(new Set());
     metaLeadFormsService
       .getSubmission(leadgenId)
       .then((data) => {
         setDetail(data);
         setStatus(data.status);
         setStageId(data.pipeline_stage_id || '');
+        // Pré-preenche com o que o CRM já sabe do lead — só existe quando a
+        // submissão foi persistida (mode: pipeline); notify_only não tem de
+        // onde puxar, o campo fica em branco pro usuário preencher na mão.
+        if (data.contact_email) setEmail(data.contact_email);
+        if (data.contact_phone) setPhone(data.contact_phone);
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
+    metaLeadPageSettingsService
+      .listKnownDatasetIds()
+      .then(setKnownDatasetIds)
+      .catch(() => setKnownDatasetIds([]));
     if (pageId) {
       metaLeadPageSettingsService
         .get(pageId)
@@ -250,17 +272,54 @@ export default function MetaLeadSubmissionDetailDialog({ open, onOpenChange, lea
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Nome do evento</Label>
-                <Input value={eventName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEventName(e.target.value)} />
+                <Select value={eventName} onValueChange={setEventName}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STANDARD_EVENTS.map((ev) => (
+                      <SelectItem key={ev} value={ev}>
+                        {ev}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Dataset(s)</Label>
                 {datasetIds.map((d, index) => (
                   <div key={index} className="flex items-center gap-2">
-                    <Input
-                      value={d}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateDatasetId(index, e.target.value)}
-                      placeholder="ID do dataset (Events Manager > Conversion Leads)"
-                    />
+                    {customDatasetIndexes.has(index) ? (
+                      <Input
+                        value={d}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateDatasetId(index, e.target.value)}
+                        placeholder="ID do dataset (Events Manager > Conversion Leads)"
+                      />
+                    ) : (
+                      <Select
+                        value={d || undefined}
+                        onValueChange={(v) => {
+                          if (v === OTHER_DATASET) {
+                            setCustomDatasetIndexes((prev) => new Set(prev).add(index));
+                            updateDatasetId(index, '');
+                          } else {
+                            updateDatasetId(index, v);
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o dataset..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {knownDatasetIds.map((id) => (
+                            <SelectItem key={id} value={id}>
+                              {id}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value={OTHER_DATASET}>Outro (digitar ID)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                     {datasetIds.length > 1 && (
                       <Button variant="ghost" size="sm" onClick={() => removeDatasetId(index)} className="shrink-0 text-destructive">
                         <Trash2 className="w-4 h-4" />

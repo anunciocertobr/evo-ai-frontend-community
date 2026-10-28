@@ -31,6 +31,14 @@ export function useMenuState(
   // Use ref to track manual submenu state without causing re-renders
   const isManualSubmenuOpenRef = useRef(false);
   const lastPathnameRef = useRef(pathname);
+  // Nome do item clicado por último (handleMenuClick) — usado só pra
+  // diferenciar "cheguei aqui CLICANDO no menu" de "cheguei aqui de outro
+  // jeito" (deep-link, refresh, Link de dentro da página) no useEffect
+  // abaixo. Sem isso, clicar num item cujo próprio href é a rota exata
+  // (ex. "Dashboard", que tem subitens reais e href: '/dashboard') nunca
+  // abria o submenu no clique vindo de outra página — só um segundo clique,
+  // já em /dashboard, "destravava" (bug real reportado pelo usuário).
+  const lastClickedItemNameRef = useRef<string | null>(null);
 
   // Check if a menu item is active based on current route
   const isMenuItemActive = useCallback((href: string): boolean => {
@@ -143,8 +151,14 @@ export function useMenuState(
         if (isExactMatch) {
           // Exactly on the main route (e.g., /agents)
           newActiveMenu = item.name;
-          // Don't open submenu when exactly on main route
-          newActiveSubmenu = null;
+          // Normalmente não abre o submenu só por estar na rota principal
+          // (ex. "Marketing" — a própria página já mostra tudo). Exceção: o
+          // usuário acabou de CLICAR nesse item específico pra chegar aqui
+          // (não um refresh/deep-link) — nesse caso ele quer ver o submenu,
+          // não só a página (bug real: "Dashboard" tem subitens de verdade,
+          // href é uma rota exata, e clicar nele vindo de outra página
+          // nunca abria o flyout no primeiro clique).
+          newActiveSubmenu = lastClickedItemNameRef.current === item.name ? item : null;
           break;
         } else if (pathnameStartsWithItemHref) {
           // Route starts with item href (e.g., /agents/:id/edit, /agents/knowledge)
@@ -169,6 +183,11 @@ export function useMenuState(
       newActiveSubmenu = null;
       newActiveMenu = null;
     }
+
+    // Consumido — não deixar "grudado" abrindo o submenu de novo em
+    // navegações futuras incidentais pra essa mesma rota (ex. clicar num
+    // Link interno que leva de volta pra /dashboard sem ser pelo menu).
+    lastClickedItemNameRef.current = null;
 
     // Apply the complete new state in one atomic update
     setState(prev => {
@@ -216,6 +235,10 @@ export function useMenuState(
         });
       } else {
         // If href is not '#', navigate to the page (submenu will open automatically if route matches)
+        // Marca que foi ESTE item que o usuário clicou — o useEffect de
+        // auto-detect usa isso pra abrir o submenu mesmo quando o pathname
+        // bate exatamente com item.href (ver comentário lá).
+        lastClickedItemNameRef.current = item.name;
         // Always close any open submenu when navigating to a different menu item
         setState(prev => {
           // If navigating to a different menu item, close the current submenu

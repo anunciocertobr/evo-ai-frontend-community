@@ -1,9 +1,23 @@
-import { Plus, Trash2 } from 'lucide-react';
-import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@evoapi/design-system';
+import { useState } from 'react';
+import { ChevronDown, Plus, Trash2 } from 'lucide-react';
+import {
+  Button,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@evoapi/design-system';
 import type { Inbox } from '@/types/channels/inbox';
 import type { NotifyChannel } from '@/services/admin/metaLeadNotificationSettingsService';
 import type { WhatsappGroup } from '@/services/admin/whatsappGroupsService';
 import { WhatsappGroupPicker } from './WhatsappGroupPicker';
+import { NotifyContentEditor } from './NotifyContentEditor';
 
 interface Props {
   channels: NotifyChannel[];
@@ -19,6 +33,8 @@ interface Props {
 // quanto por formulário (LeadFormNotifySettingsDialog), por isso ficou num
 // componente à parte.
 export function NotifyChannelsEditor({ channels, onChange, inboxes }: Props) {
+  const [openContentIndex, setOpenContentIndex] = useState<number | null>(null);
+
   const update = (index: number, patch: Partial<NotifyChannel>) => {
     onChange(channels.map((c, i) => (i === index ? { ...c, ...patch } : c)));
   };
@@ -31,10 +47,21 @@ export function NotifyChannelsEditor({ channels, onChange, inboxes }: Props) {
     onChange([...channels, { inbox_id: '', whatsapp_number: '' }]);
   };
 
-  const destinationType = (channel: NotifyChannel) => (channel.group_jid ? 'group' : 'number');
+  // group_jid !== undefined (mesmo vazio, antes de escolher o grupo de
+  // verdade) é o que marca "este canal é grupo" — channel.group_jid sozinho
+  // (truthy) não bastava: ao trocar pra "Grupo" antes de escolher um grupo
+  // no picker, group_jid ficava undefined, então essa função lia 'number'
+  // de volta e o Select "voltava" sozinho pra Número (bug real, reportado
+  // pelo usuário — o clique em "Grupo" não tinha efeito visível nenhum).
+  const destinationType = (channel: NotifyChannel) => (channel.group_jid !== undefined ? 'group' : 'number');
 
   const setDestinationType = (index: number, type: 'number' | 'group') => {
-    update(index, type === 'group' ? { whatsapp_number: undefined } : { group_jid: undefined, group_name: undefined });
+    update(
+      index,
+      type === 'group'
+        ? { whatsapp_number: undefined, group_jid: '', group_name: undefined }
+        : { group_jid: undefined, group_name: undefined, whatsapp_number: '' },
+    );
   };
 
   return (
@@ -104,6 +131,21 @@ export function NotifyChannelsEditor({ channels, onChange, inboxes }: Props) {
               </>
             )}
           </div>
+
+          <Collapsible open={openContentIndex === index} onOpenChange={(open) => setOpenContentIndex(open ? index : null)}>
+            <CollapsibleTrigger asChild>
+              <button type="button" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${openContentIndex === index ? 'rotate-180' : ''}`} />
+                O que enviar nesse canal
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <NotifyContentEditor
+                value={channel.content_sections ?? null}
+                onChange={(sections) => update(index, { content_sections: sections })}
+              />
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       ))}
       <Button variant="outline" size="sm" onClick={add} className="w-full">

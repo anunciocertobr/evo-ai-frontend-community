@@ -115,7 +115,7 @@ export function MetaLeadsNotifyDefaultDialog({ open, onOpenChange }: MetaLeadsNo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Notificação de leads — padrão da conta</DialogTitle>
           <DialogDescription>
@@ -136,7 +136,12 @@ export function MetaLeadsNotifyDefaultDialog({ open, onOpenChange }: MetaLeadsNo
             {enabled && (
               <>
                 <NotifyChannelsEditor channels={channels} onChange={setChannels} inboxes={inboxes} />
-                <NotifyContentEditor value={contentSections} onChange={setContentSections} />
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    Padrão pra canal que não tiver "O que enviar nesse canal" próprio definido acima.
+                  </p>
+                  <NotifyContentEditor value={contentSections} onChange={setContentSections} />
+                </div>
               </>
             )}
           </div>

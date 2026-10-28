@@ -3,11 +3,15 @@ import { extractData } from '../../utils/apiHelpers';
 
 // Um canal é destino número (whatsapp_number) OU grupo (group_jid) — nunca
 // os dois. group_name é só pra exibir no editor sem precisar buscar de novo.
+// content_sections é o que vai na mensagem DESSE canal — cada canal pode
+// mandar um resumo diferente do mesmo lead; null/ausente = todas as seções
+// (mesmo padrão de sempre quando nunca configurado).
 export interface NotifyChannel {
   inbox_id: string;
   whatsapp_number?: string;
   group_jid?: string;
   group_name?: string;
+  content_sections?: string[] | null;
 }
 
 export interface MetaLeadNotificationSetting {
@@ -19,11 +23,10 @@ export interface MetaLeadNotificationSetting {
   whatsapp_number: string | null;
   // Já vem resolvido com o fallback do canal legado (inbox_id/whatsapp_number
   // acima) quando a lista nunca foi salva no formato novo — ver
-  // MetaLeadNotificationSetting#effective_channels no backend.
+  // MetaLeadNotificationSetting#effective_channels no backend. Cada item traz
+  // seu próprio content_sections (ver NotifyChannel) — não existe mais uma
+  // escolha única pra todos os canais do mesmo formulário.
   channels: NotifyChannel[];
-  // Seções que vão na mensagem (ver notifyContentSections.ts). null = nunca
-  // configurado e o backend envia todas.
-  content_sections: string[] | null;
 }
 
 export interface MetaLeadNotificationSettingPayload {
@@ -31,7 +34,6 @@ export interface MetaLeadNotificationSettingPayload {
   form_name?: string;
   enabled: boolean;
   channels: NotifyChannel[];
-  content_sections: string[];
 }
 
 export const metaLeadNotificationSettingsService = {
