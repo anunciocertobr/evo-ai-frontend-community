@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Plus, Trash2, Send } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import {
-  Alert,
-  AlertDescription,
   Button,
   Dialog,
   DialogContent,
@@ -11,7 +9,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
   Label,
   Select,
   SelectContent,
@@ -20,16 +17,7 @@ import {
   SelectValue,
 } from '@evoapi/design-system';
 import { metaLeadFormsService, MetaLeadSubmissionDetail } from '@/services/admin/metaLeadFormsService';
-import { metaLeadPageSettingsService } from '@/services/admin/metaLeadPageSettingsService';
-import { metaConversionLeadsService, SendToMetaCrmResult } from '@/services/admin/metaConversionLeadsService';
-
-// Mesmo catálogo de Meta::ConversionsApiService::STANDARD_EVENTS no backend
-// — a Meta não exige um conjunto fixo pro Conversion Leads, mas restringir
-// ao catálogo padrão evita erro de digitação (pedido do usuário: "coloca
-// pra selecionar os eventos padrao").
-const STANDARD_EVENTS = ['Lead', 'Purchase', 'Contact', 'Schedule', 'SubmitApplication', 'CompleteRegistration', 'Message'];
-
-const OTHER_DATASET = '__other__';
+import { MetaCrmSendForm } from './MetaCrmSendForm';
 
 interface Props {
   open: boolean;
@@ -67,91 +55,32 @@ export default function MetaLeadSubmissionDetailDialog({ open, onOpenChange, lea
   const [status, setStatus] = useState('');
   const [stageId, setStageId] = useState('');
 
-  // Envio manual pro Conversion Leads da Meta — independente de existir
-  // MetaLeadSubmission no banco (funciona até pra lead de formulário
-  // notify_only, que nunca persiste nada). Nunca grava nada aqui: cada
-  // clique em "Enviar" é uma chamada isolada à Graph API, sem criar/
-  // atualizar nenhum registro no nosso banco.
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [eventName, setEventName] = useState('Lead');
-  const [datasetIds, setDatasetIds] = useState<string[]>(['']);
-  const [knownDatasetIds, setKnownDatasetIds] = useState<string[]>([]);
-  // Dataset(s) digitado(s) manualmente (fora da lista conhecida) — linha
-  // mostra Input em vez de Select enquanto estiver marcado 'other' aqui.
-  const [customDatasetIndexes, setCustomDatasetIndexes] = useState<Set<number>>(new Set());
-  const [sending, setSending] = useState(false);
-  const [sendResults, setSendResults] = useState<SendToMetaCrmResult[] | null>(null);
+  // Pré-preenchimento do formulário manual (MetaCrmSendForm) com o que o
+  // CRM já sabe do lead — só existe quando a submissão foi persistida
+  // (mode: pipeline); notify_only não tem de onde puxar, o componente
+  // deixa os campos em branco pro usuário preencher na mão.
+  const [initialEmail, setInitialEmail] = useState<string | null>(null);
+  const [initialPhone, setInitialPhone] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !leadgenId) return;
     setLoading(true);
     setNotFound(false);
     setDetail(null);
-    setSendResults(null);
-    setEmail('');
-    setPhone('');
-    setEventName('Lead');
-    setDatasetIds(['']);
-    setCustomDatasetIndexes(new Set());
+    setInitialEmail(null);
+    setInitialPhone(null);
     metaLeadFormsService
       .getSubmission(leadgenId)
       .then((data) => {
         setDetail(data);
         setStatus(data.status);
         setStageId(data.pipeline_stage_id || '');
-        // Pré-preenche com o que o CRM já sabe do lead — só existe quando a
-        // submissão foi persistida (mode: pipeline); notify_only não tem de
-        // onde puxar, o campo fica em branco pro usuário preencher na mão.
-        if (data.contact_email) setEmail(data.contact_email);
-        if (data.contact_phone) setPhone(data.contact_phone);
+        setInitialEmail(data.contact_email);
+        setInitialPhone(data.contact_phone);
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
-    metaLeadPageSettingsService
-      .listKnownDatasetIds()
-      .then(setKnownDatasetIds)
-      .catch(() => setKnownDatasetIds([]));
-    if (pageId) {
-      metaLeadPageSettingsService
-        .get(pageId)
-        .then((settings) => {
-          if (settings.dataset_ids.length > 0) setDatasetIds(settings.dataset_ids);
-        })
-        .catch(() => undefined);
-    }
-  }, [open, leadgenId, pageId]);
-
-  const updateDatasetId = (index: number, value: string) => {
-    setDatasetIds((prev) => prev.map((d, i) => (i === index ? value : d)));
-  };
-  const addDatasetId = () => setDatasetIds((prev) => [...prev, '']);
-  const removeDatasetId = (index: number) => setDatasetIds((prev) => prev.filter((_, i) => i !== index));
-
-  const handleSendToMeta = async () => {
-    if (!leadgenId) return;
-    const validDatasetIds = datasetIds.map((d) => d.trim()).filter(Boolean);
-    if (validDatasetIds.length === 0) {
-      toast.error('Informe ao menos um dataset.');
-      return;
-    }
-    setSending(true);
-    setSendResults(null);
-    try {
-      const results = await metaConversionLeadsService.sendToMetaCrm({
-        leadgen_id: leadgenId,
-        dataset_ids: validDatasetIds,
-        event_name: eventName.trim() || 'Lead',
-        email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
-      });
-      setSendResults(results);
-    } catch {
-      toast.error('Falha ao enviar pro Meta.');
-    } finally {
-      setSending(false);
-    }
-  };
+  }, [open, leadgenId]);
 
   const handleSave = async () => {
     if (!leadgenId || !detail) return;
@@ -254,100 +183,9 @@ export default function MetaLeadSubmissionDetailDialog({ open, onOpenChange, lea
               </>
             )}
 
-            <div className="rounded-md border border-border p-3 space-y-3">
-              <p className="text-sm font-medium">Enviar pro Meta (Conversion Leads)</p>
-              <p className="text-xs text-muted-foreground">
-                Preencha e aperte Enviar — manda na hora, não salva nada no CRM. Dataset(s) pré-preenchido com o
-                padrão da Página (editável).
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">E-mail</Label>
-                  <Input value={email} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} placeholder="opcional" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Telefone</Label>
-                  <Input value={phone} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhone(e.target.value)} placeholder="opcional" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Nome do evento</Label>
-                <Select value={eventName} onValueChange={setEventName}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STANDARD_EVENTS.map((ev) => (
-                      <SelectItem key={ev} value={ev}>
-                        {ev}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Dataset(s)</Label>
-                {datasetIds.map((d, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    {customDatasetIndexes.has(index) ? (
-                      <Input
-                        value={d}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateDatasetId(index, e.target.value)}
-                        placeholder="ID do dataset (Events Manager > Conversion Leads)"
-                      />
-                    ) : (
-                      <Select
-                        value={d || undefined}
-                        onValueChange={(v) => {
-                          if (v === OTHER_DATASET) {
-                            setCustomDatasetIndexes((prev) => new Set(prev).add(index));
-                            updateDatasetId(index, '');
-                          } else {
-                            updateDatasetId(index, v);
-                          }
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o dataset..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {knownDatasetIds.map((id) => (
-                            <SelectItem key={id} value={id}>
-                              {id}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value={OTHER_DATASET}>Outro (digitar ID)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                    {datasetIds.length > 1 && (
-                      <Button variant="ghost" size="sm" onClick={() => removeDatasetId(index)} className="shrink-0 text-destructive">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={addDatasetId} className="w-full">
-                  <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar dataset
-                </Button>
-              </div>
-
-              <Button onClick={handleSendToMeta} disabled={sending} className="w-full">
-                <Send className="w-4 h-4 mr-1.5" /> {sending ? 'Enviando...' : 'Enviar pro Meta'}
-              </Button>
-
-              {sendResults && (
-                <div className="space-y-1.5">
-                  {sendResults.map((r, i) => (
-                    <Alert key={i} variant={r.success ? 'default' : 'destructive'} className="py-2">
-                      <AlertDescription className="text-xs">
-                        <span className="font-mono">{r.dataset_id}</span>: {r.success ? 'Enviado com sucesso' : r.error}
-                      </AlertDescription>
-                    </Alert>
-                  ))}
-                </div>
-              )}
-            </div>
+            {leadgenId && (
+              <MetaCrmSendForm leadgenId={leadgenId} pageId={pageId} initialEmail={initialEmail} initialPhone={initialPhone} />
+            )}
           </div>
         )}
 
