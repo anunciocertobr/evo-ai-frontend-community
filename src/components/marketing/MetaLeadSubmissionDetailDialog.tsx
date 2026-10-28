@@ -55,12 +55,17 @@ export default function MetaLeadSubmissionDetailDialog({ open, onOpenChange, lea
   const [status, setStatus] = useState('');
   const [stageId, setStageId] = useState('');
 
-  // Pré-preenchimento do formulário manual (MetaCrmSendForm) com o que o
-  // CRM já sabe do lead — só existe quando a submissão foi persistida
-  // (mode: pipeline); notify_only não tem de onde puxar, o componente
-  // deixa os campos em branco pro usuário preencher na mão.
+  // Pré-preenchimento do formulário manual (MetaCrmSendForm) — vem da
+  // submissão persistida quando existe (mode: pipeline) OU, quando não
+  // existe (notify_only), do lead buscado ao vivo na Graph API pelo
+  // backend (found: false ainda traz nome/telefone/ad_id parseados —
+  // pedido do usuário: "não está preenchendo telefone e nome sendo que já
+  // tem no formulário"). `adId` alimenta a lista de pixels da conta de
+  // anúncios de onde o lead veio.
   const [initialEmail, setInitialEmail] = useState<string | null>(null);
   const [initialPhone, setInitialPhone] = useState<string | null>(null);
+  const [initialName, setInitialName] = useState<string | null>(null);
+  const [adId, setAdId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !leadgenId) return;
@@ -69,18 +74,26 @@ export default function MetaLeadSubmissionDetailDialog({ open, onOpenChange, lea
     setDetail(null);
     setInitialEmail(null);
     setInitialPhone(null);
+    setInitialName(null);
+    setAdId(null);
     metaLeadFormsService
-      .getSubmission(leadgenId)
+      .getSubmission(leadgenId, pageId)
       .then((data) => {
-        setDetail(data);
-        setStatus(data.status);
-        setStageId(data.pipeline_stage_id || '');
         setInitialEmail(data.contact_email);
         setInitialPhone(data.contact_phone);
+        setInitialName(data.contact_name);
+        setAdId(data.ad_id ?? null);
+        if (data.found) {
+          setDetail(data);
+          setStatus(data.status);
+          setStageId(data.pipeline_stage_id || '');
+        } else {
+          setNotFound(true);
+        }
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
-  }, [open, leadgenId]);
+  }, [open, leadgenId, pageId]);
 
   const handleSave = async () => {
     if (!leadgenId || !detail) return;
@@ -184,7 +197,14 @@ export default function MetaLeadSubmissionDetailDialog({ open, onOpenChange, lea
             )}
 
             {leadgenId && (
-              <MetaCrmSendForm leadgenId={leadgenId} pageId={pageId} initialEmail={initialEmail} initialPhone={initialPhone} />
+              <MetaCrmSendForm
+                leadgenId={leadgenId}
+                pageId={pageId}
+                initialEmail={initialEmail}
+                initialPhone={initialPhone}
+                initialName={initialName}
+                adId={adId}
+              />
             )}
           </div>
         )}

@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@evoapi/design-system';
 import { metaLeadPageSettingsService } from '@/services/admin/metaLeadPageSettingsService';
+import { metaLeadFormsService } from '@/services/admin/metaLeadFormsService';
 import {
   metaConversionLeadsService,
   MetaCrmCustomData,
@@ -85,6 +86,8 @@ interface Props {
   pageId: string;
   initialEmail?: string | null;
   initialPhone?: string | null;
+  initialName?: string | null;
+  adId?: string | null;
 }
 
 // Formulário de envio manual, único, pro Conversion Leads da Meta — nunca
@@ -94,13 +97,19 @@ interface Props {
 // user_data/custom_data da Conversions API, agrupado em "Dados do Cliente"
 // e "Dados do Produto/Pedido" — pedido do usuário, baseado no Payload
 // Helper oficial da Meta.
-export function MetaCrmSendForm({ leadgenId, pageId, initialEmail, initialPhone }: Props) {
+export function MetaCrmSendForm({ leadgenId, pageId, initialEmail, initialPhone, initialName, adId }: Props) {
   const [userData, setUserData] = useState<MetaCrmUserData>({});
   const [customData, setCustomData] = useState<MetaCrmCustomData>({});
   const [eventName, setEventName] = useState('Lead');
   const [actionSource, setActionSource] = useState('system_generated');
   const [datasetIds, setDatasetIds] = useState<string[]>(['']);
-  const [knownDatasetIds, setKnownDatasetIds] = useState<string[]>([]);
+  // Pixels/datasets da conta de anúncios de onde ESTE lead veio (via
+  // adId, GET /meta_lead_submissions/pixels_for_ad) — pedido do usuário:
+  // "deve listar os relacionados àquela conta de anúncios que o lead
+  // veio", em vez de uma lista fixa configurada manualmente antes. Sem
+  // adId (raro — lead sem anúncio vinculado), cai pro que já foi
+  // configurado manualmente alguma vez (metaLeadPageSettingsService).
+  const [adPixels, setAdPixels] = useState<Array<{ id: string; name: string }>>([]);
   // Dataset(s) digitado(s) manualmente (fora da lista conhecida) — linha
   // mostra Input em vez de Select enquanto estiver marcado 'other' aqui.
   const [customDatasetIndexes, setCustomDatasetIndexes] = useState<Set<number>>(new Set());
@@ -113,18 +122,31 @@ export function MetaCrmSendForm({ leadgenId, pageId, initialEmail, initialPhone 
     // país quase sempre BR e moeda quase sempre BRL pra essa conta — pré-
     // preenche os dois (valor de verdade, não só placeholder) pra economizar
     // digitação; o usuário ainda pode apagar/trocar se for o caso.
-    setUserData({ em: initialEmail || undefined, ph: initialPhone || undefined, country: 'br' });
+    setUserData({ em: initialEmail || undefined, ph: initialPhone || undefined, fn: initialName || undefined, country: 'br' });
     setCustomData({ currency: 'BRL' });
     setEventName('Lead');
     setActionSource('system_generated');
     setDatasetIds(['']);
     setCustomDatasetIndexes(new Set());
     setSendResults(null);
+    setAdPixels([]);
 
-    metaLeadPageSettingsService
-      .listKnownDatasetIds()
-      .then(setKnownDatasetIds)
-      .catch(() => setKnownDatasetIds([]));
+    if (adId) {
+      metaLeadFormsService
+        .pixelsForAd(adId)
+        .then((pixels) => {
+          setAdPixels(pixels);
+          // Conta com 1 pixel só (o mais comum): pré-seleciona sozinho em
+          // vez de deixar o usuário escolher entre uma lista de 1 item.
+          if (pixels.length === 1) setDatasetIds([pixels[0].id]);
+        })
+        .catch(() => setAdPixels([]));
+    } else {
+      metaLeadPageSettingsService
+        .listKnownDatasetIds()
+        .then((ids) => setAdPixels(ids.map((id) => ({ id, name: id }))))
+        .catch(() => setAdPixels([]));
+    }
     if (pageId) {
       metaLeadPageSettingsService
         .get(pageId)
@@ -133,7 +155,7 @@ export function MetaCrmSendForm({ leadgenId, pageId, initialEmail, initialPhone 
         })
         .catch(() => undefined);
     }
-  }, [leadgenId, pageId, initialEmail, initialPhone]);
+  }, [leadgenId, pageId, initialEmail, initialPhone, initialName, adId]);
 
   const updateDatasetId = (index: number, value: string) => {
     setDatasetIds((prev) => prev.map((d, i) => (i === index ? value : d)));
@@ -278,9 +300,9 @@ export function MetaCrmSendForm({ leadgenId, pageId, initialEmail, initialPhone 
                   <SelectValue placeholder="Selecione o dataset..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {knownDatasetIds.map((id) => (
-                    <SelectItem key={id} value={id}>
-                      {id}
+                  {adPixels.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name !== p.id ? `${p.name} (${p.id})` : p.id}
                     </SelectItem>
                   ))}
                   <SelectItem value={OTHER_DATASET}>Outro (digitar ID)</SelectItem>

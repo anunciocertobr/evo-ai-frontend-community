@@ -59,6 +59,7 @@ export interface MetaLeadSubmission {
 // "retidos" — mais leve de propósito) — pedidas pelo botão de editar da
 // tela "Ver Leads" (LeadFormLeadsDialog).
 export interface MetaLeadSubmissionDetail extends MetaLeadSubmission {
+  found: true;
   contact_name: string | null;
   contact_phone: string | null;
   contact_email: string | null;
@@ -68,6 +69,24 @@ export interface MetaLeadSubmissionDetail extends MetaLeadSubmission {
   lead_observation: string | null;
   available_stages: Array<{ id: string; name: string }> | null;
 }
+
+// `found: false` = sem MetaLeadSubmission no banco (ex.: formulário "só
+// notificar", que nunca persiste) — o backend ainda assim busca o lead ao
+// vivo na Graph API pra pré-preencher nome/telefone/ad_id do envio manual
+// (ver Api::V1::Admin::MetaLeadSubmissionsController#render_live_lookup).
+export interface MetaLeadSubmissionLiveLookup {
+  found: false;
+  leadgen_id: string;
+  ad_id: string | null;
+  adset_id: string | null;
+  campaign_id: string | null;
+  field_data: Array<{ name: string; values: string[] }>;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+}
+
+export type MetaLeadSubmissionLookup = MetaLeadSubmissionDetail | MetaLeadSubmissionLiveLookup;
 
 export interface PipelineStatusForLead {
   status: MetaLeadSubmission['status'];
@@ -106,10 +125,17 @@ export const metaLeadFormsService = {
 
   // `leadgenId` é o id do lead na Graph API — é também o identificador na
   // rota (ver comentário em Api::V1::Admin::MetaLeadSubmissionsController),
-  // não o UUID interno do registro.
-  async getSubmission(leadgenId: string): Promise<MetaLeadSubmissionDetail> {
-    const response = await api.get(`/admin/meta_lead_submissions/${leadgenId}`);
-    return extractData<MetaLeadSubmissionDetail>(response);
+  // não o UUID interno do registro. `pageId` é obrigatório pro caso
+  // `found: false` (lead sem MetaLeadSubmission persistida) — o backend
+  // precisa saber de qual Página buscar na Graph API.
+  async getSubmission(leadgenId: string, pageId: string): Promise<MetaLeadSubmissionLookup> {
+    const response = await api.get(`/admin/meta_lead_submissions/${leadgenId}`, { params: { page_id: pageId } });
+    return extractData<MetaLeadSubmissionLookup>(response);
+  },
+
+  async pixelsForAd(adId: string): Promise<Array<{ id: string; name: string }>> {
+    const response = await api.get('/admin/meta_lead_submissions/pixels_for_ad', { params: { ad_id: adId } });
+    return extractData<Array<{ id: string; name: string }>>(response);
   },
 
   async updateSubmission(leadgenId: string, payload: { status?: string; pipeline_stage_id?: string }): Promise<MetaLeadSubmissionDetail> {
