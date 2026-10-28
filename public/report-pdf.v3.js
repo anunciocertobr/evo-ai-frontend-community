@@ -1,0 +1,1973 @@
+/**
+ * Geração de PDF do relatório de Meta Ads (Dashboard › Relatórios e link público /r/:token).
+ *
+ * O PDF é montado no navegador com jsPDF e segue o mesmo visual do relatório
+ * (fundo escuro, cards de totais, cores da tela). Os gráficos são desenhados
+ * direto no PDF a partir dos dados do Chart.js (ou dos dados do período, nos
+ * gráficos personalizados), para que os valores apareçam em cada barra/ponto.
+ * Só cai para imagem do canvas quando o tipo de gráfico não é barra nem linha.
+ *
+ * v3: (1) o modal agora ressincroniza a data com o filtro do relatório
+ * principal TODA VEZ que abre (antes só pegava a data do boot da página —
+ * ver syncFromMainReport); (2) botão "Enviar" manda o PDF (mesmo gerado
+ * aqui, via doc.output('blob')) direto por WhatsApp escolhendo canal/
+ * destino — POST em /api/v1/reports/meta_ads/send_pdf; (3) botão
+ * "Programar" cria um ScheduledAction (action_type 'send_report_pdf') pra
+ * reenvio recorrente — o PERÍODO é sempre relativo (start_days_ago/
+ * end_days_ago), nunca datas fixas, porque o backend recalcula "hoje" a
+ * cada disparo (ver Reports::RelativePeriod no backend) e o PDF agendado é
+ * gerado no servidor com Prawn (sem navegador), não com este jsPDF — pode
+ * sair visualmente um pouco diferente do baixado na hora.
+ *
+ * Este arquivo é carregado pelo HTML do item `mtlsot4v-cf6f9s` de
+ * `dashboard-menu-items` (ver Public::ReportHtml do backend). Ele depende de
+ * variáveis `const` do script principal do relatório — metaAdsState,
+ * metaAdsAllData, META_METRIC_CONFIG, fetchData, renderMetaAds, dayjs etc. —,
+ * que só existem porque os dois são scripts clássicos: `let`/`const` de topo
+ * caem no ambiente léxico global, compartilhado entre scripts clássicos. Se
+ * algum dia o relatório virar `type="module"`, este arquivo quebra e o botão
+ * simplesmente não aparece.
+ *
+ * NOME DO ARQUIVO (report-pdf.vN.js) — é servido com `Cache-Control:
+ * public, immutable, max-age=31536000` (1 ano). Editar o CONTEÚUDO deste
+ * arquivo sem trocar o nome NÃO atualiza nada pra quem já carregou o
+ * relatório antes do deploy — o navegador nunca revalida um recurso
+ * "immutable", só troca de versão se a URL mudar (incidente real,
+ * 27/10/2026: corrigi o cálculo de Leads/Custo por Lead, fiz deploy, e o
+ * PDF continuava saindo errado pra qualquer sessão de navegador já aberta
+ * antes do deploy — a causa era essa, não o código). Toda vez que a LÓGICA
+ * daqui mudar (não só comentário/formatação), renomear pra vN+1 e atualizar
+ * a tag `<script src>` injetada no HTML do relatório (ver
+ * script/update_report_pdf_asset.rb no backend).
+ */
+(function () {
+  'use strict';
+
+  if (window.__EVO_REPORT_PDF__) return;
+  window.__EVO_REPORT_PDF__ = true;
+
+  var JSPDF_URL = 'https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js';
+
+  // Catálogo dos gráficos da aba Meta Ads. `opts` reproduz os seletores que a
+  // tela já oferece, para o PDF sair igual ao que o usuário está vendo.
+  var CHARTS = [
+    { id: 'meta-chart-daily', title: 'Análise Diária de Métricas', opts: [{ key: 'activeDailyMetrics', label: 'Métricas', type: 'metrics' }] },
+    { id: 'meta-chart-objective', title: 'Investimento por Objetivo', metricName: 'Valor gasto (R$)', money: true },
+    {
+      id: 'meta-chart-top5', title: 'Top 5', opts: [
+        { key: 'top5Dimension', label: 'Dimensão', type: 'dimension' },
+        { key: 'top5Metric', label: 'Métrica', type: 'metric' }
+      ]
+    },
+    { id: 'meta-chart-hourly', title: 'Análise por Hora do Dia', opts: [{ key: 'activeHourlyMetric', label: 'Métrica', type: 'metric' }] },
+    {
+      id: 'meta-chart-demographics', title: 'Perfil Demográfico', opts: [
+        { key: 'activeDemographicMetric', label: 'Métrica', type: 'metric' },
+        { key: 'demographicView', label: 'Visualizar', type: 'view', values: [['age', 'Por Idade'], ['gender', 'Por Gênero']] }
+      ]
+    },
+    { id: 'meta-chart-platform', title: 'Plataforma' },
+    { id: 'meta-chart-position', title: 'Posicionamento', opts: [{ key: 'activePositioningMetric', label: 'Métrica', type: 'metric' }] },
+    { id: 'meta-chart-device', title: 'Dispositivo' },
+    { id: 'meta-chart-region', title: 'Análise por Região', opts: [{ key: 'activeRegionMetric', label: 'Métrica', type: 'metric' }] }
+  ];
+
+  var PERIODS = [
+    ['today', 'Hoje'], ['yesterday', 'Ontem'], ['week', 'Esta semana'],
+    ['month', 'Este mês'], ['year', 'Este ano'], ['all', 'Tudo']
+  ];
+
+  // Metas que compõem o Total. As derivadas (CPM, CPC, CTR...) são sempre
+  // recalculadas a partir dos totais do período, nunca tiradas da Meta.
+  //
+  // 'leads'/'purchases' PRECISAM estar aqui — são a base de costPerLead/
+  // costPerPurchase (ver calcMetrics abaixo: costPerLead = safeDiv(spent,
+  // t.leads), e safeDiv(_, undefined) sempre devolve 0, que formatValue
+  // mostra como "—"). Um fix anterior (27c930f0, 07/10/2026) tirou os dois
+  // daqui querendo só desmarcar os checkboxes de Leads/Custo por Lead por
+  // padrão no modal — mas também quebrou o cálculo, então mesmo marcando
+  // as caixas na mão o PDF saía com Leads/Custo por Lead sempre errado,
+  // pra qualquer conta/período. Os dois ajustes eram independentes; esse
+  // aqui restaura só o cálculo, mantendo os checkboxes desmarcados por
+  // padrão (ver uncheckedByDefault mais abaixo).
+  var BASE_METRICS = ['spent', 'impressions', 'reach', 'clicks', 'messages', 'leads', 'purchases'];
+
+  var MONTH_CAP = 3; // mesmo limite do handleDateFilterClick do relatório
+
+  // Cores do relatório (Tailwind slate + as cores dos gráficos da tela).
+  var THEME = {
+    page: [15, 23, 42],      // slate-900: fundo da página
+    card: [30, 41, 59],      // slate-800: cards e blocos de gráfico
+    cardAlt: [51, 65, 85],   // slate-700: cabeçalho de tabela e linhas
+    text: [241, 245, 249],   // slate-100: títulos e valores
+    body: [226, 232, 240],   // slate-200: texto corrido
+    muted: [148, 163, 184]   // slate-400: rótulos e legendas
+  };
+  var PALETTE = ['#38bdf8', '#a78bfa', '#34d399', '#fbbf24', '#f87171', '#fb923c', '#60a5fa', '#e879f9'];
+
+  // ---------------------------------------------------------------- período
+
+  function computePeriod(key) {
+    var today = dayjs(), s, e;
+    switch (key) {
+      case 'today': s = today; e = today; break;
+      case 'yesterday': s = today.subtract(1, 'day'); e = today.subtract(1, 'day'); break;
+      case 'week': s = today.startOf('isoWeek'); e = today.endOf('isoWeek'); break;
+      case 'month': s = today.startOf('month'); e = today.endOf('month'); break;
+      case 'year': s = today.startOf('year'); e = today; break;
+      default: s = dayjs('2020-01-01'); e = today; break;
+    }
+    if (e.diff(s, 'months', true) > MONTH_CAP) s = e.clone().subtract(MONTH_CAP, 'months');
+    return { key: key, start: s.format('YYYY-MM-DD'), end: e.format('YYYY-MM-DD') };
+  }
+
+  function currentPeriod() {
+    var key = metaAdsState.activeDateFilter;
+    if (key && key !== 'custom') return computePeriod(key);
+    return { key: 'custom', start: metaAdsState.startDate, end: metaAdsState.endDate };
+  }
+
+  function applyPeriod(p) {
+    metaAdsState.activeDateFilter = p.key;
+    metaAdsState.startDate = p.start;
+    metaAdsState.endDate = p.end;
+    document.getElementById('meta-start-date').value = p.start;
+    document.getElementById('meta-end-date').value = p.end;
+    document.querySelectorAll('#meta-date-filters button').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.period === p.key);
+    });
+    return fetchData('meta-ads');
+  }
+
+  function periodLabel(p) {
+    if (p.start === p.end) return p.start;
+    return p.start + ' a ' + p.end;
+  }
+
+  // ------------------------------------------------------------- agregação
+
+  // Mesmos filtros de tela (objetivo, campanha, conjunto, anúncio) para qualquer
+  // conjunto de dados do relatório: geral, hora, posicionamento, região, idade...
+  function filterDataset(data) {
+    var st = metaAdsState;
+    return (data || []).filter(function (ad) {
+      return (st.selectedObjective === 'all' || ad.Objetivo === st.selectedObjective) &&
+        (st.selectedCampaign === 'all' || ad['Nome da campanha'] === st.selectedCampaign) &&
+        (st.selectedAdSet === 'all' || ad['Nome do conjunto de anúncios'] === st.selectedAdSet) &&
+        (st.selectedAd === 'all' || ad['Nome do anúncio'] === st.selectedAd);
+    });
+  }
+
+  function filteredRows() {
+    return filterDataset(metaAdsAllData.geral);
+  }
+
+  // Mesmas fórmulas do calculateMetrics do relatório — se um dia elas mudarem
+  // lá, precisam mudar aqui também. A diferença é o guarda de divisão por
+  // zero: `x / 0 || 0` devolve Infinity (que é truthy), e formatCurrency(Infinity)
+  // chega no PDF como "R$ ∞", que o Helvetica não tem e vira lixo na página.
+  function safeDiv(a, b, factor) {
+    if (!b) return 0;
+    var v = (a / b) * (factor || 1);
+    return isFinite(v) ? v : 0;
+  }
+
+  function calcMetrics(rows) {
+    var t = {};
+    BASE_METRICS.forEach(function (k) {
+      t[k] = rows.reduce(function (s, ad) { return s + parseMetaNumber(ad[META_METRIC_CONFIG[k].key]); }, 0);
+    });
+    t.cpm = safeDiv(t.spent, t.impressions, 1000);
+    t.cpc = safeDiv(t.spent, t.clicks);
+    t.costPerMessage = safeDiv(t.spent, t.messages);
+    t.costPerLead = safeDiv(t.spent, t.leads);
+    t.costPerPurchase = safeDiv(t.spent, t.purchases);
+    t.frequency = safeDiv(t.impressions, t.reach);
+    t.ctr = safeDiv(t.clicks, t.impressions);
+    return t;
+  }
+
+  // Média por dia = média dos valores de cada dia com dados no período. Para
+  // as derivadas isso é a média das derivadas diárias, não a derivada da média.
+  function averageByDay(rows, keys) {
+    var byDay = {};
+    rows.forEach(function (ad) {
+      if (ad.Dia) (byDay[ad.Dia] = byDay[ad.Dia] || []).push(ad);
+    });
+    var days = Object.keys(byDay);
+    if (!days.length) {
+      var zero = {}; keys.forEach(function (k) { zero[k] = 0; });
+      return { avg: zero, dayCount: 0 };
+    }
+    var perDay = days.map(function (d) { return calcMetrics(byDay[d]); });
+    var avg = {};
+    keys.forEach(function (k) {
+      avg[k] = perDay.reduce(function (s, m) { return s + m[k]; }, 0) / days.length;
+    });
+    return { avg: avg, dayCount: days.length };
+  }
+
+  function groupByObjective(rows) {
+    var byObj = {};
+    rows.forEach(function (ad) {
+      var o = ad.Objetivo || 'Não especificado';
+      (byObj[o] = byObj[o] || []).push(ad);
+    });
+    return Object.keys(byObj).sort().map(function (o) {
+      return { name: o, metrics: calcMetrics(byObj[o]) };
+    });
+  }
+
+  // Custo por resultado com zero conversões: a divisão devolve 0, mas "R$ 0,00"
+  // parece custo baixo. Sem resultado, o custo não existe: mostra travessão.
+  var COST_KEYS = { cpm: 1, cpc: 1, costPerMessage: 1, costPerLead: 1, costPerPurchase: 1 };
+
+  function formatValue(key, value) {
+    if (COST_KEYS[key] && !value) return '—';
+    var m = META_METRIC_CONFIG[key] || {};
+    if (m.isCurrency) return formatCurrency(value);
+    if (m.isPercentage) return formatPercentage(value);
+    if (m.isRatio) return formatRatio(value);
+    return formatNumber(value);
+  }
+
+  // Na coluna "Média por dia" a contagem vira decimal (1.495,467 impressões por
+  // dia) porque o Intl padrão mostra até 3 casas. Contagem arredonda; dinheiro e
+  // proporção mantêm as casas.
+  function formatAverage(key, value) {
+    var m = META_METRIC_CONFIG[key] || {};
+    if (m.isCurrency) return formatCurrency(value);
+    if (m.isPercentage) return formatPercentage(value);
+    if (m.isRatio) return formatRatio(value);
+    return formatNumber(Math.round(value));
+  }
+
+  // Grupo de escala: barras só se comparam dentro do mesmo tipo de métrica
+  // (R$ com R$, quantidade com quantidade). Mensagens e custo por mensagem
+  // ficam em escalas separadas, cada uma com o próprio valor marcado.
+  function scaleGroup(key) {
+    var m = META_METRIC_CONFIG[key] || {};
+    if (m.isCurrency) return 'currency';
+    if (m.isPercentage) return 'percent';
+    if (m.isRatio) return 'ratio';
+    return 'count';
+  }
+
+  function keyForLabel(label) {
+    var ks = Object.keys(META_METRIC_CONFIG);
+    for (var i = 0; i < ks.length; i++) {
+      if (META_METRIC_CONFIG[ks[i]].label === label) return ks[i];
+    }
+    return null;
+  }
+
+  // ------------------------------------------------------ dados dos gráficos
+
+  // Lê o gráfico que já está na tela (Chart.js) e devolve os mesmos dados,
+  // para o PDF desenhar com valores. Gráfico que não é barra nem linha → null.
+  function chartSpec(canvasId, money) {
+    var el = document.getElementById(canvasId);
+    if (!el || typeof Chart === 'undefined') return null;
+    var chart = Chart.getChart(el);
+    if (chart && (chart.config.type === 'pie' || chart.config.type === 'doughnut')) {
+      // pizza não tem como mostrar valores: vira barras horizontais com cada valor
+      var pds = chart.data.datasets[0] || { data: [] };
+      return {
+        kind: 'pie',
+        rows: (chart.data.labels || []).map(function (lb, i) {
+          var v = Number(pds.data[i]) || 0;
+          return { label: String(lb), value: v, group: 'pie', fmt: money ? formatCurrency : formatNumber };
+        })
+      };
+    }
+    if (!chart || (chart.config.type !== 'bar' && chart.config.type !== 'line')) return null;
+    var labels = (chart.data.labels || []).map(String);
+    var series = [];
+    chart.data.datasets.forEach(function (ds, i) {
+      if (chart.isDatasetVisible && !chart.isDatasetVisible(i)) return;
+      var label = ds.label || '';
+      var key = keyForLabel(label);
+      var color = typeof ds.backgroundColor === 'string' ? ds.backgroundColor : ds.borderColor;
+      series.push({
+        label: label,
+        color: hexOrPalette(color, series.length),
+        data: (ds.data || []).map(function (v) { return Number(v) || 0; }),
+        fmt: function (v) { return key ? formatValue(key, v) : formatNumber(Math.round(v)); }
+      });
+    });
+    if (!series.length) return null;
+    return { kind: chart.config.type, labels: labels, series: series };
+  }
+
+  // Dimensões que um gráfico personalizado pode usar. `src` é o conjunto de
+  // dados do relatório (mesmo mapeamento do processMetaAdsData da tela).
+  var GENDER_LABEL = { female: 'Feminino', male: 'Masculino' };
+  var DIM = {
+    objective: { label: 'Objetivo', src: 'geral', key: function (ad) { return ad.Objetivo || 'Não especificado'; }, order: 'value', first: 'Objetivo' },
+    day: { label: 'Dia', src: 'geral', key: function (ad) { return ad.Dia; }, fmt: function (k) { return dayjs(k).format('DD/MM'); }, order: 'date', first: 'Dia' },
+    hour: { label: 'Hora do dia', src: 'hora', key: function (ad) { return ad.hora ? ad.hora.substring(0, 2) : null; }, fmt: function (k) { return k + 'h'; }, order: 'num', first: 'Hora' },
+    platform: { label: 'Plataforma', src: 'posicionamento', key: function (ad) { return ad.publisher_platform || 'N/A'; }, order: 'value', first: 'Plataforma' },
+    position: { label: 'Posicionamento', src: 'posicionamento', key: function (ad) { return ad.platform_position || 'N/A'; }, order: 'value', first: 'Posicionamento' },
+    device: { label: 'Dispositivo', src: 'posicionamento', key: function (ad) { return ad.impression_device || 'N/A'; }, order: 'value', first: 'Dispositivo' },
+    region: { label: 'Região', src: 'regiao', key: function (ad) { return ad.Regiao || 'N/A'; }, order: 'value', limit: 15, first: 'Região' },
+    age: { label: 'Idade', src: 'idade_genero', key: function (ad) { return ad.Idade || 'N/A'; }, order: 'num', first: 'Idade' },
+    gender: { label: 'Gênero', src: 'idade_genero', key: function (ad) { return GENDER_LABEL[ad['Gênero']] || 'Desconhecido'; }, order: 'value', first: 'Gênero' }
+  };
+
+  function dimDef(id) {
+    if (id.indexOf('top5:') === 0) {
+      var cfg = META_TOP5_DIMENSION_CONFIG[id.slice(5)] || {};
+      return { label: 'Top 5 · ' + (cfg.label || id), src: 'geral', key: function (ad) { return ad[cfg.key] || 'Não especificado'; }, order: 'value', limit: 5, first: cfg.label || 'Item' };
+    }
+    return DIM[id];
+  }
+
+  // Agrupa por dimensão e calcula as métricas de cada grupo. Ordem: data,
+  // número (hora/idade) ou valor da primeira métrica escolhida, do maior pro menor.
+  function applyChartFilters(data, filt) {
+    if (!filt) return data;
+    return data.filter(function (ad) {
+      return (filt.objective === 'all' || ad.Objetivo === filt.objective) &&
+        (filt.campaign === 'all' || ad['Nome da campanha'] === filt.campaign) &&
+        (filt.adSet === 'all' || ad['Nome do conjunto de anúncios'] === filt.adSet);
+    });
+  }
+
+  function filterText(filt) {
+    var parts = [];
+    if (filt.objective !== 'all') parts.push('Objetivo: ' + filt.objective);
+    if (filt.campaign !== 'all') parts.push('Campanha: ' + filt.campaign);
+    if (filt.adSet !== 'all') parts.push('Conjunto: ' + filt.adSet);
+    return parts.join(' | ');
+  }
+
+  // Período do relatório que está sendo gerado (preenchido em gerar).
+  var reportPeriod = null;
+
+  function dimensionItems(dimId, metricKeys, filt) {
+    var d = dimDef(dimId);
+    var groups = {};
+    applyChartFilters(filterDataset(metaAdsAllData[d.src]), filt).forEach(function (ad) {
+      var k = d.key(ad);
+      if (!k) return;
+      (groups[k] = groups[k] || []).push(ad);
+    });
+    var items = Object.keys(groups).map(function (k) {
+      return { key: k, label: d.fmt ? d.fmt(k) : k, m: calcMetrics(groups[k]) };
+    });
+    if (d.order === 'date') {
+      items.sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; });
+      // Dia sem nenhuma linha (anúncio não entregou) ainda faz parte do período:
+      // entra no gráfico com zero, para o eixo mostrar todos os dias.
+      if (reportPeriod && reportPeriod.start && reportPeriod.end) {
+        var porDia = {};
+        items.forEach(function (it) { porDia[it.key] = it; });
+        var todos = [];
+        var cursor = dayjs(reportPeriod.start);
+        var fim = dayjs(reportPeriod.end);
+        while (!cursor.isAfter(fim, 'day')) {
+          var chave = cursor.format('YYYY-MM-DD');
+          todos.push(porDia[chave] || { key: chave, label: chave, m: calcMetrics([]) });
+          cursor = cursor.add(1, 'day');
+        }
+        items = todos;
+      }
+      items.forEach(function (it) { it.label = d.fmt ? d.fmt(it.key) : it.key; });
+    }
+    else if (d.order === 'num') items.sort(function (a, b) { return (parseFloat(a.key) || 0) - (parseFloat(b.key) || 0); });
+    else {
+      var first = metricKeys[0];
+      items.sort(function (a, b) { return (b.m[first] || 0) - (a.m[first] || 0); });
+    }
+    return d.limit ? items.slice(0, d.limit) : items;
+  }
+
+  function metricLabels(keys) {
+    return keys.map(function (k) { return META_METRIC_CONFIG[k].label; }).join(', ');
+  }
+
+  // Gráfico de uma dimensão: uma série por métrica escolhida. `type` é 'bar' ou 'line'.
+  function dimensionSpec(dimId, metricKeys, title, type, filt) {
+    var d = dimDef(dimId);
+    var items = dimensionItems(dimId, metricKeys, filt);
+    var ftxt = filt ? filterText(filt) : '';
+    return {
+      title: title,
+      subtitle: 'Métricas: ' + metricLabels(metricKeys) + (ftxt ? ' | ' + ftxt : ''),
+      kind: type,
+      labels: items.map(function (it) { return it.label; }),
+      series: metricKeys.map(function (k, i) {
+        return {
+          label: META_METRIC_CONFIG[k].label,
+          color: PALETTE[i % PALETTE.length],
+          data: items.map(function (it) { return it.m[k] || 0; }),
+          fmt: function (v) { return formatValue(k, v); }
+        };
+      })
+    };
+  }
+
+  // Gráfico personalizado de barras: total de cada métrica escolhida.
+  function totalsRows(totals, keys) {
+    return keys.map(function (k) {
+      return {
+        label: META_METRIC_CONFIG[k].label,
+        value: totals[k] || 0,
+        fmt: function (v) { return formatValue(k, v); },
+        group: scaleGroup(k)
+      };
+    });
+  }
+
+  // ---------------------------------------------------------------- canvas
+
+  // Só usado para o caso de fallback (gráfico que não é barra nem linha). O
+  // canvas do Chart.js é transparente e o texto dos gráficos é claro: sem
+  // pintar o fundo antes, o PNG sairia com texto branco sobre branco no PDF.
+  function resolveBackground(el) {
+    var node = el;
+    while (node && node !== document.documentElement) {
+      var bg = getComputedStyle(node).backgroundColor;
+      if (bg && bg !== 'transparent' && !/rgba\(0, 0, 0, 0\)/.test(bg)) return bg;
+      node = node.parentElement;
+    }
+    return '#0f172a';
+  }
+
+  function captureChart(canvasId) {
+    var el = document.getElementById(canvasId);
+    if (!el || typeof Chart === 'undefined') return null;
+    var chart = Chart.getChart(el);
+    if (!chart) return null;
+    var src = chart.canvas;
+    var out = document.createElement('canvas');
+    out.width = src.width;
+    out.height = src.height;
+    var ctx = out.getContext('2d');
+    ctx.fillStyle = resolveBackground(el);
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(src, 0, 0);
+    return {
+      jpegUrl: out.toDataURL('image/jpeg', 0.95),
+      w: src.width,
+      h: src.height
+    };
+  }
+
+  // ------------------------------------------------------------------ PDF
+
+  var M = { top: 14, bottom: 16, left: 12, right: 12 };
+  var doc, pageW, pageH, contentW, y;
+  var CHART_H = 104;
+
+  function hexOrPalette(c, idx) {
+    return /^#[0-9a-f]{6}$/i.test(c || '') ? c : PALETTE[idx % PALETTE.length];
+  }
+
+  function hexRgb(hex) {
+    var m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return [56, 189, 248];
+    var n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  // Pinta a página inteira de escuro. Chamado em toda página nova, senão a
+  // página nasce branca.
+  function paintPage() {
+    doc.setFillColor.apply(doc, THEME.page);
+    doc.rect(0, 0, pageW, pageH, 'F');
+  }
+
+  function newPage() {
+    doc.addPage();
+    paintPage();
+    y = M.top;
+  }
+
+  function need(h) {
+    if (y + h > pageH - M.bottom) newPage();
+  }
+
+  function spacer(h) { y += h || 6; }
+
+  function text(str, opts) {
+    opts = opts || {};
+    var size = opts.size || 9;
+    doc.setFontSize(size);
+    doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
+    doc.setTextColor.apply(doc, opts.color || THEME.body);
+    var lines = doc.splitTextToSize(String(str), opts.width || contentW);
+    var lh = size * 0.42 + 1;
+    need(lines.length * lh);
+    doc.text(lines, opts.x === undefined ? M.left : opts.x, y, { lineHeightFactor: 0.42 });
+    y += lines.length * lh;
+  }
+
+  function heading(str) {
+    need(24);
+    y += 4;
+    text(str, { size: 13, bold: true, color: THEME.text });
+    y += 2;
+  }
+
+  // Texto solto numa posição (rótulos de gráfico). Não mexe em `y`.
+  function label(str, x, yy, o) {
+    o = o || {};
+    doc.setFontSize(o.size || 7);
+    doc.setFont('helvetica', o.bold ? 'bold' : 'normal');
+    doc.setTextColor.apply(doc, o.color || THEME.body);
+    var opts = { align: o.align || 'left' };
+    if (o.angle) opts.angle = o.angle;
+    doc.text(String(str), x, yy, opts);
+  }
+
+  // Corta o texto até caber na largura. Precisa do tamanho de fonte já definido.
+  function fitText(str, maxW) {
+    var s = String(str);
+    if (doc.getTextWidth(s) <= maxW) return s;
+    while (s.length > 1 && doc.getTextWidth(s + '…') > maxW) s = s.slice(0, -1);
+    return s + '…';
+  }
+
+  function card(x, yy, w, h) {
+    doc.setFillColor.apply(doc, THEME.card);
+    doc.roundedRect(x, yy, w, h, 2, 2, 'F');
+  }
+
+  // Cards de totais (mesmo formato dos cards do relatório).
+  function drawKpiCards(items) {
+    var cols = 3, gap = 4;
+    var w = (contentW - gap * (cols - 1)) / cols;
+    var h = 22;
+    var i = 0;
+    while (i < items.length) {
+      need(h + gap);
+      for (var c = 0; c < cols && i < items.length; c++, i++) {
+        var it = items[i];
+        var x = M.left + c * (w + gap);
+        card(x, y, w, h);
+        label(it.label, x + 4, y + 6.5, { size: 8, color: THEME.muted });
+        label(it.value, x + 4, y + 14.5, { size: 13, bold: true, color: THEME.text });
+        if (it.sub) label(it.sub, x + 4, y + 19.2, { size: 7, color: THEME.muted });
+      }
+      y += h + gap;
+    }
+    spacer(2);
+  }
+
+  function drawTable(head, rows, widths) {
+    var rowH = 7;
+    function header() {
+      need(rowH * 2);
+      doc.setFillColor.apply(doc, THEME.cardAlt);
+      doc.rect(M.left, y, contentW, rowH, 'F');
+      var x = M.left;
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor.apply(doc, THEME.text);
+      head.forEach(function (h, i) {
+        doc.text(fitText(h, widths[i] - 4), x + 2, y + 4.8);
+        x += widths[i];
+      });
+      y += rowH;
+    }
+    header();
+    rows.forEach(function (row, r) {
+      if (y + rowH > pageH - M.bottom) { newPage(); header(); }
+      doc.setFillColor.apply(doc, r % 2 === 1 ? THEME.card : THEME.page);
+      doc.rect(M.left, y, contentW, rowH, 'F');
+      var x = M.left;
+      row.forEach(function (cell, i) {
+        doc.setFontSize(8.5);
+        doc.setFont('helvetica', i === 0 ? 'bold' : 'normal');
+        doc.setTextColor.apply(doc, THEME.body);
+        var val = String(cell);
+        if (i > 0) {
+          doc.text(val, x + widths[i] - 2, y + 4.8, { align: 'right' });
+        } else {
+          doc.text(doc.splitTextToSize(val, widths[i] - 4), x + 2, y + 4.8);
+        }
+        x += widths[i];
+      });
+      y += rowH;
+    });
+    spacer(4);
+  }
+
+  // Gráfico de barras, com valores em cada barra. Linhas têm bloco próprio.
+  function drawChartBlock(spec) {
+    if (spec.kind === 'line') return drawLineBlock(spec);
+    if (spec.kind === 'pie' || spec.kind === 'donut') return drawPieBlock(spec);
+    var series = spec.series;
+    var n = spec.labels.length;
+    if (!n || !series.length) return;
+
+    need(CHART_H + 4);
+    var top = y;
+    card(M.left, top, contentW, CHART_H);
+    label(spec.title, M.left + 6, top + 7, { size: 10.5, bold: true, color: THEME.text });
+    label(fitText(spec.subtitle || '', contentW - 12), M.left + 6, top + 12, { size: 7.5, color: THEME.muted });
+
+    var x0 = M.left + 10, plotW = contentW - 20;
+    var legendY = top + 17;
+    var lx = x0;
+    series.forEach(function (s) {
+      doc.setFillColor.apply(doc, hexRgb(s.color));
+      doc.rect(lx, legendY - 2.2, 2.2, 2.2, 'F');
+      doc.setFontSize(7.5);
+      var itemW = Math.min(doc.getTextWidth(s.label), 50);
+      label(fitText(s.label, 50), lx + 3.4, legendY, { size: 7.5, color: THEME.body });
+      lx += 3.4 + itemW + 7;
+    });
+
+    var plotTop = top + 23;
+    var plotBottom = top + CHART_H - 11;
+    var plotH = plotBottom - plotTop;
+
+    doc.setDrawColor.apply(doc, THEME.cardAlt);
+    doc.setLineWidth(0.2);
+    doc.line(x0, plotBottom, x0 + plotW, plotBottom);
+
+    var gw = plotW / n;
+    var groupW = Math.min(gw * 0.8, 40);
+    var bw = groupW / series.length;
+    var rotate = bw < 6.5;
+    var headroom = rotate ? plotH - 14 : plotH - 5;
+    series.forEach(function (s, si) {
+      var mx = Math.max.apply(null, s.data.concat([0])) || 1;
+      var barRgb = hexRgb(s.color);
+      s.data.forEach(function (v, idx) {
+        var h = Math.max(0, v) / mx * headroom;
+        var bx = x0 + idx * gw + (gw - groupW) / 2 + si * bw;
+        var by = plotBottom - h;
+        // o texto também usa a cor de preenchimento no jsPDF: redefinir a cor a cada forma
+        doc.setFillColor.apply(doc, barRgb);
+        doc.rect(bx + 0.3, by, Math.max(bw - 0.6, 0.5), h, 'F');
+        if (rotate) {
+          label(s.fmt(v), bx + bw / 2 + 1.2, by - 1.5, { size: 6.5, angle: 90, bold: true, color: THEME.text });
+        } else {
+          label(s.fmt(v), bx + bw / 2, by - 1.5, { size: 6.5, bold: true, color: THEME.text, align: 'center' });
+        }
+      });
+    });
+
+    var stepX = Math.max(1, Math.ceil(7 / gw));
+    spec.labels.forEach(function (lb, idx) {
+      if (idx % stepX) return;
+      doc.setFontSize(7);
+      var cx = x0 + idx * gw + gw / 2;
+      label(fitText(lb, gw * stepX - 1), cx, plotBottom + 4.5, { size: 7, color: THEME.muted, align: 'center' });
+    });
+
+    y = top + CHART_H + 5;
+  }
+
+  // Linha: todas as séries no mesmo gráfico. Cada série usa a própria escala
+  // (R$ e quantidade não cabem na mesma altura), então a legenda traz o máximo
+  // de cada uma. Os valores ficam em cada ponto; rótulos alternam acima/abaixo
+  // para não cair um em cima do outro.
+  function drawLineBlock(spec) {
+    var series = spec.series;
+    var n = spec.labels.length;
+    if (!n || !series.length) return;
+
+    need(CHART_H + 4);
+    var top = y;
+    card(M.left, top, contentW, CHART_H);
+    label(spec.title, M.left + 6, top + 7, { size: 10.5, bold: true, color: THEME.text });
+    label(fitText(spec.subtitle || '', contentW - 12), M.left + 6, top + 12, { size: 7.5, color: THEME.muted });
+
+    var x0 = M.left + 10, plotW = contentW - 20;
+    var maxes = series.map(function (s) { return Math.max.apply(null, s.data.concat([0])) || 1; });
+
+    // legenda em uma ou mais linhas, conforme a largura
+    doc.setFontSize(7.5);
+    var legendRow = 0, lx = 0;
+    var legend = series.map(function (s, si) {
+      var txt = fitText(s.label + ' (máx ' + s.fmt(maxes[si]) + ')', 90);
+      var w = 3.4 + doc.getTextWidth(txt) + 7;
+      if (lx > 0 && lx + w > plotW) { legendRow++; lx = 0; }
+      var pos = { txt: txt, x: lx, row: legendRow, rgb: hexRgb(s.color) };
+      lx += w;
+      return pos;
+    });
+    legend.forEach(function (pos) {
+      var ly = top + 17 + pos.row * 4.2;
+      doc.setFillColor.apply(doc, pos.rgb);
+      doc.rect(x0 + pos.x, ly - 2.2, 2.2, 2.2, 'F');
+      label(pos.txt, x0 + pos.x + 3.4, ly, { size: 7.5, color: THEME.body });
+    });
+
+    var plotTop = top + 17 + (legendRow + 1) * 4.2 + 3;
+    var plotBottom = top + CHART_H - 11;
+    var plotH = plotBottom - plotTop;
+
+    doc.setDrawColor.apply(doc, THEME.cardAlt);
+    doc.setLineWidth(0.2);
+    doc.line(x0, plotBottom, x0 + plotW, plotBottom);
+
+    var xs = spec.labels.map(function (_, idx) {
+      return n === 1 ? x0 + plotW / 2 : x0 + idx * plotW / (n - 1);
+    });
+    var pts = series.map(function (s, si) {
+      return s.data.map(function (v, idx) {
+        return { x: xs[idx], y: plotBottom - Math.max(0, v) / maxes[si] * (plotH - 6) };
+      });
+    });
+
+    series.forEach(function (s, si) {
+      var rgb = hexRgb(s.color);
+      doc.setDrawColor.apply(doc, rgb);
+      doc.setLineWidth(0.6);
+      for (var i = 1; i < pts[si].length; i++) {
+        doc.line(pts[si][i - 1].x, pts[si][i - 1].y, pts[si][i].x, pts[si][i].y);
+      }
+      pts[si].forEach(function (p) {
+        doc.setFillColor.apply(doc, rgb);
+        doc.circle(p.x, p.y, 0.8, 'F');
+      });
+    });
+
+    // rótulos por último, para ficarem por cima das linhas
+    // Em cada dia, as séries são ordenadas de cima para baixo: a 1ª, 3ª... rótulo
+    // acima, a 2ª, 4ª... abaixo. Assim séries que se encostam ficam em lados opostos.
+    // Todo ponto leva valor (sem pular dias); com muitos dias o texto fica menor e sem "R$".
+    var small = n > 12;
+    for (var idx = 0; idx < n; idx++) {
+      var order = series.map(function (_, si) { return si; }).sort(function (a, b) {
+        return pts[a][idx].y - pts[b][idx].y;
+      });
+      order.forEach(function (si, rank) {
+        var p = pts[si][idx];
+        var above = rank % 2 === 0;
+        var txt = series[si].fmt(series[si].data[idx]).replace('R$ ', 'R$');
+        label(txt, p.x, above ? p.y - 2 : p.y + 4, { size: small ? 5.5 : 6, bold: true, color: THEME.text, align: 'center' });
+      });
+    }
+
+    // Datas: com muitos dias, na vertical, uma por ponto
+    var stepX = Math.max(1, Math.ceil(n / 12));
+    var spacing = n > 1 ? plotW / (n - 1) : plotW;
+    spec.labels.forEach(function (lb, idx) {
+      if (small) {
+        label(lb, xs[idx] + 1.2, plotBottom + 2, { size: 6, color: THEME.muted, angle: -90 });
+        return;
+      }
+      if (idx % stepX) return;
+      doc.setFontSize(7);
+      label(fitText(lb, spacing * stepX - 1), xs[idx], plotBottom + 4.5, { size: 7, color: THEME.muted, align: 'center' });
+    });
+
+    y = top + CHART_H + 5;
+  }
+
+  // Fatias da pizza: ordena do maior pro menor; acima de 8, os 7 maiores e "Outros".
+  function pieSlices(labels, data) {
+    var pairs = labels.map(function (l, i) { return { label: l, value: Math.max(0, data[i] || 0) }; });
+    pairs.sort(function (a, b) { return b.value - a.value; });
+    if (pairs.length > 8) {
+      var rest = pairs.slice(7).reduce(function (sum, p) { return sum + p.value; }, 0);
+      pairs = pairs.slice(0, 7).concat([{ label: 'Outros', value: rest }]);
+    }
+    return pairs;
+  }
+
+  // Pizza, rosca ou círculo: uma por métrica escolhida, lado a lado. Cada fatia
+  // tem legenda com valor e percentual. O jsPDF não tem pizza nativa: a fatia é
+  // um polígono preenchido, e a rosca é a pizza com um círculo do fundo no meio.
+  function drawPieBlock(spec) {
+    var series = spec.series;
+    var k = series.length;
+    var donut = spec.kind === 'donut';
+    var slices = series.map(function (s) { return pieSlices(spec.labels, s.data); });
+    var rowsMax = Math.max.apply(null, slices.map(function (sl) { return sl.length; })) || 1;
+    var R = 20;
+    var H = 24 + 2 * R + 8 + rowsMax * 4.6 + 6;
+    need(H + 4);
+    var top = y;
+    card(M.left, top, contentW, H);
+    label(spec.title, M.left + 6, top + 7, { size: 10.5, bold: true, color: THEME.text });
+    label(fitText(spec.subtitle || '', contentW - 12), M.left + 6, top + 12, { size: 7.5, color: THEME.muted });
+
+    var colW = (contentW - 12) / k;
+    series.forEach(function (s, si) {
+      var x0 = M.left + 6 + si * colW;
+      var cx = x0 + R + 2, cy = top + 24 + R;
+      var sl = slices[si];
+      var total = sl.reduce(function (sum, p) { return sum + p.value; }, 0);
+      label(fitText(s.label, colW - 4), x0, top + 20, { size: 8, bold: true, color: THEME.body });
+      if (total <= 0) {
+        label('sem dados', x0, cy, { size: 8, color: THEME.muted });
+        return;
+      }
+      var a = -Math.PI / 2;
+      sl.forEach(function (p, i) {
+        var frac = p.value / total;
+        if (frac <= 0) return;
+        var b = a + frac * 2 * Math.PI;
+        var steps = Math.max(3, Math.ceil(frac * 64));
+        var poly = [[cx, cy]];
+        for (var j = 0; j <= steps; j++) {
+          var t = a + (b - a) * j / steps;
+          poly.push([cx + R * Math.cos(t), cy + R * Math.sin(t)]);
+        }
+        var segs = [];
+        for (var q = 1; q < poly.length; q++) {
+          segs.push([poly[q][0] - poly[q - 1][0], poly[q][1] - poly[q - 1][1]]);
+        }
+        doc.setFillColor.apply(doc, hexRgb(PALETTE[i % PALETTE.length]));
+        doc.lines(segs, poly[0][0], poly[0][1], [1, 1], 'F', true);
+        a = b;
+      });
+      if (donut) {
+        doc.setFillColor.apply(doc, THEME.card);
+        doc.circle(cx, cy, R * 0.5, 'F');
+      }
+      var ly = top + 24 + 2 * R + 8;
+      sl.forEach(function (p, i) {
+        var pct = (p.value / total * 100).toFixed(1).replace('.', ',') + '%';
+        var yy = ly + i * 4.6;
+        doc.setFillColor.apply(doc, hexRgb(PALETTE[i % PALETTE.length]));
+        doc.rect(x0, yy - 2.2, 2.2, 2.2, 'F');
+        label(fitText(p.label + ' · ' + s.fmt(p.value) + ' (' + pct + ')', colW - 8), x0 + 3.4, yy, { size: 7, color: THEME.body });
+      });
+    });
+
+    y = top + H + 5;
+  }
+
+  // Barras horizontais: uma linha por métrica, cada grupo de escala usa seu
+  // próprio máximo (R$ com R$, quantidade com quantidade...).
+  function drawRowsBlock(spec) {
+    var rows = spec.rows;
+    var H = 22 + rows.length * 9 + 4;
+    need(H + 4);
+    var top = y;
+    card(M.left, top, contentW, H);
+    label(spec.title, M.left + 6, top + 7, { size: 10.5, bold: true, color: THEME.text });
+    label(fitText(spec.subtitle || '', contentW - 12), M.left + 6, top + 12, { size: 7.5, color: THEME.muted });
+
+    var labelW = 56, valueW = 34;
+    var barX = M.left + 6 + labelW;
+    var barMaxW = contentW - 12 - labelW - valueW;
+    var groupMax = {};
+    rows.forEach(function (r) { groupMax[r.group] = Math.max(groupMax[r.group] || 0, r.value); });
+
+    rows.forEach(function (r, i) {
+      var ry = top + 20 + i * 9;
+      doc.setFontSize(8);
+      label(fitText(r.label, labelW - 3), M.left + 6, ry + 3.6, { size: 8, color: THEME.body });
+      var gm = groupMax[r.group] || 1;
+      var w = Math.max(0, r.value) / gm * barMaxW;
+      doc.setFillColor.apply(doc, hexRgb(PALETTE[i % PALETTE.length]));
+      doc.rect(barX, ry, Math.max(w, 0.5), 4.6, 'F');
+      label(r.fmt(r.value), barX + w + 2, ry + 3.6, { size: 8, bold: true, color: THEME.text });
+    });
+
+    y = top + H + 5;
+  }
+
+  // Tabela personalizada: uma linha por item da dimensão, uma coluna por métrica.
+  function drawCustomTable(spec) {
+    text(spec.title, { size: 11, bold: true, color: THEME.text });
+    if (spec.subtitle) text(spec.subtitle, { size: 8, color: THEME.muted });
+    spacer(2);
+    var wFirst = 46;
+    var wCol = (contentW - wFirst) / (spec.head.length - 1);
+    drawTable(spec.head, spec.rows, [wFirst].concat(spec.head.slice(1).map(function () { return wCol; })));
+  }
+
+  function drawImage(img, title, subtitle) {
+    var maxW = contentW;
+    var maxH = 118;
+    var ratio = Math.min(maxW / img.w, maxH / img.h);
+    var dw = img.w * ratio, dh = img.h * ratio;
+
+    // Título e imagem têm que caber juntos: senão o título fica sozinho no
+    // fim de uma página e o gráfico cai na seguinte, sem contexto.
+    var titleH = (title ? (11 * 0.42 + 1) : 0) + (subtitle ? (8.5 * 0.42 + 1) : 0) + 3;
+    if (y + titleH + dh > pageH - M.bottom) newPage();
+
+    if (title) text(title, { size: 11, bold: true, color: THEME.text });
+    if (subtitle) text(subtitle, { size: 8.5, color: THEME.muted });
+    y += 3;
+    // Sempre JPEG, nunca PNG: o jsPDF grava PNG em RGB cru (1,29 MB por gráfico).
+    doc.addImage(img.jpegUrl, 'JPEG', M.left + (contentW - dw) / 2, y, dw, dh);
+    y += dh + 8;
+  }
+
+  function addFooters() {
+    var total = doc.internal.getNumberOfPages();
+    for (var i = 1; i <= total; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor.apply(doc, THEME.muted);
+      doc.text('Página ' + i + ' de ' + total, pageW - M.right, pageH - 8, { align: 'right' });
+      doc.text('Relatório de Meta Ads', M.left, pageH - 8);
+    }
+  }
+
+  // -------------------------------------------------------------- geração
+
+  function loadJsPdf() {
+    if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = JSPDF_URL;
+      s.onload = function () {
+        if (window.jspdf && window.jspdf.jsPDF) resolve(window.jspdf.jsPDF);
+        else reject(new Error('jsPDF carregou mas não expôs window.jspdf.jsPDF'));
+      };
+      s.onerror = function () { reject(new Error('não consegui carregar o jsPDF')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function optionValues(opt) {
+    if (opt.type === 'metric') return Object.keys(META_METRIC_CONFIG);
+    if (opt.type === 'metrics') return Object.keys(META_METRIC_CONFIG);
+    if (opt.type === 'dimension') return Object.keys(META_TOP5_DIMENSION_CONFIG);
+    if (opt.type === 'view') return opt.values.map(function (v) { return v[0]; });
+    return [];
+  }
+
+  function optionLabel(opt, value) {
+    if (opt.type === 'view') {
+      var found = opt.values.filter(function (x) { return x[0] === value; })[0];
+      return found ? found[1] : value;
+    }
+    if (opt.key === 'top5Dimension') return (META_TOP5_DIMENSION_CONFIG[value] || {}).label || value;
+    return (META_METRIC_CONFIG[value] || {}).label || value;
+  }
+
+  function currentOptionValue(key) {
+    var v = metaAdsState[key];
+    return Array.isArray(v) ? v.slice() : v;
+  }
+
+  // Estado do relatório é global e o usuário está olhando para ele: se o PDF
+  // pedir outro período, mudamos, lemos, e devolvemos tudo ao que estava.
+  function withState(selection, fn) {
+    var before = {
+      period: currentPeriod(),
+      opts: {}
+    };
+    CHARTS.forEach(function (c) {
+      (c.opts || []).forEach(function (o) { before.opts[o.key] = currentOptionValue(o.key); });
+    });
+
+    var periodChanged = selection.period.start !== before.period.start || selection.period.end !== before.period.end;
+    var optsChanged = false;
+    CHARTS.forEach(function (c) {
+      (c.opts || []).forEach(function (o) {
+        var want = selection.opts[o.key];
+        var have = before.opts[o.key];
+        if (Array.isArray(want) && Array.isArray(have)) {
+          if (want.join(',') !== have.join(',')) optsChanged = true;
+        } else if (want !== have) optsChanged = true;
+      });
+    });
+
+    // Animação fora: com animação ligada o canvas pode estar no meio do
+    // desenho quando o jsPDF lê, e o gráfico sai cortado no PDF.
+    var animBackup = Chart.defaults.animation;
+    Chart.defaults.animation = false;
+
+    var work = Promise.resolve();
+    if (periodChanged) work = work.then(function () { return applyPeriod(selection.period); });
+    if (optsChanged) {
+      CHARTS.forEach(function (c) {
+        (c.opts || []).forEach(function (o) { metaAdsState[o.key] = selection.opts[o.key]; });
+      });
+      work = work.then(function () { renderMetaAds(processMetaAdsData()); });
+    }
+
+    return work
+      .then(fn)
+      .then(function (out) {
+        Chart.defaults.animation = animBackup;
+        var restore = Promise.resolve();
+        if (optsChanged || periodChanged) {
+          CHARTS.forEach(function (c) {
+            (c.opts || []).forEach(function (o) { metaAdsState[o.key] = before.opts[o.key]; });
+          });
+          restore = applyPeriod(before.period).then(function () { renderMetaAds(processMetaAdsData()); });
+        }
+        return restore.then(function () { return out; });
+      })
+      .catch(function (err) {
+        Chart.defaults.animation = animBackup;
+        throw err;
+      });
+  }
+
+  function buildPdf(selection, blocks, stats, perObjective, accountLabel, mode) {
+    var JsPDF = window.jspdf.jsPDF;
+    doc = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    pageW = doc.internal.pageSize.getWidth();
+    pageH = doc.internal.pageSize.getHeight();
+    contentW = pageW - M.left - M.right;
+    y = M.top;
+    paintPage();
+
+    // Cabeçalho
+    doc.setFillColor.apply(doc, THEME.card);
+    doc.rect(0, 0, pageW, 26, 'F');
+    doc.setTextColor.apply(doc, THEME.text);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.text('Relatório de Meta Ads', M.left, 11);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor.apply(doc, THEME.body);
+    doc.text('Período: ' + periodLabel(selection.period), M.left, 17.5);
+    if (accountLabel) doc.text('Conta: ' + accountLabel, M.left, 22);
+    doc.text('Gerado em ' + new Date().toLocaleString('pt-BR'), pageW - M.right, 17.5, { align: 'right' });
+    y = 34;
+
+    // Filtros que estavam na tela — o PDF sai sempre filtrado como a tela.
+    var st = metaAdsState;
+    var filtros = [
+      st.selectedObjective !== 'all' ? 'Objetivo: ' + st.selectedObjective : null,
+      st.selectedCampaign !== 'all' ? 'Campanha: ' + st.selectedCampaign : null,
+      st.selectedAdSet !== 'all' ? 'Conjunto: ' + st.selectedAdSet : null,
+      st.selectedAd !== 'all' ? 'Anúncio: ' + st.selectedAd : null
+    ].filter(Boolean);
+    if (filtros.length) text('Filtros aplicados — ' + filtros.join(' | '), { size: 8.5, color: THEME.muted });
+
+    if (selection.wantTotals || selection.wantAverage) {
+      heading('Resumo de métricas');
+      var items = selection.metrics.map(function (k) {
+        var label = META_METRIC_CONFIG[k].label;
+        if (selection.wantTotals) {
+          return {
+            label: label,
+            value: formatValue(k, stats[k]),
+            sub: selection.wantAverage ? 'Média/dia: ' + formatAverage(k, stats.avg[k]) : null
+          };
+        }
+        return { label: label, value: formatAverage(k, stats.avg[k]), sub: 'Média por dia' };
+      });
+      drawKpiCards(items);
+    }
+
+    if (selection.wantObjective && perObjective.length) {
+      heading('Por Resultado');
+      text('Agrupado pelo resultado configurado na campanha (Objetivo).', { size: 8, color: THEME.muted });
+      spacer(2);
+      // 5 colunas de métrica por vez: 14 métricas não cabem na largura da
+      // página e uma tabela ilegível é pior que duas.
+      var chunk = 5;
+      for (var i = 0; i < selection.metrics.length; i += chunk) {
+        var cols = selection.metrics.slice(i, i + chunk);
+        var wFirst = 46;
+        var wCol = (contentW - wFirst) / cols.length;
+        drawTable(
+          ['Resultado'].concat(cols.map(function (k) { return META_METRIC_CONFIG[k].label; })),
+          perObjective.map(function (o) {
+            return [o.name].concat(cols.map(function (k) { return formatValue(k, o.metrics[k]); }));
+          }),
+          [wFirst].concat(cols.map(function () { return wCol; }))
+        );
+      }
+    }
+
+    var charts = blocks.filter(function (b) { return b.kind !== 'table'; });
+    var tables = blocks.filter(function (b) { return b.kind === 'table'; });
+    if (charts.length) {
+      heading('Gráficos');
+      charts.forEach(function (b) {
+        if (b.kind === 'chart') drawChartBlock(b.spec);
+        else if (b.kind === 'rows') drawRowsBlock(b.spec);
+        else if (b.kind === 'image') drawImage(b.img, b.title, b.subtitle);
+      });
+    }
+    if (tables.length) {
+      heading('Tabelas');
+      tables.forEach(function (b) { drawCustomTable(b.spec); });
+    }
+
+    addFooters();
+    var nome = 'relatorio-meta-ads_' + selection.period.start + '_a_' + selection.period.end + '.pdf';
+    // mode 'send' (botão Enviar): pega os bytes já montados em vez de
+    // disparar o download — mesmo doc, só muda o passo final.
+    if (mode === 'send') return { name: nome, blob: doc.output('blob') };
+    doc.save(nome);
+    return { name: nome };
+  }
+
+  // ----------------------------------------------------------------- modal
+
+  function el(tag, cls, html) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (html !== undefined) n.innerHTML = html;
+    return n;
+  }
+
+  // Seletor de destino de WhatsApp (canal/inbox + número OU grupo) —
+  // reaproveitado pelos painéis "Enviar" e "Programar". Mesmo padrão de
+  // NotifyChannelsEditor.tsx (React), em DOM puro aqui porque o relatório
+  // roda dentro de HTML armazenado sem build step. `fetch('/api/...')` usa
+  // o window.fetch já interceptado pelo HTML principal (troca domínio +
+  // injeta o PAT), não precisa de nenhum wrapper próprio.
+  function buildDestinationPicker() {
+    var wrap = el('div', 'space-y-2');
+
+    var inboxSel = el('select', 'bg-slate-700 border border-slate-600 rounded-md px-2 py-1.5 text-white w-full text-sm');
+    var firstOpt = document.createElement('option');
+    firstOpt.value = ''; firstOpt.textContent = 'Selecione o canal (inbox)...';
+    inboxSel.appendChild(firstOpt);
+    fetch('/api/v1/inboxes').then(function (r) { return r.json(); }).then(function (res) {
+      (res.data || res || []).forEach(function (ib) {
+        var op = document.createElement('option');
+        op.value = ib.id;
+        op.textContent = ib.name + ' (' + String(ib.channel_type || '').replace('Channel::', '') + ')';
+        inboxSel.appendChild(op);
+      });
+    }).catch(function () {});
+
+    var destType = 'number';
+    var typeRow = el('div', 'flex gap-2 text-xs');
+    var numBtn = el('button', '', 'Número'); numBtn.type = 'button';
+    var groupBtn = el('button', '', 'Grupo'); groupBtn.type = 'button';
+    typeRow.appendChild(numBtn);
+    typeRow.appendChild(groupBtn);
+
+    var numberInput = el('input', 'bg-slate-700 border border-slate-600 rounded-md px-2 py-1.5 text-white w-full text-sm');
+    numberInput.placeholder = '+55 11 99999-9999';
+
+    var groupSearch = el('input', 'bg-slate-700 border border-slate-600 rounded-md px-2 py-1.5 text-white w-full text-sm');
+    groupSearch.placeholder = 'Buscar grupo...';
+    var groupList = el('div', 'max-h-32 overflow-y-auto border border-slate-700 rounded-md bg-slate-800 hidden');
+    var groupField = el('div', 'space-y-1 hidden');
+    groupField.appendChild(groupSearch);
+    groupField.appendChild(groupList);
+
+    var groups = [];
+    var selectedGroup = null;
+
+    function renderGroupList(filter) {
+      groupList.innerHTML = '';
+      var f = (filter || '').toLowerCase();
+      var filtered = groups.filter(function (g) { return !f || g.name.toLowerCase().indexOf(f) > -1; });
+      if (!filtered.length) {
+        groupList.appendChild(el('div', 'px-2 py-1.5 text-xs text-slate-500', 'Nenhum grupo encontrado.'));
+      }
+      filtered.slice(0, 50).forEach(function (g) {
+        var item = el('div', 'px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-700 cursor-pointer', g.name);
+        item.onclick = function () {
+          selectedGroup = g;
+          groupSearch.value = g.name;
+          groupList.classList.add('hidden');
+        };
+        groupList.appendChild(item);
+      });
+    }
+
+    function loadGroups() {
+      if (!inboxSel.value) return;
+      groupSearch.disabled = true;
+      groupSearch.placeholder = 'Carregando grupos... (pode levar até 20s)';
+      fetch('/api/v1/admin/whatsapp_groups?inbox_id=' + encodeURIComponent(inboxSel.value))
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          groups = res.data || [];
+          groupSearch.disabled = false;
+          groupSearch.placeholder = 'Buscar grupo...';
+          renderGroupList('');
+        })
+        .catch(function () {
+          groupSearch.disabled = false;
+          groupSearch.placeholder = 'Falha ao carregar grupos.';
+        });
+    }
+
+    function setType(t) {
+      destType = t;
+      numBtn.className = 'px-2 py-1 rounded border text-xs ' + (t === 'number' ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-700 border-slate-600 text-slate-300');
+      groupBtn.className = 'px-2 py-1 rounded border text-xs ' + (t === 'group' ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-700 border-slate-600 text-slate-300');
+      numberInput.classList.toggle('hidden', t !== 'number');
+      groupField.classList.toggle('hidden', t !== 'group');
+      if (t === 'group' && !groups.length) loadGroups();
+    }
+    numBtn.onclick = function () { setType('number'); };
+    groupBtn.onclick = function () { setType('group'); };
+    inboxSel.onchange = function () { groups = []; selectedGroup = null; groupSearch.value = ''; if (destType === 'group') loadGroups(); };
+    groupSearch.onfocus = function () { groupList.classList.remove('hidden'); if (!groups.length) loadGroups(); };
+    groupSearch.oninput = function () { selectedGroup = null; renderGroupList(groupSearch.value); groupList.classList.remove('hidden'); };
+    document.addEventListener('click', function (e) { if (!groupField.contains(e.target)) groupList.classList.add('hidden'); });
+
+    setType('number');
+    wrap.appendChild(inboxSel);
+    wrap.appendChild(typeRow);
+    wrap.appendChild(numberInput);
+    wrap.appendChild(groupField);
+
+    return {
+      el: wrap,
+      getDestination: function () {
+        if (!inboxSel.value) return null;
+        if (destType === 'group') {
+          if (!selectedGroup) return null;
+          return { inbox_id: inboxSel.value, group_jid: selectedGroup.jid, group_name: selectedGroup.name };
+        }
+        if (!numberInput.value.trim()) return null;
+        return { inbox_id: inboxSel.value, whatsapp_number: numberInput.value.trim() };
+      }
+    };
+  }
+
+  function buildModal() {
+    var overlay = el('div', 'fixed inset-0 z-[60] bg-slate-900/80 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4');
+    overlay.id = 'evo-pdf-modal';
+    overlay.style.display = 'none';
+
+    var box = el('div', 'bg-slate-800 border border-slate-700 rounded-lg w-full max-w-3xl my-8 shadow-2xl');
+    overlay.appendChild(box);
+
+    box.appendChild(el('div', 'px-5 py-4 border-b border-slate-700 flex items-center justify-between',
+      '<h3 class="text-lg font-semibold text-white">Gerar PDF do relatório</h3>'));
+    var fechar = el('button', 'text-slate-400 hover:text-white text-xl leading-none px-2', '&times;');
+    box.appendChild(fechar);
+
+    var body = el('div', 'px-5 py-4 space-y-6 text-sm text-slate-300');
+    box.appendChild(body);
+
+    // --- período
+    var per = el('div');
+    per.appendChild(el('h4', 'font-semibold text-white mb-2', 'Período'));
+    var periodRow = el('div', 'flex flex-wrap gap-2 mb-3');
+    var periodKey = currentPeriod().key;
+    PERIODS.forEach(function (p) {
+      var b = el('button', 'px-3 py-1.5 text-sm rounded-md border ' +
+        (p[0] === periodKey ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-700 border-slate-600 hover:bg-slate-600'), p[1]);
+      b.dataset.period = p[0];
+      b.onclick = function () {
+        periodKey = p[0];
+        periodRow.querySelectorAll('button').forEach(function (x) {
+          var on = x.dataset.period === periodKey;
+          x.className = 'px-3 py-1.5 text-sm rounded-md border ' +
+            (on ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-700 border-slate-600 hover:bg-slate-600');
+        });
+        customWrap.classList.add('hidden');
+      };
+      periodRow.appendChild(b);
+    });
+    per.appendChild(periodRow);
+
+    var customBtn = el('button', 'px-3 py-1.5 text-sm rounded-md border ' +
+      (periodKey === 'custom' ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-700 border-slate-600 hover:bg-slate-600'), 'Personalizado');
+    periodRow.appendChild(customBtn);
+
+    var customWrap = el('div', 'flex flex-wrap items-center gap-2 mt-2' +
+      (periodKey === 'custom' ? '' : ' hidden'));
+    customWrap.appendChild(el('label', 'text-slate-400', 'de'));
+    var dIn = el('input', 'bg-slate-700 border border-slate-600 rounded-md px-2 py-1.5 text-white');
+    dIn.type = 'date'; dIn.value = currentPeriod().start;
+    var dOut = el('input', 'bg-slate-700 border border-slate-600 rounded-md px-2 py-1.5 text-white');
+    dOut.type = 'date'; dOut.value = currentPeriod().end;
+    customWrap.appendChild(dIn);
+    customWrap.appendChild(el('label', 'text-slate-400', 'até'));
+    customWrap.appendChild(dOut);
+    customWrap.appendChild(el('span', 'text-xs text-slate-500', '(máximo de 3 meses)'));
+    customBtn.onclick = function () {
+      periodKey = 'custom';
+      periodRow.querySelectorAll('button').forEach(function (x) {
+        x.className = 'px-3 py-1.5 text-sm rounded-md border ' +
+          (x === customBtn ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-700 border-slate-600 hover:bg-slate-600');
+      });
+      customWrap.classList.remove('hidden');
+    };
+    per.appendChild(customWrap);
+    body.appendChild(per);
+
+    // v3: ressincroniza o período com o filtro do relatório principal toda
+    // vez que o modal ABRE, não só quando o modal é CONSTRUÍDO (boot da
+    // página) — antes disso, mudar a data no relatório normal e só depois
+    // abrir "Gerar PDF" mostrava a data antiga (bug reportado pelo
+    // usuário). Exposta em overlay._syncFromMainReport, chamada pelo
+    // onclick do botão em boot().
+    function syncFromMainReport() {
+      var cur = currentPeriod();
+      periodKey = cur.key;
+      // customBtn não tem dataset.period (só os PERIODS fixos têm) — mesma
+      // comparação que o onclick original do customBtn já usava.
+      periodRow.querySelectorAll('button').forEach(function (x) {
+        var on = periodKey === 'custom' ? x === customBtn : x.dataset.period === periodKey;
+        x.className = 'px-3 py-1.5 text-sm rounded-md border ' +
+          (on ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-700 border-slate-600 hover:bg-slate-600');
+      });
+      customWrap.classList.toggle('hidden', periodKey !== 'custom');
+      dIn.value = cur.start;
+      dOut.value = cur.end;
+    }
+
+    // --- blocos do resumo
+    var bloco = el('div');
+    bloco.appendChild(el('h4', 'font-semibold text-white mb-2', 'Blocos do resumo'));
+    var wantTotals = el('input'); wantTotals.type = 'checkbox'; wantTotals.checked = true;
+    var wantAverage = el('input'); wantAverage.type = 'checkbox'; wantAverage.checked = true;
+    var wantObjective = el('input'); wantObjective.type = 'checkbox'; wantObjective.checked = false;
+    bloco.appendChild(el('label', 'flex items-center gap-2 mb-1', ''));
+    bloco.lastChild.appendChild(wantTotals);
+    bloco.lastChild.appendChild(el('span', '', 'Total do período'));
+    bloco.appendChild(el('label', 'flex items-center gap-2 mb-1', ''));
+    bloco.lastChild.appendChild(wantAverage);
+    bloco.lastChild.appendChild(el('span', '', 'Média por dia'));
+    bloco.appendChild(el('label', 'flex items-center gap-2', ''));
+    bloco.lastChild.appendChild(wantObjective);
+    bloco.lastChild.appendChild(el('span', '', 'Por Resultado (objetivo da campanha)'));
+    body.appendChild(bloco);
+
+    // --- métricas
+    var met = el('div');
+    met.appendChild(el('h4', 'font-semibold text-white mb-2', 'Métricas'));
+    var metGrid = el('div', 'grid grid-cols-2 sm:grid-cols-3 gap-2');
+    var metricBoxes = {};
+    Object.keys(META_METRIC_CONFIG).forEach(function (k) {
+      var m = META_METRIC_CONFIG[k];
+      var lab = el('label', 'flex items-center gap-2 bg-slate-900/40 border border-slate-700 rounded-md px-2 py-1.5 cursor-pointer');
+      var cb = el('input'); cb.type = 'checkbox';
+      var uncheckedByDefault = (k === 'purchases' || k === 'costPerPurchase' || k === 'leads' || k === 'costPerLead');
+      cb.checked = !uncheckedByDefault;
+      metricBoxes[k] = cb;
+      lab.appendChild(cb);
+      lab.appendChild(el('span', '', m.label));
+      metGrid.appendChild(lab);
+    });
+    met.appendChild(metGrid);
+    body.appendChild(met);
+
+    // --- gráficos
+    var gra = el('div');
+    gra.appendChild(el('h4', 'font-semibold text-white mb-2', 'Gráficos da tela'));
+    CHARTS.forEach(function (c) {
+      var wrap = el('div', 'bg-slate-900/40 border border-slate-700 rounded-md px-3 py-2 mb-2');
+      var head = el('label', 'flex items-center gap-2 cursor-pointer');
+      var cb = el('input'); cb.type = 'checkbox'; cb.checked = true;
+      c._box = cb;
+      cb.checked = false;
+      head.appendChild(cb);
+      head.appendChild(el('span', 'font-medium text-white', c.title));
+      wrap.appendChild(head);
+      if (c.opts && c.opts.length) {
+        var optsWrap = el('div', 'mt-2 pl-6 space-y-2');
+        c.opts.forEach(function (o) {
+          var rowEl = el('div', 'flex flex-wrap items-center gap-2 text-xs');
+          rowEl.appendChild(el('span', 'text-slate-400 w-20', o.label + ':'));
+          var cur = currentOptionValue(o.key);
+          var values = optionValues(o);
+          if (o.type === 'metrics') {
+            // multi-seleção: checkboxes das 14 métricas (como na tela)
+            values.forEach(function (v) {
+              var l = el('label', 'flex items-center gap-1 bg-slate-700 rounded px-1.5 py-0.5 cursor-pointer');
+              var b = el('input'); b.type = 'checkbox';
+              b.checked = Array.isArray(cur) ? cur.indexOf(v) > -1 : false;
+              b.dataset.key = v;
+              c._opts = c._opts || {}; c._opts[o.key] = c._opts[o.key] || [];
+              c._opts[o.key].push(b);
+              l.appendChild(b);
+              l.appendChild(el('span', '', META_METRIC_CONFIG[v].label));
+              rowEl.appendChild(l);
+            });
+          } else {
+            var sel = el('select', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white');
+            values.forEach(function (v) {
+              var op = el('option', '', optionLabel(o, v));
+              op.value = v;
+              if (Array.isArray(cur) ? cur.indexOf(v) > -1 : cur === v) op.selected = true;
+              sel.appendChild(op);
+            });
+            c._opts = c._opts || {}; c._opts[o.key] = sel;
+            rowEl.appendChild(sel);
+          }
+          optsWrap.appendChild(rowEl);
+        });
+        wrap.appendChild(optsWrap);
+      }
+      gra.appendChild(wrap);
+    });
+    body.appendChild(gra);
+
+    // --- gráficos personalizados (só existem no PDF)
+    var customs = [];
+    var customTables = [];
+    var customList = el('div');
+    var custom = el('div');
+    custom.appendChild(el('h4', 'font-semibold text-white mb-1', 'Gráficos personalizados'));
+    custom.appendChild(el('p', 'text-xs text-slate-500 mb-2',
+      'Barras: total de cada métrica escolhida. Linha: evolução dia a dia. Cada gráfico aparece com os valores.'));
+    custom.appendChild(customList);
+
+    // Dimensões disponíveis no formulário (Top 5 vem da configuração da tela)
+    var dimOptions = [['day', 'Dia (evolução diária)'], ['totals', 'Total por métrica (barras horizontais)'], ['objective', 'Objetivo'],
+      ['hour', 'Hora do dia'], ['platform', 'Plataforma'], ['position', 'Posicionamento'],
+      ['device', 'Dispositivo'], ['region', 'Região'], ['age', 'Idade'], ['gender', 'Gênero']];
+    Object.keys(META_TOP5_DIMENSION_CONFIG).forEach(function (k) {
+      dimOptions.push(['top5:' + k, 'Top 5 · ' + ((META_TOP5_DIMENSION_CONFIG[k] || {}).label || k)]);
+    });
+
+    function selectEl() {
+      return el('select', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs');
+    }
+
+    function optionEl(value, labelText) {
+      var o = document.createElement('option');
+      o.value = value;
+      o.textContent = labelText;
+      return o;
+    }
+
+    function distinctValues(field, where) {
+      var set = {};
+      (metaAdsAllData.geral || []).forEach(function (ad) {
+        if (where && !where(ad)) return;
+        if (ad[field]) set[ad[field]] = true;
+      });
+      return Object.keys(set).sort();
+    }
+
+    function fillSelect(sel, values, allLabel) {
+      sel.innerHTML = '';
+      sel.appendChild(optionEl('all', allLabel));
+      values.forEach(function (v) { sel.appendChild(optionEl(v, v)); });
+    }
+
+    function addCustomBlock() {
+      var wrap = el('div', 'bg-slate-900/40 border border-slate-700 rounded-md px-3 py-2 mb-2 space-y-2');
+      var top = el('div', 'flex flex-wrap items-center gap-2');
+      var tIn = el('input', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs flex-1 min-w-[10rem]');
+      tIn.type = 'text';
+      tIn.placeholder = 'Título (opcional)';
+      var dSel = el('select', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs');
+      dimOptions.forEach(function (opt) {
+        var op = el('option', '', opt[1]);
+        op.value = opt[0];
+        dSel.appendChild(op);
+      });
+      var tSel = el('select', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs');
+      [['bar', 'Barras'], ['line', 'Linha'], ['pie', 'Pizza'], ['donut', 'Rosca']].forEach(function (opt) {
+        var op = el('option', '', opt[1]);
+        op.value = opt[0];
+        tSel.appendChild(op);
+      });
+      var rm = el('button', 'text-xs text-red-400 hover:text-red-300 px-2', 'Remover');
+      top.appendChild(tIn);
+      top.appendChild(dSel);
+      top.appendChild(tSel);
+      top.appendChild(rm);
+      wrap.appendChild(top);
+
+      var filtRow = el('div', 'flex flex-wrap items-center gap-2 text-xs');
+      filtRow.appendChild(el('span', 'text-slate-400', 'Filtrar:'));
+      var oSel = selectEl(), cSel = selectEl(), sSel = selectEl();
+      fillSelect(oSel, distinctValues('Objetivo'), 'Todos os objetivos');
+      fillSelect(cSel, distinctValues('Nome da campanha'), 'Todas as campanhas');
+      fillSelect(sSel, adSetOptions(), 'Todos os conjuntos');
+      cSel.onchange = function () { fillSelect(sSel, adSetOptions(), 'Todos os conjuntos'); };
+      function adSetOptions() {
+        return distinctValues('Nome do conjunto de anúncios', function (ad) {
+          return cSel.value === 'all' || ad['Nome da campanha'] === cSel.value;
+        });
+      }
+      filtRow.appendChild(oSel);
+      filtRow.appendChild(cSel);
+      filtRow.appendChild(sSel);
+      wrap.appendChild(filtRow);
+      wrap.appendChild(el('p', 'text-[11px] text-slate-500',
+        'Top 5 de conjuntos: escolha a campanha. Top 5 de anúncios: escolha o conjunto.'));
+
+      var grid = el('div', 'flex flex-wrap gap-1 text-xs');
+      var boxes = {};
+      Object.keys(META_METRIC_CONFIG).forEach(function (k) {
+        var l = el('label', 'flex items-center gap-1 bg-slate-700 rounded px-1.5 py-0.5 cursor-pointer');
+        var b = el('input'); b.type = 'checkbox';
+        boxes[k] = b;
+        l.appendChild(b);
+        l.appendChild(el('span', '', META_METRIC_CONFIG[k].label));
+        grid.appendChild(l);
+      });
+      wrap.appendChild(grid);
+      wrap.appendChild(el('p', 'text-[11px] text-slate-500', 'Barras e linhas: uma série por métrica marcada. Cada métrica usa a própria escala e mostra o valor.'));
+
+      var block = { el: wrap, tIn: tIn, dSel: dSel, tSel: tSel, oSel: oSel, cSel: cSel, sSel: sSel, boxes: boxes };
+      customs.push(block);
+      rm.onclick = function () {
+        wrap.remove();
+        customs.splice(customs.indexOf(block), 1);
+      };
+      customList.appendChild(wrap);
+    }
+
+    var addBtn = el('button', 'px-3 py-1.5 text-sm rounded-md bg-slate-700 hover:bg-slate-600 text-white border border-slate-600', '+ Adicionar gráfico');
+    addBtn.type = 'button';
+    addBtn.onclick = addCustomBlock;
+    custom.appendChild(addBtn);
+    setTimeout(function () {
+      try {
+        addCustomBlock();
+        if (customs.length) {
+          var b = customs[customs.length - 1];
+          b.tIn.value = 'Mensagens (evolução diária)';
+          b.dSel.value = 'day'; b.tSel.value = 'line';
+          if (b.boxes && b.boxes.messages) b.boxes.messages.checked = true;
+        }
+        addCustomBlock();
+        if (customs.length) {
+          var b2 = customs[customs.length - 1];
+          b2.tIn.value = 'Custo por Mensagem (evolução diária)';
+          b2.dSel.value = 'day'; b2.tSel.value = 'line';
+          if (b2.boxes && b2.boxes.costPerMessage) b2.boxes.costPerMessage.checked = true;
+        }
+      } catch (e) {}
+    }, 0);
+    body.appendChild(custom);
+
+    // --- tabelas personalizadas (só entram no PDF se você adicionar)
+    var tabelas = el('div');
+    var tableList = el('div');
+    tabelas.appendChild(el('h4', 'font-semibold text-white mb-1', 'Tabelas personalizadas'));
+    tabelas.appendChild(el('p', 'text-xs text-slate-500 mb-2',
+      'Nenhuma tabela entra no PDF sem você adicionar. Escolha a dimensão (uma linha por item) e as colunas (métricas).'));
+    tabelas.appendChild(tableList);
+
+    function addTableBlock() {
+      var wrap = el('div', 'bg-slate-900/40 border border-slate-700 rounded-md px-3 py-2 mb-2 space-y-2');
+      var top = el('div', 'flex flex-wrap items-center gap-2');
+      var tIn = el('input', 'bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs flex-1 min-w-[10rem]');
+      tIn.type = 'text';
+      tIn.placeholder = 'Título da tabela (opcional)';
+      var dSel = selectEl();
+      dimOptions.filter(function (o) { return o[0] !== 'totals'; }).forEach(function (opt) {
+        dSel.appendChild(optionEl(opt[0], opt[1]));
+      });
+      var rm = el('button', 'text-xs text-red-400 hover:text-red-300 px-2', 'Remover');
+      top.appendChild(tIn);
+      top.appendChild(dSel);
+      top.appendChild(rm);
+      wrap.appendChild(top);
+
+      var filtRow = el('div', 'flex flex-wrap items-center gap-2 text-xs');
+      filtRow.appendChild(el('span', 'text-slate-400', 'Filtrar:'));
+      var oSel = selectEl(), cSel = selectEl(), sSel = selectEl();
+      fillSelect(oSel, distinctValues('Objetivo'), 'Todos os objetivos');
+      fillSelect(cSel, distinctValues('Nome da campanha'), 'Todas as campanhas');
+      fillSelect(sSel, tableAdSetOptions(), 'Todos os conjuntos');
+      cSel.onchange = function () { fillSelect(sSel, tableAdSetOptions(), 'Todos os conjuntos'); };
+      function tableAdSetOptions() {
+        return distinctValues('Nome do conjunto de anúncios', function (ad) {
+          return cSel.value === 'all' || ad['Nome da campanha'] === cSel.value;
+        });
+      }
+      filtRow.appendChild(oSel);
+      filtRow.appendChild(cSel);
+      filtRow.appendChild(sSel);
+      wrap.appendChild(filtRow);
+
+      var grid = el('div', 'flex flex-wrap gap-1 text-xs');
+      var boxes = {};
+      Object.keys(META_METRIC_CONFIG).forEach(function (k) {
+        var l = el('label', 'flex items-center gap-1 bg-slate-700 rounded px-1.5 py-0.5 cursor-pointer');
+        var b = el('input'); b.type = 'checkbox';
+        boxes[k] = b;
+        l.appendChild(b);
+        l.appendChild(el('span', '', META_METRIC_CONFIG[k].label));
+        grid.appendChild(l);
+      });
+      wrap.appendChild(grid);
+
+      var block = { el: wrap, tIn: tIn, dSel: dSel, oSel: oSel, cSel: cSel, sSel: sSel, boxes: boxes };
+      customTables.push(block);
+      rm.onclick = function () {
+        wrap.remove();
+        customTables.splice(customTables.indexOf(block), 1);
+      };
+      tableList.appendChild(wrap);
+    }
+
+    var addTableBtn = el('button', 'px-3 py-1.5 text-sm rounded-md bg-slate-700 hover:bg-slate-600 text-white border border-slate-600', '+ Adicionar tabela');
+    addTableBtn.type = 'button';
+    addTableBtn.onclick = addTableBlock;
+    tabelas.appendChild(addTableBtn);
+    body.appendChild(tabelas);
+
+    // --- enviar (avulso, por WhatsApp)
+    var enviarWrap = el('div', 'hidden border-t border-slate-700 pt-3 space-y-2');
+    enviarWrap.appendChild(el('h4', 'font-semibold text-white mb-1', 'Enviar por WhatsApp'));
+    enviarWrap.appendChild(el('p', 'text-xs text-slate-500 mb-2', 'Manda o PDF gerado agora (mesmos filtros/métricas acima) pro canal e destino escolhidos.'));
+    var enviarDest = buildDestinationPicker();
+    enviarWrap.appendChild(enviarDest.el);
+    var enviarStatus = el('div', 'text-xs text-slate-400 min-h-[1.2rem] mt-1');
+    var enviarConfirm = el('button', 'px-4 py-2 text-sm rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-medium mt-1', 'Enviar agora');
+    enviarConfirm.type = 'button';
+    enviarWrap.appendChild(enviarConfirm);
+    enviarWrap.appendChild(enviarStatus);
+    body.appendChild(enviarWrap);
+
+    // --- programar (recorrente)
+    var programarWrap = el('div', 'hidden border-t border-slate-700 pt-3 space-y-3');
+    programarWrap.appendChild(el('h4', 'font-semibold text-white mb-1', 'Programar envio recorrente'));
+    programarWrap.appendChild(el('p', 'text-xs text-slate-500 mb-2',
+      'Reenvia este relatório sozinho, recalculando sempre o mesmo período relativo (ex.: "de 3 dias atrás até ontem" todo envio) — não repete as datas do primeiro agendamento.'));
+
+    var freqWrap = el('div');
+    freqWrap.appendChild(el('label', 'text-xs text-slate-400 block mb-1', 'Frequência'));
+    var freqRow = el('div', 'flex flex-wrap items-center gap-2');
+    var freqSel = el('select', 'bg-slate-700 border border-slate-600 rounded-md px-2 py-1.5 text-white text-sm');
+    [['daily', 'Diário'], ['weekly', 'Semanal'], ['monthly', 'Mensal'], ['biweekly', 'A cada 15 dias'], ['custom', 'Personalizado']].forEach(function (o) {
+      var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; freqSel.appendChild(op);
+    });
+    var customDaysInput = el('input', 'bg-slate-700 border border-slate-600 rounded-md px-2 py-1.5 text-white w-20 text-sm hidden');
+    customDaysInput.type = 'number'; customDaysInput.min = '1'; customDaysInput.value = '10';
+    freqSel.onchange = function () { customDaysInput.classList.toggle('hidden', freqSel.value !== 'custom'); };
+    freqRow.appendChild(freqSel);
+    freqRow.appendChild(customDaysInput);
+    freqRow.appendChild(el('span', 'text-xs text-slate-500', 'dias (só pra "Personalizado")'));
+    freqWrap.appendChild(freqRow);
+    programarWrap.appendChild(freqWrap);
+
+    var relWrap = el('div');
+    relWrap.appendChild(el('label', 'text-xs text-slate-400 block mb-1', 'Período (relativo — recalculado a cada envio)'));
+    var relRow = el('div', 'flex flex-wrap items-center gap-2 text-sm');
+    var startAgoInput = el('input', 'bg-slate-700 border border-slate-600 rounded-md px-2 py-1.5 text-white w-16 text-sm');
+    startAgoInput.type = 'number'; startAgoInput.min = '0'; startAgoInput.value = '3';
+    var endAgoInput = el('input', 'bg-slate-700 border border-slate-600 rounded-md px-2 py-1.5 text-white w-16 text-sm');
+    endAgoInput.type = 'number'; endAgoInput.min = '0'; endAgoInput.value = '1';
+    relRow.appendChild(el('span', 'text-slate-400', 'De'));
+    relRow.appendChild(startAgoInput);
+    relRow.appendChild(el('span', 'text-slate-400', 'dias atrás até'));
+    relRow.appendChild(endAgoInput);
+    relRow.appendChild(el('span', 'text-slate-400', 'dias atrás'));
+    relWrap.appendChild(relRow);
+    relWrap.appendChild(el('p', 'text-[11px] text-slate-500 mt-1', 'Ex.: 3 e 1 = "de 3 dias atrás até ontem" — recalculado na data de cada envio, nunca as mesmas datas do primeiro agendamento.'));
+    programarWrap.appendChild(relWrap);
+
+    var programarDestWrap = el('div');
+    programarDestWrap.appendChild(el('label', 'text-xs text-slate-400 block mb-1', 'Destino'));
+    var programarDest = buildDestinationPicker();
+    programarDestWrap.appendChild(programarDest.el);
+    programarWrap.appendChild(programarDestWrap);
+
+    var programarStatus = el('div', 'text-xs text-slate-400 min-h-[1.2rem]');
+    var programarSalvar = el('button', 'px-4 py-2 text-sm rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-medium', 'Salvar agendamento');
+    programarSalvar.type = 'button';
+    programarWrap.appendChild(programarSalvar);
+    programarWrap.appendChild(programarStatus);
+
+    programarWrap.appendChild(el('h4', 'font-semibold text-white mb-1 mt-2', 'Agendamentos desta conta'));
+    var programarList = el('div', 'space-y-1 text-xs');
+    programarWrap.appendChild(programarList);
+
+    var FREQ_LABEL = { daily: 'Diário', weekly: 'Semanal', monthly: 'Mensal', biweekly: 'A cada 15 dias' };
+    function freqLabel(s) {
+      if (s.recurrence_type === 'custom') return 'A cada ' + ((s.recurrence_config || {}).interval_days || '?') + ' dias';
+      return FREQ_LABEL[s.recurrence_type] || s.recurrence_type || '—';
+    }
+
+    function loadSchedules() {
+      programarList.innerHTML = '';
+      programarList.appendChild(el('div', 'text-slate-500', 'Carregando...'));
+      fetch('/api/v1/scheduled_actions?action_type=send_report_pdf&status=scheduled')
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          var items = (res.data || res || []).filter(function (s) {
+            return s.payload && s.payload.ad_account_id === META_ACT_ID;
+          });
+          programarList.innerHTML = '';
+          if (!items.length) {
+            programarList.appendChild(el('div', 'text-slate-500', 'Nenhum agendamento ativo pra esta conta.'));
+            return;
+          }
+          items.forEach(function (s) {
+            var row = el('div', 'flex items-center justify-between gap-2 bg-slate-900/40 border border-slate-700 rounded px-2 py-1.5');
+            var p = s.payload.period || {};
+            var dest = s.payload.destination || {};
+            var destLabel = dest.group_name || dest.whatsapp_number || '—';
+            var when = s.scheduled_for ? new Date(s.scheduled_for).toLocaleString('pt-BR') : '—';
+            row.appendChild(el('span', 'text-slate-300', freqLabel(s) + ' · ' + p.start_days_ago + '→' + p.end_days_ago + 'd atrás · ' + destLabel + ' · próximo: ' + when));
+            var cancelBtn = el('button', 'text-red-400 hover:text-red-300 text-xs px-2 shrink-0', 'Cancelar');
+            cancelBtn.type = 'button';
+            cancelBtn.onclick = function () {
+              cancelBtn.disabled = true;
+              fetch('/api/v1/scheduled_actions/' + s.id, { method: 'DELETE' }).then(loadSchedules);
+            };
+            row.appendChild(cancelBtn);
+            programarList.appendChild(row);
+          });
+        })
+        .catch(function () {
+          programarList.innerHTML = '';
+          programarList.appendChild(el('div', 'text-red-400', 'Falha ao carregar agendamentos.'));
+        });
+    }
+
+    programarSalvar.onclick = function () {
+      var dest = programarDest.getDestination();
+      if (!dest) { programarStatus.textContent = 'Escolha um canal e destino (número ou grupo).'; return; }
+      var metrics = Object.keys(metricBoxes).filter(function (k) { return metricBoxes[k].checked; });
+      if (!metrics.length) { programarStatus.textContent = 'Escolha ao menos uma métrica na seção "Métricas" acima.'; return; }
+      var recurrenceType = freqSel.value;
+      var recurrenceConfig = recurrenceType === 'custom' ? { interval_days: parseInt(customDaysInput.value, 10) || 1 } : null;
+      // ScheduledAction rejeita scheduled_for no passado — 5min no futuro
+      // garante a criação; a recorrência real vem do período relativo, não
+      // desse primeiro horário.
+      var firstRun = new Date(Date.now() + 5 * 60 * 1000);
+
+      programarSalvar.disabled = true;
+      programarStatus.textContent = 'Salvando...';
+      fetch('/api/v1/scheduled_actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scheduled_action: {
+            action_type: 'send_report_pdf',
+            scheduled_for: firstRun.toISOString(),
+            recurrence_type: recurrenceType,
+            recurrence_config: recurrenceConfig,
+            payload: {
+              ad_account_id: META_ACT_ID,
+              period: { start_days_ago: parseInt(startAgoInput.value, 10) || 0, end_days_ago: parseInt(endAgoInput.value, 10) || 0 },
+              metrics_selection: {
+                metrics: metrics,
+                want_totals: wantTotals.checked,
+                want_average: wantAverage.checked,
+                want_objective: wantObjective.checked
+              },
+              destination: dest,
+              schedule_group_id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())
+            }
+          }
+        })
+      }).then(function (r) {
+        if (!r.ok) return r.json().then(function (b) { throw new Error(b.message || ('HTTP ' + r.status)); });
+        return r.json();
+      }).then(function () {
+        programarStatus.textContent = 'Agendamento salvo!';
+        loadSchedules();
+      }).catch(function (err) {
+        programarStatus.textContent = 'Erro ao salvar: ' + (err && err.message ? err.message : err);
+      }).then(function () { programarSalvar.disabled = false; });
+    };
+
+    body.appendChild(programarWrap);
+
+    // --- rodapé
+    var status = el('div', 'text-xs text-slate-400 min-h-[1.2rem]');
+    var foot = el('div', 'px-5 py-4 border-t border-slate-700 flex items-center justify-between gap-3');
+    foot.appendChild(status);
+    var acoes = el('div', 'flex gap-2 flex-wrap');
+    var cancelar = el('button', 'px-4 py-2 text-sm rounded-md bg-slate-700 hover:bg-slate-600 text-white', 'Cancelar');
+    var enviarToggleBtn = el('button', 'px-4 py-2 text-sm rounded-md bg-slate-700 hover:bg-slate-600 text-white', 'Enviar');
+    enviarToggleBtn.type = 'button';
+    var programarToggleBtn = el('button', 'px-4 py-2 text-sm rounded-md bg-slate-700 hover:bg-slate-600 text-white', 'Programar');
+    programarToggleBtn.type = 'button';
+    var gerar = el('button', 'px-4 py-2 text-sm rounded-md bg-sky-600 hover:bg-sky-500 text-white font-medium', 'Gerar PDF');
+    gerar.id = 'evo-pdf-gerar';
+    acoes.appendChild(cancelar);
+    acoes.appendChild(enviarToggleBtn);
+    acoes.appendChild(programarToggleBtn);
+    acoes.appendChild(gerar);
+    foot.appendChild(acoes);
+    box.appendChild(foot);
+
+    function close() { overlay.style.display = 'none'; }
+    fechar.onclick = close;
+    cancelar.onclick = close;
+    overlay.onclick = function (e) { if (e.target === overlay) close(); };
+
+    enviarToggleBtn.onclick = function () {
+      enviarWrap.classList.toggle('hidden');
+      programarWrap.classList.add('hidden');
+    };
+    programarToggleBtn.onclick = function () {
+      programarWrap.classList.toggle('hidden');
+      enviarWrap.classList.add('hidden');
+      if (!programarWrap.classList.contains('hidden')) loadSchedules();
+    };
+
+    // mode: 'download' (padrão, botão "Gerar PDF") ou 'send' (botão
+    // "Enviar agora" — mesma geração, só muda o passo final: em vez de
+    // doc.save, pega os bytes (doc.output('blob')) e manda pro backend.
+    function runGenerate(mode, destination, statusEl) {
+      var metrics = Object.keys(metricBoxes).filter(function (k) { return metricBoxes[k].checked; });
+      var selection = {
+        period: periodKey === 'custom'
+          ? { key: 'custom', start: dIn.value, end: dOut.value }
+          : computePeriod(periodKey),
+        metrics: metrics,
+        wantTotals: wantTotals.checked,
+        wantAverage: wantAverage.checked,
+        wantObjective: wantObjective.checked,
+        opts: {}
+      };
+      CHARTS.forEach(function (c) {
+        (c.opts || []).forEach(function (o) {
+          var v = c._opts[o.key];
+          if (Array.isArray(v)) {
+            selection.opts[o.key] = v.filter(function (b) { return b.checked; })
+              .map(function (b) { return b.dataset.key; });
+          } else {
+            selection.opts[o.key] = v.value;
+          }
+        });
+      });
+
+      var st = statusEl || status;
+      if (!metrics.length) { st.textContent = 'Escolha ao menos uma métrica.'; return; }
+      if (mode === 'send' && !destination) { st.textContent = 'Escolha um canal e destino antes de enviar.'; return; }
+
+      gerar.disabled = true;
+      enviarConfirm.disabled = true;
+      if (mode === 'send') { enviarConfirm.textContent = 'Enviando...'; } else { gerar.textContent = 'Gerando...'; }
+      st.textContent = 'Carregando dados do período e montando o PDF...';
+
+      var accountLabel = (document.getElementById('meta-act-id').selectedOptions[0] || {}).textContent || '';
+
+      reportPeriod = selection.period;
+      withState(selection, function () {
+        return loadJsPdf().then(function () {
+          var blocks = [];
+          CHARTS.forEach(function (c) {
+            if (!c._box.checked) return;
+            var sub = (c.opts || []).map(function (o) {
+              var v = selection.opts[o.key];
+              if (Array.isArray(v)) return o.label + ': ' + v.map(function (k) { return META_METRIC_CONFIG[k].label; }).join(', ');
+              return o.label + ': ' + optionLabel(o, v);
+            }).filter(Boolean).join(' | ');
+            var spec = chartSpec(c.id, c.money);
+            if (spec) {
+              var metricOpt = (c.opts || []).filter(function (o) { return o.type === 'metric' || o.type === 'metrics'; })[0];
+              var metricTxt = c.metricName || '';
+              if (metricOpt) {
+                var mv = selection.opts[metricOpt.key];
+                metricTxt = Array.isArray(mv) ? metricLabels(mv) : optionLabel(metricOpt, mv);
+              }
+              spec.title = metricTxt ? c.title + ' · ' + metricTxt : c.title;
+              spec.subtitle = sub;
+              blocks.push(spec.kind === 'pie'
+                ? { kind: 'rows', spec: { title: spec.title, subtitle: spec.subtitle, rows: spec.rows } }
+                : { kind: 'chart', spec: spec });
+              return;
+            }
+            var img = captureChart(c.id);
+            if (img) blocks.push({ kind: 'image', img: img, title: c.title, subtitle: sub });
+          });
+
+          var rows = filteredRows();
+          var totals = calcMetrics(rows);
+          var avg = averageByDay(rows, metrics);
+          totals.avg = avg.avg;
+          totals.dayCount = avg.dayCount;
+          var perObjective = groupByObjective(rows);
+
+          customs.forEach(function (b, idx) {
+            var keys = Object.keys(b.boxes).filter(function (k) { return b.boxes[k].checked; });
+            if (!keys.length) return;
+            var dim = b.dSel.value;
+            var dimName = dim === 'totals' ? 'Total por métrica' : dimDef(dim).label;
+            var filt = { objective: b.oSel.value, campaign: b.cSel.value, adSet: b.sSel.value };
+            var ftxt = filterText(filt);
+            var title = b.tIn.value.trim() || (dimName + ' · ' + metricLabels(keys) + (ftxt ? ' · ' + ftxt : ''));
+            if (dim === 'totals') {
+              blocks.push({
+                kind: 'rows',
+                spec: {
+                  title: title,
+                  subtitle: 'Cada barra usa a escala do seu tipo (R$, quantidade, % ou taxa).',
+                  rows: totalsRows(totals, keys)
+                }
+              });
+              return;
+            }
+            var spec = dimensionSpec(dim, keys, title, b.tSel.value, filt);
+            if (!spec.labels.length) {
+              st.textContent = 'Sem dados para "' + title + '" no período; gráfico deixado de fora.';
+              return;
+            }
+            blocks.push({ kind: 'chart', spec: spec });
+          });
+
+          customTables.forEach(function (t, idx) {
+            var keys = Object.keys(t.boxes).filter(function (k) { return t.boxes[k].checked; });
+            if (!keys.length) return;
+            var dim = t.dSel.value;
+            var filt = { objective: t.oSel.value, campaign: t.cSel.value, adSet: t.sSel.value };
+            var items = dimensionItems(dim, keys, filt);
+            var d = dimDef(dim);
+            var title = t.tIn.value.trim() || ('Tabela ' + (idx + 1) + ' · ' + d.label);
+            if (!items.length) {
+              st.textContent = 'Sem dados para a tabela "' + title + '" no período; tabela deixada de fora.';
+              return;
+            }
+            var ftxt = filterText(filt);
+            blocks.push({
+              kind: 'table',
+              spec: {
+                title: title,
+                subtitle: 'Colunas: ' + metricLabels(keys) + (ftxt ? ' | ' + ftxt : ''),
+                head: [d.first].concat(keys.map(function (k) { return META_METRIC_CONFIG[k].label; })),
+                rows: items.map(function (it) {
+                  return [it.label].concat(keys.map(function (k) { return formatValue(k, it.m[k] || 0); }));
+                })
+              }
+            });
+          });
+
+          return buildPdf(selection, blocks, totals, perObjective, accountLabel, mode);
+        });
+      }).then(function (result) {
+        if (mode === 'send') {
+          var fd = new FormData();
+          fd.append('pdf', result.blob, result.name);
+          fd.append('filename', result.name);
+          fd.append('inbox_id', destination.inbox_id);
+          if (destination.group_jid) {
+            fd.append('group_jid', destination.group_jid);
+            fd.append('group_name', destination.group_name || '');
+          } else {
+            fd.append('whatsapp_number', destination.whatsapp_number);
+          }
+          st.textContent = 'Enviando por WhatsApp...';
+          return fetch('/api/v1/reports/meta_ads/send_pdf', { method: 'POST', body: fd }).then(function (r) {
+            if (!r.ok) return r.json().then(function (b) { throw new Error(b.message || ('HTTP ' + r.status)); });
+            st.textContent = 'PDF enviado por WhatsApp!';
+          });
+        }
+        st.textContent = 'PDF gerado: ' + result.name;
+      }).catch(function (err) {
+        st.textContent = 'Erro: ' + (err && err.message ? err.message : err);
+      }).then(function () {
+        gerar.disabled = false;
+        gerar.textContent = 'Gerar PDF';
+        enviarConfirm.disabled = false;
+        enviarConfirm.textContent = 'Enviar agora';
+      });
+    }
+
+    gerar.onclick = function () { runGenerate('download', null, status); };
+    enviarConfirm.onclick = function () { runGenerate('send', enviarDest.getDestination(), enviarStatus); };
+
+    overlay._syncFromMainReport = syncFromMainReport;
+    return overlay;
+  }
+
+  // ----------------------------------------------------------------- boot
+
+  function boot() {
+    var anchor = document.getElementById('meta-date-filters');
+    if (!anchor) return;
+    if (document.getElementById('btn-gerar-pdf')) return;
+
+    var btn = el('button', 'filter-button px-4 py-2 text-sm font-medium rounded-md transition-colors bg-sky-700 hover:bg-sky-600 text-white', 'Gerar PDF');
+    btn.id = 'btn-gerar-pdf';
+    var modal = buildModal();
+    btn.onclick = function () { modal._syncFromMainReport(); modal.style.display = 'flex'; };
+    anchor.appendChild(btn);
+    document.body.appendChild(modal);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
