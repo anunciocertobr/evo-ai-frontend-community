@@ -261,10 +261,6 @@ export default function NotaFiscalServicoPage() {
       toast.error('Informe a discriminação e o código de serviço municipal.');
       return;
     }
-    if (!form.codigo_nbs.trim()) {
-      toast.error('Informe o código NBS do serviço — exigido pelo manual técnico atual da prefeitura.');
-      return;
-    }
     if (!form.valor_servicos || form.valor_servicos <= 0) {
       toast.error('Informe um valor de serviço válido.');
       return;
