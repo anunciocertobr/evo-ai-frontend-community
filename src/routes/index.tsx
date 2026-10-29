@@ -85,6 +85,7 @@ import NotaFiscalServicoPage from '@/pages/Customer/Finances/NotaFiscalServicoPa
 import GtmPage from '@/pages/Customer/Marketing/GtmPage';
 import GestorPostsPage from '@/pages/Customer/Marketing/GestorPostsPage';
 import ClientGoalsPage from '@/pages/Customer/Marketing/ClientGoalsPage';
+import RastreamentosPage from '@/pages/Customer/Marketing/RastreamentosPage';
 import MetaCreationPage from '@/pages/Customer/Marketing/MetaCreationPage';
 import GoogleAdsCreationPage from '@/pages/Customer/Marketing/GoogleAdsCreationPage';
 import TrafficPanelPage from '@/pages/Customer/Marketing/TrafficPanelPage';
@@ -131,6 +132,7 @@ import ShopeePage from '../pages/Customer/Settings/Integrations/ShopeePage';
 import GoogleDrivePage from '../pages/Customer/Drive/GoogleDrivePage';
 import DropboxFilesPage from '../pages/Customer/Dropbox/DropboxFilesPage';
 import BMSPage from '../pages/Customer/Settings/Integrations/BMSPage';
+import HelenaPage from '../pages/Customer/Settings/Integrations/HelenaPage';
 import LeadSquaredPage from '../pages/Customer/Settings/Integrations/LeadSquaredPage';
 import HubSpotPage from '../pages/Customer/Settings/Integrations/HubSpotPage';
 import ShopifyPage from '../pages/Customer/Settings/Integrations/ShopifyPage';
@@ -822,6 +824,20 @@ const AppRouter = () => {
                 <CustomerRoute>
                   <MainLayout>
                     <ClientGoalsPage />
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* Marketing > Rastreamentos: contatos importados da API WTS/Helena com dados de origem (Meta/Instagram) */}
+          <Route
+            path="/marketing/rastreamentos"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <RastreamentosPage />
                   </MainLayout>
                 </CustomerRoute>
               </PrivateRoute>
@@ -1744,6 +1760,20 @@ const AppRouter = () => {
                   <MainLayout>
                     <PermissionRoute resource="integrations" action="read">
                       <BMSPage />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/settings/integrations/helena"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="integrations" action="read">
+                      <HelenaPage />
                     </PermissionRoute>
                   </MainLayout>
                 </CustomerRoute>

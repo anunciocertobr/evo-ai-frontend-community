@@ -39,6 +39,7 @@ const INTEGRATION_CATEGORY_MAP: Record<string, string> = {
   bms: 'crm',
   leadsquared: 'crm',
   hubspot: 'crm',
+  helena: 'crm',
 
   // Communication
   slack: 'communication',

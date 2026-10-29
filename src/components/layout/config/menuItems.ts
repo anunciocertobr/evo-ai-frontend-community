@@ -29,6 +29,7 @@ import {
   Filter,
   Megaphone,
   Route,
+  MapPin,
   ShieldCheck,
   FileText,
   ScrollText,
@@ -243,6 +244,7 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
       // mesmos itens que já existiam em "Meu Espaço", linkados aqui também
       // via a rota genérica /editor/content/:nodeId.
       { name: 'Relatórios', href: '/editor/content/mtlsot4v-cf6f9s', icon: PieChart },
+      { name: 'Rastreamentos', href: '/marketing/rastreamentos', icon: MapPin },
       { name: 'Metas de Clientes', href: '/marketing/metas-clientes', icon: Target },
       { name: 'Criação Meta', href: '/marketing/criacao-meta', icon: Sparkles },
       { name: 'Criação Google Ads', href: '/marketing/criacao-google-ads', icon: Search },
