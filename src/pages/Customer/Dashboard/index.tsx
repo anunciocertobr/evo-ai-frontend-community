@@ -9,6 +9,7 @@ import TeamsService from '@/services/teams/teamsService';
 import InboxesService from '@/services/channels/inboxesService';
 import { usersService } from '@/services/users';
 import { customerDashboardService } from '@/services/dashboard/customerDashboardService';
+import api from '@/services/api';
 import type { CustomerDashboardParams, CustomerDashboardResponse } from '@/types/analytics/dashboard';
 import DashboardFiltersDialog from './components/DashboardFiltersDialog';
 import DashboardMetricsSection from './components/DashboardMetricsSection';
@@ -97,6 +98,29 @@ const CustomerDashboardPage = () => {
   const [teams, setTeams] = useState<DashboardOption[]>([]);
   const [inboxes, setInboxes] = useState<DashboardOption[]>([]);
   const [users, setUsers] = useState<DashboardOption[]>([]);
+  interface HelenaUtm {
+    source?: string;
+    sourceId?: string;
+    campaign?: string;
+    clid?: string;
+    medium?: string;
+    content?: string;
+    headline?: string;
+    referralUrl?: string;
+  }
+  interface HelenaContact {
+    id: string;
+    name?: string;
+    nameWhatsapp?: string;
+    phoneNumber?: string;
+    phoneNumberFormatted?: string;
+    email?: string;
+    origin?: string;
+    utm?: HelenaUtm;
+    createdAt?: string;
+  }
+  const [helenaContacts, setHelenaContacts] = useState<HelenaContact[]>([]);
+  const [helenaLoading, setHelenaLoading] = useState(false);
 
   const loadDashboard = useCallback(async (filters: DashboardFilterState) => {
     setLoading(true);
@@ -116,6 +140,21 @@ const CustomerDashboardPage = () => {
   useEffect(() => {
     loadDashboard(appliedFilters);
   }, [appliedFilters, loadDashboard]);
+
+  useEffect(() => {
+    const loadHelena = async () => {
+      setHelenaLoading(true);
+      try {
+        const res = await api.get('/api/v1/reports/helena_wts/all_contacts?limit=100');
+        setHelenaContacts(res.data?.items || []);
+      } catch (err) {
+        console.error('Error loading Helena contacts:', err);
+      } finally {
+        setHelenaLoading(false);
+      }
+    };
+    loadHelena();
+  }, []);
 
   useEffect(() => {
     const loadFilterOptions = async () => {
@@ -298,6 +337,65 @@ const CustomerDashboardPage = () => {
       <div data-tour="dashboard-performance">
         <DashboardPerformanceSection data={data} t={t} />
       </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <h2 className="text-lg font-semibold">Rastreamento - Helena</h2>
+            <p className="text-sm text-muted-foreground">Contatos importados da API WTS/Helena com dados de origem (Meta/Instagram)</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50/50">
+                  <th className="text-left p-3 font-medium">Nome</th>
+                  <th className="text-left p-3 font-medium">Telefone</th>
+                  <th className="text-left p-3 font-medium">E-mail</th>
+                  <th className="text-left p-3 font-medium">Origem</th>
+                  <th className="text-left p-3 font-medium">Plataforma</th>
+                  <th className="text-left p-3 font-medium">Campanha (ID)</th>
+                  <th className="text-left p-3 font-medium">Clid / waclid</th>
+                  <th className="text-left p-3 font-medium">Medium</th>
+                  <th className="text-left p-3 font-medium">Criado em</th>
+                </tr>
+              </thead>
+              <tbody>
+                {helenaLoading ? (
+                  <tr>
+                    <td colSpan={9} className="p-6 text-center text-muted-foreground">Carregando...</td>
+                  </tr>
+                ) : helenaContacts.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="p-6 text-center text-muted-foreground">Nenhum contato encontrado</td>
+                  </tr>
+                ) : (
+                  helenaContacts.slice(0, 200).map((c) => {
+                    const utm = c.utm || {};
+                    return (
+                      <tr key={c.id} className="border-b hover:bg-gray-50/50">
+                        <td className="p-3">{c.name || c.nameWhatsapp || '-'}</td>
+                        <td className="p-3">{c.phoneNumberFormatted || c.phoneNumber || '-'}</td>
+                        <td className="p-3">{c.email || '-'}</td>
+                        <td className="p-3">{c.origin || '-'}</td>
+                        <td className="p-3">{utm.source || '-'}</td>
+                        <td className="p-3">{utm.sourceId || utm.campaign || '-'}</td>
+                        <td className="p-3 max-w-[250px] truncate" title={utm.clid || ''}>{utm.clid || '-'}</td>
+                        <td className="p-3">{utm.medium || '-'}</td>
+                        <td className="p-3">{c.createdAt ? new Date(c.createdAt).toLocaleString('pt-BR') : '-'}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+            {helenaContacts.length > 200 && (
+              <div className="px-6 py-3 text-sm text-muted-foreground border-t">
+                Exibindo 200 de {helenaContacts.length} registros
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <DashboardFiltersDialog
         open={filterModalOpen}
