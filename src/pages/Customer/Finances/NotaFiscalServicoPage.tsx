@@ -13,6 +13,7 @@ import {
   Trash2,
   Users,
   Download,
+  Send,
 } from 'lucide-react';
 import {
   Button,
@@ -64,6 +65,10 @@ import {
 } from '@/types/fiscalInvoices';
 import { MunicipioSearchButton } from '@/components/finances/MunicipioAutocomplete';
 import { ServicoLC116SearchButton } from '@/components/finances/ServicoLC116Autocomplete';
+import { WhatsappGroupPicker } from '@/components/marketing/WhatsappGroupPicker';
+import type { WhatsappGroup } from '@/services/admin/whatsappGroupsService';
+import InboxesService from '@/services/channels/inboxesService';
+import type { Inbox } from '@/types/channels/inbox';
 import ServiceInvoiceSchedulesSection from './components/ServiceInvoiceSchedulesSection';
 
 const STATUS_META: Record<ServiceInvoiceStatus, { label: string; variant: 'default' | 'destructive' | 'secondary' | 'outline' }> = {
@@ -108,6 +113,19 @@ export default function NotaFiscalServicoPage() {
   const [cancelling, setCancelling] = useState(false);
   const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
 
+  // Botão "Enviar" (ícone Send) — manda o DANFSe já gerado direto por
+  // WhatsApp, pedido do usuário: "deve selecionar o canal e o destino para
+  // poder enviar a nota baixada". Mesmo padrão de destino (inbox + número
+  // OU inbox + grupo) usado no envio de relatórios PDF.
+  const [inboxes, setInboxes] = useState<Inbox[]>([]);
+  const [sendTarget, setSendTarget] = useState<ServiceInvoice | null>(null);
+  const [sendInboxId, setSendInboxId] = useState('');
+  const [sendDestType, setSendDestType] = useState<'number' | 'group'>('number');
+  const [sendNumber, setSendNumber] = useState('');
+  const [sendGroupJid, setSendGroupJid] = useState('');
+  const [sendGroupName, setSendGroupName] = useState('');
+  const [sending, setSending] = useState(false);
+
   // Tomadores (clientes) salvos — pedido do usuário pra não redigitar nome/
   // CPF-CNPJ/endereço toda vez que emite nota pra um cliente recorrente.
   const [savedTomadores, setSavedTomadores] = useState<FiscalTomador[]>([]);
@@ -142,6 +160,12 @@ export default function NotaFiscalServicoPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    InboxesService.list()
+      .then((res) => setInboxes(res.data ?? []))
+      .catch(() => setInboxes([]));
+  }, []);
 
   const openCreateDialog = () => {
     setForm({
@@ -321,6 +345,47 @@ export default function NotaFiscalServicoPage() {
     }
   };
 
+  const openSendDialog = (invoice: ServiceInvoice) => {
+    setSendTarget(invoice);
+    setSendInboxId('');
+    setSendDestType('number');
+    setSendNumber('');
+    setSendGroupJid('');
+    setSendGroupName('');
+  };
+
+  const handleSend = async () => {
+    if (!sendTarget) return;
+    if (!sendInboxId) {
+      toast.error('Escolha o canal (inbox) que vai enviar.');
+      return;
+    }
+    if (sendDestType === 'number' && !sendNumber.trim()) {
+      toast.error('Informe o número de WhatsApp de destino.');
+      return;
+    }
+    if (sendDestType === 'group' && !sendGroupJid) {
+      toast.error('Escolha o grupo de destino.');
+      return;
+    }
+
+    setSending(true);
+    try {
+      await serviceInvoicesService.sendPdf(sendTarget.id, {
+        inbox_id: sendInboxId,
+        ...(sendDestType === 'group'
+          ? { group_jid: sendGroupJid, group_name: sendGroupName }
+          : { whatsapp_number: sendNumber.trim() }),
+      });
+      toast.success('NFS-e enviada por WhatsApp.');
+      setSendTarget(null);
+    } catch (error) {
+      toast.error(apiErrorMessage(error) || 'Erro ao enviar a NFS-e por WhatsApp.');
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-full bg-background p-6 space-y-6">
       <BaseHeader
@@ -403,6 +468,16 @@ export default function NotaFiscalServicoPage() {
                             ) : (
                               <Download className="w-4 h-4" />
                             )}
+                          </Button>
+                        )}
+                        {invoice.status === 'authorized' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openSendDialog(invoice)}
+                            title="Enviar por WhatsApp"
+                          >
+                            <Send className="w-4 h-4" />
                           </Button>
                         )}
                         <Button variant="ghost" size="icon" onClick={() => openXml(invoice)} title="Ver XML">
@@ -736,6 +811,84 @@ export default function NotaFiscalServicoPage() {
               </pre>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!sendTarget} onOpenChange={(open) => !open && setSendTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enviar NFS-e por WhatsApp</DialogTitle>
+            <DialogDescription>
+              RPS {sendTarget?.serie_rps}/{sendTarget?.numero_rps} — manda o mesmo PDF (DANFSe) direto pelo canal
+              escolhido.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-xs">Canal (inbox) que envia</Label>
+              <Select value={sendInboxId} onValueChange={setSendInboxId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {inboxes.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      Nenhum canal encontrado
+                    </SelectItem>
+                  ) : (
+                    inboxes.map((inbox) => (
+                      <SelectItem key={inbox.id} value={inbox.id}>
+                        {inbox.name} ({inbox.channel_type.replace('Channel::', '')})
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Destino</Label>
+              <Select value={sendDestType} onValueChange={(v) => setSendDestType(v as 'number' | 'group')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="number">Número</SelectItem>
+                  <SelectItem value="group">Grupo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {sendDestType === 'group' ? (
+              <div>
+                <Label className="text-xs">Grupo que recebe</Label>
+                <WhatsappGroupPicker
+                  inboxId={sendInboxId}
+                  value={sendGroupJid}
+                  onSelect={(group: WhatsappGroup) => {
+                    setSendGroupJid(group.jid);
+                    setSendGroupName(group.name);
+                  }}
+                />
+              </div>
+            ) : (
+              <div>
+                <Label className="text-xs">Número de WhatsApp</Label>
+                <Input
+                  value={sendNumber}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSendNumber(e.target.value)}
+                  placeholder="Ex: 11999998888"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSendTarget(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSend} disabled={sending}>
+              {sending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Enviar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -34,6 +34,13 @@ class ServiceInvoicesService {
     const response = await api.get(`${this.baseUrl}/${id}/pdf`, { responseType: 'blob' });
     return response.data as Blob;
   }
+
+  async sendPdf(
+    id: string,
+    destination: { inbox_id: string; whatsapp_number?: string; group_jid?: string; group_name?: string },
+  ): Promise<void> {
+    await api.post(`${this.baseUrl}/${id}/send_pdf`, destination);
+  }
 }
 
 export const serviceInvoicesService = new ServiceInvoicesService();
