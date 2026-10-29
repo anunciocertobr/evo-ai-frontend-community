@@ -66,7 +66,9 @@ import {
 import { MunicipioSearchButton } from '@/components/finances/MunicipioAutocomplete';
 import { ServicoLC116SearchButton } from '@/components/finances/ServicoLC116Autocomplete';
 import { WhatsappGroupPicker } from '@/components/marketing/WhatsappGroupPicker';
+import { ContactPicker } from '@/components/marketing/ContactPicker';
 import type { WhatsappGroup } from '@/services/admin/whatsappGroupsService';
+import type { Contact } from '@/types/contacts';
 import InboxesService from '@/services/channels/inboxesService';
 import type { Inbox } from '@/types/channels/inbox';
 import ServiceInvoiceSchedulesSection from './components/ServiceInvoiceSchedulesSection';
@@ -120,10 +122,11 @@ export default function NotaFiscalServicoPage() {
   const [inboxes, setInboxes] = useState<Inbox[]>([]);
   const [sendTarget, setSendTarget] = useState<ServiceInvoice | null>(null);
   const [sendInboxId, setSendInboxId] = useState('');
-  const [sendDestType, setSendDestType] = useState<'number' | 'group'>('number');
+  const [sendDestType, setSendDestType] = useState<'number' | 'group' | 'contact'>('number');
   const [sendNumber, setSendNumber] = useState('');
   const [sendGroupJid, setSendGroupJid] = useState('');
   const [sendGroupName, setSendGroupName] = useState('');
+  const [sendContactName, setSendContactName] = useState('');
   const [sending, setSending] = useState(false);
 
   // Tomadores (clientes) salvos — pedido do usuário pra não redigitar nome/
@@ -352,6 +355,7 @@ export default function NotaFiscalServicoPage() {
     setSendNumber('');
     setSendGroupJid('');
     setSendGroupName('');
+    setSendContactName('');
   };
 
   const handleSend = async () => {
@@ -360,8 +364,8 @@ export default function NotaFiscalServicoPage() {
       toast.error('Escolha o canal (inbox) que vai enviar.');
       return;
     }
-    if (sendDestType === 'number' && !sendNumber.trim()) {
-      toast.error('Informe o número de WhatsApp de destino.');
+    if ((sendDestType === 'number' || sendDestType === 'contact') && !sendNumber.trim()) {
+      toast.error(sendDestType === 'contact' ? 'Escolha o contato de destino.' : 'Informe o número de WhatsApp de destino.');
       return;
     }
     if (sendDestType === 'group' && !sendGroupJid) {
@@ -847,12 +851,13 @@ export default function NotaFiscalServicoPage() {
             </div>
             <div>
               <Label className="text-xs">Destino</Label>
-              <Select value={sendDestType} onValueChange={(v) => setSendDestType(v as 'number' | 'group')}>
+              <Select value={sendDestType} onValueChange={(v) => setSendDestType(v as 'number' | 'group' | 'contact')}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="number">Número</SelectItem>
+                  <SelectItem value="contact">Contato</SelectItem>
                   <SelectItem value="group">Grupo</SelectItem>
                 </SelectContent>
               </Select>
@@ -866,6 +871,18 @@ export default function NotaFiscalServicoPage() {
                   onSelect={(group: WhatsappGroup) => {
                     setSendGroupJid(group.jid);
                     setSendGroupName(group.name);
+                  }}
+                />
+              </div>
+            ) : sendDestType === 'contact' ? (
+              <div>
+                <Label className="text-xs">Contato que recebe</Label>
+                <ContactPicker
+                  value={sendNumber}
+                  selectedName={sendContactName}
+                  onSelect={(contact: Contact) => {
+                    setSendNumber(contact.phone_number);
+                    setSendContactName(contact.name);
                   }}
                 />
               </div>

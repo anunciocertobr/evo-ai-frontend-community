@@ -16,7 +16,9 @@ import {
 import type { Inbox } from '@/types/channels/inbox';
 import type { NotifyChannel } from '@/services/admin/metaLeadNotificationSettingsService';
 import type { WhatsappGroup } from '@/services/admin/whatsappGroupsService';
+import type { Contact } from '@/types/contacts';
 import { WhatsappGroupPicker } from './WhatsappGroupPicker';
+import { ContactPicker } from './ContactPicker';
 import { NotifyContentEditor } from './NotifyContentEditor';
 
 interface Props {
@@ -25,15 +27,23 @@ interface Props {
   inboxes: Inbox[];
 }
 
-// Lista de destinos (inbox + número OU inbox + grupo), com botão "+" pra
-// adicionar mais de um — pedido do Marco: "quero que tenha um botão + para
-// dar pra adicionar mais um canal com número de destino" e, depois, "lista
-// grupo e barra de pesquisa pra filtrar" pra poder notificar um grupo do
-// WhatsApp também. Usado tanto no padrão da conta (MetaLeadsNotifyDefaultDialog)
-// quanto por formulário (LeadFormNotifySettingsDialog), por isso ficou num
-// componente à parte.
+// Lista de destinos (inbox + número OU inbox + grupo OU inbox + contato já
+// cadastrado), com botão "+" pra adicionar mais de um — pedido do Marco:
+// "quero que tenha um botão + para dar pra adicionar mais um canal com
+// número de destino", depois "lista grupo e barra de pesquisa pra filtrar"
+// pra poder notificar um grupo do WhatsApp também, e depois a opção
+// "Contatos" com busca pra escolher um contato já existente em vez de
+// digitar o número. Usado tanto no padrão da conta
+// (MetaLeadsNotifyDefaultDialog) quanto por formulário
+// (LeadFormNotifySettingsDialog), por isso ficou num componente à parte.
 export function NotifyChannelsEditor({ channels, onChange, inboxes }: Props) {
   const [openContentIndex, setOpenContentIndex] = useState<number | null>(null);
+  // "Contato" resolve pra whatsapp_number igual a "Número" (não tem campo
+  // próprio salvo) — esse estado só mantém o Select/picker certo mostrado
+  // DURANTE a edição, pra não "sumir" quando o campo fica vazio (mesma
+  // classe de bug já documentado abaixo pra group_jid).
+  const [contactModeIndexes, setContactModeIndexes] = useState<Record<number, boolean>>({});
+  const [contactNames, setContactNames] = useState<Record<number, string>>({});
 
   const update = (index: number, patch: Partial<NotifyChannel>) => {
     onChange(channels.map((c, i) => (i === index ? { ...c, ...patch } : c)));
@@ -53,9 +63,14 @@ export function NotifyChannelsEditor({ channels, onChange, inboxes }: Props) {
   // no picker, group_jid ficava undefined, então essa função lia 'number'
   // de volta e o Select "voltava" sozinho pra Número (bug real, reportado
   // pelo usuário — o clique em "Grupo" não tinha efeito visível nenhum).
-  const destinationType = (channel: NotifyChannel) => (channel.group_jid !== undefined ? 'group' : 'number');
+  const destinationType = (channel: NotifyChannel, index: number) => {
+    if (channel.group_jid !== undefined) return 'group';
+    if (contactModeIndexes[index]) return 'contact';
+    return 'number';
+  };
 
-  const setDestinationType = (index: number, type: 'number' | 'group') => {
+  const setDestinationType = (index: number, type: 'number' | 'group' | 'contact') => {
+    setContactModeIndexes((prev) => ({ ...prev, [index]: type === 'contact' }));
     update(
       index,
       type === 'group'
@@ -95,12 +110,16 @@ export function NotifyChannelsEditor({ channels, onChange, inboxes }: Props) {
             </div>
             <div className="w-36 space-y-1.5">
               <Label className="text-xs">Destino</Label>
-              <Select value={destinationType(channel)} onValueChange={(v) => setDestinationType(index, v as 'number' | 'group')}>
+              <Select
+                value={destinationType(channel, index)}
+                onValueChange={(v) => setDestinationType(index, v as 'number' | 'group' | 'contact')}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="number">Número</SelectItem>
+                  <SelectItem value="contact">Contato</SelectItem>
                   <SelectItem value="group">Grupo</SelectItem>
                 </SelectContent>
               </Select>
@@ -111,13 +130,25 @@ export function NotifyChannelsEditor({ channels, onChange, inboxes }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            {destinationType(channel) === 'group' ? (
+            {destinationType(channel, index) === 'group' ? (
               <>
                 <Label className="text-xs">Grupo que recebe</Label>
                 <WhatsappGroupPicker
                   inboxId={channel.inbox_id}
                   value={channel.group_jid || ''}
                   onSelect={(group: WhatsappGroup) => update(index, { group_jid: group.jid, group_name: group.name })}
+                />
+              </>
+            ) : destinationType(channel, index) === 'contact' ? (
+              <>
+                <Label className="text-xs">Contato que recebe</Label>
+                <ContactPicker
+                  value={channel.whatsapp_number || ''}
+                  selectedName={contactNames[index]}
+                  onSelect={(contact: Contact) => {
+                    update(index, { whatsapp_number: contact.phone_number });
+                    setContactNames((prev) => ({ ...prev, [index]: contact.name }));
+                  }}
                 />
               </>
             ) : (
