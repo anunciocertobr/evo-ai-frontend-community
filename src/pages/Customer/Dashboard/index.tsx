@@ -9,7 +9,7 @@ import TeamsService from '@/services/teams/teamsService';
 import InboxesService from '@/services/channels/inboxesService';
 import { usersService } from '@/services/users';
 import { customerDashboardService } from '@/services/dashboard/customerDashboardService';
-import api from '@/services/api';
+import api from '@/services/core/api';
 import type { CustomerDashboardParams, CustomerDashboardResponse } from '@/types/analytics/dashboard';
 import DashboardFiltersDialog from './components/DashboardFiltersDialog';
 import DashboardMetricsSection from './components/DashboardMetricsSection';
