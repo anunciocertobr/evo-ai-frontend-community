@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Film, ExternalLink, Search, X } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -16,36 +16,10 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@evoapi/design-system';
-import { RastreamentoConversionButton } from '@/components/marketing/RastreamentoConversionButton';
-import { rastreamentosService, type HelenaAdContext } from '@/services/marketing/rastreamentosService';
+import { adLeadsService, type AdLead } from '@/services/marketing/adLeadsService';
 
 const ALL = '__all__';
-
-interface HelenaUtm {
-  source?: string;
-  sourceId?: string;
-  campaign?: string;
-  clid?: string;
-  medium?: string;
-  content?: string;
-  headline?: string;
-  referralUrl?: string;
-}
-
-interface HelenaContact {
-  id: string;
-  name?: string;
-  nameWhatsapp?: string;
-  phoneNumber?: string;
-  phoneNumberFormatted?: string;
-  email?: string;
-  origin?: string;
-  utm?: HelenaUtm;
-  createdAt?: string;
-}
-
-const TOTAL_COLUMNS = 16;
-const MAX_ROWS = 200;
+const TOTAL_COLUMNS = 13;
 
 function uniqueOptions(values: Array<{ id?: string | null; name?: string | null }>) {
   const seen = new Map<string, string>();
@@ -59,16 +33,15 @@ function uniqueOptions(values: Array<{ id?: string | null; name?: string | null 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-// Contatos importados da API WTS/Helena com dados de origem (Meta/
-// Instagram) — uma das 3 abas do Rastreamentos (ver RastreamentosPage).
-// utm.sourceId é o AD_ID de verdade (confirmado contra a Graph API: só
-// anúncio tem adset_id/campaign_id/creative) — usado pra enriquecer com
-// nome de campanha/conjunto/anúncio e criativo, igual a tela "Ver Leads"
-// (LeadFormLeadsDialog) já faz pros leads de formulário.
+// Leads de WhatsApp capturados pela NOSSA PRÓPRIA base de atribuição
+// (AdLead, ver Whatsapp::AdReferralCapture / IncomingMessageBaseService —
+// webhook oficial da Meta, sem depender de nenhum sistema externo) — aba
+// "WhatsApp" do Rastreamentos. Diferente da aba "Externo" (Helena/WTS, ver
+// RastreamentoExternoTab.tsx): aqui campanha/conjunto/anúncio/criativo já
+// vêm prontos em cada registro, sem precisar enriquecer um a um.
 export function RastreamentoWhatsappTab() {
-  const [contacts, setContacts] = useState<HelenaContact[]>([]);
+  const [leads, setLeads] = useState<AdLead[]>([]);
   const [loading, setLoading] = useState(false);
-  const [adContextByAdId, setAdContextByAdId] = useState<Record<string, HelenaAdContext>>({});
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -76,13 +49,6 @@ export function RastreamentoWhatsappTab() {
   const [adsetFilter, setAdsetFilter] = useState(ALL);
   const [adFilter, setAdFilter] = useState(ALL);
 
-  const [enriching, setEnriching] = useState(false);
-
-  // Barra de rolagem horizontal "fantasma" fixada no topo da tabela,
-  // sincronizada com o scroll real do container abaixo — mesmo padrão já
-  // usado em SiteLeadsDialog.tsx. Sem isso, com muitas colunas, a barra
-  // nativa só fica visível depois de rolar a tabela toda pra baixo até o
-  // fim (pedido do usuário: "não vi barra de rolagem fixa horizontal").
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
   const [scrollWidth, setScrollWidth] = useState(0);
@@ -94,7 +60,6 @@ export function RastreamentoWhatsappTab() {
     syncingRef.current = 'top';
     tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
   };
-
   const handleTableScroll = () => {
     if (syncingRef.current === 'top') { syncingRef.current = null; return; }
     if (!topScrollRef.current || !tableScrollRef.current) return;
@@ -102,79 +67,34 @@ export function RastreamentoWhatsappTab() {
     topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
   };
 
-  // Busca o contexto de anúncio (campanha/conjunto/anúncio/criativo) em
-  // lotes com concorrência limitada — com ~15 mil contatos reais, dispara
-  // TUDO de uma vez (Promise.all sem limite) sobrecarregava o navegador e
-  // a Graph API, e a maioria dos lookups acabava falhando/nunca voltando,
-  // por isso campanha/conjunto/anúncio/criativo nunca apareciam. Atualiza
-  // o estado progressivamente a cada lote, em vez de esperar tudo acabar.
-  const enrichAdContext = useCallback(async (adIds: string[]) => {
-    const BATCH_SIZE = 8;
-    setEnriching(true);
-    try {
-      for (let i = 0; i < adIds.length; i += BATCH_SIZE) {
-        const batch = adIds.slice(i, i + BATCH_SIZE);
-        const results = await Promise.all(batch.map((adId) => rastreamentosService.adContext(adId)));
-        setAdContextByAdId((prev) => {
-          const next = { ...prev };
-          results.forEach((ctx) => {
-            if (ctx) next[ctx.ad_id] = ctx;
-          });
-          return next;
-        });
-      }
-    } finally {
-      setEnriching(false);
-    }
-  }, []);
-
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const items = await rastreamentosService.allContacts(100);
-        setContacts(items);
-
-        const uniqueAdIds = Array.from(new Set(items.map((c: HelenaContact) => c.utm?.sourceId).filter(Boolean))) as string[];
-        enrichAdContext(uniqueAdIds);
+        const items = await adLeadsService.list();
+        setLeads(items);
       } catch {
-        toast.error('Erro ao carregar os contatos da Helena/WTS.');
+        toast.error('Erro ao carregar os leads de WhatsApp.');
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [enrichAdContext]);
+  }, []);
 
-  const contextFor = useCallback(
-    (contact: HelenaContact) => {
-      const adId = contact.utm?.sourceId;
-      return adId ? adContextByAdId[adId] : undefined;
-    },
-    [adContextByAdId],
-  );
-
-  const campaignOptions = useMemo(
-    () => uniqueOptions(Object.values(adContextByAdId).map((c) => ({ id: c.campaign_id, name: c.campaign_name }))),
-    [adContextByAdId],
-  );
+  const campaignOptions = useMemo(() => uniqueOptions(leads.map((l) => ({ id: l.campaign_id, name: l.campaign_name }))), [leads]);
   const adsetOptions = useMemo(
-    () =>
-      uniqueOptions(
-        Object.values(adContextByAdId)
-          .filter((c) => campaignFilter === ALL || c.campaign_id === campaignFilter)
-          .map((c) => ({ id: c.adset_id, name: c.adset_name })),
-      ),
-    [adContextByAdId, campaignFilter],
+    () => uniqueOptions(leads.filter((l) => campaignFilter === ALL || l.campaign_id === campaignFilter).map((l) => ({ id: l.adset_id, name: l.adset_name }))),
+    [leads, campaignFilter],
   );
   const adOptions = useMemo(
     () =>
       uniqueOptions(
-        Object.values(adContextByAdId)
-          .filter((c) => (campaignFilter === ALL || c.campaign_id === campaignFilter) && (adsetFilter === ALL || c.adset_id === adsetFilter))
-          .map((c) => ({ id: c.ad_id, name: c.ad_name })),
+        leads
+          .filter((l) => (campaignFilter === ALL || l.campaign_id === campaignFilter) && (adsetFilter === ALL || l.adset_id === adsetFilter))
+          .map((l) => ({ id: l.ad_id, name: l.ad_name })),
       ),
-    [adContextByAdId, campaignFilter, adsetFilter],
+    [leads, campaignFilter, adsetFilter],
   );
 
   useEffect(() => {
@@ -194,44 +114,35 @@ export function RastreamentoWhatsappTab() {
     setAdFilter(ALL);
   };
 
-  const filteredContacts = useMemo(() => {
+  const filteredLeads = useMemo(() => {
     const term = search.trim().toLowerCase();
     const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
     const to = dateTo ? new Date(`${dateTo}T23:59:59`) : null;
 
-    return contacts.filter((c) => {
-      const ctx = contextFor(c);
-      if (campaignFilter !== ALL && ctx?.campaign_id !== campaignFilter) return false;
-      if (adsetFilter !== ALL && ctx?.adset_id !== adsetFilter) return false;
-      if (adFilter !== ALL && c.utm?.sourceId !== adFilter) return false;
+    return leads.filter((l) => {
+      if (campaignFilter !== ALL && l.campaign_id !== campaignFilter) return false;
+      if (adsetFilter !== ALL && l.adset_id !== adsetFilter) return false;
+      if (adFilter !== ALL && l.ad_id !== adFilter) return false;
 
-      if (c.createdAt) {
-        const createdAt = new Date(c.createdAt);
-        if (from && createdAt < from) return false;
-        if (to && createdAt > to) return false;
-      }
+      const createdAt = new Date(l.data_criacao);
+      if (from && createdAt < from) return false;
+      if (to && createdAt > to) return false;
 
       if (!term) return true;
-      const campos = [c.name, c.nameWhatsapp, c.phoneNumber, c.email, ctx?.campaign_name, ctx?.adset_name, ctx?.ad_name];
+      const campos = [l.nome, l.telefone, l.email, l.campaign_name, l.adset_name, l.ad_name];
       return campos.some((v) => v?.toLowerCase().includes(term));
     });
-  }, [contacts, search, dateFrom, dateTo, campaignFilter, adsetFilter, adFilter, contextFor]);
-
-  const visibleContacts = useMemo(() => filteredContacts.slice(0, MAX_ROWS), [filteredContacts]);
+  }, [leads, search, dateFrom, dateTo, campaignFilter, adsetFilter, adFilter]);
 
   useEffect(() => {
     const el = tableScrollRef.current;
     if (!el) return;
     setScrollWidth(el.scrollWidth);
-  }, [loading, visibleContacts]);
-
-  const openCreative = (ctx?: HelenaAdContext) => {
-    if (ctx?.criativo?.video) window.open(ctx.criativo.video, '_blank', 'noopener,noreferrer');
-  };
+  }, [loading, filteredLeads]);
 
   return (
     <div className="flex flex-col h-full space-y-4">
-      {!loading && contacts.length > 0 && (
+      {!loading && leads.length > 0 && (
         <>
           <div className="flex flex-wrap items-end gap-3">
             <div>
@@ -308,9 +219,7 @@ export function RastreamentoWhatsappTab() {
               />
             </div>
             <p className="text-sm text-muted-foreground whitespace-nowrap">
-              {filteredContacts.length === contacts.length ? `${contacts.length} contato(s)` : `${filteredContacts.length} de ${contacts.length} contato(s)`}
-              {filteredContacts.length > MAX_ROWS && ` · exibindo os primeiros ${MAX_ROWS} (use os filtros pra achar o resto)`}
-              {enriching && ' · carregando campanha/conjunto/anúncio...'}
+              {filteredLeads.length === leads.length ? `${leads.length} lead(s)` : `${filteredLeads.length} de ${leads.length} lead(s)`}
             </p>
           </div>
         </>
@@ -329,18 +238,15 @@ export function RastreamentoWhatsappTab() {
                   <th className="text-left p-3 font-medium whitespace-nowrap">Nome</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Telefone</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">E-mail</th>
-                  <th className="text-left p-3 font-medium whitespace-nowrap">Origem</th>
-                  <th className="text-left p-3 font-medium whitespace-nowrap">Source (UTM)</th>
+                  <th className="text-left p-3 font-medium whitespace-nowrap">Status</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Campanha</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Conjunto</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Anúncio</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Criativo</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Clid</th>
-                  <th className="text-left p-3 font-medium whitespace-nowrap">Medium (UTM)</th>
-                  <th className="text-left p-3 font-medium whitespace-nowrap">Content (UTM)</th>
-                  <th className="text-left p-3 font-medium whitespace-nowrap">Headline (UTM)</th>
-                  <th className="text-left p-3 font-medium whitespace-nowrap">Referral URL (UTM)</th>
-                  <th className="p-3 w-10" />
+                  <th className="text-left p-3 font-medium whitespace-nowrap">UTM Source</th>
+                  <th className="text-left p-3 font-medium whitespace-nowrap">UTM Campaign</th>
+                  <th className="text-left p-3 font-medium whitespace-nowrap">Valor venda</th>
                 </tr>
               </thead>
               <tbody>
@@ -350,94 +256,63 @@ export function RastreamentoWhatsappTab() {
                       <Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Carregando...
                     </td>
                   </tr>
-                ) : contacts.length === 0 ? (
+                ) : leads.length === 0 ? (
                   <tr>
-                    <td colSpan={TOTAL_COLUMNS} className="p-6 text-center text-muted-foreground">Nenhum contato encontrado</td>
+                    <td colSpan={TOTAL_COLUMNS} className="p-6 text-center text-muted-foreground">Nenhum lead de WhatsApp encontrado</td>
                   </tr>
-                ) : filteredContacts.length === 0 ? (
+                ) : filteredLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={TOTAL_COLUMNS} className="p-6 text-center text-muted-foreground">Nenhum contato encontrado pra essa busca/filtro.</td>
+                    <td colSpan={TOTAL_COLUMNS} className="p-6 text-center text-muted-foreground">Nenhum lead encontrado pra essa busca/filtro.</td>
                   </tr>
                 ) : (
-                  visibleContacts.map((c) => {
-                    const ctx = contextFor(c);
-                    const criativo = ctx?.criativo;
-                    return (
-                      <tr key={c.id} className="border-b hover:bg-muted/50">
-                        <td className="p-3 whitespace-nowrap text-muted-foreground">{c.createdAt ? formatDate(c.createdAt) : '-'}</td>
-                        <td className="p-3 whitespace-nowrap">{c.name || c.nameWhatsapp || '-'}</td>
-                        <td className="p-3 whitespace-nowrap">{c.phoneNumberFormatted || c.phoneNumber || '-'}</td>
-                        <td className="p-3 whitespace-nowrap">{c.email || '-'}</td>
-                        <td className="p-3 whitespace-nowrap">{c.origin || '-'}</td>
-                        <td className="p-3 whitespace-nowrap">{c.utm?.source || '-'}</td>
-                        <td className="p-3 whitespace-nowrap">
-                          <span>{ctx?.campaign_name || '-'}</span>
-                          {ctx?.campaign_id && <span className="block text-[10px] font-mono text-muted-foreground">{ctx.campaign_id}</span>}
-                        </td>
-                        <td className="p-3 whitespace-nowrap">
-                          <span>{ctx?.adset_name || '-'}</span>
-                          {ctx?.adset_id && <span className="block text-[10px] font-mono text-muted-foreground">{ctx.adset_id}</span>}
-                        </td>
-                        <td className="p-3 whitespace-nowrap">
-                          <span>{ctx?.ad_name || '-'}</span>
-                          {c.utm?.sourceId && <span className="block text-[10px] font-mono text-muted-foreground">{c.utm.sourceId}</span>}
-                        </td>
-                        <td className="p-3 whitespace-nowrap">
-                          {criativo?.thumbnail_url || criativo?.imagem ? (
-                            <HoverCard openDelay={150} closeDelay={0}>
-                              <HoverCardTrigger asChild>
-                                <button
-                                  type="button"
-                                  onClick={() => openCreative(ctx)}
-                                  disabled={!criativo?.video}
-                                  className="relative inline-block w-10 h-10 rounded overflow-hidden border border-border group disabled:cursor-default"
-                                  title={criativo?.video ? 'Ver o post na Meta' : criativo?.criativo_nome || 'Criativo'}
-                                >
-                                  <img src={criativo.imagem || criativo.thumbnail_url || ''} alt={criativo?.criativo_nome || ''} className="w-full h-full object-cover" />
-                                  {criativo?.video && (
-                                    <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors">
-                                      <ExternalLink className="w-4 h-4 text-white opacity-0 group-hover:opacity-100" />
-                                    </span>
-                                  )}
-                                </button>
-                              </HoverCardTrigger>
-                              <HoverCardContent className="w-auto p-2" side="right">
-                                <div className="relative">
-                                  <img
-                                    src={criativo.imagem || criativo.thumbnail_url || ''}
-                                    alt={criativo?.criativo_nome || ''}
-                                    className="max-w-[320px] max-h-[320px] rounded object-contain"
-                                  />
-                                  {criativo?.video && (
-                                    <span className="absolute top-1.5 right-1.5 flex items-center gap-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
-                                      <Film className="w-3 h-3" /> Vídeo
-                                    </span>
-                                  )}
-                                </div>
-                                {(criativo?.titulo || criativo?.texto_principal) && (
-                                  <p className="text-xs mt-1.5 max-w-[320px] line-clamp-3 text-muted-foreground">
-                                    {criativo?.titulo || criativo?.texto_principal}
-                                  </p>
-                                )}
-                              </HoverCardContent>
-                            </HoverCard>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </td>
-                        <td className="p-3 max-w-[200px] truncate" title={c.utm?.clid || ''}>
-                          {c.utm?.clid || '-'}
-                        </td>
-                        <td className="p-3 whitespace-nowrap">{c.utm?.medium || '-'}</td>
-                        <td className="p-3 whitespace-nowrap">{c.utm?.content || '-'}</td>
-                        <td className="p-3 whitespace-nowrap">{c.utm?.headline || '-'}</td>
-                        <td className="p-3 max-w-[220px] truncate" title={c.utm?.referralUrl || ''}>{c.utm?.referralUrl || '-'}</td>
-                        <td className="p-3">
-                          <RastreamentoConversionButton adId={c.utm?.sourceId} ctwaClid={c.utm?.clid} phone={c.phoneNumber} />
-                        </td>
-                      </tr>
-                    );
-                  })
+                  filteredLeads.map((l) => (
+                    <tr key={l.id} className="border-b hover:bg-muted/50">
+                      <td className="p-3 whitespace-nowrap text-muted-foreground">{formatDate(l.data_criacao)}</td>
+                      <td className="p-3 whitespace-nowrap">{l.nome || '-'}</td>
+                      <td className="p-3 whitespace-nowrap">{l.telefone || '-'}</td>
+                      <td className="p-3 whitespace-nowrap">{l.email || '-'}</td>
+                      <td className="p-3 whitespace-nowrap">{l.status || '-'}</td>
+                      <td className="p-3 whitespace-nowrap">
+                        <span>{l.campaign_name || '-'}</span>
+                        {l.campaign_id && <span className="block text-[10px] font-mono text-muted-foreground">{l.campaign_id}</span>}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        <span>{l.adset_name || '-'}</span>
+                        {l.adset_id && <span className="block text-[10px] font-mono text-muted-foreground">{l.adset_id}</span>}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        <span>{l.ad_name || '-'}</span>
+                        {l.ad_id && <span className="block text-[10px] font-mono text-muted-foreground">{l.ad_id}</span>}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        {l.Anuncio_thumbnail_url ? (
+                          <HoverCard openDelay={150} closeDelay={0}>
+                            <HoverCardTrigger asChild>
+                              <button
+                                type="button"
+                                className="relative inline-block w-10 h-10 rounded overflow-hidden border border-border"
+                                title={l.Anuncio_title || 'Criativo'}
+                              >
+                                <img src={l.Anuncio_thumbnail_url} alt={l.Anuncio_title || ''} className="w-full h-full object-cover" />
+                              </button>
+                            </HoverCardTrigger>
+                            <HoverCardContent className="w-auto p-2" side="right">
+                              <img src={l.Anuncio_thumbnail_url} alt={l.Anuncio_title || ''} className="max-w-[320px] max-h-[320px] rounded object-contain" />
+                              {(l.Anuncio_title || l.Anuncio_body) && (
+                                <p className="text-xs mt-1.5 max-w-[320px] line-clamp-3 text-muted-foreground">{l.Anuncio_title || l.Anuncio_body}</p>
+                              )}
+                            </HoverCardContent>
+                          </HoverCard>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="p-3 max-w-[200px] truncate" title={l.ctwaclid || ''}>{l.ctwaclid || '-'}</td>
+                      <td className="p-3 whitespace-nowrap">{l.utm_source || '-'}</td>
+                      <td className="p-3 whitespace-nowrap">{l.utm_campaign || '-'}</td>
+                      <td className="p-3 whitespace-nowrap">{l.valor_venda ? `R$ ${l.valor_venda}` : '-'}</td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
