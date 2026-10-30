@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Download, Search, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { Loader2, Download, Search, ChevronDown, ChevronRight, X, Columns3 } from 'lucide-react';
 import {
   Button,
   Dialog,
@@ -15,6 +15,12 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@evoapi/design-system';
 import { sitesService, type Site, type SiteLeadSubmission } from '@/services/sites/sitesService';
 
@@ -51,62 +57,83 @@ const dash = (value: string | number | null | undefined) => (value === null || v
 // payload expandido. Config-driven (array + map) em vez de JSX repetido
 // pra cabeçalho/corpo/CSV nunca ficarem fora de sincronia.
 const COLUMNS: Array<{
+  key: string;
   label: string;
   csv: (lead: SiteLeadSubmission) => string;
   cell: (lead: SiteLeadSubmission) => ReactNode;
 }> = [
-  { label: 'Data', csv: (l) => formatDate(l.created_at), cell: (l) => <span className="text-muted-foreground">{formatDate(l.created_at)}</span> },
-  { label: 'Evento', csv: (l) => l.event_name || '', cell: (l) => dash(l.event_name) },
-  { label: 'Order ID', csv: (l) => l.transaction_id || '', cell: (l) => dash(l.transaction_id) },
-  { label: 'First Name', csv: (l) => l.first_name || '', cell: (l) => dash(l.first_name) },
-  { label: 'Last Name', csv: (l) => l.last_name || '', cell: (l) => dash(l.last_name) },
-  { label: 'Email', csv: (l) => l.email || '', cell: (l) => dash(l.email) },
-  { label: 'Phone', csv: (l) => l.phone || '', cell: (l) => dash(l.phone) },
-  { label: 'Value', csv: (l) => l.value || '', cell: (l) => dash(l.value) },
-  { label: 'Content Name', csv: (l) => join(l.content_name), cell: (l) => dash(join(l.content_name)) },
-  { label: 'Gender', csv: (l) => l.gender || '', cell: (l) => dash(l.gender) },
-  { label: 'Age', csv: (l) => (ageFromBirthDate(l.birth_date) ?? '').toString(), cell: (l) => dash(ageFromBirthDate(l.birth_date)) },
-  { label: 'DB', csv: (l) => l.birth_date || '', cell: (l) => dash(l.birth_date) },
-  { label: 'Country', csv: (l) => l.address_country || '', cell: (l) => dash(l.address_country) },
-  { label: 'State', csv: (l) => l.address_state || '', cell: (l) => dash(l.address_state) },
-  { label: 'Zip', csv: (l) => l.address_zip || '', cell: (l) => dash(l.address_zip) },
-  { label: 'City', csv: (l) => l.address_city || '', cell: (l) => dash(l.address_city) },
-  { label: 'External ID', csv: (l) => l.external_id || '', cell: (l) => dash(l.external_id) },
-  { label: 'Content Type', csv: (l) => l.content_type || '', cell: (l) => dash(l.content_type) },
-  { label: 'Content IDs', csv: (l) => join(l.product_ids), cell: (l) => dash(join(l.product_ids)) },
-  { label: 'Currency', csv: (l) => l.currency || '', cell: (l) => dash(l.currency) },
-  { label: 'x-fb-ck-fbp', csv: (l) => l.fbp || '', cell: (l) => dash(l.fbp) },
-  { label: 'x-fb-ck-fbc', csv: (l) => l.fbc || '', cell: (l) => dash(l.fbc) },
-  { label: 'First Party Collection', csv: (l) => l.first_party_collection || '', cell: (l) => dash(l.first_party_collection) },
-  { label: 'Event Time', csv: (l) => formatDate(l.created_at), cell: (l) => <span className="text-muted-foreground">{formatDate(l.created_at)}</span> },
-  { label: 'Action Source', csv: (l) => l.action_source || '', cell: (l) => dash(l.action_source) },
-  { label: 'Content Category', csv: (l) => join(l.content_category), cell: (l) => dash(join(l.content_category)) },
-  { label: 'Num Items', csv: (l) => (l.num_items ?? '').toString(), cell: (l) => dash(l.num_items) },
-  { label: 'Campaign ID', csv: (l) => l.utm_id || '', cell: (l) => dash(l.utm_id) },
-  { label: 'Campaign Source', csv: (l) => l.utm_source || '', cell: (l) => dash(l.utm_source) },
-  { label: 'Campaign Medium', csv: (l) => l.utm_medium || '', cell: (l) => dash(l.utm_medium) },
-  { label: 'Campaign Campaign', csv: (l) => l.utm_campaign || '', cell: (l) => dash(l.utm_campaign) },
-  { label: 'Campaign Term', csv: (l) => l.utm_term || '', cell: (l) => dash(l.utm_term) },
-  { label: 'Campaign Content', csv: (l) => l.utm_content || '', cell: (l) => dash(l.utm_content) },
-  { label: 'gclid', csv: (l) => l.gclid || '', cell: (l) => dash(l.gclid) },
-  { label: 'Pagamento', csv: (l) => l.payment_method || '', cell: (l) => dash(l.payment_method) },
-  { label: 'Cupom', csv: (l) => l.coupon || '', cell: (l) => dash(l.coupon) },
+  { key: 'data', label: 'Data', csv: (l) => formatDate(l.created_at), cell: (l) => <span className="text-muted-foreground">{formatDate(l.created_at)}</span> },
+  { key: 'evento', label: 'Evento', csv: (l) => l.event_name || '', cell: (l) => dash(l.event_name) },
+  { key: 'order_id', label: 'Order ID', csv: (l) => l.transaction_id || '', cell: (l) => dash(l.transaction_id) },
+  { key: 'first_name', label: 'First Name', csv: (l) => l.first_name || '', cell: (l) => dash(l.first_name) },
+  { key: 'last_name', label: 'Last Name', csv: (l) => l.last_name || '', cell: (l) => dash(l.last_name) },
+  { key: 'email', label: 'Email', csv: (l) => l.email || '', cell: (l) => dash(l.email) },
+  { key: 'phone', label: 'Phone', csv: (l) => l.phone || '', cell: (l) => dash(l.phone) },
+  { key: 'value', label: 'Value', csv: (l) => l.value || '', cell: (l) => dash(l.value) },
+  { key: 'content_name', label: 'Content Name', csv: (l) => join(l.content_name), cell: (l) => dash(join(l.content_name)) },
+  { key: 'gender', label: 'Gender', csv: (l) => l.gender || '', cell: (l) => dash(l.gender) },
+  { key: 'age', label: 'Age', csv: (l) => (ageFromBirthDate(l.birth_date) ?? '').toString(), cell: (l) => dash(ageFromBirthDate(l.birth_date)) },
+  { key: 'db', label: 'DB', csv: (l) => l.birth_date || '', cell: (l) => dash(l.birth_date) },
+  { key: 'country', label: 'Country', csv: (l) => l.address_country || '', cell: (l) => dash(l.address_country) },
+  { key: 'state', label: 'State', csv: (l) => l.address_state || '', cell: (l) => dash(l.address_state) },
+  { key: 'zip', label: 'Zip', csv: (l) => l.address_zip || '', cell: (l) => dash(l.address_zip) },
+  { key: 'city', label: 'City', csv: (l) => l.address_city || '', cell: (l) => dash(l.address_city) },
+  { key: 'external_id', label: 'External ID', csv: (l) => l.external_id || '', cell: (l) => dash(l.external_id) },
+  { key: 'content_type', label: 'Content Type', csv: (l) => l.content_type || '', cell: (l) => dash(l.content_type) },
+  { key: 'content_ids', label: 'Content IDs', csv: (l) => join(l.product_ids), cell: (l) => dash(join(l.product_ids)) },
+  { key: 'currency', label: 'Currency', csv: (l) => l.currency || '', cell: (l) => dash(l.currency) },
+  { key: 'fbp', label: 'x-fb-ck-fbp', csv: (l) => l.fbp || '', cell: (l) => dash(l.fbp) },
+  { key: 'fbc', label: 'x-fb-ck-fbc', csv: (l) => l.fbc || '', cell: (l) => dash(l.fbc) },
+  { key: 'fpc', label: 'First Party Collection', csv: (l) => l.first_party_collection || '', cell: (l) => dash(l.first_party_collection) },
+  { key: 'event_time', label: 'Event Time', csv: (l) => formatDate(l.created_at), cell: (l) => <span className="text-muted-foreground">{formatDate(l.created_at)}</span> },
+  { key: 'action_source', label: 'Action Source', csv: (l) => l.action_source || '', cell: (l) => dash(l.action_source) },
+  { key: 'content_category', label: 'Content Category', csv: (l) => join(l.content_category), cell: (l) => dash(join(l.content_category)) },
+  { key: 'num_items', label: 'Num Items', csv: (l) => (l.num_items ?? '').toString(), cell: (l) => dash(l.num_items) },
+  { key: 'campaign_id', label: 'Campaign ID', csv: (l) => l.utm_id || '', cell: (l) => dash(l.utm_id) },
+  { key: 'campaign_source', label: 'Campaign Source', csv: (l) => l.utm_source || '', cell: (l) => dash(l.utm_source) },
+  { key: 'campaign_medium', label: 'Campaign Medium', csv: (l) => l.utm_medium || '', cell: (l) => dash(l.utm_medium) },
+  { key: 'campaign_campaign', label: 'Campaign Campaign', csv: (l) => l.utm_campaign || '', cell: (l) => dash(l.utm_campaign) },
+  { key: 'campaign_term', label: 'Campaign Term', csv: (l) => l.utm_term || '', cell: (l) => dash(l.utm_term) },
+  { key: 'campaign_content', label: 'Campaign Content', csv: (l) => l.utm_content || '', cell: (l) => dash(l.utm_content) },
+  { key: 'gclid', label: 'gclid', csv: (l) => l.gclid || '', cell: (l) => dash(l.gclid) },
+  { key: 'pagamento', label: 'Pagamento', csv: (l) => l.payment_method || '', cell: (l) => dash(l.payment_method) },
+  { key: 'cupom', label: 'Cupom', csv: (l) => l.coupon || '', cell: (l) => dash(l.coupon) },
   {
+    key: 'historico_cliente',
     label: 'Histórico cliente',
     csv: (l) => (l.customer_total_orders ? `${l.customer_total_orders}x / R$ ${l.customer_total_order_value}` : ''),
     cell: (l) => (l.customer_total_orders ? `${l.customer_total_orders}x · R$ ${l.customer_total_order_value}` : '-'),
   },
-  { label: 'Página de origem', csv: (l) => l.page_url || '', cell: (l) => <span className="max-w-[220px] inline-block truncate align-bottom" title={l.page_url || ''}>{dash(l.page_url)}</span> },
+  { key: 'pagina_origem', label: 'Página de origem', csv: (l) => l.page_url || '', cell: (l) => <span className="max-w-[220px] inline-block truncate align-bottom" title={l.page_url || ''}>{dash(l.page_url)}</span> },
 ];
 
-const COLUMN_COUNT = COLUMNS.length + 1; // +1 pelo botão de expandir
+// Colunas visíveis por padrão pra quem nunca configurou nada — as mais
+// úteis no dia a dia de LP/geração de lead. Site de e-commerce tem outro
+// conjunto relevante (Order ID, Value, Content Name/IDs, Cupom...),
+// configurável pelo próprio usuário no botão "Colunas" — por isso a
+// preferência é persistida POR SITE (ver COLUMN_PREFS_KEY), não global.
+const DEFAULT_VISIBLE_KEYS = ['data', 'evento', 'first_name', 'last_name', 'email', 'phone', 'campaign_source', 'campaign_campaign', 'pagina_origem'];
+
+const COLUMN_PREFS_KEY = (siteId: string) => `site-leads-columns-${siteId}`;
+
+function loadVisibleKeys(siteId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(COLUMN_PREFS_KEY(siteId));
+    if (raw) return new Set(JSON.parse(raw));
+  } catch {
+    // localStorage pode falhar (aba anônima, bloqueio de site) — cai no padrão.
+  }
+  return new Set(DEFAULT_VISIBLE_KEYS);
+}
 
 // "Ver leads" de um Site — mesmo padrão visual/estrutural de
 // LeadFormLeadsDialog.tsx (dialog full-screen, busca livre, filtro de
-// data, exportar CSV com BOM, linha expansível). Colunas FIXAS e
-// completas: toda coluna que a tag "Google Sheet relatorio de compra" do
-// GTM manda aparece aqui também, na mesma ordem (ver COLUMNS acima) —
-// pedido explícito do usuário, não só disponível no CSV/payload expandido.
+// data, exportar CSV com BOM, linha expansível). Todas as colunas que a
+// tag "Google Sheet relatorio de compra" do GTM manda EXISTEM aqui (ver
+// COLUMNS acima, na mesma ordem) — mas cada site escolhe quais ver no dia
+// a dia (botão "Colunas"), já que e-commerce e landing page de captura de
+// lead usam campos bem diferentes; a escolha fica salva por site
+// (loadVisibleKeys/COLUMN_PREFS_KEY), não é a mesma pra todos.
 export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
   const [leads, setLeads] = useState<SiteLeadSubmission[]>([]);
   const [loading, setLoading] = useState(false);
@@ -115,6 +142,29 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
   const [dateTo, setDateTo] = useState('');
   const [eventFilter, setEventFilter] = useState(ALL);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set(DEFAULT_VISIBLE_KEYS));
+
+  useEffect(() => {
+    if (open && site) setVisibleKeys(loadVisibleKeys(site.id));
+  }, [open, site]);
+
+  const toggleColumn = (key: string) => {
+    if (!site) return;
+    setVisibleKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(COLUMN_PREFS_KEY(site.id), JSON.stringify(Array.from(next)));
+      } catch {
+        // per-viewer apenas — ignora se localStorage não estiver disponível.
+      }
+      return next;
+    });
+  };
+
+  const visibleColumns = useMemo(() => COLUMNS.filter((c) => visibleKeys.has(c.key)), [visibleKeys]);
+  const visibleColumnCount = visibleColumns.length + 1; // +1 pelo botão de expandir
 
   // Barra de rolagem horizontal "fantasma" fixada no topo da tabela,
   // sincronizada com o scroll de verdade do container abaixo — sem isso,
@@ -130,9 +180,7 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
     const el = tableScrollRef.current;
     if (!el) return;
     setScrollWidth(el.scrollWidth);
-    // As colunas são sempre as mesmas fixas — a largura real só muda
-    // quando os dados terminam de carregar (tabela passa a existir no DOM).
-  }, [loading]);
+  }, [loading, visibleColumns]);
 
   const handleTopScroll = () => {
     if (syncingRef.current === 'table') { syncingRef.current = null; return; }
@@ -268,10 +316,31 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
               <p className="text-sm text-muted-foreground whitespace-nowrap">
                 {filteredLeads.length === leads.length ? `${leads.length} lead(s)` : `${filteredLeads.length} de ${leads.length} lead(s)`}
                 {' · '}
-                <span title="Role a tabela pra ver todas as colunas, ou use o botão à esquerda de cada linha pra ver o payload bruto completo.">
-                  {COLUMNS.length} colunas
+                <span title="Use o botão 'Colunas' pra escolher quais aparecem, ou o botão à esquerda de cada linha pra ver o payload bruto completo.">
+                  {visibleColumns.length} de {COLUMNS.length} colunas
                 </span>
               </p>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Columns3 className="w-3.5 h-3.5 mr-1.5" /> Colunas
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-[70vh] overflow-y-auto">
+                  <DropdownMenuLabel>Colunas exibidas neste site</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {COLUMNS.map((c) => (
+                    <DropdownMenuCheckboxItem
+                      key={c.key}
+                      checked={visibleKeys.has(c.key)}
+                      onCheckedChange={() => toggleColumn(c.key)}
+                      onSelect={(e: Event) => e.preventDefault()}
+                    >
+                      {c.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button size="sm" onClick={downloadCsv}>
                 <Download className="w-3.5 h-3.5 mr-1.5" /> Baixar CSV
               </Button>
@@ -284,8 +353,8 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
                 <thead className="bg-muted sticky top-0">
                   <tr>
                     <th className="p-2 w-6" />
-                    {COLUMNS.map((c) => (
-                      <th key={c.label} className="text-left p-2 font-medium whitespace-nowrap">
+                    {visibleColumns.map((c) => (
+                      <th key={c.key} className="text-left p-2 font-medium whitespace-nowrap">
                         {c.label}
                       </th>
                     ))}
@@ -294,7 +363,7 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
                 <tbody>
                   {filteredLeads.length === 0 && (
                     <tr>
-                      <td colSpan={COLUMN_COUNT} className="p-4 text-center text-muted-foreground">
+                      <td colSpan={visibleColumnCount} className="p-4 text-center text-muted-foreground">
                         Nenhum lead encontrado pra essa busca/filtro.
                       </td>
                     </tr>
@@ -312,15 +381,15 @@ export function SiteLeadsDialog({ open, onOpenChange, site }: Props) {
                             {expandedId === lead.id ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                           </button>
                         </td>
-                        {COLUMNS.map((c) => (
-                          <td key={c.label} className="p-2 whitespace-nowrap">
+                        {visibleColumns.map((c) => (
+                          <td key={c.key} className="p-2 whitespace-nowrap">
                             {c.cell(lead)}
                           </td>
                         ))}
                       </tr>
                       {expandedId === lead.id && (
                         <tr className="border-t border-border bg-muted/40">
-                          <td colSpan={COLUMN_COUNT} className="p-3">
+                          <td colSpan={visibleColumnCount} className="p-3">
                             <p className="text-[11px] text-muted-foreground mb-1">Payload bruto recebido no webhook:</p>
                             <pre className="text-[11px] bg-background rounded-md p-3 overflow-x-auto max-h-[300px] whitespace-pre-wrap">
                               {JSON.stringify(lead.raw_payload, null, 2)}

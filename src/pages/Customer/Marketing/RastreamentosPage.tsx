@@ -1,12 +1,21 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@evoapi/design-system';
-import { RastreamentoSiteTab } from '@/components/marketing/RastreamentoSiteTab';
-import { RastreamentoFormularioTab } from '@/components/marketing/RastreamentoFormularioTab';
+import { SitesTab } from '@/pages/Customer/Dashboard/components/SitesTab';
+import { MetaLeadFormsTab } from '@/components/marketing/MetaLeadFormsTab';
 import { RastreamentoWhatsappTab } from '@/components/marketing/RastreamentoWhatsappTab';
 
-// 3 fontes de rastreamento de origem de lead (Meta/Instagram), cada uma
-// com seu próprio formato de dado — por isso 3 abas em vez de uma tabela
-// só. As abas ficam ao lado do título (não numa linha cheia abaixo) pra
-// não ocupar espaço vertical extra, como pedido.
+// 3 fontes de rastreamento de origem de lead, centralizadas num só lugar —
+// cada aba reaproveita o componente JÁ EXISTENTE de onde ela vem (pedido
+// explícito do usuário: "quero que abra exatamente... tudo igual
+// exatamente como foi desenvolvido, só estou centralizando em um lugar"),
+// sem reconstruir nada:
+// - Site: o mesmo SitesTab de Dashboards > Sites (cards + SiteLeadsDialog).
+// - Formulário: o mesmo MetaLeadFormsTab de Marketing > Criação Meta
+//   (extraído de lá pra um componente compartilhado, usado nos dois
+//   lugares com o comportamento idêntico).
+// - WhatsApp: contatos Helena/WTS enriquecidos com campanha/conjunto/
+//   anúncio/criativo (só existe aqui, não tem página própria).
+// As abas ficam ao lado do título (não numa linha cheia abaixo) pra não
+// ocupar espaço vertical extra, como pedido.
 export default function RastreamentosPage() {
   return (
     <div className="flex flex-col min-h-full bg-background p-6 space-y-4">
@@ -23,11 +32,11 @@ export default function RastreamentosPage() {
           </TabsList>
         </div>
 
-        <TabsContent value="site" className="flex-1 flex flex-col min-h-0 mt-4">
-          <RastreamentoSiteTab />
+        <TabsContent value="site" className="flex-1 flex flex-col min-h-0 mt-4 overflow-y-auto">
+          <SitesTab />
         </TabsContent>
-        <TabsContent value="formulario" className="flex-1 flex flex-col min-h-0 mt-4">
-          <RastreamentoFormularioTab />
+        <TabsContent value="formulario" className="flex-1 flex flex-col min-h-0 mt-4 overflow-y-auto">
+          <MetaLeadFormsTab />
         </TabsContent>
         <TabsContent value="whatsapp" className="flex-1 flex flex-col min-h-0 mt-4">
           <RastreamentoWhatsappTab />
