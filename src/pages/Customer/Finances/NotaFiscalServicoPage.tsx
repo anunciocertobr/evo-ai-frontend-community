@@ -203,12 +203,19 @@ export default function NotaFiscalServicoPage() {
     setSelectedTomadorId(tomadorId);
     const tomador = savedTomadores.find((t) => t.id === tomadorId);
     if (!tomador) return;
+    const lastService = tomador.last_service || {};
     setForm((prev) => ({
       ...prev,
       tomador_nome: tomador.nome,
       tomador_cpf_cnpj: tomador.cpf_cnpj,
       tomador_email: tomador.email || '',
       tomador_endereco: { ...tomador.endereco },
+      discriminacao: lastService.discriminacao || prev.discriminacao,
+      codigo_servico_municipal: lastService.codigo_servico_municipal || prev.codigo_servico_municipal,
+      codigo_nbs: lastService.codigo_nbs || prev.codigo_nbs,
+      codigo_tributacao_municipio: lastService.codigo_tributacao_municipio ?? prev.codigo_tributacao_municipio,
+      valor_servicos: lastService.valor_servicos ?? prev.valor_servicos,
+      aliquota_iss_pct: lastService.aliquota_iss_pct ?? prev.aliquota_iss_pct,
     }));
   };
 
@@ -228,6 +235,14 @@ export default function NotaFiscalServicoPage() {
         cpf_cnpj: form.tomador_cpf_cnpj.trim(),
         email: form.tomador_email?.trim() || undefined,
         endereco: form.tomador_endereco,
+        last_service: {
+          discriminacao: form.discriminacao,
+          codigo_servico_municipal: form.codigo_servico_municipal,
+          codigo_nbs: form.codigo_nbs,
+          codigo_tributacao_municipio: form.codigo_tributacao_municipio,
+          valor_servicos: form.valor_servicos,
+          aliquota_iss_pct: form.aliquota_iss_pct,
+        },
       };
       const saved = existing
         ? await fiscalTomadoresService.update(existing.id, payload)
@@ -362,6 +377,24 @@ export default function NotaFiscalServicoPage() {
     }
     if (!form.discriminacao.trim() || !form.codigo_servico_municipal.trim()) {
       toast.error('Informe a discriminação e o código de serviço municipal.');
+      return;
+    }
+    // Confirmado em produção: código de serviço fora da tabela de atividades
+    // deste estabelecimento (Guarulhos::Client::CODIGOS_TRIBUTACAO_MUNICIPIO)
+    // sem override manual dá [E202] "Código de tributação não informado" —
+    // o placeholder do campo abaixo ("usa o padrão do item") só é verdade pra
+    // esses 4 códigos; pra qualquer outro item da lista LC116 o padrão não
+    // existe e queima um RPS à toa. Mantém os dois em sincronia manualmente
+    // (lista pequena, mudança rara — ver comentário junto da constante no
+    // backend).
+    const codigosComPadrao = ['1008', '1009', '1701', '1706'];
+    const codigoServicoDigitos = form.codigo_servico_municipal.replace(/\D/g, '');
+    if (!codigosComPadrao.includes(codigoServicoDigitos) && !form.codigo_tributacao_municipio?.trim()) {
+      toast.error(
+        'Esse código de serviço (LC116) não tem código de tributação padrão cadastrado pra este estabelecimento. ' +
+          'Use 17.06 pra tráfego pago/marketing direto, 17.01 pra consultoria em publicidade, 10.08/10.09 pra agenciamento/representação de veículos de comunicação, ' +
+          'ou preencha "Cód. tributação municipal" manualmente com o contador.',
+      );
       return;
     }
     if (!form.valor_servicos || form.valor_servicos <= 0) {
@@ -830,7 +863,7 @@ export default function NotaFiscalServicoPage() {
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     setForm((prev) => ({ ...prev, codigo_tributacao_municipio: e.target.value }))
                   }
-                  placeholder="Deixe em branco para usar o padrão do item"
+                  placeholder="Só tem padrão automático pra 10.08/10.09/17.01/17.06"
                   maxLength={20}
                 />
               </div>

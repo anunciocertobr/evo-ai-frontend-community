@@ -92,12 +92,24 @@ export interface ServiceInvoice {
   updated_at: string;
 }
 
+// Dados do serviço da última nota emitida pra este tomador — preenche o
+// resto do formulário (além de nome/endereço) ao escolher um tomador salvo.
+export interface FiscalTomadorLastService {
+  discriminacao?: string;
+  codigo_servico_municipal?: string;
+  codigo_nbs?: string;
+  codigo_tributacao_municipio?: string;
+  valor_servicos?: number;
+  aliquota_iss_pct?: number;
+}
+
 export interface FiscalTomador {
   id: string;
   nome: string;
   cpf_cnpj: string;
   email?: string | null;
   endereco: ServiceInvoiceEndereco;
+  last_service?: FiscalTomadorLastService;
   created_at: string;
   updated_at: string;
 }
@@ -107,6 +119,7 @@ export interface FiscalTomadorFormData {
   cpf_cnpj: string;
   email?: string;
   endereco: ServiceInvoiceEndereco;
+  last_service?: FiscalTomadorLastService;
 }
 
 export interface ServiceInvoiceFormData {
