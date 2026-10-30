@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Film, ExternalLink, Search, X } from 'lucide-react';
 import {
@@ -45,6 +45,9 @@ interface HelenaContact {
   createdAt?: string;
 }
 
+const TOTAL_COLUMNS = 16;
+const MAX_ROWS = 200;
+
 function uniqueOptions(values: Array<{ id?: string | null; name?: string | null }>) {
   const seen = new Map<string, string>();
   values.forEach((v) => {
@@ -75,6 +78,58 @@ export default function RastreamentosPage() {
   const [adsetFilter, setAdsetFilter] = useState(ALL);
   const [adFilter, setAdFilter] = useState(ALL);
 
+  const [enriching, setEnriching] = useState(false);
+
+  // Barra de rolagem horizontal "fantasma" fixada no topo da tabela,
+  // sincronizada com o scroll real do container abaixo — mesmo padrão já
+  // usado em SiteLeadsDialog.tsx. Sem isso, com muitas colunas, a barra
+  // nativa só fica visível depois de rolar a tabela toda pra baixo até o
+  // fim (pedido do usuário: "não vi barra de rolagem fixa horizontal").
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const [scrollWidth, setScrollWidth] = useState(0);
+  const syncingRef = useRef<'top' | 'table' | null>(null);
+
+  const handleTopScroll = () => {
+    if (syncingRef.current === 'table') { syncingRef.current = null; return; }
+    if (!topScrollRef.current || !tableScrollRef.current) return;
+    syncingRef.current = 'top';
+    tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+  };
+
+  const handleTableScroll = () => {
+    if (syncingRef.current === 'top') { syncingRef.current = null; return; }
+    if (!topScrollRef.current || !tableScrollRef.current) return;
+    syncingRef.current = 'table';
+    topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+  };
+
+  // Busca o contexto de anúncio (campanha/conjunto/anúncio/criativo) em
+  // lotes com concorrência limitada — com ~15 mil contatos reais, dispara
+  // TUDO de uma vez (Promise.all sem limite) sobrecarregava o navegador e
+  // a Graph API, e a maioria dos lookups acabava falhando/nunca voltando,
+  // por isso campanha/conjunto/anúncio/criativo nunca apareciam. Atualiza
+  // o estado progressivamente a cada lote, em vez de esperar tudo acabar.
+  const enrichAdContext = useCallback(async (adIds: string[]) => {
+    const BATCH_SIZE = 8;
+    setEnriching(true);
+    try {
+      for (let i = 0; i < adIds.length; i += BATCH_SIZE) {
+        const batch = adIds.slice(i, i + BATCH_SIZE);
+        const results = await Promise.all(batch.map((adId) => rastreamentosService.adContext(adId)));
+        setAdContextByAdId((prev) => {
+          const next = { ...prev };
+          results.forEach((ctx) => {
+            if (ctx) next[ctx.ad_id] = ctx;
+          });
+          return next;
+        });
+      }
+    } finally {
+      setEnriching(false);
+    }
+  }, []);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -83,12 +138,7 @@ export default function RastreamentosPage() {
         setContacts(items);
 
         const uniqueAdIds = Array.from(new Set(items.map((c: HelenaContact) => c.utm?.sourceId).filter(Boolean))) as string[];
-        const results = await Promise.all(uniqueAdIds.map((adId) => rastreamentosService.adContext(adId)));
-        const byId: Record<string, HelenaAdContext> = {};
-        results.forEach((ctx) => {
-          if (ctx) byId[ctx.ad_id] = ctx;
-        });
-        setAdContextByAdId(byId);
+        enrichAdContext(uniqueAdIds);
       } catch {
         toast.error('Erro ao carregar os contatos da Helena/WTS.');
       } finally {
@@ -96,7 +146,7 @@ export default function RastreamentosPage() {
       }
     };
     load();
-  }, []);
+  }, [enrichAdContext]);
 
   const contextFor = useCallback(
     (contact: HelenaContact) => {
@@ -168,6 +218,14 @@ export default function RastreamentosPage() {
       return campos.some((v) => v?.toLowerCase().includes(term));
     });
   }, [contacts, search, dateFrom, dateTo, campaignFilter, adsetFilter, adFilter, contextFor]);
+
+  const visibleContacts = useMemo(() => filteredContacts.slice(0, MAX_ROWS), [filteredContacts]);
+
+  useEffect(() => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+    setScrollWidth(el.scrollWidth);
+  }, [loading, visibleContacts]);
 
   const openCreative = (ctx?: HelenaAdContext) => {
     if (ctx?.criativo?.video) window.open(ctx.criativo.video, '_blank', 'noopener,noreferrer');
@@ -258,14 +316,19 @@ export default function RastreamentosPage() {
             </div>
             <p className="text-sm text-muted-foreground whitespace-nowrap">
               {filteredContacts.length === contacts.length ? `${contacts.length} contato(s)` : `${filteredContacts.length} de ${contacts.length} contato(s)`}
+              {filteredContacts.length > MAX_ROWS && ` · exibindo os primeiros ${MAX_ROWS} (use os filtros pra achar o resto)`}
+              {enriching && ' · carregando campanha/conjunto/anúncio...'}
             </p>
           </div>
         </>
       )}
 
       <Card className="flex-1 overflow-hidden">
-        <CardContent className="p-0 h-full">
-          <div className="overflow-auto h-full max-h-[70vh]">
+        <CardContent className="p-0 h-full flex flex-col">
+          <div ref={topScrollRef} onScroll={handleTopScroll} className="overflow-x-auto overflow-y-hidden shrink-0" style={{ height: 14 }}>
+            <div style={{ width: scrollWidth, height: 1 }} />
+          </div>
+          <div ref={tableScrollRef} onScroll={handleTableScroll} className="overflow-auto h-full max-h-[70vh]">
             <table className="w-full text-sm">
               <thead className="bg-muted sticky top-0 z-10">
                 <tr className="border-b">
@@ -273,31 +336,37 @@ export default function RastreamentosPage() {
                   <th className="text-left p-3 font-medium whitespace-nowrap">Nome</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Telefone</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">E-mail</th>
+                  <th className="text-left p-3 font-medium whitespace-nowrap">Origem</th>
+                  <th className="text-left p-3 font-medium whitespace-nowrap">Source (UTM)</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Campanha</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Conjunto</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Anúncio</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Criativo</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Clid</th>
+                  <th className="text-left p-3 font-medium whitespace-nowrap">Medium (UTM)</th>
+                  <th className="text-left p-3 font-medium whitespace-nowrap">Content (UTM)</th>
+                  <th className="text-left p-3 font-medium whitespace-nowrap">Headline (UTM)</th>
+                  <th className="text-left p-3 font-medium whitespace-nowrap">Referral URL (UTM)</th>
                   <th className="p-3 w-10" />
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={10} className="p-6 text-center text-muted-foreground">
+                    <td colSpan={TOTAL_COLUMNS} className="p-6 text-center text-muted-foreground">
                       <Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Carregando...
                     </td>
                   </tr>
                 ) : contacts.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="p-6 text-center text-muted-foreground">Nenhum contato encontrado</td>
+                    <td colSpan={TOTAL_COLUMNS} className="p-6 text-center text-muted-foreground">Nenhum contato encontrado</td>
                   </tr>
                 ) : filteredContacts.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="p-6 text-center text-muted-foreground">Nenhum contato encontrado pra essa busca/filtro.</td>
+                    <td colSpan={TOTAL_COLUMNS} className="p-6 text-center text-muted-foreground">Nenhum contato encontrado pra essa busca/filtro.</td>
                   </tr>
                 ) : (
-                  filteredContacts.map((c) => {
+                  visibleContacts.map((c) => {
                     const ctx = contextFor(c);
                     const criativo = ctx?.criativo;
                     return (
@@ -306,6 +375,8 @@ export default function RastreamentosPage() {
                         <td className="p-3 whitespace-nowrap">{c.name || c.nameWhatsapp || '-'}</td>
                         <td className="p-3 whitespace-nowrap">{c.phoneNumberFormatted || c.phoneNumber || '-'}</td>
                         <td className="p-3 whitespace-nowrap">{c.email || '-'}</td>
+                        <td className="p-3 whitespace-nowrap">{c.origin || '-'}</td>
+                        <td className="p-3 whitespace-nowrap">{c.utm?.source || '-'}</td>
                         <td className="p-3 whitespace-nowrap">
                           <span>{ctx?.campaign_name || '-'}</span>
                           {ctx?.campaign_id && <span className="block text-[10px] font-mono text-muted-foreground">{ctx.campaign_id}</span>}
@@ -364,6 +435,10 @@ export default function RastreamentosPage() {
                         <td className="p-3 max-w-[200px] truncate" title={c.utm?.clid || ''}>
                           {c.utm?.clid || '-'}
                         </td>
+                        <td className="p-3 whitespace-nowrap">{c.utm?.medium || '-'}</td>
+                        <td className="p-3 whitespace-nowrap">{c.utm?.content || '-'}</td>
+                        <td className="p-3 whitespace-nowrap">{c.utm?.headline || '-'}</td>
+                        <td className="p-3 max-w-[220px] truncate" title={c.utm?.referralUrl || ''}>{c.utm?.referralUrl || '-'}</td>
                         <td className="p-3">
                           <RastreamentoConversionButton adId={c.utm?.sourceId} ctwaClid={c.utm?.clid} phone={c.phoneNumber} />
                         </td>
