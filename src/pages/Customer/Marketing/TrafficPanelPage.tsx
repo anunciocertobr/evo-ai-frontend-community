@@ -1233,6 +1233,28 @@ function DuplicateModal({
   const [targetAdSets, setTargetAdSets] = useState<AggregatedItem[]>(allAdSets);
   const [targetAdSetId, setTargetAdSetId] = useState('');
   const [loadingTargets, setLoadingTargets] = useState(false);
+
+  // O efeito de inicialização abaixo roda só em [item, open] (de propósito,
+  // pra não disparar de novo a cada re-render enquanto o modal já está
+  // aberto) — mas currentBmId/adAccountId/campaigns/allAdSets são props que
+  // podem mudar ENTRE o render em que o efeito foi definido e o momento em
+  // que ele de fato dispara (ex.: a árvore do painel ainda está recarregando
+  // quando o usuário clica "Duplicar" logo em seguida). Sem os refs abaixo,
+  // o efeito capturava a BM/conta de uma renderização desatualizada (às
+  // vezes null) e nunca mais corrigia sozinho, mesmo depois da prop chegar
+  // certa — sintoma relatado: "ao duplicar parou de carregar a BM e a conta
+  // de anúncio". Atualizados a cada render (não em useEffect) pra garantir
+  // que, no instante em que [item, open] dispara, .current já reflete a
+  // prop mais recente.
+  const currentBmIdRef = useRef(currentBmId);
+  currentBmIdRef.current = currentBmId;
+  const adAccountIdRef = useRef(adAccountId);
+  adAccountIdRef.current = adAccountId;
+  const campaignsRef = useRef(campaigns);
+  campaignsRef.current = campaigns;
+  const allAdSetsRef = useRef(allAdSets);
+  allAdSetsRef.current = allAdSets;
+
   // O modal dispara loadAccountsForBm automaticamente ao abrir (currentBmId)
   // e de novo se o usuário troca a BM manualmente logo em seguida — sem essa
   // trava, a resposta mais lenta (geralmente a automática, que teve menos
@@ -1403,7 +1425,14 @@ function DuplicateModal({
               : 'NENHUMA',
     });
     // Pré-seleciona BM/conta/campanha/conjunto atuais — o usuário só mexe
-    // nos seletores se quiser duplicar pra outro lugar.
+    // nos seletores se quiser duplicar pra outro lugar. Lê dos refs (não das
+    // props direto), que sempre têm o valor mais recente mesmo se este
+    // efeito disparou com uma renderização desatualizada — ver comentário
+    // nos refs acima.
+    const currentBmId = currentBmIdRef.current;
+    const adAccountId = adAccountIdRef.current;
+    const campaigns = campaignsRef.current;
+    const allAdSets = allAdSetsRef.current;
     setTargetCampaigns(campaigns);
     setTargetAdSets(allAdSets);
     setTargetCampaignId(item.campaignId || campaigns[0]?.id || '');
