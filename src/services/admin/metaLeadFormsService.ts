@@ -1,5 +1,6 @@
 import api from '../core/api';
 import { extractData } from '../../utils/apiHelpers';
+import type { LeadSearchResult } from '../marketing/metaCreationService';
 
 export type MetaLeadFormMode = 'pipeline' | 'notify_only';
 
@@ -102,6 +103,16 @@ export const metaLeadFormsService = {
   async list(): Promise<MetaLeadForm[]> {
     const response = await api.get('/admin/meta_lead_forms');
     return extractData<MetaLeadForm[]>(response);
+  },
+
+  // Aba "Formulário" do Rastreamentos — leads de todos os formulários
+  // mapeados, não só um. `limit` = quantos formulários mapeados mais
+  // recentes considerar (0 = todos, mais lento — ver comentário no
+  // backend). Reaproveita o mesmo shape de LeadSearchResult
+  // (metaCreationService) já usado na busca por telefone/nome/email.
+  async allLeads(limit?: number): Promise<LeadSearchResult[]> {
+    const response = await api.get('/admin/meta_lead_forms/all_leads', { params: limit !== undefined ? { limit } : undefined });
+    return extractData<LeadSearchResult[]>(response);
   },
 
   async create(payload: MetaLeadFormPayload): Promise<MetaLeadForm> {
