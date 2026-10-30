@@ -21,7 +21,7 @@ import { LeadgenSubscriptionButton } from '@/components/marketing/LeadgenSubscri
 import LeadFormLeadsDialog from '@/components/marketing/LeadFormLeadsDialog';
 import { LeadFormNotifySettingsDialog } from '@/components/marketing/LeadFormNotifySettingsDialog';
 import { MetaLeadFormPipelineDialog } from '@/components/marketing/MetaLeadFormPipelineDialog';
-import { MetaLeadsNotifyDefaultDialog } from '@/components/marketing/MetaLeadsNotifyDefaultDialog';
+import { MetaLeadsNotifyPageDialog } from '@/components/marketing/MetaLeadsNotifyPageDialog';
 import { MetaLeadsPipelineDefaultDialog } from '@/components/marketing/MetaLeadsPipelineDefaultDialog';
 import { AudienceCreateDialog } from '@/components/marketing/AudienceCreateDialog';
 import { AudienceContactsPickerDialog } from '@/components/marketing/AudienceContactsPickerDialog';
@@ -42,6 +42,7 @@ import {
   type SavedAudience,
 } from '@/services/marketing/metaCreationService';
 import { metaLeadNotificationSettingsService } from '@/services/admin/metaLeadNotificationSettingsService';
+import { metaLeadPageSettingsService } from '@/services/admin/metaLeadPageSettingsService';
 import LeadSearchDialog from '@/components/marketing/LeadSearchDialog';
 import { adminConfigService } from '@/services/admin/adminConfigService';
 
@@ -165,18 +166,21 @@ export default function MetaCreationPage() {
     if (page) loadForms(page.id);
   }, [page, loadForms]);
 
-  // Carrega 1x (não depende de página) o padrão da conta, que é o que o
-  // sino "Notificações de Leads" do topo reflete de fato (ver comentário
-  // acima de notifyDefaultOpen).
+  // Sino "Notificações de Leads" do topo reflete o PADRÃO DESTA PÁGINA
+  // (MetaLeadPageSetting via metaLeadPageSettingsService), não mais um
+  // balde único compartilhado por todas as Páginas — por isso depende de
+  // `page` e recarrega a cada troca de Página.
   const loadDefaultNotifySetting = useCallback(() => {
-    adminConfigService
-      .getConfig('meta_leads_notify')
-      .then((config) => setDefaultNotifyEnabled(config?.META_LEADS_NOTIFY_ENABLED === 'true'))
+    if (!page) return;
+    metaLeadPageSettingsService
+      .get(page.id)
+      .then((settings) => setDefaultNotifyEnabled(settings.channels.length > 0))
       .catch(() => {});
-  }, []);
+  }, [page]);
 
-  // Mesma ideia do sino de notificação, pro pipeline padrão (leads de
-  // formulário sem mapeamento próprio) — ver MetaLeadsPipelineDefaultDialog.
+  // Pipeline padrão continua sendo da CONTA de propósito — é o fallback de
+  // leads de formulário sem NENHUM mapeamento próprio (ver
+  // MetaLeadsPipelineDefaultDialog), diferente do padrão por Página.
   const loadDefaultPipelineSetting = useCallback(() => {
     adminConfigService
       .getConfig('meta_leads_pipeline_default')
@@ -186,8 +190,11 @@ export default function MetaCreationPage() {
 
   useEffect(() => {
     loadDefaultNotifySetting();
+  }, [loadDefaultNotifySetting]);
+
+  useEffect(() => {
     loadDefaultPipelineSetting();
-  }, [loadDefaultNotifySetting, loadDefaultPipelineSetting]);
+  }, [loadDefaultPipelineSetting]);
 
   const loadNotifySettingsForForms = useCallback((formIds: string[]) => {
     if (formIds.length === 0) {
@@ -447,8 +454,9 @@ export default function MetaCreationPage() {
                     variant="outline"
                     onClick={() => setNotifyDefaultOpen(true)}
                     className={defaultNotifyEnabled ? 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400' : ''}
+                    title="Vale só pros formulários desta Página"
                   >
-                    <Bell className={`w-4 h-4 mr-1.5 ${defaultNotifyEnabled ? 'fill-emerald-500/30' : ''}`} /> Notificações de Leads
+                    <Bell className={`w-4 h-4 mr-1.5 ${defaultNotifyEnabled ? 'fill-emerald-500/30' : ''}`} /> Notificações desta Página
                   </Button>
                   <Button
                     variant="outline"
@@ -589,12 +597,14 @@ export default function MetaCreationPage() {
                 />
               )}
 
-              <MetaLeadsNotifyDefaultDialog
+              <MetaLeadsNotifyPageDialog
                 open={notifyDefaultOpen}
                 onOpenChange={(open) => {
                   setNotifyDefaultOpen(open);
                   if (!open) loadDefaultNotifySetting();
                 }}
+                pageId={page.id}
+                pageName={page.name}
               />
 
               <MetaLeadsPipelineDefaultDialog
