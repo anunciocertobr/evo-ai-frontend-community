@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Plus,
@@ -274,6 +274,51 @@ export default function NotaFiscalServicoPage() {
       setCnpjLoading(false);
     }
   };
+
+  // Fallback por CEP (ViaCEP) pro logradouro — a consulta de CNPJ às vezes
+  // não devolve todos os campos de endereço (BrasilAPI depende do que a
+  // Receita tem cadastrado), mas quando pelo menos o CEP vem preenchido
+  // (pelo CNPJ ou digitado à mão) dá pra completar o resto por ele. Só
+  // preenche o que estiver vazio — nunca sobrescreve o que já foi digitado.
+  const [cepLoading, setCepLoading] = useState(false);
+  const lastCepLookupRef = useRef('');
+
+  const handleLookupCep = useCallback(async (rawCep: string) => {
+    const digits = onlyDigits(rawCep);
+    if (digits.length !== 8 || digits === lastCepLookupRef.current) return;
+    lastCepLookupRef.current = digits;
+    setCepLoading(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data: { logradouro?: string; bairro?: string; uf?: string; ibge?: string; erro?: boolean } = await res.json();
+      if (data?.erro) return;
+      setForm((prev) => ({
+        ...prev,
+        tomador_endereco: {
+          ...prev.tomador_endereco,
+          logradouro: prev.tomador_endereco.logradouro || data.logradouro || '',
+          bairro: prev.tomador_endereco.bairro || data.bairro || '',
+          uf: prev.tomador_endereco.uf || data.uf || '',
+          codigo_municipio: prev.tomador_endereco.codigo_municipio || data.ibge || '',
+        },
+      }));
+    } catch {
+      // best-effort — não bloqueia o preenchimento manual do endereço
+    } finally {
+      setCepLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const digits = onlyDigits(form.tomador_endereco.cep);
+    if (digits.length < 8) {
+      lastCepLookupRef.current = '';
+      return;
+    }
+    if (!form.tomador_endereco.logradouro.trim()) {
+      handleLookupCep(digits);
+    }
+  }, [form.tomador_endereco.cep, form.tomador_endereco.logradouro, handleLookupCep]);
 
   const handleSave = async () => {
     if (!form.fiscal_establishment_id) {
@@ -689,6 +734,7 @@ export default function NotaFiscalServicoPage() {
                     setForm((prev) => ({ ...prev, tomador_endereco: { ...prev.tomador_endereco, cep: e.target.value } }))
                   }
                 />
+                {cepLoading && <p className="text-xs text-muted-foreground mt-1">Buscando logradouro pelo CEP...</p>}
               </div>
             </div>
 
