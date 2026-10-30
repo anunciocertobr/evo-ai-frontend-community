@@ -124,12 +124,6 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         icon: Globe,
       },
     ],
-  },  {
-    name: t('menu.customer.courses'),
-    href: '/cursos',
-    icon: GraduationCap,
-    resource: 'courses',
-    action: 'read',
   },
   {
     name: t('menu.customer.conversations'),
@@ -326,6 +320,11 @@ export const getCustomerMenuItems = (t: (key: string) => string): MenuItem[] => 
         name: 'Lead Ads (Meta)',
         href: '/organizacao/lead-ads-meta',
         icon: UserPlus,
+      },
+      {
+        name: t('menu.customer.courses'),
+        href: '/cursos',
+        icon: GraduationCap,
       },
     ],
   },
