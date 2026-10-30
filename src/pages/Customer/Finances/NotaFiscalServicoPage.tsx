@@ -14,6 +14,7 @@ import {
   Users,
   Download,
   Send,
+  LayoutDashboard,
 } from 'lucide-react';
 import {
   Button,
@@ -51,6 +52,7 @@ import {
 } from '@evoapi/design-system';
 import { toast } from 'sonner';
 import { BaseHeader } from '@/components/base';
+import { ServiceInvoiceDashboardDialog } from '@/components/finances/ServiceInvoiceDashboardDialog';
 import { fiscalEstablishmentsService } from '@/services/finances/fiscalEstablishmentsService';
 import { serviceInvoicesService } from '@/services/finances/serviceInvoicesService';
 import { fiscalTomadoresService } from '@/services/finances/fiscalTomadoresService';
@@ -139,6 +141,7 @@ export default function NotaFiscalServicoPage() {
   // Consulta de CNPJ do tomador (BrasilAPI) — preenche os campos sozinho.
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [lastCnpjLookup, setLastCnpjLookup] = useState('');
+  const [dashboardOpen, setDashboardOpen] = useState(false);
 
   const activeEstablishments = useMemo(() => establishments.filter((e) => e.active), [establishments]);
 
@@ -163,6 +166,22 @@ export default function NotaFiscalServicoPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Reconsulta a lista sozinha enquanto houver nota "processando" — a
+  // atualização de status de verdade roda no backend (consulta rápida 20s
+  // após emitir + cron de 5min, ver ServiceInvoices::EmissionService), mas
+  // sem isso aqui a tela só refletia o resultado depois de um reload manual.
+  const hasProcessingInvoice = useMemo(() => invoices.some((inv) => inv.status === 'processing'), [invoices]);
+
+  useEffect(() => {
+    if (!hasProcessingInvoice) return;
+
+    const interval = setInterval(() => {
+      serviceInvoicesService.list().then(setInvoices).catch(() => {});
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [hasProcessingInvoice]);
 
   useEffect(() => {
     InboxesService.list()
@@ -446,7 +465,16 @@ export default function NotaFiscalServicoPage() {
           onClick: openCreateDialog,
           disabled: activeEstablishments.length === 0,
         }}
+        secondaryActions={[
+          {
+            label: 'Dashboard',
+            icon: <LayoutDashboard className="w-4 h-4" />,
+            onClick: () => setDashboardOpen(true),
+          },
+        ]}
       />
+
+      <ServiceInvoiceDashboardDialog open={dashboardOpen} onOpenChange={setDashboardOpen} />
 
       {!loading && activeEstablishments.length === 0 && (
         <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 rounded-lg border border-border bg-muted/30 px-4 py-2.5">

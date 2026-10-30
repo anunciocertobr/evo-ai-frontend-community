@@ -5,8 +5,14 @@ import { ServiceInvoice, ServiceInvoiceFormData } from '@/types/fiscalInvoices';
 class ServiceInvoicesService {
   private readonly baseUrl = '/finances/service_invoices';
 
-  async list(): Promise<ServiceInvoice[]> {
-    const response = await api.get(this.baseUrl);
+  async list(filters?: {
+    tomador_nome?: string;
+    tomador_cpf_cnpj?: string;
+    discriminacao?: string;
+    date_from?: string;
+    date_to?: string;
+  }): Promise<ServiceInvoice[]> {
+    const response = await api.get(this.baseUrl, { params: filters });
     return (extractResponse<ServiceInvoice>(response).data as ServiceInvoice[]) ?? [];
   }
 
