@@ -348,6 +348,18 @@ export default function NotaFiscalServicoPage() {
       toast.error('Informe nome e CPF/CNPJ do tomador do serviço.');
       return;
     }
+    // A prefeitura rejeita (E417) sempre que o tomador tem identificação
+    // (nome/CPF/CNPJ) sem endereço completo — como nome/CPF-CNPJ são
+    // sempre exigidos acima, o endereço completo também é, na prática,
+    // sempre obrigatório. Validar aqui evita queimar um número de RPS
+    // (nunca reaproveitado, ver FiscalEstablishment#next_rps_numero!) numa
+    // emissão que o webservice sempre vai recusar.
+    const endereco = form.tomador_endereco;
+    if (!endereco.logradouro.trim() || !endereco.numero.trim() || !endereco.bairro.trim() ||
+        !endereco.codigo_municipio.trim() || !endereco.uf.trim() || !endereco.cep.trim()) {
+      toast.error('Endereço completo do tomador é obrigatório (logradouro, número, bairro, município/UF e CEP) — a prefeitura rejeita a nota sem isso.');
+      return;
+    }
     if (!form.discriminacao.trim() || !form.codigo_servico_municipal.trim()) {
       toast.error('Informe a discriminação e o código de serviço municipal.');
       return;
@@ -696,9 +708,13 @@ export default function NotaFiscalServicoPage() {
               </div>
             </div>
 
+            <p className="text-[11px] text-muted-foreground">
+              Endereço completo é obrigatório — a prefeitura rejeita (erro E417) sempre que o tomador tem
+              nome/CPF/CNPJ informado sem endereço.
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div className="min-w-0">
-                <Label className="text-xs">Logradouro</Label>
+                <Label className="text-xs">Logradouro *</Label>
                 <Input
                   value={form.tomador_endereco.logradouro}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -707,16 +723,17 @@ export default function NotaFiscalServicoPage() {
                 />
               </div>
               <div className="min-w-0">
-                <Label className="text-xs">Número</Label>
+                <Label className="text-xs">Número *</Label>
                 <Input
                   value={form.tomador_endereco.numero}
+                  placeholder="Ex.: 123 ou S/N"
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     setForm((prev) => ({ ...prev, tomador_endereco: { ...prev.tomador_endereco, numero: e.target.value } }))
                   }
                 />
               </div>
               <div className="min-w-0">
-                <Label className="text-xs">Bairro</Label>
+                <Label className="text-xs">Bairro *</Label>
                 <Input
                   value={form.tomador_endereco.bairro}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -725,7 +742,7 @@ export default function NotaFiscalServicoPage() {
                 />
               </div>
               <div className="min-w-0">
-                <Label className="text-xs">Código IBGE do município</Label>
+                <Label className="text-xs">Código IBGE do município *</Label>
                 <div className="flex gap-1">
                   <Input
                     className="min-w-0"
@@ -745,7 +762,7 @@ export default function NotaFiscalServicoPage() {
                 </div>
               </div>
               <div className="min-w-0">
-                <Label className="text-xs">UF</Label>
+                <Label className="text-xs">UF *</Label>
                 <Input
                   maxLength={2}
                   value={form.tomador_endereco.uf}
@@ -755,7 +772,7 @@ export default function NotaFiscalServicoPage() {
                 />
               </div>
               <div className="min-w-0">
-                <Label className="text-xs">CEP</Label>
+                <Label className="text-xs">CEP *</Label>
                 <Input
                   value={form.tomador_endereco.cep}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
