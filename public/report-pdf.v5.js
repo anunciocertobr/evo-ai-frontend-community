@@ -19,6 +19,16 @@
  * gerado no servidor com Prawn (sem navegador), não com este jsPDF — pode
  * sair visualmente um pouco diferente do baixado na hora.
  *
+ * v5: 3 bugs de layout corrigidos (reportados pelo usuário ao vivo em
+ * produção — o backend/dados estavam corretos, o problema era só visual):
+ * (1) o botão × de fechar estava sendo anexado fora da div do cabeçalho
+ * (virava uma linha solta em cima do modal, não ficava ao lado do título);
+ * (2) o modal nunca resetava o scroll ao reabrir — quem tinha rolado pra
+ * baixo numa visita anterior (pra ver Enviar/Programar) reabria já rolado,
+ * cortando "Métricas" acima da área visível; (3) os botões "Enviar"/
+ * "Programar" do rodapé revelavam a seção certa, mas nunca rolavam até
+ * ela — o canal/destino pra selecionar estava sempre lá, só fora da tela.
+ *
  * Este arquivo é carregado pelo HTML do item `mtlsot4v-cf6f9s` de
  * `dashboard-menu-items` (ver Public::ReportHtml do backend). Ele depende de
  * variáveis `const` do script principal do relatório — metaAdsState,
@@ -1286,10 +1296,11 @@
     var box = el('div', 'bg-slate-800 border border-slate-700 rounded-lg w-full max-w-3xl my-8 shadow-2xl');
     overlay.appendChild(box);
 
-    box.appendChild(el('div', 'px-5 py-4 border-b border-slate-700 flex items-center justify-between',
-      '<h3 class="text-lg font-semibold text-white">Gerar PDF do relatório</h3>'));
+    var header = el('div', 'px-5 py-4 border-b border-slate-700 flex items-center justify-between');
+    header.appendChild(el('h3', 'text-lg font-semibold text-white', 'Gerar PDF do relatório'));
     var fechar = el('button', 'text-slate-400 hover:text-white text-xl leading-none px-2', '&times;');
-    box.appendChild(fechar);
+    header.appendChild(fechar);
+    box.appendChild(header);
 
     var body = el('div', 'px-5 py-4 space-y-6 text-sm text-slate-300');
     box.appendChild(body);
@@ -1836,14 +1847,24 @@
     cancelar.onclick = close;
     overlay.onclick = function (e) { if (e.target === overlay) close(); };
 
+    // Revela a seção e rola até ela — sem isso, quem clica "Enviar"/
+    // "Programar" no rodapé (só visível depois de rolar o modal até
+    // embaixo) via de fato o conteúdo recém-revelado ficar fora da área
+    // visível (acima ou abaixo, dependendo de onde o clique aconteceu),
+    // parecendo que "o canal pra selecionar não aparece" — ele aparece,
+    // só fora da tela (bug reportado pelo usuário).
     enviarToggleBtn.onclick = function () {
       enviarWrap.classList.toggle('hidden');
       programarWrap.classList.add('hidden');
+      if (!enviarWrap.classList.contains('hidden')) enviarWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
     programarToggleBtn.onclick = function () {
       programarWrap.classList.toggle('hidden');
       enviarWrap.classList.add('hidden');
-      if (!programarWrap.classList.contains('hidden')) loadSchedules();
+      if (!programarWrap.classList.contains('hidden')) {
+        loadSchedules();
+        programarWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     };
 
     // mode: 'download' (padrão, botão "Gerar PDF") ou 'send' (botão
@@ -2022,7 +2043,12 @@
     var btn = el('button', 'filter-button px-4 py-2 text-sm font-medium rounded-md transition-colors bg-sky-700 hover:bg-sky-600 text-white', 'Gerar PDF');
     btn.id = 'btn-gerar-pdf';
     var modal = buildModal();
-    btn.onclick = function () { modal._syncFromMainReport(); modal.style.display = 'flex'; };
+    // Reseta o scroll pro topo toda vez que abre — sem isso, quem tinha
+    // rolado o modal pra baixo numa visita anterior (pra ver Enviar/
+    // Programar) reabre já rolado, e "Métricas" aparece cortado acima da
+    // área visível (bug reportado pelo usuário: "selecionar métricas ta
+    // ficando acima da tela").
+    btn.onclick = function () { modal._syncFromMainReport(); modal.style.display = 'flex'; modal.scrollTop = 0; };
     anchor.appendChild(btn);
     document.body.appendChild(modal);
   }
