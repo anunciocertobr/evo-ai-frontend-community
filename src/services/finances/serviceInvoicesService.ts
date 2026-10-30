@@ -36,6 +36,13 @@ class ServiceInvoicesService {
     return extractData<ServiceInvoice>(response);
   }
 
+  // Só funciona pra status=error no backend — nunca foi transmitida com
+  // sucesso, então apagar não altera nada perante a prefeitura.
+  async remove(id: string): Promise<{ id: string }> {
+    const response = await api.delete(`${this.baseUrl}/${id}`);
+    return extractData<{ id: string }>(response);
+  }
+
   async getPdf(id: string): Promise<Blob> {
     const response = await api.get(`${this.baseUrl}/${id}/pdf`, { responseType: 'blob' });
     return response.data as Blob;

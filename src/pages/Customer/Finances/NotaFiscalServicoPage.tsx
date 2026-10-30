@@ -66,6 +66,7 @@ import {
   ServiceInvoiceStatus,
 } from '@/types/fiscalInvoices';
 import { MunicipioSearchButton } from '@/components/finances/MunicipioAutocomplete';
+import { TomadorPicker } from '@/components/finances/TomadorPicker';
 import { ServicoLC116SearchButton } from '@/components/finances/ServicoLC116Autocomplete';
 import { WhatsappGroupPicker } from '@/components/marketing/WhatsappGroupPicker';
 import { ContactPicker } from '@/components/marketing/ContactPicker';
@@ -115,6 +116,8 @@ export default function NotaFiscalServicoPage() {
   const [xmlTarget, setXmlTarget] = useState<ServiceInvoice | null>(null);
   const [cancelTarget, setCancelTarget] = useState<ServiceInvoice | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ServiceInvoice | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
 
   // Botão "Enviar" (ícone Send) — manda o DANFSe já gerado direto por
@@ -431,6 +434,21 @@ export default function NotaFiscalServicoPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await serviceInvoicesService.remove(deleteTarget.id);
+      toast.success('Nota com erro excluída.');
+      setDeleteTarget(null);
+      loadData();
+    } catch (error) {
+      toast.error(apiErrorMessage(error) || 'Erro ao excluir.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const openXml = async (invoice: ServiceInvoice) => {
     try {
       const full = await serviceInvoicesService.get(invoice.id);
@@ -615,6 +633,16 @@ export default function NotaFiscalServicoPage() {
                             <XCircle className="w-4 h-4" />
                           </Button>
                         )}
+                        {invoice.status === 'error' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeleteTarget(invoice)}
+                            title="Excluir (nunca foi transmitida com sucesso)"
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -655,18 +683,7 @@ export default function NotaFiscalServicoPage() {
             <div className="flex items-end gap-2">
               <div className="flex-1">
                 <Label className="text-xs">Tomador salvo</Label>
-                <Select value={selectedTomadorId} onValueChange={handleSelectTomador}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={savedTomadores.length ? 'Escolha pra preencher automaticamente' : 'Nenhum tomador salvo ainda'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {savedTomadores.map((tomador) => (
-                      <SelectItem key={tomador.id} value={tomador.id}>
-                        {tomador.nome} — {tomador.cpf_cnpj}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <TomadorPicker tomadores={savedTomadores} value={selectedTomadorId} onSelect={handleSelectTomador} />
               </div>
               <Button
                 type="button"
@@ -873,7 +890,10 @@ export default function NotaFiscalServicoPage() {
                   type="number"
                   step="0.01"
                   min="0"
-                  value={form.valor_servicos}
+                  // Em branco em vez de "0" — digitar em cima de um "0" já
+                  // preenchido é fácil de errar (ex.: "0" + "500" virar "0500"
+                  // ou ficar sem perceber que o "0" não foi apagado antes).
+                  value={form.valor_servicos === 0 ? '' : form.valor_servicos}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     setForm((prev) => ({ ...prev, valor_servicos: parseFloat(e.target.value) || 0 }))
                   }
@@ -885,7 +905,7 @@ export default function NotaFiscalServicoPage() {
                   type="number"
                   step="0.01"
                   min="0"
-                  value={form.valor_deducoes}
+                  value={form.valor_deducoes === 0 ? '' : form.valor_deducoes}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     setForm((prev) => ({ ...prev, valor_deducoes: parseFloat(e.target.value) || 0 }))
                   }
@@ -1047,6 +1067,26 @@ export default function NotaFiscalServicoPage() {
             <AlertDialogAction onClick={handleCancel} disabled={cancelling}>
               {cancelling && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Confirmar cancelamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir nota com erro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              RPS {deleteTarget?.serie_rps}/{deleteTarget?.numero_rps} nunca foi transmitida com sucesso
+              (nenhum número de NFS-e foi gerado) — excluir aqui só remove o registro de tentativa falha,
+              não afeta nada perante a prefeitura. Não pode ser desfeito.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Voltar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting}>
+              {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
