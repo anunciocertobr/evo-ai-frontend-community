@@ -1,4 +1,5 @@
 import api from '@/services/core/api';
+import { LeadTargetingContext } from '@/services/marketing/metaCreationService';
 
 export interface HelenaAdCreative {
   imagem?: string | null;
@@ -17,6 +18,7 @@ export interface HelenaAdContext {
   campaign_id?: string | null;
   campaign_name?: string | null;
   criativo?: HelenaAdCreative;
+  publico_alvo?: LeadTargetingContext;
 }
 
 export interface SendConversionResult {

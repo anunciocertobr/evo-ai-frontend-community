@@ -18,6 +18,7 @@ import {
 } from '@evoapi/design-system';
 import { RastreamentoConversionButton } from '@/components/marketing/RastreamentoConversionButton';
 import { rastreamentosService, type HelenaAdContext } from '@/services/marketing/rastreamentosService';
+import { formatPublicoAlvo } from '@/components/marketing/leadDetails';
 
 const ALL = '__all__';
 
@@ -44,7 +45,7 @@ interface HelenaContact {
   createdAt?: string;
 }
 
-const TOTAL_COLUMNS = 16;
+const TOTAL_COLUMNS = 17;
 const MAX_ROWS = 200;
 
 function uniqueOptions(values: Array<{ id?: string | null; name?: string | null }>) {
@@ -337,6 +338,7 @@ export function RastreamentoExternoTab() {
                   <th className="text-left p-3 font-medium whitespace-nowrap">Conjunto</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Anúncio</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Criativo</th>
+                  <th className="text-left p-3 font-medium whitespace-nowrap">Público</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Clid</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Medium (UTM)</th>
                   <th className="text-left p-3 font-medium whitespace-nowrap">Content (UTM)</th>
@@ -426,6 +428,9 @@ export function RastreamentoExternoTab() {
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
+                        </td>
+                        <td className="p-3 whitespace-nowrap" title={formatPublicoAlvo(ctx?.publico_alvo)?.detalhe}>
+                          {formatPublicoAlvo(ctx?.publico_alvo)?.resumo || '-'}
                         </td>
                         <td className="p-3 max-w-[200px] truncate" title={c.utm?.clid || ''}>
                           {c.utm?.clid || '-'}
