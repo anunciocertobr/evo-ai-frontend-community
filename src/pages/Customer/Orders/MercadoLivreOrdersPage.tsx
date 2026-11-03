@@ -1,11 +1,27 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RefreshCw, Loader2, Settings2 } from 'lucide-react';
+import { RefreshCw, Loader2, MessageCircle, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@evoapi/design-system';
+import {
+  Button,
+  Badge,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@evoapi/design-system';
 import { BaseHeader } from '@/components/base';
 import { mercadoLivreService } from '@/services/orders/mercadoLivreService';
 import type { MercadoLivreOrder, MercadoLivreStatus } from '@/types/orders/mercadoLivreOrder';
+import { MercadoLivreProductsTab } from '@/components/orders/MercadoLivreProductsTab';
+import { MercadoLivreQuestionsTab } from '@/components/orders/MercadoLivreQuestionsTab';
+import { MercadoLivreMessagesDialog } from '@/components/orders/MercadoLivreMessagesDialog';
 
 // Status reais de `order.status` na Orders API do Mercado Livre — ver
 // MercadoLivreOrder::STATUSES no backend.
@@ -43,6 +59,7 @@ export default function MercadoLivreOrdersPage() {
   const [orders, setOrders] = useState<MercadoLivreOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [chatOrder, setChatOrder] = useState<MercadoLivreOrder | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -109,44 +126,76 @@ export default function MercadoLivreOrdersPage() {
         </Button>
       </div>
 
-      {loading ? (
-        <div className="text-center text-sm text-muted-foreground py-10">Carregando...</div>
-      ) : orders.length === 0 ? (
-        <div className="text-center text-sm text-muted-foreground py-10 border border-dashed rounded-md">
-          {status?.connected
-            ? 'Nenhum pedido recebido ainda.'
-            : 'Conecte uma conta do Mercado Livre em Integrações pra começar a receber pedidos aqui.'}
-        </div>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Pedido</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Itens</TableHead>
-              <TableHead>Total</TableHead>
-              <TableHead>Data</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {orders.map((order) => (
-              <TableRow key={order.id}>
-                <TableCell className="font-mono text-xs">{order.ml_order_id}</TableCell>
-                <TableCell>
-                  <Badge variant={STATUS_VARIANT[order.status] || 'outline'}>
-                    {STATUS_LABELS[order.status] || order.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>{order.customer_name || '—'}</TableCell>
-                <TableCell>{order.items_count}</TableCell>
-                <TableCell>{formatCurrency(order.total_price)}</TableCell>
-                <TableCell>{formatDate(order.placed_at)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+      <Tabs defaultValue="pedidos">
+        <TabsList>
+          <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
+          <TabsTrigger value="produtos">Produtos</TabsTrigger>
+          <TabsTrigger value="perguntas">Perguntas</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pedidos" className="mt-4">
+          {loading ? (
+            <div className="text-center text-sm text-muted-foreground py-10">Carregando...</div>
+          ) : orders.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-10 border border-dashed rounded-md">
+              {status?.connected
+                ? 'Nenhum pedido recebido ainda.'
+                : 'Conecte uma conta do Mercado Livre em Integrações pra começar a receber pedidos aqui.'}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Pedido</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Itens</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orders.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="font-mono text-xs">{order.ml_order_id}</TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANT[order.status] || 'outline'}>
+                        {STATUS_LABELS[order.status] || order.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{order.customer_name || '—'}</TableCell>
+                    <TableCell>{order.items_count}</TableCell>
+                    <TableCell>{formatCurrency(order.total_price)}</TableCell>
+                    <TableCell>{formatDate(order.placed_at)}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm" className="px-2" title="Mensagens com o comprador" onClick={() => setChatOrder(order)}>
+                        <MessageCircle className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </TabsContent>
+
+        <TabsContent value="produtos" className="mt-4">
+          <MercadoLivreProductsTab />
+        </TabsContent>
+
+        <TabsContent value="perguntas" className="mt-4">
+          <MercadoLivreQuestionsTab />
+        </TabsContent>
+      </Tabs>
+
+      <MercadoLivreMessagesDialog
+        open={Boolean(chatOrder)}
+        onOpenChange={(o) => !o && setChatOrder(null)}
+        orderId={chatOrder?.id || null}
+        orderLabel={chatOrder?.ml_order_id}
+        sellerUserId={status?.user_id ? Number(status.user_id) : null}
+      />
     </div>
   );
 }
