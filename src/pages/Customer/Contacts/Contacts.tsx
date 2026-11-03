@@ -10,8 +10,14 @@ import {
   DialogHeader,
   DialogTitle,
   Button,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@evoapi/design-system';
-import { Users } from 'lucide-react';
+import { Users, Columns3 } from 'lucide-react';
 import EmptyState from '@/components/base/EmptyState';
 
 import { usePermissions } from '@/contexts/PermissionsContext';
@@ -23,6 +29,7 @@ import { DEFAULT_PAGE_SIZE } from '@/constants/pagination';
 
 import ContactsHeader from '@/components/contacts/ContactsHeader';
 import ContactsTable from '@/components/contacts/ContactsTable';
+import { CONTACTS_EXTRA_COLUMNS } from '@/components/contacts/contactsExtraColumns';
 import ContactsPagination from '@/components/contacts/ContactsPagination';
 import ContactFormPage from '@/components/contacts/ContactFormPage';
 import StartConversationModal from '@/components/contacts/StartConversationModal';
@@ -83,6 +90,32 @@ export default function Contacts() {
   const [detailsContact, setDetailsContact] = useState<Contact | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsNotFound, setDetailsNotFound] = useState(false);
+
+  // Colunas extras (pedido do CRM + pixel Meta) escondidas por padrão —
+  // mesmo padrão de persistência do botão "Colunas" de SiteLeadsDialog.
+  const EXTRA_COLUMNS_KEY = 'contacts-extra-columns';
+  const [visibleExtraColumns, setVisibleExtraColumns] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(EXTRA_COLUMNS_KEY);
+      if (raw) return new Set(JSON.parse(raw));
+    } catch {
+      // per-viewer apenas — ignora se localStorage não estiver disponível.
+    }
+    return new Set();
+  });
+  const toggleExtraColumn = (key: string) => {
+    setVisibleExtraColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(EXTRA_COLUMNS_KEY, JSON.stringify(Array.from(next)));
+      } catch {
+        // ignora.
+      }
+      return next;
+    });
+  };
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<BaseFilter[]>([]);
   const hasCompanyFilter = activeFilters.some(f => f.attributeKey === 'company');
@@ -850,7 +883,28 @@ export default function Contacts() {
           </div>
 
           {/* Filter Popover trigger */}
-          <div className="flex items-center justify-end mt-3 mb-2 sm:mt-6 sm:mb-3">
+          <div className="flex items-center justify-end gap-2 mt-3 mb-2 sm:mt-6 sm:mb-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Columns3 className="w-3.5 h-3.5 mr-1.5" /> Colunas
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>Colunas extras (pedido do CRM + pixel Meta)</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {CONTACTS_EXTRA_COLUMNS.map((c) => (
+                  <DropdownMenuCheckboxItem
+                    key={c.key}
+                    checked={visibleExtraColumns.has(c.key)}
+                    onCheckedChange={() => toggleExtraColumn(c.key)}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {c.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <ContactsFilterPopover
               open={filterModalOpen}
               onOpenChange={setFilterModalOpen}
@@ -897,6 +951,7 @@ export default function Contacts() {
                 onEditContact={handleEditContact}
                 onDeleteContact={can('contacts', 'delete') ? handleDeleteContact : undefined}
                 onCreateContact={handleCreateContact}
+                visibleExtraColumns={visibleExtraColumns}
                 sortBy={state.sortBy}
                 sortOrder={state.sortOrder}
                 onSort={column => {

@@ -23,7 +23,13 @@ interface ContactsTableProps {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   onSort?: (column: string) => void;
+  // Colunas extras (pedido do CRM + pixel Meta), ligadas/desligadas pelo
+  // botão "Colunas" na tela — ver EXTRA_COLUMN_DEFS/CONTACTS_EXTRA_COLUMNS
+  // abaixo, mesmo padrão do botão "Colunas" de SiteLeadsDialog.
+  visibleExtraColumns?: Set<string>;
 }
+
+const dash = (value: string | number | null | undefined) => (value === null || value === undefined || value === '' ? '-' : value);
 
 export default function ContactsTable({
   contacts,
@@ -38,11 +44,24 @@ export default function ContactsTable({
   sortBy,
   sortOrder,
   onSort,
+  visibleExtraColumns,
 }: ContactsTableProps) {
   const { t } = useLanguage('contacts');
   const { shouldMask, maskPhone, maskEmail } = useContactPiiMasking();
   const protectedTitle = shouldMask ? t('card.dataProtectedTooltip') : undefined;
   const contactsList = contacts || [];
+
+  // Agrega os "pedidos" (PipelineItem) do contato numa única célula por
+  // coluna — um contato pode ter mais de um (um por pipeline/Kanban em
+  // que entrou). order_id = o id do próprio PipelineItem (não existe um
+  // model "Order" separado neste CRM).
+  const pedidoResumo = (contact: Contact) => {
+    const items = (contact.pipelines || []).map((p) => p.item).filter((i) => (i.products_total || 0) > 0 || (i.products && i.products.length > 0));
+    const orderIds = items.map((i) => i.id).filter(Boolean);
+    const produtos = Array.from(new Set(items.flatMap((i) => (i.products || []).map((p) => p.name).filter(Boolean)))) as string[];
+    const valorTotal = items.reduce((sum, i) => sum + (i.products_total || 0), 0);
+    return { orderIds, produtos, valorTotal };
+  };
 
   // const formatLastActivity = (date: string) => {
   //   if (!date) return 'Nunca';
@@ -133,6 +152,30 @@ export default function ContactsTable({
       sortable: false,
       render: contact => <ContactStatusBadge blocked={contact.blocked} />,
     },
+    ...(visibleExtraColumns?.has('pedido_order_id')
+      ? [{ key: 'pedido_order_id', label: 'Order ID (pedido)', sortable: false, render: (contact: Contact) => <span className="font-mono text-xs">{dash(pedidoResumo(contact).orderIds.join(', '))}</span> }]
+      : []),
+    ...(visibleExtraColumns?.has('pedido_produtos')
+      ? [{ key: 'pedido_produtos', label: 'Produtos', sortable: false, render: (contact: Contact) => <span className="max-w-[200px] inline-block truncate align-bottom">{dash(pedidoResumo(contact).produtos.join(', '))}</span> }]
+      : []),
+    ...(visibleExtraColumns?.has('pedido_valor')
+      ? [{ key: 'pedido_valor', label: 'Valor do pedido', sortable: false, render: (contact: Contact) => { const v = pedidoResumo(contact).valorTotal; return <span>{v > 0 ? `R$ ${v.toFixed(2)}` : '-'}</span>; } }]
+      : []),
+    ...(visibleExtraColumns?.has('pixel_campanha')
+      ? [{ key: 'pixel_campanha', label: 'Campanha (pixel)', sortable: false, render: (contact: Contact) => dash(contact.ad_lead?.campaign_name) }]
+      : []),
+    ...(visibleExtraColumns?.has('pixel_conjunto')
+      ? [{ key: 'pixel_conjunto', label: 'Conjunto (pixel)', sortable: false, render: (contact: Contact) => dash(contact.ad_lead?.adset_name) }]
+      : []),
+    ...(visibleExtraColumns?.has('pixel_anuncio')
+      ? [{ key: 'pixel_anuncio', label: 'Anúncio (pixel)', sortable: false, render: (contact: Contact) => dash(contact.ad_lead?.ad_name) }]
+      : []),
+    ...(visibleExtraColumns?.has('pixel_utm_source')
+      ? [{ key: 'pixel_utm_source', label: 'UTM Source (pixel)', sortable: false, render: (contact: Contact) => dash(contact.ad_lead?.utm_source) }]
+      : []),
+    ...(visibleExtraColumns?.has('pixel_valor_venda')
+      ? [{ key: 'pixel_valor_venda', label: 'Valor venda (pixel)', sortable: false, render: (contact: Contact) => { const v = contact.ad_lead?.valor_venda; return <span>{v ? `R$ ${Number(v).toFixed(2)}` : '-'}</span>; } }]
+      : []),
     {
       key: 'startConversation',
       label: '',
@@ -201,6 +244,7 @@ export default function ContactsTable({
       }
       getRowKey={contact => String(contact.id)}
       className="border-0 shadow-none"
+      stickyHorizontalScroll
     />
   );
 }

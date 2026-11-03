@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import {
   Table,
@@ -58,6 +58,13 @@ export interface BaseTableProps<T> {
   };
   getRowKey: (item: T) => string | number;
   className?: string;
+  // Barra de rolagem horizontal "fantasma" fixada no topo da tabela,
+  // sincronizada com o scroll real (mesmo padrão de SiteLeadsDialog/
+  // RastreamentoExternoTab) — opt-in (default false) pra não mudar o
+  // visual de nenhuma outra tela que já usa BaseTable. Útil quando a
+  // tabela tem muitas colunas e a barra nativa só aparece depois de
+  // rolar tudo pra baixo até o fim.
+  stickyHorizontalScroll?: boolean;
 }
 
 export default function BaseTable<T extends Record<string, any>>({
@@ -78,10 +85,37 @@ export default function BaseTable<T extends Record<string, any>>({
   emptyAction,
   getRowKey,
   className = '',
+  stickyHorizontalScroll = false,
 }: BaseTableProps<T>) {
   const { t } = useLanguage('common');
   const message = emptyMessage || t('base.table.emptyMessage');
   const isAllSelected = data.length > 0 && selectedItems.length === data.length;
+
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const [scrollWidth, setScrollWidth] = useState(0);
+  const syncingRef = useRef<'top' | 'table' | null>(null);
+
+  useEffect(() => {
+    if (!stickyHorizontalScroll) return;
+    const el = tableScrollRef.current;
+    if (!el) return;
+    setScrollWidth(el.scrollWidth);
+  }, [stickyHorizontalScroll, data, columns]);
+
+  const handleTopScroll = () => {
+    if (syncingRef.current === 'table') { syncingRef.current = null; return; }
+    if (!topScrollRef.current || !tableScrollRef.current) return;
+    syncingRef.current = 'top';
+    tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+  };
+
+  const handleTableScroll = () => {
+    if (syncingRef.current === 'top') { syncingRef.current = null; return; }
+    if (!topScrollRef.current || !tableScrollRef.current) return;
+    syncingRef.current = 'table';
+    topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+  };
 
   const handleSelectAll = () => {
     if (isAllSelected) {
@@ -216,9 +250,17 @@ export default function BaseTable<T extends Record<string, any>>({
   }
 
   return (
-    <div
-      className={`rounded-lg border border-sidebar-border bg-sidebar overflow-x-auto ${className}`}
-    >
+    <div className={`rounded-lg border border-sidebar-border bg-sidebar ${className}`}>
+      {stickyHorizontalScroll && (
+        <div ref={topScrollRef} onScroll={handleTopScroll} className="overflow-x-auto overflow-y-hidden" style={{ height: 14 }}>
+          <div style={{ width: scrollWidth, height: 1 }} />
+        </div>
+      )}
+      <div
+        ref={stickyHorizontalScroll ? tableScrollRef : undefined}
+        onScroll={stickyHorizontalScroll ? handleTableScroll : undefined}
+        className="overflow-x-auto"
+      >
       <Table>
         <TableHeader>
           <TableRow className="border-sidebar-border hover:bg-sidebar-accent/50">
@@ -288,6 +330,7 @@ export default function BaseTable<T extends Record<string, any>>({
           })}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }

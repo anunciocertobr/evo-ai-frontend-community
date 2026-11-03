@@ -110,7 +110,26 @@ export interface ContactPipelineInfo {
     type: string;
     entered_at: number;
     notes: string | null;
+    // "Pedido" nativo do CRM (PipelineItem É o pedido/card do Kanban,
+    // order_id = este mesmo item.id) — produtos vendidos nele, preço
+    // travado no momento da venda.
+    products?: Array<{ name: string | null; quantity: number; unit_price: number; total: number; currency: string }>;
+    products_total?: number;
   };
+}
+
+// Dados de pixel (Meta) ligados ao contato/suas conversas — tabela
+// ad_leads (Whatsapp::AdReferralCapture), o mais recente quando há mais
+// de um clique em anúncio pro mesmo contato.
+export interface ContactAdLead {
+  campaign_name: string | null;
+  adset_name: string | null;
+  ad_name: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  ctwaclid: string | null;
+  valor_venda: number | null;
 }
 
 export interface Contact {
@@ -147,6 +166,7 @@ export interface Contact {
     last_activity_at: string;
   };
   pipelines?: ContactPipelineInfo[];
+  ad_lead?: ContactAdLead | null;
 }
 
 export interface ContactNote {
