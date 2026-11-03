@@ -2226,6 +2226,48 @@ function DetailedTargetingField({ value, onChange }: { value: string; onChange: 
   );
 }
 
+// Mídia de UM posicionamento (Feed/Stories/Horizontal) — ver PLACEMENT_LABELS.
+// `file` = upload novo neste navegador; `fromAdId` = "Duplicar" sem arquivo
+// local, o backend resolve a mídia (imagem OU vídeo) do anúncio de origem.
+interface PlacementAsset {
+  file: File | null;
+  fromAdId?: string;
+}
+
+interface AdPlacements {
+  feed: PlacementAsset;
+  stories: PlacementAsset;
+  horizontal: PlacementAsset;
+}
+
+const PLACEMENT_KEYS: Array<keyof AdPlacements> = ['feed', 'stories', 'horizontal'];
+const PLACEMENT_LABELS: Record<keyof AdPlacements, string> = {
+  feed: 'Feed',
+  stories: 'Stories',
+  horizontal: 'Horizontal',
+};
+
+function emptyPlacements(): AdPlacements {
+  return { feed: { file: null }, stories: { file: null }, horizontal: { file: null } };
+}
+
+function placementIsEmpty(p: PlacementAsset): boolean {
+  return !p.file && !p.fromAdId;
+}
+
+// Os 3 posicionamentos têm a MESMA mídia? (auto-preenchimento nunca foi
+// sobrescrito individualmente) — usado pra decidir, ao montar o payload, se
+// basta o caminho rápido de hoje (1 asset só) ou se precisa do caminho novo
+// (asset_feed_spec com um asset por posicionamento — mais lento, a Meta
+// reenvia mídia de verdade mesmo em "duplicar"). Dois PlacementAsset são
+// "iguais" quando apontam pro mesmo arquivo (mesma referência — o
+// auto-preenchimento copia o MESMO File, nunca uma cópia) ou pro mesmo
+// mediaFromAdId.
+function placementsAreUniform(placements: AdPlacements): boolean {
+  const [first, ...rest] = PLACEMENT_KEYS.map((k) => placements[k]);
+  return rest.every((p) => p.file === first.file && p.fromAdId === first.fromAdId);
+}
+
 interface AdFormState {
   key: string;
   name: string;
@@ -2234,10 +2276,11 @@ interface AdFormState {
   // Texto de apoio do anúncio (`link_data.description`). A Meta só mostra em
   // anúncio com link no feed.
   description: string;
-  mediaFile: File | null;
-  // "Duplicar" não tem o arquivo da origem no navegador: manda o id do
-  // anúncio de origem e o backend resolve a mídia (imagem OU vídeo) dele.
-  mediaFromAdId?: string;
+  // Mídia por posicionamento (Feed/Stories/Horizontal) — pedido do usuário:
+  // ao carregar a primeira mídia, os 3 já vêm preenchidos iguais (ver
+  // handlePlacementChange em AdBlock); o usuário edita só o que quiser
+  // depois. Antes disso era um `mediaFile`/`mediaFromAdId` únicos.
+  placements: AdPlacements;
   // Só pra MOSTRAR uma prévia de qual criativo está sendo copiado (não é
   // reenviada pro backend) — sem isso o formulário de "Duplicar" ficava sem
   // nenhuma pista visual de qual imagem/vídeo o anúncio de origem tinha. Os
@@ -2510,10 +2553,14 @@ function adFromSource(origem: StructuralAd, modelo: AdFormState): AdFormState {
     title: criativo.title || link?.name || video?.title || '',
     body: criativo.body || link?.message || video?.message || '',
     description: link?.description || '',
-    mediaFile: null,
-    // A mídia do anúncio original é resolvida pelo backend a partir deste id
-    // (imagem OU vídeo) — o arquivo não existe no navegador.
-    mediaFromAdId: origem.id,
+    // Os 3 posicionamentos começam iguais, resolvidos pelo backend a partir
+    // do mesmo anúncio de origem — igual ao comportamento antigo (1 mídia
+    // só), até o usuário customizar um posicionamento individualmente.
+    placements: {
+      feed: { file: null, fromAdId: origem.id },
+      stories: { file: null, fromAdId: origem.id },
+      horizontal: { file: null, fromAdId: origem.id },
+    },
     // Mesma prioridade do "Ver Criativo" (CreativeViewerModal): carrossel >
     // imagem > vídeo. `imagem`/`carrossel`/`thumbnail_url` são os campos
     // normalizados que o backend já soma ao criativo cru (ver
@@ -2560,7 +2607,7 @@ function newAd(): AdFormState {
     title: '',
     body: '',
     description: '',
-    mediaFile: null,
+    placements: emptyPlacements(),
     leadFormId: '',
     messageTemplate: '',
     autofillMessage: '',
@@ -2600,6 +2647,86 @@ function newAdSet(): AdSetFormState {
 // texto principal (é o que a pessoa lê no feed), depois o título e a
 // descrição — a mesma ordem do Gerenciador de Anúncios. `description` vai
 // para o `link_data.description` do criativo.
+// Um slot de mídia (Feed, Stories OU Horizontal) dentro de um anúncio. Ver
+// AdPlacements/PLACEMENT_KEYS — cada slot tem seu próprio arquivo/origem,
+// mas o PRIMEIRO escolhido (em qualquer um dos 3) preenche os 3 iguais.
+function PlacementMediaPicker({
+  ad,
+  slot,
+  onChange,
+}: {
+  ad: AdFormState;
+  slot: keyof AdPlacements;
+  onChange: (patch: Partial<AdFormState>) => void;
+}) {
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const asset = ad.placements[slot];
+
+  const applyFile = (file: File) => {
+    const next: PlacementAsset = { ...asset, file };
+    const allEmptyBefore = PLACEMENT_KEYS.every((k) => placementIsEmpty(ad.placements[k]));
+    if (allEmptyBefore) {
+      onChange({ placements: { feed: next, stories: next, horizontal: next } });
+    } else {
+      onChange({ placements: { ...ad.placements, [slot]: next } });
+    }
+  };
+
+  return (
+    <div className="space-y-1.5 w-36 shrink-0">
+      <p className="text-[11px] font-semibold text-slate-400">{PLACEMENT_LABELS[slot]}</p>
+      {asset.fromAdId && !asset.file && (
+        <div className="mb-1">
+          {ad.mediaPreviewCarousel && ad.mediaPreviewCarousel.length > 0 ? (
+            <div className="flex gap-1">
+              {ad.mediaPreviewCarousel.slice(0, 2).map((card, i) =>
+                card.imagem ? (
+                  <img key={i} src={card.imagem} alt={card.nome || `Cartão ${i + 1}`} className="w-12 h-12 object-cover rounded border border-slate-600" />
+                ) : null,
+              )}
+            </div>
+          ) : ad.mediaPreviewUrl ? (
+            <img src={ad.mediaPreviewUrl} alt="Criativo de origem" className="w-16 h-16 object-cover rounded border border-slate-600" />
+          ) : ad.mediaPreviewIsVideo ? (
+            <button
+              type="button"
+              onClick={() => setViewerOpen(true)}
+              title="Ver vídeo do criativo de origem"
+              className="w-16 h-16 rounded border border-slate-600 flex items-center justify-center bg-slate-800 bg-cover bg-center hover:brightness-110 transition-[filter]"
+              style={ad.mediaPreviewVideoThumbnail ? { backgroundImage: `url(${ad.mediaPreviewVideoThumbnail})` } : undefined}
+            >
+              <PlayCircle className="w-6 h-6 text-white/90 drop-shadow" />
+            </button>
+          ) : (
+            <p className="text-[10px] text-amber-400/80">Sem prévia</p>
+          )}
+        </div>
+      )}
+      <label className="flex items-center gap-1.5 text-xs text-sky-300 cursor-pointer hover:text-sky-200">
+        <ImagePlus className="w-3.5 h-3.5 shrink-0" />
+        <span className="truncate">{asset.file ? asset.file.name : asset.fromAdId ? 'Substituir' : 'Selecionar'}</span>
+        <input
+          type="file"
+          accept="image/*,video/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) applyFile(file);
+          }}
+        />
+      </label>
+      <button type="button" onClick={() => setLibraryOpen(true)} className="flex items-center gap-1.5 text-xs text-teal-300 hover:text-teal-200">
+        <Images className="w-3.5 h-3.5 shrink-0" /> Biblioteca
+      </button>
+      <MediaLibraryPickerDialog open={libraryOpen} onOpenChange={setLibraryOpen} onPick={applyFile} />
+      {asset.fromAdId && (
+        <CreativeViewerModal item={{ id: asset.fromAdId, name: ad.name || 'Criativo de origem' }} open={viewerOpen} onOpenChange={setViewerOpen} />
+      )}
+    </div>
+  );
+}
+
 function AdBlock({
   ad,
   onChange,
@@ -2624,8 +2751,6 @@ function AdBlock({
   conversaoTipo: AdSetMetaValues['conversaoTipo'];
   pageId: string;
 }) {
-  const [libraryOpen, setLibraryOpen] = useState(false);
-  const [viewerOpen, setViewerOpen] = useState(false);
   return (
     <div id={anchorId} className="space-y-3 p-3 border border-slate-700/70 rounded-lg bg-slate-900/30">
       <div className="flex items-center justify-between">
@@ -2675,68 +2800,15 @@ function AdBlock({
         </p>
       </div>
       <div>
-        <Label className="text-xs text-slate-400 block mb-1">Mídia (imagem ou vídeo)</Label>
-        {/* Prévia do criativo de ORIGEM (duplicar): some assim que a pessoa
-            escolhe um arquivo novo ou da biblioteca, porque aí o mediaFile
-            já substitui o que seria copiado do anúncio original. */}
-        {ad.mediaFromAdId && !ad.mediaFile && (
-          <div className="mb-2">
-            {ad.mediaPreviewCarousel && ad.mediaPreviewCarousel.length > 0 ? (
-              <div className="grid grid-cols-4 gap-1.5 max-w-xs">
-                {ad.mediaPreviewCarousel.map((card, i) =>
-                  card.imagem ? (
-                    <img
-                      key={i}
-                      src={card.imagem}
-                      alt={card.nome || `Cartão ${i + 1}`}
-                      className="w-16 h-16 object-cover rounded-md border border-slate-600"
-                    />
-                  ) : (
-                    <div key={i} className="w-16 h-16 rounded-md border border-slate-600 bg-slate-800 flex items-center justify-center text-[0.6rem] text-slate-500">
-                      Sem imagem
-                    </div>
-                  ),
-                )}
-              </div>
-            ) : ad.mediaPreviewUrl ? (
-              <img src={ad.mediaPreviewUrl} alt="Criativo de origem" className="w-24 h-24 object-cover rounded-md border border-slate-600" />
-            ) : ad.mediaPreviewIsVideo ? (
-              <button
-                type="button"
-                onClick={() => setViewerOpen(true)}
-                title="Ver vídeo do criativo de origem"
-                className="w-24 h-24 rounded-md border border-slate-600 flex items-center justify-center bg-slate-800 bg-cover bg-center hover:brightness-110 transition-[filter]"
-                style={ad.mediaPreviewVideoThumbnail ? { backgroundImage: `url(${ad.mediaPreviewVideoThumbnail})` } : undefined}
-              >
-                <PlayCircle className="w-8 h-8 text-white/90 drop-shadow" />
-              </button>
-            ) : (
-              <p className="text-xs text-amber-400/80">Não encontrei a mídia do anúncio de origem — confira antes de publicar.</p>
-            )}
-          </div>
-        )}
-        <div className="flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2 text-sm text-sky-300 cursor-pointer hover:text-sky-200">
-            <ImagePlus className="w-4 h-4" />
-            {ad.mediaFile ? ad.mediaFile.name : ad.mediaFromAdId ? 'Substituir arquivo' : 'Selecionar arquivo'}
-            <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => onChange({ mediaFile: e.target.files?.[0] || null })} />
-          </label>
-          <button
-            type="button"
-            onClick={() => setLibraryOpen(true)}
-            className="flex items-center gap-2 text-sm text-teal-300 hover:text-teal-200"
-          >
-            <Images className="w-4 h-4" /> Escolher da biblioteca
-          </button>
+        <Label className="text-xs text-slate-400 block mb-1">Mídia por posicionamento (imagem ou vídeo)</Label>
+        <p className="text-[11px] text-slate-500 mb-2">
+          Ao escolher a primeira mídia, os 3 posicionamentos ficam iguais — edite só o(s) que quiser diferente.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          {PLACEMENT_KEYS.map((slot) => (
+            <PlacementMediaPicker key={slot} ad={ad} slot={slot} onChange={onChange} />
+          ))}
         </div>
-        <MediaLibraryPickerDialog open={libraryOpen} onOpenChange={setLibraryOpen} onPick={(file) => onChange({ mediaFile: file })} />
-        {ad.mediaFromAdId && (
-          <CreativeViewerModal
-            item={{ id: ad.mediaFromAdId, name: ad.name || 'Criativo de origem' }}
-            open={viewerOpen}
-            onOpenChange={setViewerOpen}
-          />
-        )}
       </div>
       {/* Formulário/modelo de mensagem por último — pedido do usuário: só faz
           sentido escolher isso depois de já ter o criativo (texto/título/
@@ -2778,6 +2850,7 @@ function AdSetBlock({
   creatingAudience,
   onCreateNewAudience,
   sectionAnchorId,
+  onUpdateAd,
 }: {
   adSet: AdSetFormState;
   index: number;
@@ -2800,9 +2873,12 @@ function AdSetBlock({
   // sua (por `adSet.key`), diferente do design original que só marcava o
   // primeiro e por isso não conseguia levar a mais de um.
   sectionAnchorId?: string;
+  // Edita um anúncio DESTE conjunto — ou de vários conjuntos ao mesmo tempo,
+  // se houver seleção múltipla ativa (ver updateAdCrossSets no
+  // CreateCampaignModal). Substituiu o updateAd local, que só enxergava os
+  // anúncios do próprio conjunto e não conseguia fazer esse fan-out.
+  onUpdateAd: (adKey: string, patch: Partial<AdFormState>) => void;
 }) {
-  const updateAd = (adKey: string, patch: Partial<AdFormState>) =>
-    onChange({ ads: adSet.ads.map((a) => (a.key === adKey ? { ...a, ...patch } : a)) });
   const addAd = () => onChange({ ads: [...adSet.ads, newAd()] });
   const removeAd = (adKey: string) => onChange({ ads: adSet.ads.filter((a) => a.key !== adKey) });
 
@@ -3019,7 +3095,7 @@ function AdSetBlock({
           <AdBlock
             key={ad.key}
             ad={ad}
-            onChange={(patch) => updateAd(ad.key, patch)}
+            onChange={(patch) => onUpdateAd(ad.key, patch)}
             onRemove={() => removeAd(ad.key)}
             removable={adSet.ads.length > 1}
             anchorId={`create-campaign-anchor-anuncio-${ad.key}`}
@@ -3069,6 +3145,31 @@ function CreateCampaignModal({
   // o atalho correspondente como os outros já pintam no hover/clique.
   const contentScrollRef = useRef<HTMLDivElement>(null);
   const [activeAnchorId, setActiveAnchorId] = useState('create-campaign-anchor-campanha');
+
+  // Seleção múltipla de conjuntos/anúncios na barra lateral (checkbox, ver
+  // "Estrutura" abaixo) — pedido do usuário: selecionar mais de um e editar
+  // um campo aplica em todos os selecionados de uma vez (ex.: formulário
+  // de 2 anúncios diferentes). Entre CONJUNTOS diferentes também funciona
+  // (decisão do usuário) — por isso os updaters abaixo (updateAdSet/
+  // updateAdCrossSets) sempre varrem TODOS os adSets, não só o do item
+  // clicado. Com exatamente 1 item selecionado (ou nenhum — clique comum),
+  // o comportamento é idêntico ao de antes: só aquele item muda.
+  const [selectedAdSetKeys, setSelectedAdSetKeys] = useState<Set<string>>(new Set());
+  const [selectedAdKeys, setSelectedAdKeys] = useState<Set<string>>(new Set());
+  const toggleAdSetSelected = (key: string) =>
+    setSelectedAdSetKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const toggleAdSelected = (key: string) =>
+    setSelectedAdKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const [savedAudiences, setSavedAudiences] = useState<SavedAudience[] | null>(null);
   const [loadingSavedAudiences, setLoadingSavedAudiences] = useState(false);
@@ -3202,10 +3303,24 @@ function CreateCampaignModal({
       .finally(() => setLoadingPages(false));
   }, [open, adAccountId]);
 
-  const updateAdSet = (key: string, patch: Partial<AdSetFormState>) =>
-    setAdSets((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));
+  // Edita 1 conjunto — ou TODOS os selecionados, se o conjunto clicado fizer
+  // parte de uma seleção com mais de 1 (ver selectedAdSetKeys acima). Com 0
+  // ou 1 selecionado, comportamento idêntico a antes.
+  const updateAdSet = (key: string, patch: Partial<AdSetFormState>) => {
+    const targets = selectedAdSetKeys.has(key) && selectedAdSetKeys.size > 1 ? selectedAdSetKeys : new Set([key]);
+    setAdSets((prev) => prev.map((a) => (targets.has(a.key) ? { ...a, ...patch } : a)));
+  };
   const addAdSet = () => setAdSets((prev) => [...prev, newAdSet()]);
   const removeAdSet = (key: string) => setAdSets((prev) => prev.filter((a) => a.key !== key));
+
+  // Edita 1 anúncio — ou TODOS os selecionados (mesma lógica de
+  // updateAdSet), inclusive de CONJUNTOS diferentes: por isso varre todos
+  // os adSets, não só o conjunto-pai de `adKey` (AdSetBlock não tem
+  // visibilidade dos outros conjuntos pra fazer esse fan-out sozinho).
+  const updateAdCrossSets = (adKey: string, patch: Partial<AdFormState>) => {
+    const targets = selectedAdKeys.has(adKey) && selectedAdKeys.size > 1 ? selectedAdKeys : new Set([adKey]);
+    setAdSets((prev) => prev.map((as) => ({ ...as, ads: as.ads.map((a) => (targets.has(a.key) ? { ...a, ...patch } : a)) })));
+  };
 
   const handleCreate = async () => {
     if (!adAccountId) {
@@ -3264,7 +3379,7 @@ function CreateCampaignModal({
           toast.error(`Preencha o Nome do Anúncio (conjunto "${trimmedAdSetName}").`);
           return;
         }
-        if (!ad.mediaFile && !ad.mediaFromAdId) {
+        if (PLACEMENT_KEYS.every((k) => placementIsEmpty(ad.placements[k]))) {
           toast.error(`Carregue uma imagem ou vídeo pro anúncio "${ad.name}" (conjunto "${trimmedAdSetName}").`);
           return;
         }
@@ -3331,12 +3446,29 @@ function CreateCampaignModal({
               };
               // "Duplicar": sem arquivo no navegador, o backend puxa a mídia
               // do anúncio de origem (imagem ou vídeo).
-              if (!ad.mediaFile && ad.mediaFromAdId) return { ...base, ad_id_origem: ad.mediaFromAdId };
-              return {
-                ...base,
-                asset_base64: await fileToBase64(ad.mediaFile as File),
-                asset_mimetype: (ad.mediaFile as File).type || 'image/jpeg',
+              const resolvePlacementAsset = async (asset: PlacementAsset) => {
+                if (!asset.file && asset.fromAdId) return { ad_id_origem: asset.fromAdId };
+                return {
+                  asset_base64: await fileToBase64(asset.file as File),
+                  asset_mimetype: (asset.file as File).type || 'image/jpeg',
+                };
               };
+              // Os 3 posicionamentos continuam iguais (usuário não
+              // customizou nenhum individualmente) — caminho rápido de
+              // sempre, 1 asset só, sem mudança de payload nenhuma. Só
+              // quando customizar é que manda os 3 separados (campo
+              // `placements`) — a Meta não reaproveita post existente
+              // nesse caso, então o backend reenvia mídia de verdade e
+              // demora mais (ver Meta::AdsManagerService#build_creative).
+              if (placementsAreUniform(ad.placements)) {
+                return { ...base, ...(await resolvePlacementAsset(ad.placements.feed)) };
+              }
+              const [feed, stories, horizontal] = await Promise.all([
+                resolvePlacementAsset(ad.placements.feed),
+                resolvePlacementAsset(ad.placements.stories),
+                resolvePlacementAsset(ad.placements.horizontal),
+              ]);
+              return { ...base, placements: { feed, stories, horizontal } };
             }),
           );
 
@@ -3573,45 +3705,88 @@ function CreateCampaignModal({
                 dentro de cada um, um atalho por ANÚNCIO — antes só existia um
                 atalho fixo "Conjunto"/"Anúncio" que sempre pulava pro
                 primeiro, mesmo tendo vários. */}
+            {/* Checkbox em cada linha = seleção múltipla (independente do
+                clique no nome, que continua só pulando pro item) — marcar
+                mais de um conjunto OU mais de um anúncio faz qualquer edição
+                feita num deles se aplicar a todos os marcados (ver
+                updateAdSet/updateAdCrossSets). Funciona entre conjuntos
+                diferentes também (anúncio de um conjunto + anúncio de
+                outro), por pedido do usuário. */}
             {adSets.map((adSet, idx) => (
               <div key={adSet.key} className="space-y-0.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    scrollToAnchor(`create-campaign-anchor-conjunto-${adSet.key}`);
-                    setMobileStructureNavOpen(false);
-                  }}
-                  className={`w-full text-left p-2.5 rounded-md flex items-center gap-2 transition-colors text-sm ${
+                <div
+                  className={`w-full flex items-center gap-1.5 rounded-md transition-colors text-sm ${
                     activeAnchorId === `create-campaign-anchor-conjunto-${adSet.key}`
                       ? 'bg-sky-700/50 text-sky-300 hover:bg-sky-700/70'
                       : 'hover:bg-slate-700/50 text-slate-300'
                   }`}
-                  title={adSet.name || `Conjunto ${idx + 1}`}
                 >
-                  <Layers className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{adSet.name || `Conjunto ${idx + 1}`}</span>
-                </button>
-                {adSet.ads.map((ad, adIdx) => (
+                  <Checkbox
+                    className="ml-2 shrink-0"
+                    checked={selectedAdSetKeys.has(adSet.key)}
+                    onCheckedChange={() => toggleAdSetSelected(adSet.key)}
+                    title="Selecionar este conjunto (edição em lote)"
+                  />
                   <button
-                    key={ad.key}
                     type="button"
                     onClick={() => {
-                      scrollToAnchor(`create-campaign-anchor-anuncio-${ad.key}`);
+                      scrollToAnchor(`create-campaign-anchor-conjunto-${adSet.key}`);
                       setMobileStructureNavOpen(false);
                     }}
-                    className={`w-full text-left py-1.5 pl-8 pr-2.5 rounded-md flex items-center gap-2 transition-colors text-xs ${
+                    className="flex-1 min-w-0 text-left py-2.5 pr-2.5 flex items-center gap-2"
+                    title={adSet.name || `Conjunto ${idx + 1}`}
+                  >
+                    <Layers className="w-4 h-4 shrink-0" />
+                    <span className="truncate">{adSet.name || `Conjunto ${idx + 1}`}</span>
+                  </button>
+                </div>
+                {adSet.ads.map((ad, adIdx) => (
+                  <div
+                    key={ad.key}
+                    className={`w-full flex items-center gap-1 rounded-md transition-colors text-xs ${
                       activeAnchorId === `create-campaign-anchor-anuncio-${ad.key}`
                         ? 'bg-sky-700/50 text-sky-300 hover:bg-sky-700/70'
                         : 'hover:bg-slate-700/50 text-slate-400'
                     }`}
-                    title={ad.name || `Anúncio ${adIdx + 1}`}
                   >
-                    <ImagePlus className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">{ad.name || `Anúncio ${adIdx + 1}`}</span>
-                  </button>
+                    <Checkbox
+                      className="ml-7 shrink-0"
+                      checked={selectedAdKeys.has(ad.key)}
+                      onCheckedChange={() => toggleAdSelected(ad.key)}
+                      title="Selecionar este anúncio (edição em lote)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        scrollToAnchor(`create-campaign-anchor-anuncio-${ad.key}`);
+                        setMobileStructureNavOpen(false);
+                      }}
+                      className="flex-1 min-w-0 text-left py-1.5 pr-2.5 flex items-center gap-2"
+                      title={ad.name || `Anúncio ${adIdx + 1}`}
+                    >
+                      <ImagePlus className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{ad.name || `Anúncio ${adIdx + 1}`}</span>
+                    </button>
+                  </div>
                 ))}
               </div>
             ))}
+            {(selectedAdSetKeys.size > 1 || selectedAdKeys.size > 1) && (
+              <div className="mt-2 p-2 rounded-md bg-amber-900/30 border border-amber-700/50 text-[11px] text-amber-300">
+                {selectedAdSetKeys.size > 1 && <p>{selectedAdSetKeys.size} conjuntos selecionados — editar um aplica nos demais.</p>}
+                {selectedAdKeys.size > 1 && <p>{selectedAdKeys.size} anúncios selecionados — editar um aplica nos demais.</p>}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAdSetKeys(new Set());
+                    setSelectedAdKeys(new Set());
+                  }}
+                  className="underline hover:text-amber-200 mt-0.5"
+                >
+                  Limpar seleção
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Fundo escurecido pra fechar o painel de atalhos clicando fora, só no celular. */}
@@ -3779,6 +3954,7 @@ function CreateCampaignModal({
                 setAudienceDialogKind(kind);
               }}
               sectionAnchorId={`create-campaign-anchor-conjunto-${adSet.key}`}
+              onUpdateAd={updateAdCrossSets}
             />
           ))}
 
