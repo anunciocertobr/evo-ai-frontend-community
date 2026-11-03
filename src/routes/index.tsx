@@ -125,6 +125,8 @@ import GoogleWorkspaceCallback from '../pages/Customer/Settings/Integrations/Goo
 import GoogleWorkspacePage from '../pages/Customer/Settings/Integrations/GoogleWorkspacePage';
 import DropboxCallback from '../pages/Customer/Settings/Integrations/DropboxCallback';
 import DropboxPage from '../pages/Customer/Settings/Integrations/DropboxPage';
+import TiktokCallback from '../pages/Customer/Settings/Integrations/TiktokCallback';
+import TiktokPage from '../pages/Customer/Settings/Integrations/TiktokPage';
 import MercadoLivreCallback from '../pages/Customer/Settings/Integrations/MercadoLivreCallback';
 import MercadoLivrePage from '../pages/Customer/Settings/Integrations/MercadoLivrePage';
 import ShopeeCallback from '../pages/Customer/Settings/Integrations/ShopeeCallback';
@@ -304,6 +306,16 @@ const AppRouter = () => {
             }
           />
 
+          {/* TikTok OAuth Callback — own app, unrelated to the connections above */}
+          <Route
+            path="/settings/integrations/tiktok/callback"
+            element={
+              <PublicRoute>
+                <TiktokCallback />
+              </PublicRoute>
+            }
+          />
+
           {/* Mercado Livre OAuth Callback — own app */}
           <Route
             path="/settings/integrations/mercado_livre/callback"
@@ -350,6 +362,22 @@ const AppRouter = () => {
                   <MainLayout>
                     <PermissionRoute resource="integrations" action="read">
                       <DropboxPage />
+                    </PermissionRoute>
+                  </MainLayout>
+                </CustomerRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* TikTok settings (Client Key/Secret + connect/disconnect) — same reasoning as Google Workspace above */}
+          <Route
+            path="/settings/integrations/tiktok"
+            element={
+              <PrivateRoute>
+                <CustomerRoute>
+                  <MainLayout>
+                    <PermissionRoute resource="integrations" action="read">
+                      <TiktokPage />
                     </PermissionRoute>
                   </MainLayout>
                 </CustomerRoute>

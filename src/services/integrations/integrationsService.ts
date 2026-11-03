@@ -373,6 +373,12 @@ class IntegrationsService {
     return extractData<{ email: string | null }>(response);
   }
 
+  // TikTok — same top-level-path reasoning as handleGoogleWorkspaceCallback above.
+  async handleTiktokCallback(code: string, state: string): Promise<{ display_name: string | null }> {
+    const response = await api.post('/tiktok/callback', { code, state });
+    return extractData<{ display_name: string | null }>(response);
+  }
+
   // Mercado Livre — same top-level-path reasoning as handleGoogleWorkspaceCallback above.
   async handleMercadoLivreCallback(
     code: string,

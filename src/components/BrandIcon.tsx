@@ -28,6 +28,7 @@ import {
   SiElevenlabs,
   SiIntercom,
   SiGooglegemini,
+  SiTiktok,
 } from '@icons-pack/react-simple-icons';
 
 const BRAND_ICONS: Record<string, IconType> = {
@@ -73,6 +74,7 @@ const BRAND_ICONS: Record<string, IconType> = {
   'google-gemini': SiGooglegemini,
   google_workspace: SiGoogle,
   'google-workspace': SiGoogle,
+  tiktok: SiTiktok,
 };
 
 // Official brand colors from simple-icons. Used as defaults when ChannelIcon
@@ -121,6 +123,7 @@ const BRAND_COLORS: Record<string, string> = {
   'google-gemini': '#8E75B2',
   google_workspace: '#4285F4',
   'google-workspace': '#4285F4',
+  tiktok: '#000000',
 };
 
 export function getBrandIcon(id?: string): IconType | undefined {

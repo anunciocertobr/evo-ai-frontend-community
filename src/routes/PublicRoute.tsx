@@ -79,6 +79,7 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
     const isSupabaseCallback = location.pathname === '/supabase/callback';
     const isMicrosoftCallback = location.pathname === '/microsoft/callback';
     const isDropboxCallback = location.pathname === '/settings/integrations/dropbox/callback';
+    const isTiktokCallback = location.pathname === '/settings/integrations/tiktok/callback';
     const isMercadoLivreCallback = location.pathname === '/settings/integrations/mercado_livre/callback';
     const isShopeeCallback = location.pathname === '/settings/integrations/shopee/callback';
 
@@ -106,6 +107,7 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
       isSupabaseCallback ||
       isMicrosoftCallback ||
       isDropboxCallback ||
+      isTiktokCallback ||
       isMercadoLivreCallback ||
       isShopeeCallback;
 
