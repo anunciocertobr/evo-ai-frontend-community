@@ -29,6 +29,18 @@
  * "Programar" do rodapé revelavam a seção certa, mas nunca rolavam até
  * ela — o canal/destino pra selecionar estava sempre lá, só fora da tela.
  *
+ * v6: (1) bug real de z-index — o modal usava z-[60], mas o botão
+ * "Selecionar Métricas" da tela principal (.dropdown, CSS do próprio
+ * relatório) usa z-index:1000/1001, então sempre renderizava por cima do
+ * modal inteiro quando ele abria (sintoma: "selecionar metricas
+ * aparecendo acima de tudo"); subido pra z-[2000]. (2) nome do arquivo
+ * gerado ganha o nome da conta de anúncios selecionada (pedido do
+ * usuário), extraído da option já selecionada em #meta-act-id. (3) select
+ * de canal (inbox) do "Enviar"/"Programar" tinha catch vazio — se a busca
+ * falhasse, ficava preso em "Selecione o canal..." pra sempre sem
+ * nenhuma pista do motivo (sintoma reportado: "canal não tá
+ * selecionando" — na real o canal nunca tinha chegado a aparecer).
+ *
  * Este arquivo é carregado pelo HTML do item `mtlsot4v-cf6f9s` de
  * `dashboard-menu-items` (ver Public::ReportHtml do backend). Ele depende de
  * variáveis `const` do script principal do relatório — metaAdsState,
@@ -1099,7 +1111,17 @@
     }
 
     addFooters();
-    var nome = 'relatorio-meta-ads_' + selection.period.start + '_a_' + selection.period.end + '.pdf';
+    // Nome da conta de anúncios no nome do arquivo (pedido do usuário) —
+    // a option do select já tem o formato "Nome (id)" (ver
+    // loadMetaAccountOptions no script principal); tira o "(id)",
+    // normaliza acento/espaço pra um slug seguro em nome de arquivo.
+    var contaOption = document.getElementById('meta-act-id');
+    contaOption = contaOption && contaOption.selectedOptions && contaOption.selectedOptions[0];
+    var contaSlug = contaOption && contaOption.value
+      ? '_' + contaOption.text.replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase()
+          .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      : '';
+    var nome = 'relatorio-meta-ads' + contaSlug + '_' + selection.period.start + '_a_' + selection.period.end + '.pdf';
     // mode 'send' (botão Enviar): pega os bytes já montados em vez de
     // disparar o download — mesmo doc, só muda o passo final.
     if (mode === 'send') return { name: nome, blob: doc.output('blob') };
@@ -1129,14 +1151,25 @@
     var firstOpt = document.createElement('option');
     firstOpt.value = ''; firstOpt.textContent = 'Selecione o canal (inbox)...';
     inboxSel.appendChild(firstOpt);
+    // Antes falhava em silêncio (catch vazio) — o select ficava parado em
+    // "Selecione o canal..." pra sempre, sem nenhuma pista de que algo
+    // deu errado (sintoma reportado: "canal não tá selecionando" — na
+    // real o canal nunca chegava a aparecer pra selecionar).
     fetch('/api/v1/inboxes').then(function (r) { return r.json(); }).then(function (res) {
-      (res.data || res || []).forEach(function (ib) {
+      var canais = res.data || res || [];
+      if (!canais.length) {
+        inboxSel.innerHTML = '<option value="">Nenhum canal encontrado</option>';
+        return;
+      }
+      canais.forEach(function (ib) {
         var op = document.createElement('option');
         op.value = ib.id;
         op.textContent = ib.name + ' (' + String(ib.channel_type || '').replace('Channel::', '') + ')';
         inboxSel.appendChild(op);
       });
-    }).catch(function () {});
+    }).catch(function (err) {
+      inboxSel.innerHTML = '<option value="">Erro ao carregar canais: ' + err.message + '</option>';
+    });
 
     var destType = 'number';
     var typeRow = el('div', 'flex gap-2 text-xs');
@@ -1289,7 +1322,12 @@
   }
 
   function buildModal() {
-    var overlay = el('div', 'fixed inset-0 z-[60] bg-slate-900/80 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4');
+    // z-[2000]: o botão "Selecionar Métricas" da tela principal (.dropdown,
+    // CSS do próprio relatório) usa z-index:1000/1001 — com z-[60] aqui
+    // (60 < 1000), esse dropdown sempre renderizava por cima do modal
+    // inteiro quando ele estava aberto, mesmo fechado (sintoma reportado
+    // pelo usuário: "selecionar metricas aparecendo acima de tudo").
+    var overlay = el('div', 'fixed inset-0 z-[2000] bg-slate-900/80 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4');
     overlay.id = 'evo-pdf-modal';
     overlay.style.display = 'none';
 
