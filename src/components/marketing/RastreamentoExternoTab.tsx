@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Film, ExternalLink, Search, X } from 'lucide-react';
+import { Loader2, Film, ExternalLink, Search, X, Plus } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -17,8 +17,10 @@ import {
   HoverCardTrigger,
 } from '@evoapi/design-system';
 import { RastreamentoConversionButton } from '@/components/marketing/RastreamentoConversionButton';
-import { rastreamentosService, type HelenaAdContext } from '@/services/marketing/rastreamentosService';
+import { rastreamentosService, type HelenaAdContext, type HelenaAccount } from '@/services/marketing/rastreamentosService';
 import { formatPublicoAlvo } from '@/components/marketing/leadDetails';
+import HelenaModal from '@/components/integrations/providers/helena/HelenaModal';
+import { integrationsService } from '@/services/integrations';
 
 const ALL = '__all__';
 
@@ -81,6 +83,45 @@ export function RastreamentoExternoTab() {
 
   const [enriching, setEnriching] = useState(false);
 
+  // Várias contas Helena podem estar conectadas (ver HelenaPage em
+  // Configurações > Integrações) — seletor igual ao de BM da aba
+  // Formulário, + botão "+" pra conectar uma nova sem sair da tela.
+  const [accounts, setAccounts] = useState<HelenaAccount[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [accountId, setAccountId] = useState<string>('');
+  const [addAccountOpen, setAddAccountOpen] = useState(false);
+  const [savingAccount, setSavingAccount] = useState(false);
+
+  const loadAccounts = useCallback(async () => {
+    setAccountsLoading(true);
+    try {
+      const items = await rastreamentosService.accounts();
+      setAccounts(items);
+      setAccountId((current) => (current && items.some((a) => a.id === current) ? current : items[0]?.id || ''));
+    } finally {
+      setAccountsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAccounts();
+  }, [loadAccounts]);
+
+  const handleAddAccount = async (data: Record<string, unknown>) => {
+    setSavingAccount(true);
+    try {
+      await integrationsService.createIntegrationHook('helena', data);
+      toast.success('Conta Helena conectada.');
+      setAddAccountOpen(false);
+      await loadAccounts();
+    } catch {
+      toast.error('Erro ao conectar a conta Helena.');
+      throw new Error('save failed');
+    } finally {
+      setSavingAccount(false);
+    }
+  };
+
   // Barra de rolagem horizontal "fantasma" fixada no topo da tabela,
   // sincronizada com o scroll real do container abaixo — mesmo padrão já
   // usado em SiteLeadsDialog.tsx. Sem isso, com muitas colunas, a barra
@@ -132,10 +173,12 @@ export function RastreamentoExternoTab() {
   }, []);
 
   useEffect(() => {
+    if (!accountId) return;
+
     const load = async () => {
       setLoading(true);
       try {
-        const items = await rastreamentosService.allContacts(100);
+        const items = await rastreamentosService.allContacts(100, accountId);
         setContacts(items);
 
         const uniqueAdIds = Array.from(new Set(items.map((c: HelenaContact) => c.utm?.sourceId).filter(Boolean))) as string[];
@@ -147,7 +190,7 @@ export function RastreamentoExternoTab() {
       }
     };
     load();
-  }, [enrichAdContext]);
+  }, [enrichAdContext, accountId]);
 
   const contextFor = useCallback(
     (contact: HelenaContact) => {
@@ -234,6 +277,31 @@ export function RastreamentoExternoTab() {
 
   return (
     <div className="flex flex-col h-full space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <Label className="text-xs">Conta Helena</Label>
+          <div className="flex items-center gap-1.5">
+            <Select value={accountId} onValueChange={setAccountId} disabled={accounts.length === 0}>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder={accounts.length === 0 ? 'Nenhuma conta conectada' : 'Selecione'} />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button type="button" variant="outline" size="icon" title="Adicionar conta Helena" onClick={() => setAddAccountOpen(true)}>
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <HelenaModal open={addAccountOpen} onOpenChange={setAddAccountOpen} onSubmit={handleAddAccount} isNew loading={savingAccount} />
+
       {!loading && contacts.length > 0 && (
         <>
           <div className="flex flex-wrap items-end gap-3">
@@ -348,10 +416,16 @@ export function RastreamentoExternoTab() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading || accountsLoading ? (
                   <tr>
                     <td colSpan={TOTAL_COLUMNS} className="p-6 text-center text-muted-foreground">
                       <Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Carregando...
+                    </td>
+                  </tr>
+                ) : accounts.length === 0 ? (
+                  <tr>
+                    <td colSpan={TOTAL_COLUMNS} className="p-6 text-center text-muted-foreground">
+                      Nenhuma conta Helena conectada ainda — clique no &quot;+&quot; acima pra conectar uma.
                     </td>
                   </tr>
                 ) : contacts.length === 0 ? (

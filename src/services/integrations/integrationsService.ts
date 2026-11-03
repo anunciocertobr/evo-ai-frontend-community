@@ -284,6 +284,19 @@ class IntegrationsService {
     }
   }
 
+  // Todas as conexões do app_id, não só a primeira — usado por
+  // integrações com allow_multiple_hooks: true (ex.: Helena, pra permitir
+  // mais de uma conta conectada ao mesmo tempo).
+  async getIntegrationHooks(appId: string): Promise<IntegrationHook[]> {
+    try {
+      const response = await api.get(`/integrations/apps/${appId}`);
+      const integration = extractData<Integration>(response);
+      return integration?.hooks?.filter((hook: IntegrationHook) => hook.app_id === appId) || [];
+    } catch {
+      return [];
+    }
+  }
+
   async createIntegrationHook(appId: string, settings: Record<string, unknown>): Promise<IntegrationHook> {
     const payload = {
       hook: {

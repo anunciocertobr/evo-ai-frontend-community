@@ -33,10 +33,12 @@ export default function HelenaModal({
 }: HelenaModalProps) {
   const { t } = useLanguage('integrations');
   const [loading, setLoading] = useState(false);
+  const [label, setLabel] = useState('');
   const [token, setToken] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
+    setLabel((hook?.settings?.label as string) || '');
     setToken((hook?.settings?.token as string) || '');
     setError('');
   }, [hook, open]);
@@ -51,7 +53,7 @@ export default function HelenaModal({
 
     setLoading(true);
     try {
-      await onSubmit({ token: token.trim() });
+      await onSubmit({ label: label.trim(), token: token.trim() });
     } catch {
       // Erro já tratado pelo componente pai (GenericIntegrationSettings)
     } finally {
@@ -74,6 +76,21 @@ export default function HelenaModal({
             {t('helena.modal.description') ||
               'Cole o token de acesso da API WTS/Helena (api.wts.chat) pra importar contatos com dados de origem de campanha.'}
           </p>
+
+          <div>
+            <label htmlFor="helena_label" className="block text-sm font-medium mb-1">
+              {t('helena.modal.fields.label.label') || 'Nome da conta'}
+            </label>
+            <Input
+              id="helena_label"
+              placeholder={t('helena.modal.fields.label.placeholder') || 'Ex.: nome do cliente/projeto'}
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {t('helena.modal.fields.label.help') || 'Útil só quando você conecta mais de uma conta Helena.'}
+            </p>
+          </div>
 
           <div>
             <label htmlFor="helena_token" className="block text-sm font-medium mb-1">

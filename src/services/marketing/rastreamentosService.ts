@@ -26,9 +26,21 @@ export interface SendConversionResult {
   error?: string;
 }
 
+export interface HelenaAccount {
+  id: string;
+  label: string;
+}
+
 export const rastreamentosService = {
-  async allContacts(limit = 100) {
-    const res = await api.get('/reports/helena_wts/all_contacts', { params: { limit } });
+  // Contas Helena conectadas (Configurações > Integrações > Helena) —
+  // pro seletor da aba Externo, quando há mais de uma.
+  async accounts(): Promise<HelenaAccount[]> {
+    const res = await api.get('/reports/helena_wts/accounts');
+    return res.data?.items ?? [];
+  },
+
+  async allContacts(limit = 100, hookId?: string) {
+    const res = await api.get('/reports/helena_wts/all_contacts', { params: { limit, hook_id: hookId || undefined } });
     return res.data?.items ?? [];
   },
 
