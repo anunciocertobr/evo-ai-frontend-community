@@ -120,8 +120,10 @@ export default function TiktokPage() {
         <h1 className="text-2xl font-semibold">TikTok</h1>
         <p className="text-muted-foreground text-sm">
           Conecte uma conta TikTok pra publicar vídeos pelo Gestor de Posts (Marketing &gt; Painel de Tráfego).
-          Publicar de verdade exige a Content Posting API aprovada pela TikTok pro seu app — a conexão abaixo
-          funciona independente dessa aprovação.
+          <strong> O app precisa estar aprovado pela TikTok (App Review) antes de qualquer conexão funcionar</strong> —
+          confirmado ao vivo: um app pendente/rejeitado recusa o login com &quot;unauthorized_client&quot;, mesmo só
+          pedindo o escopo básico de perfil, sem nenhum produto de postagem envolvido. Acompanhe o status da
+          revisão no <a href="https://developers.tiktok.com/apps" target="_blank" rel="noreferrer" className="underline">TikTok for Developers</a>.
         </p>
       </div>
 
