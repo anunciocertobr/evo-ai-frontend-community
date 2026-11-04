@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useUnansweredConversationsStore } from '@/store/unansweredConversationsStore';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -72,6 +72,7 @@ export default function Header({
   handleMenuClick,
 }: HeaderProps) {
   const { t } = useLanguage('layout');
+  const navigate = useNavigate();
   // Item pai (com subItems) que a pessoa abriu no celular — troca a tela
   // inteira do menu pelos subitens dele (com um "voltar"), em vez de
   // expandir inline dentro da mesma lista (pedido explícito: nada de
@@ -139,12 +140,25 @@ export default function Header({
                     {mobileSubmenuView.subItems!.map(subItem => {
                       const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href + '/');
                       return (
-                        <Link
+                        // Botão + navigate() imperativo, não <Link>: dentro deste
+                        // Sheet, um clique real (toque/mouse) num <a> some sem
+                        // navegar (o Sheet fecha e volta pra página de trás, ex.
+                        // Conversas) — bug real reproduzido ao vivo, raiz não
+                        // identificada com certeza (suspeita: o dismissable layer
+                        // do Radix Dialog fecha no pointerdown antes do click
+                        // chegar no link, que já não existe mais quando o click
+                        // dispara). O botão "Marketing" (mobileSubmenuView, acima)
+                        // usa o mesmo padrão onClick-só-estado e nunca falhou nos
+                        // testes — por isso navegar via JS em vez de via <a href>.
+                        <button
                           key={subItem.href}
-                          to={subItem.href}
-                          onClick={() => setIsMobileMenuOpen(false)}
+                          type="button"
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            navigate(subItem.href);
+                          }}
                           className={cn(
-                            'flex items-center gap-3 px-3 py-2.5 rounded-md transition-all text-sm',
+                            'flex w-full items-center gap-3 px-3 py-2.5 rounded-md transition-all text-sm text-left cursor-pointer',
                             isSubActive
                               ? 'bg-primary text-primary-foreground'
                               : 'text-muted-foreground hover:text-foreground hover:bg-accent',
@@ -152,7 +166,7 @@ export default function Header({
                         >
                           <subItem.icon className={cn('flex-shrink-0 h-4 w-4', isSubActive && 'text-primary-foreground')} />
                           <span className="font-medium">{subItem.name}</span>
-                        </Link>
+                        </button>
                       );
                     })}
                   </nav>
