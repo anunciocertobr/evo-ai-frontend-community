@@ -1064,7 +1064,7 @@ export default function GestorPostsPage() {
     setNewFormats((prev) => ({ ...prev, [format]: !prev[format] }));
   };
 
-  const togglePlatformEnabled = (key: 'instagram' | 'facebook' | 'whatsapp' | 'youtube' | 'business_profile') => {
+  const togglePlatformEnabled = (key: 'instagram' | 'facebook' | 'whatsapp' | 'youtube' | 'tiktok' | 'business_profile') => {
     setPlatformEnabled((prev) => {
       const next = { ...prev, [key]: !prev[key] };
       if (!next[key]) {
@@ -1140,7 +1140,7 @@ export default function GestorPostsPage() {
       config[parts[0].trim().toLowerCase()] = parts.slice(1).join(':').trim();
     });
 
-    const enabled = { instagram: false, facebook: false, whatsapp: false, youtube: false, business_profile: false };
+    const enabled = { instagram: false, facebook: false, whatsapp: false, youtube: false, tiktok: false, business_profile: false };
     (Object.keys(enabled) as Array<keyof typeof enabled>).forEach((key) => {
       if ((config[key] || '').toLowerCase() === 'sim') enabled[key] = true;
     });
@@ -1151,6 +1151,7 @@ export default function GestorPostsPage() {
     setDestFacebookIds(enabled.facebook ? idsFor('id_facebook') : []);
     setDestWhatsappIds(enabled.whatsapp ? idsFor('id_whatsapp') : []);
     setDestYoutube(enabled.youtube);
+    setDestTiktok(enabled.tiktok);
   };
 
   const applyPostSelection = async (files: File[], client: string, postName: string | null) => {
