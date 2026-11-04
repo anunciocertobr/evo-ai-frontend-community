@@ -163,6 +163,26 @@ export interface CreateYoutubeUploadPayload {
   video: File;
 }
 
+export type TiktokUploadStatus = 'pending' | 'uploading' | 'published' | 'failed';
+
+// Sem campo de privacidade escolhível ainda — o backend sempre força um
+// nível privado (app não aprovado pela TikTok recusa post público). Sem
+// `description` também: a Content Posting API usa só `title` como legenda.
+export interface TiktokUploadItem {
+  id: string;
+  title: string;
+  privacy_level?: string;
+  status: TiktokUploadStatus;
+  error_message?: string;
+  external_post_id?: string;
+  created_at: string;
+}
+
+export interface CreateTiktokUploadPayload {
+  title: string;
+  video: File;
+}
+
 export interface FacebookAccountInfo {
   name?: string;
   fan_count?: number;

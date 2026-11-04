@@ -28,6 +28,8 @@ import type {
   CreateBusinessPostPayload,
   YoutubeChannelInfo,
   YoutubeVideoItem,
+  TiktokUploadItem,
+  CreateTiktokUploadPayload,
 } from '@/types/marketing/gestorPosts';
 
 class GestorPostsService {
@@ -199,6 +201,27 @@ class GestorPostsService {
   async getYoutubeUpload(id: string): Promise<YoutubeUploadItem> {
     const response = await api.get(`${this.baseUrl}/youtube/${id}`);
     return extractData<YoutubeUploadItem>(response);
+  }
+
+  async getTiktokConnected(): Promise<boolean> {
+    const response = await api.get(`${this.baseUrl}/tiktok/connected`);
+    return extractData<{ connected: boolean }>(response).connected;
+  }
+
+  async createTiktokUpload(payload: CreateTiktokUploadPayload): Promise<TiktokUploadItem> {
+    const formData = new FormData();
+    formData.append('title', payload.title);
+    formData.append('video', payload.video);
+
+    const response = await api.post(`${this.baseUrl}/tiktok`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return extractData<TiktokUploadItem>(response);
+  }
+
+  async getTiktokUpload(id: string): Promise<TiktokUploadItem> {
+    const response = await api.get(`${this.baseUrl}/tiktok/${id}`);
+    return extractData<TiktokUploadItem>(response);
   }
 
   async getFacebookAccountInfo(channel: SocialChannelOption): Promise<FacebookAccountInfo> {

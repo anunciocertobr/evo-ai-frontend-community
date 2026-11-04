@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Heart, MessageCircle, Users, Image as ImageIcon, X, Send, Plus, Upload, FolderOpen, Calendar, CalendarDays, RotateCcw, Phone, Youtube, Instagram, Facebook, Trash2, Settings as SettingsIcon, Bookmark, Target, Share2, Eye, UserPlus, Clock, Play, Layers, ExternalLink, MapPin, Building2 } from 'lucide-react';
+import { SiTiktok } from '@icons-pack/react-simple-icons';
 import { toast } from 'sonner';
 import flatpickr from 'flatpickr';
 import { Portuguese } from 'flatpickr/dist/l10n/pt.js';
@@ -737,6 +738,7 @@ export default function GestorPostsPage() {
   const [destFacebookIds, setDestFacebookIds] = useState<string[]>([]);
   const [destWhatsappIds, setDestWhatsappIds] = useState<string[]>([]);
   const [destYoutube, setDestYoutube] = useState(false);
+  const [destTiktok, setDestTiktok] = useState(false);
   // Chave composta "account_name|location_id", igual ao page_id do Facebook.
   const [destBusinessLocationIds, setDestBusinessLocationIds] = useState<string[]>([]);
   const [newCtaActionType, setNewCtaActionType] = useState('');
@@ -749,6 +751,7 @@ export default function GestorPostsPage() {
     facebook: false,
     whatsapp: false,
     youtube: false,
+    tiktok: false,
     business_profile: false,
   });
 
@@ -768,6 +771,7 @@ export default function GestorPostsPage() {
   // teve upload de YouTube na tela principal) — sempre publica como
   // "não listado", igual ao padrão que já era usado antes.
   const youtubePrivacy: YoutubePrivacyStatus = 'unlisted';
+  const [tiktokConnected, setTiktokConnected] = useState<boolean | null>(null);
 
   // Google Meu Negócio — mesma conexão "Conectar com Google" do YouTube/GTM
   // (escopo business.manage). Sem passo de "conectar localização": a lista
@@ -798,7 +802,11 @@ export default function GestorPostsPage() {
   // Texto/Áudio no Tipo de Mídia (Status do WhatsApp aceita os dois; os
   // outros destinos, não).
   const whatsappOnlySelected =
-    platformEnabled.whatsapp && !platformEnabled.instagram && !platformEnabled.facebook && !platformEnabled.youtube;
+    platformEnabled.whatsapp &&
+    !platformEnabled.instagram &&
+    !platformEnabled.facebook &&
+    !platformEnabled.youtube &&
+    !platformEnabled.tiktok;
 
   const [gallerySettings, setGallerySettings] = useState<GallerySettings>(() => {
     try {
@@ -1064,6 +1072,7 @@ export default function GestorPostsPage() {
         if (key === 'facebook') setDestFacebookIds([]);
         if (key === 'whatsapp') setDestWhatsappIds([]);
         if (key === 'youtube') setDestYoutube(false);
+        if (key === 'tiktok') setDestTiktok(false);
         if (key === 'business_profile') setDestBusinessLocationIds([]);
       }
       return next;
@@ -1149,11 +1158,12 @@ export default function GestorPostsPage() {
     setNewFormats({ feed: false, stories: false, reels: false });
     setNewIsScheduled(false);
     setNewScheduledFor('');
-    setPlatformEnabled({ instagram: false, facebook: false, whatsapp: false, youtube: false, business_profile: false });
+    setPlatformEnabled({ instagram: false, facebook: false, whatsapp: false, youtube: false, tiktok: false, business_profile: false });
     setDestInstagramIds([]);
     setDestFacebookIds([]);
     setDestWhatsappIds([]);
     setDestYoutube(false);
+    setDestTiktok(false);
     setThumbFile(null);
 
     const isMedia = (f: File) => f.type.startsWith('image/') || f.type.startsWith('video/');
@@ -1319,10 +1329,11 @@ export default function GestorPostsPage() {
     setDestFacebookIds([]);
     setDestWhatsappIds([]);
     setDestYoutube(false);
+    setDestTiktok(false);
     setDestBusinessLocationIds([]);
     setNewCtaActionType('');
     setNewCtaUrl('');
-    setPlatformEnabled({ instagram: false, facebook: false, whatsapp: false, youtube: false, business_profile: false });
+    setPlatformEnabled({ instagram: false, facebook: false, whatsapp: false, youtube: false, tiktok: false, business_profile: false });
     setMediaType('');
     setNewIsCarousel(false);
     setUploadedFiles([]);
@@ -1351,6 +1362,10 @@ export default function GestorPostsPage() {
       .getYoutubeConnected()
       .then(setYoutubeConnected)
       .catch(() => setYoutubeConnected(false));
+    gestorPostsService
+      .getTiktokConnected()
+      .then(setTiktokConnected)
+      .catch(() => setTiktokConnected(false));
     if (businessProfileConnected && businessLocations.length === 0) {
       loadBusinessLocations();
     }
@@ -1410,6 +1425,25 @@ export default function GestorPostsPage() {
         }
         if (upload.status === 'failed') {
           toast.error(`Falha ao publicar no YouTube: ${upload.error_message || 'erro desconhecido'}`);
+          return;
+        }
+      } catch {
+        return;
+      }
+    }
+  };
+
+  const pollTiktokUploadStatus = async (id: string) => {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      try {
+        const upload = await gestorPostsService.getTiktokUpload(id);
+        if (upload.status === 'published') {
+          toast.success('Vídeo publicado no TikTok! (modo privado, app ainda não aprovado pela TikTok)');
+          return;
+        }
+        if (upload.status === 'failed') {
+          toast.error(`Falha ao publicar no TikTok: ${upload.error_message || 'erro desconhecido'}`);
           return;
         }
       } catch {
@@ -1541,6 +1575,16 @@ export default function GestorPostsPage() {
     pollYoutubeUploadStatus(upload.id);
   };
 
+  const publishTiktokJob = async () => {
+    const file = uploadedFiles[0];
+    if (!file) return;
+    const upload = await gestorPostsService.createTiktokUpload({
+      title: newCaption.trim() || 'Vídeo publicado via CRM',
+      video: file,
+    });
+    pollTiktokUploadStatus(upload.id);
+  };
+
   const publishBusinessProfileJob = async (compositeId: string) => {
     const [accountName, locationId] = compositeId.split('|');
     const file = uploadedFiles[0];
@@ -1560,11 +1604,12 @@ export default function GestorPostsPage() {
     const hasMeta = destInstagramIds.length > 0 || destFacebookIds.length > 0;
     const hasWhatsapp = destWhatsappIds.length > 0;
     const hasYoutube = destYoutube;
+    const hasTiktok = destTiktok;
     const hasBusinessProfile = destBusinessLocationIds.length > 0;
 
-    const whatsappOnly = hasWhatsapp && !hasMeta && !hasYoutube && !hasBusinessProfile;
+    const whatsappOnly = hasWhatsapp && !hasMeta && !hasYoutube && !hasTiktok && !hasBusinessProfile;
 
-    if (!hasMeta && !hasWhatsapp && !hasYoutube && !hasBusinessProfile) {
+    if (!hasMeta && !hasWhatsapp && !hasYoutube && !hasTiktok && !hasBusinessProfile) {
       toast.error('Selecione ao menos uma plataforma e uma conta de destino.');
       return;
     }
@@ -1590,8 +1635,8 @@ export default function GestorPostsPage() {
         toast.error('Selecione ao menos 2 imagens para o carrossel.');
         return;
       }
-      if (hasWhatsapp || hasYoutube) {
-        toast.error('Carrossel só é suportado para Instagram/Facebook. Desmarque WhatsApp/YouTube ou desative o carrossel.');
+      if (hasWhatsapp || hasYoutube || hasTiktok) {
+        toast.error('Carrossel só é suportado para Instagram/Facebook. Desmarque WhatsApp/YouTube/TikTok ou desative o carrossel.');
         return;
       }
     } else if (uploadedFiles.length === 0) {
@@ -1602,6 +1647,10 @@ export default function GestorPostsPage() {
       toast.error('Para postar no YouTube, selecione um único arquivo de vídeo (sem carrossel).');
       return;
     }
+    if (hasTiktok && (newIsCarousel || !uploadedFiles[0]?.type.startsWith('video/'))) {
+      toast.error('Para postar no TikTok, selecione um único arquivo de vídeo (sem carrossel).');
+      return;
+    }
     if (hasBusinessProfile && (newIsCarousel || !uploadedFiles[0]?.type.startsWith('image/'))) {
       toast.error('Para postar no Google Meu Negócio, selecione uma única imagem (sem carrossel).');
       return;
@@ -1610,9 +1659,9 @@ export default function GestorPostsPage() {
       toast.error('Escreva a legenda do post do Google Meu Negócio.');
       return;
     }
-    if (newIsScheduled && (hasWhatsapp || hasYoutube || hasBusinessProfile)) {
+    if (newIsScheduled && (hasWhatsapp || hasYoutube || hasTiktok || hasBusinessProfile)) {
       toast.error(
-        'Agendamento ainda não é suportado para WhatsApp, YouTube ou Google Meu Negócio — desmarque-os ou desative o agendamento.',
+        'Agendamento ainda não é suportado para WhatsApp, YouTube, TikTok ou Google Meu Negócio — desmarque-os ou desative o agendamento.',
       );
       return;
     }
@@ -1669,6 +1718,10 @@ export default function GestorPostsPage() {
 
     if (hasYoutube) {
       jobs.push({ label: 'YouTube', run: publishYoutubeJob });
+    }
+
+    if (hasTiktok) {
+      jobs.push({ label: 'TikTok', run: publishTiktokJob });
     }
 
     destBusinessLocationIds.forEach((compositeId) => {
@@ -3415,13 +3468,14 @@ export default function GestorPostsPage() {
               {/* Plataforma(s) */}
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Plataforma(s)</p>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                   {(
                     [
                       { id: 'instagram' as const, label: 'Instagram', icon: Instagram },
                       { id: 'facebook' as const, label: 'Facebook', icon: Facebook },
                       { id: 'whatsapp' as const, label: 'WhatsApp', icon: Phone },
                       { id: 'youtube' as const, label: 'YouTube', icon: Youtube },
+                      { id: 'tiktok' as const, label: 'TikTok', icon: SiTiktok },
                       { id: 'business_profile' as const, label: 'Google Meu Negócio', icon: MapPin },
                     ]
                   ).map(({ id, label, icon: Icon }) => (
@@ -3434,9 +3488,11 @@ export default function GestorPostsPage() {
                           ? mediaType === 'carousel'
                           : id === 'youtube'
                             ? mediaType === 'carousel' || !youtubeConnected
-                            : id === 'business_profile'
-                              ? mediaType === 'carousel' || !businessProfileConnected
-                              : false
+                            : id === 'tiktok'
+                              ? mediaType === 'carousel' || !tiktokConnected
+                              : id === 'business_profile'
+                                ? mediaType === 'carousel' || !businessProfileConnected
+                                : false
                       }
                       className={`flex flex-col items-center gap-1 py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none ${
                         platformEnabled[id]
@@ -3488,6 +3544,18 @@ export default function GestorPostsPage() {
                   <Checkbox checked={destYoutube} onCheckedChange={() => setDestYoutube((v) => !v)} />
                   <Youtube className="w-3.5 h-3.5" /> Canal do YouTube conectado
                 </label>
+              )}
+
+              {platformEnabled.tiktok && (
+                <div className="space-y-1">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                    <Checkbox checked={destTiktok} onCheckedChange={() => setDestTiktok((v) => !v)} />
+                    <SiTiktok className="w-3.5 h-3.5" /> Conta do TikTok conectada
+                  </label>
+                  <p className="text-[11px] text-muted-foreground pl-6">
+                    App ainda não aprovado pela TikTok — o vídeo publica em modo privado (só você consegue ver).
+                  </p>
+                </div>
               )}
 
               {platformEnabled.business_profile && (
@@ -3620,13 +3688,13 @@ export default function GestorPostsPage() {
               <div>
                 <label
                   className={`flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none mb-2 ${
-                    destWhatsappIds.length > 0 || destYoutube ? 'opacity-50 pointer-events-none' : ''
+                    destWhatsappIds.length > 0 || destYoutube || destTiktok ? 'opacity-50 pointer-events-none' : ''
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={newIsScheduled}
-                    disabled={destWhatsappIds.length > 0 || destYoutube}
+                    disabled={destWhatsappIds.length > 0 || destYoutube || destTiktok}
                     onChange={(e) => {
                       setNewIsScheduled(e.target.checked);
                       if (e.target.checked && !newScheduledFor) setNewScheduledFor(toDatetimeLocalMin());
