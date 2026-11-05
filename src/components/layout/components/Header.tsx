@@ -102,7 +102,17 @@ export default function Header({
       <div className="md:hidden flex items-center w-full px-4">
         {/* Left: Menu Button */}
         <div className="flex-1 flex justify-start">
-          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+          {/* modal={false}: o Dialog/Sheet modal (padrão) usa FocusScope com
+              trapFocus, que recalcula o limite de foco quando o conteúdo
+              interno é montado — ao trocar lista principal <-> submenu sem
+              desmontar o Sheet (mobileSubmenuView), isso deixava o trap
+              "confuso" e o toque em qualquer item recém-montado (Marketing,
+              depois os subitens) às vezes fechava o menu inteiro em vez de
+              executar a ação — bug real reproduzido repetidamente, inclusive
+              no celular de verdade. Como este painel é tela cheia (w-full
+              h-full, sem "fora" visível), perder o overlay/trap de foco do
+              modo modal não tem efeito colateral visual ou de UX aqui. */}
+          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen} modal={false}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="text-sidebar-foreground cursor-pointer">
                 <Menu className="h-5 w-5" />
