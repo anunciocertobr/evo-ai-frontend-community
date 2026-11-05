@@ -26,13 +26,22 @@ export function useBackablePanel(isOpen: boolean, onClose: () => void) {
       window.history.pushState({ backablePanel: true }, '');
       pushedRef.current = true;
     } else if (!isOpen && pushedRef.current) {
-      // Painel fechou por outro motivo (clique num item, clique fora, etc) —
-      // "consome" a entrada que empurramos sem deixar o usuário perceber,
-      // senão ela fica órfã no histórico e o próximo "voltar" não faz nada
-      // visível (ou volta pra uma URL/estado inesperado).
       pushedRef.current = false;
-      ignoreNextPopRef.current = true;
-      window.history.back();
+      // Só é seguro "consumir" a entrada fantasma com history.back() se ela
+      // ainda for o topo da pilha. Bug real reproduzido repetidas vezes
+      // (navegador e celular): fechar o painel por causa de uma navegação
+      // de verdade (ex. clicar num item do submenu que chama navigate())
+      // empurra a página de destino ANTES deste efeito rodar — o topo da
+      // pilha já não é mais a entrada fantasma, é a navegação real. Chamar
+      // history.back() incondicionalmente descartava essa navegação real
+      // (voltava pra página de trás, ex. Conversas) em vez da fantasma.
+      // Se outra coisa já empurrou por cima, deixa a fantasma órfã no
+      // histórico (só custa um "voltar" a mais depois) em vez de cancelar
+      // a navegação.
+      if (window.history.state?.backablePanel) {
+        ignoreNextPopRef.current = true;
+        window.history.back();
+      }
     }
   }, [isOpen]);
 
