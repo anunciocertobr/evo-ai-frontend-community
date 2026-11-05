@@ -28,6 +28,7 @@ import { MenuItem as MenuItemType } from '../config/menuItems';
 import { ThemeToggle } from '../../ThemeToggle';
 import { AppLogo } from '../../AppLogo';
 import { PluginSlot } from '@/plugin-host';
+import { useBackablePanel } from '@/hooks/useBackablePanel';
 
 // Utility function for className merging
 function cn(...classes: (string | undefined | null | false)[]) {
@@ -78,6 +79,13 @@ export default function Header({
   // expandir inline dentro da mesma lista (pedido explícito: nada de
   // acordeão empurrando o resto da lista pra baixo).
   const [mobileSubmenuView, setMobileSubmenuView] = useState<MenuItemType | null>(null);
+  // Segunda camada do "voltar" físico do Android: com o menu já aberto
+  // (1ª camada, MainLayout.tsx), abrir um submenu (ex. Marketing) empurra
+  // sua PRÓPRIA entrada de history — o primeiro toque em "voltar" fecha só
+  // o submenu (retorna pra lista principal), o segundo fecha o menu
+  // inteiro. Sem isso, "voltar" dentro de um submenu pulava direto pra
+  // fechar tudo de uma vez.
+  useBackablePanel(mobileSubmenuView !== null, () => setMobileSubmenuView(null));
   const totalUnanswered = useUnansweredConversationsStore((state) => state.totalUnanswered);
 
   // Volta pra lista principal sempre que o menu fecha (X, link, ou clique
