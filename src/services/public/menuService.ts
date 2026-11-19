@@ -27,6 +27,28 @@ export interface PublicMenuSettings {
   gtm_id: string | null;
   whatsapp_number: string | null;
   google_client_id: string | null;
+  // Pagamento online ligado (Organização > Cardápio Digital) e nome do
+  // provedor escolhido ("InfinitePay" ou "Mercado Pago").
+  checkout_enabled?: boolean;
+  checkout_provider?: string;
+}
+
+export type OrderStatus = 'pending' | 'sent' | 'failed' | 'awaiting_payment' | 'paid';
+
+export interface SubmitOrderResult {
+  order_token: string;
+  // Presente só com o pagamento online ligado — o cliente deve ser levado pra cá.
+  checkout_url?: string;
+}
+
+export interface ConfirmPaymentParams {
+  // InfinitePay
+  transaction_nsu?: string;
+  slug?: string;
+  // Mercado Pago
+  payment_id?: string;
+  receipt_url?: string;
+  capture_method?: string;
 }
 
 export interface GoogleLoginResult {
@@ -66,6 +88,8 @@ export interface OrderCustomer {
 }
 
 export interface OrderItem {
+  // Usado no pagamento online: o backend recalcula o preço pelo produto.
+  product_id?: string;
   name: string;
   price: number;
   quantity: number;
@@ -90,15 +114,30 @@ class MenuService {
     paymentMethod: string,
     notes: string,
     orderToken: string,
-  ): Promise<void> {
-    await apiPublic.post('/menu/orders', { customer, items, payment_method: paymentMethod, notes, order_token: orderToken });
+  ): Promise<SubmitOrderResult> {
+    const { data } = await apiPublic.post<SubmitOrderResult>('/menu/orders', {
+      customer,
+      items,
+      payment_method: paymentMethod,
+      notes,
+      order_token: orderToken,
+    });
+    return data;
   }
 
   // O envio pro WhatsApp roda em background (pode levar alguns segundos) —
   // o checkout consulta esse status pra decidir se mostra o fallback "enviar
   // você mesmo pelo WhatsApp" quando o envio automático falha de verdade.
-  async getOrderStatus(orderToken: string): Promise<'pending' | 'sent' | 'failed'> {
-    const { data } = await apiPublic.get<{ status: 'pending' | 'sent' | 'failed' }>(`/menu/orders/${orderToken}/status`);
+  async getOrderStatus(orderToken: string): Promise<OrderStatus> {
+    const { data } = await apiPublic.get<{ status: OrderStatus }>(`/menu/orders/${orderToken}/status`);
+    return data.status;
+  }
+
+  // Cliente voltou do checkout (InfinitePay ou Mercado Pago): o backend
+  // confirma o pagamento direto no provedor e, se pago, dispara a mensagem
+  // "Pedido PAGO" pro WhatsApp da loja.
+  async confirmPayment(orderToken: string, params: ConfirmPaymentParams): Promise<string> {
+    const { data } = await apiPublic.post<{ status: string }>(`/menu/orders/${orderToken}/confirm_payment`, params);
     return data.status;
   }
 
