@@ -231,6 +231,11 @@ const DigitalMenuPage = () => {
   const [cartBounce, setCartBounce] = useState(false);
   const [orderSendStatus, setOrderSendStatus] = useState<'checking' | 'sent' | 'failed'>('checking');
   const [fallbackWhatsappLink, setFallbackWhatsappLink] = useState<string | null>(null);
+  // Pagamento online (InfinitePay): erro ao gerar o link e o estado do
+  // retorno do cliente depois de pagar (?pedido=<token>&transaction_nsu=...).
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [paymentReturn, setPaymentReturn] = useState<'none' | 'confirming' | 'paid' | 'not_confirmed'>('none');
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
 
   const cartButtonRef = useRef<HTMLButtonElement>(null);
   const modalImageRef = useRef<HTMLImageElement>(null);
@@ -260,6 +265,79 @@ const DigitalMenuPage = () => {
   }, []);
 
   useEffect(() => saveCart(cart), [cart]);
+
+  // Volta da InfinitePay: a redirect_url traz ?pedido=<order_token> e a
+  // InfinitePay acrescenta transaction_nsu, slug, receipt_url, capture_method.
+  // Pede pro backend confirmar (/payment_check) — isso também dispara a
+  // mensagem "Pedido PAGO" se o webhook ainda não tiver chegado — e depois
+  // acompanha o envio pro WhatsApp da loja.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('pedido');
+    if (!token) return;
+
+    const transactionNsu = params.get('transaction_nsu') || '';
+    const slug = params.get('slug') || '';
+    const receipt = params.get('receipt_url');
+    setReceiptUrl(receipt);
+    setCart([]);
+    setCheckoutStep('confirmed');
+    setCheckoutOpen(true);
+    setPaymentReturn('confirming');
+    setOrderSendStatus('checking');
+    window.history.replaceState({}, '', window.location.pathname);
+
+    const confirm = async () => {
+      let status = 'not_paid';
+      if (transactionNsu && slug) {
+        try {
+          status = await menuService.confirmPayment(token, {
+            transaction_nsu: transactionNsu,
+            slug,
+            receipt_url: receipt || undefined,
+            capture_method: params.get('capture_method') || undefined,
+          });
+        } catch {
+          status = 'check_failed';
+        }
+      }
+      // Mesmo sem confirmar aqui, o webhook pode já ter confirmado — o
+      // status do pedido no backend é a fonte da verdade.
+      let attempts = 0;
+      const poll = async () => {
+        attempts += 1;
+        let orderStatus = '';
+        try {
+          orderStatus = await menuService.getOrderStatus(token);
+        } catch {
+          // tenta de novo
+        }
+        if (status === 'paid' || orderStatus === 'paid' || orderStatus === 'sent' || orderStatus === 'failed') {
+          setPaymentReturn('paid');
+          if (orderStatus === 'sent') {
+            setOrderSendStatus('sent');
+            return;
+          }
+          if (orderStatus === 'failed') {
+            // Pedido pago: o backend continua tentando o envio sozinho.
+            setOrderSendStatus('sent');
+            return;
+          }
+        }
+        if (attempts >= 15) {
+          if (status === 'paid' || orderStatus === 'paid') {
+            setOrderSendStatus('sent');
+          } else {
+            setPaymentReturn('not_confirmed');
+          }
+          return;
+        }
+        setTimeout(poll, 2000);
+      };
+      poll();
+    };
+    confirm();
+  }, []);
 
   // Injeta o GTM configurado em Organização > Cardápio Digital, se houver —
   // mesmo snippet (script + noscript) usado nos templates de Sites.
@@ -408,11 +486,14 @@ const DigitalMenuPage = () => {
   const closeCheckout = () => {
     setCheckoutOpen(false);
     setCheckoutStep('form');
+    setPaymentReturn('none');
   };
 
   const goToCheckout = () => {
     setCartOpen(false);
     setCheckoutStep('form');
+    setPaymentReturn('none');
+    setCheckoutError(null);
     setCheckoutOpen(true);
   };
 
@@ -512,8 +593,76 @@ const DigitalMenuPage = () => {
     check();
   };
 
+  const buildOrderCustomer = () => ({
+    full_name: checkoutForm.fullName,
+    cpf: checkoutForm.cpf || undefined,
+    birth_date: checkoutForm.birthDate || undefined,
+    gender: checkoutForm.gender || undefined,
+    phone: checkoutForm.phone,
+    instagram: checkoutForm.instagram || undefined,
+    email: checkoutForm.email || undefined,
+    zip: checkoutForm.zip || undefined,
+    address: checkoutForm.address,
+    number: checkoutForm.number,
+    neighborhood: checkoutForm.neighborhood || undefined,
+    city: checkoutForm.city,
+    state: checkoutForm.state,
+  });
+
+  // Pagamento online ligado: cria o pedido + link da InfinitePay e leva o
+  // cliente pra lá. Nada vai pro WhatsApp agora — a mensagem "Pedido PAGO"
+  // só sai quando o pagamento é confirmado (webhook ou retorno do cliente).
+  const handleSubmitWithCheckout = async () => {
+    setSubmittingOrder(true);
+    setCheckoutError(null);
+    const orderToken = crypto.randomUUID();
+    const orderItems = cart.map((line) => ({
+      product_id: line.product.id,
+      name: line.product.name,
+      price: line.product.price,
+      quantity: line.quantity,
+    }));
+    try {
+      const result = await menuService.submitOrder(
+        buildOrderCustomer(),
+        orderItems,
+        'InfinitePay',
+        checkoutForm.notes,
+        orderToken,
+      );
+      if (!result.checkout_url) throw new Error('sem checkout_url');
+      pushToDataLayer(
+        {
+          event: 'begin_checkout',
+          ecommerce: {
+            value: cartTotal,
+            currency: 'BRL',
+            transaction_id: orderToken,
+            items: cart.map((line) => ({
+              item_id: line.product.id,
+              item_name: line.product.name,
+              item_category: productCategoryNameById[line.product.id],
+              price: line.product.price,
+              quantity: line.quantity,
+            })),
+          },
+        },
+        trackingProfileRef.current,
+      );
+      window.location.assign(result.checkout_url);
+    } catch (err: unknown) {
+      const apiError = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setCheckoutError(apiError || 'Não foi possível abrir o pagamento. Tente novamente em instantes.');
+      setSubmittingOrder(false);
+    }
+  };
+
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (menu?.settings?.checkout_enabled) {
+      await handleSubmitWithCheckout();
+      return;
+    }
     setSubmittingOrder(true);
     const orderToken = crypto.randomUUID();
     const notesWithChange =
@@ -541,21 +690,7 @@ const DigitalMenuPage = () => {
 
     try {
       await menuService.submitOrder(
-        {
-          full_name: checkoutForm.fullName,
-          cpf: checkoutForm.cpf || undefined,
-          birth_date: checkoutForm.birthDate || undefined,
-          gender: checkoutForm.gender || undefined,
-          phone: checkoutForm.phone,
-          instagram: checkoutForm.instagram || undefined,
-          email: checkoutForm.email || undefined,
-          zip: checkoutForm.zip || undefined,
-          address: checkoutForm.address,
-          number: checkoutForm.number,
-          neighborhood: checkoutForm.neighborhood || undefined,
-          city: checkoutForm.city,
-          state: checkoutForm.state,
-        },
+        buildOrderCustomer(),
         orderItems,
         checkoutForm.paymentMethod,
         notesWithChange,
@@ -938,14 +1073,80 @@ const DigitalMenuPage = () => {
           <div className="relative w-full max-w-lg max-h-[90vh] bg-card border border-border rounded-2xl overflow-hidden flex flex-col">
             <div className="p-4 border-b border-border flex items-center justify-between shrink-0">
               <h3 className="font-semibold text-foreground">
-                {checkoutStep === 'confirmed' ? 'Pedido enviado' : 'Finalizar Pedido'}
+                {checkoutStep === 'confirmed'
+                  ? paymentReturn === 'none'
+                    ? 'Pedido enviado'
+                    : 'Pagamento'
+                  : 'Finalizar Pedido'}
               </h3>
               <button onClick={closeCheckout} className="h-8 w-8 flex items-center justify-center">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {checkoutStep === 'confirmed' ? (
+            {checkoutStep === 'confirmed' && paymentReturn !== 'none' ? (
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="text-center py-10 space-y-4">
+                  {paymentReturn === 'confirming' && (
+                    <>
+                      <div className="mx-auto animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                      <p className="text-base font-medium text-foreground">Confirmando seu pagamento...</p>
+                      <p className="text-sm text-muted-foreground">Isso leva só alguns segundos.</p>
+                    </>
+                  )}
+                  {paymentReturn === 'paid' && (
+                    <>
+                      <p className="text-base font-medium text-foreground">Pagamento confirmado! ✅</p>
+                      <p className="text-sm text-muted-foreground">
+                        {orderSendStatus === 'checking'
+                          ? 'Enviando seu pedido pra loja...'
+                          : 'A loja recebeu seu pedido pago por WhatsApp e já vai preparar.'}
+                      </p>
+                      <div className="flex flex-col items-center gap-2">
+                        {receiptUrl && (
+                          <a
+                            href={receiptUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-primary hover:underline"
+                          >
+                            Ver comprovante
+                          </a>
+                        )}
+                        {buildWhatsappLink(menu.settings.whatsapp_number) && (
+                          <a
+                            href={buildWhatsappLink(menu.settings.whatsapp_number)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center gap-2 h-11 px-6 rounded-full bg-green-600 text-white font-medium hover:bg-green-700 transition-colors"
+                          >
+                            Falar com a loja no WhatsApp
+                          </a>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  {paymentReturn === 'not_confirmed' && (
+                    <>
+                      <p className="text-base font-medium text-foreground">Ainda não recebemos a confirmação do pagamento</p>
+                      <p className="text-sm text-muted-foreground">
+                        Se você concluiu o pagamento, fique tranquilo: a loja é avisada automaticamente assim que a InfinitePay confirmar.
+                      </p>
+                      {buildWhatsappLink(menu.settings.whatsapp_number) && (
+                        <a
+                          href={buildWhatsappLink(menu.settings.whatsapp_number)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-2 h-11 px-6 rounded-full bg-green-600 text-white font-medium hover:bg-green-700 transition-colors"
+                        >
+                          Falar com a loja no WhatsApp
+                        </a>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : checkoutStep === 'confirmed' ? (
               <div className="flex-1 overflow-y-auto p-6">
                 <div className="text-center py-10 space-y-4">
                   {orderSendStatus === 'failed' ? (
@@ -1129,6 +1330,14 @@ const DigitalMenuPage = () => {
                     </div>
                   </div>
 
+                  {settings.checkout_enabled ? (
+                    <div>
+                      <span className={labelClass}>Forma de Pagamento</span>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Pagamento online seguro via InfinitePay — Pix ou cartão de crédito em até 12x. Você escolhe na próxima tela.
+                      </p>
+                    </div>
+                  ) : (
                   <div>
                     <span className={labelClass}>Forma de Pagamento *</span>
                     <div className="flex flex-wrap gap-3 mt-1">
@@ -1157,6 +1366,7 @@ const DigitalMenuPage = () => {
                       </div>
                     )}
                   </div>
+                  )}
 
                   <div>
                     <label className={labelClass}>Observações</label>
@@ -1170,6 +1380,7 @@ const DigitalMenuPage = () => {
                 </div>
 
                 <div className="p-4 border-t border-border space-y-2 shrink-0">
+                  {checkoutError && <p className="text-sm text-red-500">{checkoutError}</p>}
                   <div className="flex items-center justify-between text-sm mb-1">
                     <span className="text-muted-foreground">Total:</span>
                     <span className="text-lg font-bold text-foreground">
@@ -1192,7 +1403,13 @@ const DigitalMenuPage = () => {
                       disabled={submittingOrder}
                       className="flex-1 h-11 rounded-full bg-green-600 text-white font-medium hover:bg-green-700 transition-colors disabled:opacity-60"
                     >
-                      {submittingOrder ? 'Enviando...' : 'Enviar Pedido'}
+                      {settings.checkout_enabled
+                        ? submittingOrder
+                          ? 'Abrindo pagamento...'
+                          : 'Ir para pagamento'
+                        : submittingOrder
+                          ? 'Enviando...'
+                          : 'Enviar Pedido'}
                     </button>
                   </div>
                 </div>
