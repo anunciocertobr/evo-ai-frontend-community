@@ -27,8 +27,10 @@ export interface PublicMenuSettings {
   gtm_id: string | null;
   whatsapp_number: string | null;
   google_client_id: string | null;
-  // Pagamento online pela InfinitePay ligado (Organização > Cardápio Digital).
+  // Pagamento online ligado (Organização > Cardápio Digital) e nome do
+  // provedor escolhido ("InfinitePay" ou "Mercado Pago").
   checkout_enabled?: boolean;
+  checkout_provider?: string;
 }
 
 export type OrderStatus = 'pending' | 'sent' | 'failed' | 'awaiting_payment' | 'paid';
@@ -40,8 +42,11 @@ export interface SubmitOrderResult {
 }
 
 export interface ConfirmPaymentParams {
-  transaction_nsu: string;
-  slug: string;
+  // InfinitePay
+  transaction_nsu?: string;
+  slug?: string;
+  // Mercado Pago
+  payment_id?: string;
   receipt_url?: string;
   capture_method?: string;
 }
@@ -128,8 +133,9 @@ class MenuService {
     return data.status;
   }
 
-  // Cliente voltou da InfinitePay: o backend confirma no /payment_check e,
-  // se pago, dispara a mensagem "Pedido PAGO" pro WhatsApp da loja.
+  // Cliente voltou do checkout (InfinitePay ou Mercado Pago): o backend
+  // confirma o pagamento direto no provedor e, se pago, dispara a mensagem
+  // "Pedido PAGO" pro WhatsApp da loja.
   async confirmPayment(orderToken: string, params: ConfirmPaymentParams): Promise<string> {
     const { data } = await apiPublic.post<{ status: string }>(`/menu/orders/${orderToken}/confirm_payment`, params);
     return data.status;

@@ -21,11 +21,13 @@ interface MenuSettings {
   MENU_GTM_ID: string;
   MENU_WHATSAPP_NUMBER: string;
   MENU_ORDER_INBOX_ID: string;
-  // Pagamento online (Checkout Integrado InfinitePay). A API key é *_SECRET:
-  // o backend devolve mascarada e ignora a máscara se ela voltar no save.
+  // Pagamento online (InfinitePay ou Mercado Pago). Chaves *_SECRET: o
+  // backend devolve mascaradas e ignora a máscara se ela voltar no save.
   MENU_CHECKOUT_ENABLED: string;
+  MENU_CHECKOUT_PROVIDER: string;
   MENU_INFINITEPAY_HANDLE: string;
   MENU_INFINITEPAY_API_SECRET: string;
+  MENU_MERCADOPAGO_ACCESS_SECRET: string;
 }
 
 const DEFAULTS: MenuSettings = {
@@ -41,8 +43,10 @@ const DEFAULTS: MenuSettings = {
   MENU_WHATSAPP_NUMBER: '',
   MENU_ORDER_INBOX_ID: '',
   MENU_CHECKOUT_ENABLED: 'false',
+  MENU_CHECKOUT_PROVIDER: 'infinitepay',
   MENU_INFINITEPAY_HANDLE: '',
   MENU_INFINITEPAY_API_SECRET: '',
+  MENU_MERCADOPAGO_ACCESS_SECRET: '',
 };
 
 const COLOR_FIELDS: Array<{ key: keyof MenuSettings; label: string }> = [
@@ -101,10 +105,20 @@ export default function DigitalMenuSettingsPage() {
   };
 
   const checkoutEnabled = String(settings.MENU_CHECKOUT_ENABLED) === 'true';
+  const provider = settings.MENU_CHECKOUT_PROVIDER === 'mercadopago' ? 'mercadopago' : 'infinitepay';
 
   const handleSave = async () => {
-    if (checkoutEnabled && !settings.MENU_INFINITEPAY_HANDLE.trim() && !settings.MENU_INFINITEPAY_API_SECRET.trim()) {
+    if (
+      checkoutEnabled &&
+      provider === 'infinitepay' &&
+      !settings.MENU_INFINITEPAY_HANDLE.trim() &&
+      !settings.MENU_INFINITEPAY_API_SECRET.trim()
+    ) {
       toast.error('Para ativar o pagamento online, informe a InfiniteTag ou a API Key da InfinitePay.');
+      return;
+    }
+    if (checkoutEnabled && provider === 'mercadopago' && !settings.MENU_MERCADOPAGO_ACCESS_SECRET.trim()) {
+      toast.error('Para ativar o pagamento online, informe o Access Token do Mercado Pago.');
       return;
     }
     setSaving(true);
@@ -242,7 +256,7 @@ export default function DigitalMenuSettingsPage() {
       <section className="rounded-lg border border-border bg-card p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-primary" /> Pagamento online (InfinitePay)
+            <CreditCard className="w-4 h-4 text-primary" /> Pagamento online
           </h4>
           <div className="flex items-center gap-2">
             <Label htmlFor="menu-checkout-enabled" className="text-xs">
@@ -256,10 +270,42 @@ export default function DigitalMenuSettingsPage() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Com o pagamento online ativado, o cliente paga o pedido (Pix ou cartão em até 12x) no checkout da
-          InfinitePay antes de o pedido ser enviado. Só depois que o pagamento é confirmado a loja recebe no
-          WhatsApp a mensagem de <strong>pedido pago</strong> com os dados do pedido.
+          Com o pagamento online ativado, o cliente paga o pedido (Pix ou cartão) no checkout escolhido antes de o
+          pedido ser enviado. Só depois que o pagamento é confirmado a loja recebe no WhatsApp a mensagem de{' '}
+          <strong>pedido pago</strong> com os dados do pedido.
         </p>
+        <div className="space-y-1.5 max-w-sm">
+          <Label>Checkout</Label>
+          <Select value={provider} onValueChange={(v) => set('MENU_CHECKOUT_PROVIDER', v)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="infinitepay">InfinitePay</SelectItem>
+              <SelectItem value="mercadopago">Mercado Pago</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {provider === 'mercadopago' ? (
+          <>
+            <div className="space-y-1.5 max-w-md">
+              <Label>Access Token do Mercado Pago</Label>
+              <Input
+                type="password"
+                autoComplete="off"
+                value={settings.MENU_MERCADOPAGO_ACCESS_SECRET}
+                onChange={(e) => set('MENU_MERCADOPAGO_ACCESS_SECRET', e.target.value)}
+                placeholder="APP_USR-... (produção) ou TEST-... (teste)"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              No Mercado Pago Developers: Suas integrações → crie uma aplicação (Checkout Pro) → Credenciais → copie o{' '}
+              <em>Access Token</em>. Com as credenciais de teste dá pra simular compras com cartões de teste sem
+              cobrança real. O link de pagamento expira em 2 dias.
+            </p>
+          </>
+        ) : (
+          <>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label>InfiniteTag (handle, sem o $)</Label>
@@ -285,6 +331,8 @@ export default function DigitalMenuSettingsPage() {
           link de pagamento vale só para um pagamento e expira em 2 dias. Não existe ambiente de testes: teste
           com um pedido real de pelo menos R$ 1,00 e estorne pelo app.
         </p>
+          </>
+        )}
       </section>
     </div>
   );

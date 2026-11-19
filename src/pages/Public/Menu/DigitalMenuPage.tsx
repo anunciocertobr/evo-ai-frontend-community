@@ -266,9 +266,10 @@ const DigitalMenuPage = () => {
 
   useEffect(() => saveCart(cart), [cart]);
 
-  // Volta da InfinitePay: a redirect_url traz ?pedido=<order_token> e a
-  // InfinitePay acrescenta transaction_nsu, slug, receipt_url, capture_method.
-  // Pede pro backend confirmar (/payment_check) — isso também dispara a
+  // Volta do checkout: a redirect_url traz ?pedido=<order_token> e o provedor
+  // acrescenta os dados do pagamento — InfinitePay: transaction_nsu, slug,
+  // receipt_url, capture_method; Mercado Pago: payment_id (ou collection_id),
+  // status. Pede pro backend confirmar no provedor — isso também dispara a
   // mensagem "Pedido PAGO" se o webhook ainda não tiver chegado — e depois
   // acompanha o envio pro WhatsApp da loja.
   useEffect(() => {
@@ -278,6 +279,8 @@ const DigitalMenuPage = () => {
 
     const transactionNsu = params.get('transaction_nsu') || '';
     const slug = params.get('slug') || '';
+    const rawPaymentId = params.get('payment_id') || params.get('collection_id') || '';
+    const paymentId = rawPaymentId && rawPaymentId !== 'null' ? rawPaymentId : '';
     const receipt = params.get('receipt_url');
     setReceiptUrl(receipt);
     setCart([]);
@@ -289,14 +292,19 @@ const DigitalMenuPage = () => {
 
     const confirm = async () => {
       let status = 'not_paid';
-      if (transactionNsu && slug) {
+      if (paymentId || (transactionNsu && slug)) {
         try {
-          status = await menuService.confirmPayment(token, {
-            transaction_nsu: transactionNsu,
-            slug,
-            receipt_url: receipt || undefined,
-            capture_method: params.get('capture_method') || undefined,
-          });
+          status = await menuService.confirmPayment(
+            token,
+            paymentId
+              ? { payment_id: paymentId }
+              : {
+                  transaction_nsu: transactionNsu,
+                  slug,
+                  receipt_url: receipt || undefined,
+                  capture_method: params.get('capture_method') || undefined,
+                },
+          );
         } catch {
           status = 'check_failed';
         }
@@ -1130,7 +1138,7 @@ const DigitalMenuPage = () => {
                     <>
                       <p className="text-base font-medium text-foreground">Ainda não recebemos a confirmação do pagamento</p>
                       <p className="text-sm text-muted-foreground">
-                        Se você concluiu o pagamento, fique tranquilo: a loja é avisada automaticamente assim que a InfinitePay confirmar.
+                        Se você concluiu o pagamento (no Pix pode levar alguns minutos), fique tranquilo: a loja é avisada automaticamente assim que {settings.checkout_provider || 'o pagamento'} confirmar.
                       </p>
                       {buildWhatsappLink(menu.settings.whatsapp_number) && (
                         <a
@@ -1334,7 +1342,7 @@ const DigitalMenuPage = () => {
                     <div>
                       <span className={labelClass}>Forma de Pagamento</span>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Pagamento online seguro via InfinitePay — Pix ou cartão de crédito em até 12x. Você escolhe na próxima tela.
+                        Pagamento online seguro via {settings.checkout_provider || 'checkout'} — Pix ou cartão. Você escolhe na próxima tela.
                       </p>
                     </div>
                   ) : (
