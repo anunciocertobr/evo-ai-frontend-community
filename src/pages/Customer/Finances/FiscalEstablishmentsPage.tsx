@@ -52,6 +52,8 @@ import {
   FiscalEstablishment,
   FiscalEstablishmentFormData,
   FiscalAmbiente,
+  FiscalProviderKey,
+  FISCAL_PROVIDERS,
   SUPPORTED_MUNICIPIOS,
 } from '@/types/fiscalInvoices';
 
@@ -145,7 +147,10 @@ export default function FiscalEstablishmentsPage() {
       municipio_ibge_code: municipio.ibge_code,
       municipio_nome: municipio.nome,
       uf: municipio.uf,
-      provider_key: municipio.provider_key || prev.provider_key,
+      // O Emissor Nacional serve pra qualquer município — não troca de
+      // volta pro webservice municipal só porque o município foi reescolhido.
+      provider_key:
+        prev.provider_key === 'emissor_nacional' ? prev.provider_key : municipio.provider_key || prev.provider_key,
     }));
   };
 
@@ -256,6 +261,10 @@ export default function FiscalEstablishmentsPage() {
                         <Badge variant={establishment.ambiente === 'producao' ? 'default' : 'secondary'}>
                           {establishment.ambiente === 'producao' ? 'Produção' : 'Homologação'}
                         </Badge>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {FISCAL_PROVIDERS.find((p) => p.value === establishment.provider_key)?.label ??
+                            establishment.provider_key}
+                        </span>
                       </TableCell>
                       <TableCell>{establishment.aliquota_iss_pct}%</TableCell>
                       <TableCell>
@@ -376,6 +385,28 @@ export default function FiscalEstablishmentsPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Sistema de emissão</Label>
+              <Select
+                value={form.provider_key}
+                onValueChange={(value) => setForm((prev) => ({ ...prev, provider_key: value as FiscalProviderKey }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FISCAL_PROVIDERS.map((provider) => (
+                    <SelectItem key={provider.value} value={provider.value}>
+                      {provider.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {FISCAL_PROVIDERS.find((p) => p.value === form.provider_key)?.hint}
+              </p>
             </div>
 
             <div>
