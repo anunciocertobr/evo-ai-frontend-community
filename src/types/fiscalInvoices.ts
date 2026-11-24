@@ -1,6 +1,20 @@
 export type FiscalAmbiente = 'homologacao' | 'producao';
 
-export type FiscalProviderKey = 'guarulhos_gissonline';
+export type FiscalProviderKey = 'guarulhos_gissonline' | 'emissor_nacional';
+
+/** Sistemas de emissão de NFS-e suportados pelo backend (FiscalEstablishment::PROVIDER_CLIENTS). */
+export const FISCAL_PROVIDERS: Array<{ value: FiscalProviderKey; label: string; hint: string }> = [
+  {
+    value: 'emissor_nacional',
+    label: 'Emissor Nacional (Sefin)',
+    hint: 'Obrigatório para optantes do Simples Nacional desde 01/11/2026.',
+  },
+  {
+    value: 'guarulhos_gissonline',
+    label: 'GissOnline Guarulhos',
+    hint: 'Webservice municipal — empresas fora do Simples Nacional.',
+  },
+];
 
 export const SUPPORTED_MUNICIPIOS: Array<{
   ibge_code: string;
